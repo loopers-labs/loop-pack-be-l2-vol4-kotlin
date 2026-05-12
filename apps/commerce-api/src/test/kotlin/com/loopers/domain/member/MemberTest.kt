@@ -6,6 +6,8 @@ import org.junit.Assert
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,10 +41,9 @@ class MemberTest {
     }
 
     @DisplayName("이름에 특수문자, 숫자가 들어가면 실패")
-    @Test
-    fun throwsBadRequest_whenNameContainsNonLetters() {
-        val name = "gunyoung12"
-
+    @ParameterizedTest
+    @ValueSource(strings = ["gunyoung12", "gunyoung$!"])
+    fun throwsBadRequest_whenNameContainsNonLetters(name: String) {
         val result = assertThrows<CoreException> {
             Member(
                 loginId = "loopers123",

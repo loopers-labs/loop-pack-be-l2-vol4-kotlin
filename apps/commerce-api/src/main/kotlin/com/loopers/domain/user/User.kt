@@ -13,6 +13,9 @@ data class User(
     val birth: LocalDate,
     val email: String,
 ) {
+    fun isCorrectPasswd(rawPassword: String): Boolean =
+        password == PasswordEncryptionUtil.encode(rawPassword)
+
     companion object {
         private val PASSWORD_PATTERN = Regex("^[a-zA-Z0-9!@#\$%^&*()_+\\-=\\[\\]{}|;':\",./<>?~`\\\\]+$")
         private val BIRTH_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd")

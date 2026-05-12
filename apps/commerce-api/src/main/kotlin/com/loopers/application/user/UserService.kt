@@ -9,6 +9,18 @@ import org.springframework.stereotype.Component
 class UserService(
     private val userRepository: UserRepository,
 ) {
+    fun login(loginId: String, password: String): User {
+        val user = try {
+            userRepository.findByLoginId(loginId)
+        } catch (e: CoreException) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.")
+        }
+        if (!user.isCorrectPasswd(password)) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다.")
+        }
+        return user
+    }
+
     fun signup(user: User) {
         if (existsByLoginId(user.loginId)) {
             throw CoreException(ErrorType.BAD_REQUEST, "이미 존재하는 아이디입니다.")

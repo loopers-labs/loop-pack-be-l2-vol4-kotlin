@@ -1,7 +1,11 @@
 package com.loopers.domain.member
 
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
+import org.junit.Assert
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertThrows
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,5 +36,23 @@ class MemberTest {
             { assertEquals(birthDate, member.birthDate) },
             { assertEquals(email, member.email) },
         )
+    }
+
+    @DisplayName("이름에 특수문자, 숫자가 들어가면 실패")
+    @Test
+    fun throwsBadRequest_whenNameContainsNonLetters() {
+        val name = "gunyoung12"
+
+        val result = assertThrows<CoreException> {
+            Member(
+                loginId = "loopers123",
+                password = "encodedPassword",
+                name = name,
+                birthDate = LocalDate.of(1970, 1, 1),
+                email = "loopers@gmail.com",
+            )
+        }
+
+        Assert.assertEquals(result.errorType, ErrorType.BAD_REQUEST)
     }
 }

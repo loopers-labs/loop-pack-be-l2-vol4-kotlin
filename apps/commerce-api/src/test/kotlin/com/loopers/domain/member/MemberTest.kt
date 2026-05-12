@@ -54,6 +54,6 @@ class MemberTest {
             )
         }
 
-        Assert.assertEquals(result.errorType, ErrorType.BAD_REQUEST)
+        Assert.assertEquals(ErrorType.BAD_REQUEST, result.errorType)
     }
 }

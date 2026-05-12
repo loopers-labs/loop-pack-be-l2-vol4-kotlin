@@ -40,9 +40,9 @@ class MemberTest {
         )
     }
 
-    @DisplayName("이름에 특수문자, 숫자가 들어가면 실패")
+    @DisplayName("이름에 특수문자, 숫자, 공백이 들어가면 실패")
     @ParameterizedTest
-    @ValueSource(strings = ["gunyoung12", "gunyoung$!"])
+    @ValueSource(strings = [" ", "gunyoung12", "gunyoung$!", "young young"])
     fun throwsBadRequest_whenNameContainsNonLetters(name: String) {
         val result = assertThrows<CoreException> {
             Member(
@@ -58,9 +58,9 @@ class MemberTest {
     }
 
     @DisplayName("이메일 포멧이 유효하지 않으면 실패")
-    @Test
-    fun throwBadRequest_whenEmailFormatIsNotValid() {
-        val invalidEmail = "loopers@fsdfe"
+    @ParameterizedTest
+    @ValueSource(strings = [" ", "loopers", "@gmail.com", "loopers123@fewf", "loopers@fewf."])
+    fun throwBadRequest_whenEmailFormatIsNotValid(invalidEmail: String) {
         val result = assertThrows<CoreException> {
             Member(
                 loginId = "loopers123",

@@ -108,4 +108,45 @@ class UserServiceIntegrationTest @Autowired constructor(
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
+
+    @DisplayName("내 정보 조회 시,")
+    @Nested
+    inner class GetMyInfo {
+
+        @DisplayName("가입된 loginId로 조회하면, 유저 정보를 반환한다.")
+        @Test
+        fun returnsUser_whenValidLoginIdIsProvided() {
+            // arrange
+            userService.register(
+                loginId = LOGIN_ID,
+                password = PASSWORD,
+                name = NAME,
+                birthDate = BIRTH_DATE,
+                email = EMAIL,
+            )
+
+            // act
+            val result = userService.getMyInfo(LOGIN_ID)
+
+            // assert
+            assertAll(
+                { assertThat(result.loginId).isEqualTo(LOGIN_ID) },
+                { assertThat(result.name).isEqualTo(NAME) },
+                { assertThat(result.birthDate).isEqualTo(BIRTH_DATE) },
+                { assertThat(result.email).isEqualTo(EMAIL) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 loginId로 조회하면, NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFound_whenLoginIdDoesNotExist() {
+            // act
+            val result = assertThrows<CoreException> {
+                userService.getMyInfo(LOGIN_ID)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
 }

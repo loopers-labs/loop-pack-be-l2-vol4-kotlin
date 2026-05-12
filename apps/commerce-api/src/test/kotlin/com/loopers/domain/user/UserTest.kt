@@ -180,6 +180,36 @@ class UserTest {
         }
     }
 
+    @DisplayName("이름 마스킹 시,")
+    @Nested
+    inner class MaskedName {
+        @DisplayName("이름의 마지막 글자가 * 로 마스킹되어 반환된다.")
+        @Test
+        fun returnsMaskedName_whenCalled() {
+            // arrange
+            val user = User(loginId = LOGIN_ID, password = PASSWORD, name = "홍길동", birthDate = BIRTH_DATE, email = EMAIL)
+
+            // act
+            val result = user.maskedName()
+
+            // assert
+            assertThat(result).isEqualTo("홍길*")
+        }
+
+        @DisplayName("두 글자 이름도 마지막 글자가 * 로 마스킹되어 반환된다.")
+        @Test
+        fun returnsMaskedName_whenNameHasTwoChars() {
+            // arrange
+            val user = User(loginId = LOGIN_ID, password = PASSWORD, name = "홍길", birthDate = BIRTH_DATE, email = EMAIL)
+
+            // act
+            val result = user.maskedName()
+
+            // assert
+            assertThat(result).isEqualTo("홍*")
+        }
+    }
+
     @DisplayName("Email 파라미터 유효성 체크")
     @Nested
     inner class InvalidEmail {

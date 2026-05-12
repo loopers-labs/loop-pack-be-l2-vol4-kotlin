@@ -92,4 +92,41 @@ class UserServiceIntegrationTest @Autowired constructor(
             assertThat(birthPwException.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
     }
+
+    @DisplayName("login을 호출할 때,")
+    @Nested
+    inner class Login {
+
+        @DisplayName("회원이 존재하고 ID, PW가 일치하는 경우 User를 올바르게 반환한다.")
+        @Test
+        fun returnsUser_whenCredentialsAreValid() {
+            // arrange
+            val pw = "password1234"
+            val user = createUser()
+            userService.signup(user)
+
+            // act
+            val result = userService.login(user.loginId, pw)
+
+            // assert
+            assertThat(result.copy(id = 0)).isEqualTo(user)
+        }
+
+        @DisplayName("로그인 정보가 올바르지 않은 경우 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPasswordIsWrong() {
+            // arrange
+            val wrongPasswd = "wrongPassword1!"
+            val user = createUser()
+            userService.signup(user)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(user.loginId, wrongPasswd)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+    }
 }

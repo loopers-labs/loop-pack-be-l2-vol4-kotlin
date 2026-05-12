@@ -31,6 +31,64 @@ class UserServiceTest {
         email = email,
     )
 
+    @DisplayName("login을 호출할 때,")
+    @Nested
+    inner class Login {
+
+        @DisplayName("findByLoginId로 User가 반환되고 login이 true를 반환하면, User를 반환한다.")
+        @Test
+        fun returnsUser_whenLoginSucceeds() {
+            // arrange
+            val loginId = "testuser01"
+            val password = "password1234"
+            val user = mockk<User>()
+            every { userRepository.findByLoginId(loginId) } returns user
+            every { user.isCorrectPasswd(password) } returns true
+
+            // act
+            val result = userService.login(loginId, password)
+
+            // assert
+            assertThat(result).isEqualTo(user)
+        }
+
+        @DisplayName("findByLoginId가 에러를 던지면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenUserNotFound() {
+            // arrange
+            val loginId = "nonexistent"
+            val password = "password1234"
+            every { userRepository.findByLoginId(loginId) } throws CoreException(ErrorType.NOT_FOUND)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(loginId, password)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("findByLoginId로 User가 반환되고 login이 false를 반환하면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPasswordNotMatched() {
+            // arrange
+            val loginId = "testuser01"
+            val password = "wrongPassword1"
+            val user = mockk<User>()
+            every { userRepository.findByLoginId(loginId) } returns user
+            every { user.isCorrectPasswd(password) } returns false
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(loginId, password)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+    }
+
     @DisplayName("signup을 호출할 때,")
     @Nested
     inner class Signup {

@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api
 
-import com.loopers.application.UserFacade
+import com.loopers.application.UserService
 import com.loopers.interfaces.api.user.UserController
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every
@@ -18,13 +18,13 @@ class UserControllerTest(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @MockkBean
-    private lateinit var userFacade: UserFacade
+    private lateinit var userService: UserService
 
-    @DisplayName("회원가입 API를 호출하면, UserFacade의 signup 메서드를 1번 이상 호출한다.")
+    @DisplayName("회원가입 API를 호출하면, UserService의 signup 메서드를 1번 이상 호출한다.")
     @Test
-    fun callsFacadeSignup_whenSignupApiIsCalled() {
+    fun callsServiceSignup_whenSignupApiIsCalled() {
         // given
-        every { userFacade.signup(any()) } returns Unit
+        every { userService.signup(any()) } returns Unit
 
         // when
         mockMvc.post("/api/v1/user/signup") {
@@ -32,7 +32,7 @@ class UserControllerTest(
             content = """
                 {
                     "id": "testuser01",
-                    "pw": "password1234",
+                    "pw": "Password1!",
                     "name": "홍길동",
                     "birth": "1995-03-15",
                     "email": "test@example.com"
@@ -41,6 +41,6 @@ class UserControllerTest(
         }
 
         // then
-        verify(atLeast = 1) { userFacade.signup(any()) }
+        verify(atLeast = 1) { userService.signup(any()) }
     }
 }

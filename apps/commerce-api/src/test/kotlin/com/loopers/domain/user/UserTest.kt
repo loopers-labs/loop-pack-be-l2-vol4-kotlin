@@ -10,6 +10,20 @@ import org.junit.jupiter.api.assertThrows
 import java.time.LocalDate
 
 class UserTest {
+    private fun createUser(
+        loginId: String = "testuser",
+        rawPassword: String = "Password1!",
+        name: String = "테스트",
+        birth: LocalDate = LocalDate.of(2000, 1, 1),
+        email: String = "test@test.com",
+    ): User = User.create(
+        loginId = loginId,
+        rawPassword = rawPassword,
+        name = name,
+        birth = birth,
+        email = email,
+    )
+
     @DisplayName("유저를 생성할 때, ")
     @Nested
     inner class Create {
@@ -185,6 +199,39 @@ class UserTest {
 
             // assert
             assertThat(user.password).isNotEqualTo(rawPassword)
+        }
+    }
+
+    @DisplayName("비밀번호를 확인할 때, ")
+    @Nested
+    inner class IsCorrectPasswd {
+
+        @DisplayName("rawPassword와 일치하면, true를 반환한다.")
+        @Test
+        fun returnsTrue_whenPasswordMatches() {
+            // arrange
+            val rawPassword = "Password1!"
+            val user = createUser(rawPassword = rawPassword)
+
+            // act
+            val result = user.isCorrectPasswd(rawPassword)
+
+            // assert
+            assertThat(result).isTrue()
+        }
+
+        @DisplayName("rawPassword와 다르면, false를 반환한다.")
+        @Test
+        fun returnsFalse_whenPasswordDoesNotMatch() {
+            // arrange
+            val rawPassword = "Password1!"
+            val user = createUser(rawPassword = rawPassword)
+
+            // act
+            val result = user.isCorrectPasswd("WrongPassword1!")
+
+            // assert
+            assertThat(result).isFalse()
         }
     }
 }

@@ -5,6 +5,7 @@ import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -26,6 +27,16 @@ class MemberV1Controller(
             email = request.email,
         )
             .let { MemberV1Dto.RegisterResponse.from(it) }
+            .let { ApiResponse.success(it) }
+    }
+
+    @GetMapping("/me")
+    override fun getMyInfo(
+        @RequestHeader("X-Loopers-LoginId") loginId: String,
+        @RequestHeader("X-Loopers-LoginPw") password: String,
+    ): ApiResponse<MemberV1Dto.MyInfoResponse> {
+        return userFacade.getMyInfo(loginId, password)
+            .let { MemberV1Dto.MyInfoResponse.from(it) }
             .let { ApiResponse.success(it) }
     }
 }

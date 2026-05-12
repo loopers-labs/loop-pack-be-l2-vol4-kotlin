@@ -28,4 +28,22 @@ class MemberV1Dto {
             }
         }
     }
+
+    data class MyInfoResponse(
+        val loginId: String,
+        val name: String,
+        val birthDate: String,
+        val email: String,
+    ) {
+        companion object {
+            fun from(info: UserInfo): MyInfoResponse {
+                return MyInfoResponse(
+                    loginId = info.loginId,
+                    name = info.name,
+                    birthDate = info.birthDate,
+                    email = info.email,
+                )
+            }
+        }
+    }
 }

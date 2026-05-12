@@ -11,4 +11,10 @@ interface MemberV1ApiSpec {
         description = "회원가입을 합니다.",
     )
     fun register(request: MemberV1Dto.RegisterRequest): ApiResponse<MemberV1Dto.RegisterResponse>
+
+    @Operation(
+        summary = "내 정보 조회",
+        description = "내 정보를 조회합니다.",
+    )
+    fun getMyInfo(loginId: String, password: String): ApiResponse<MemberV1Dto.MyInfoResponse>
 }

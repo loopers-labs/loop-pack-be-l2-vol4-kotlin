@@ -28,4 +28,12 @@ class UserService(
         )
         return userRepository.save(user)
     }
+
+    @Transactional(readOnly = true)
+    fun getMyInfo(loginId: String): User {
+        return userRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
+    }
 }
+
+

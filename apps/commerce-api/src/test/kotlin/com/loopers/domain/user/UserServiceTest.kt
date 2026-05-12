@@ -81,6 +81,7 @@ class UserServiceTest {
         @DisplayName("유효한 정보로 가입하면, 비밀번호는 암호화되어 저장된다.")
         @Test
         fun register_savesEncodedPassword() {
+            
             // arrange
             whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(null)
             whenever(passwordEncryptor.encode(PASSWORD)).thenReturn(ENCODED_PASSWORD)
@@ -98,6 +99,43 @@ class UserServiceTest {
             // assert
             assertThat(result.password).isNotEqualTo(PASSWORD)
             assertThat(result.password).isEqualTo(ENCODED_PASSWORD)
+        }
+    }
+
+    @DisplayName("내 정보 조회 시,")
+    @Nested
+    inner class GetMyInfo {
+
+        @DisplayName("존재하는 loginId가 주어지면, 유저 정보를 반환한다.")
+        @Test
+        fun returnsUser_whenValidLoginIdIsProvided() {
+            // arrange
+            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+
+            // act
+            val result = userService.getMyInfo(LOGIN_ID)
+
+            // assert
+            assertThat(result.loginId).isEqualTo(LOGIN_ID)
+            assertThat(result.name).isEqualTo(NAME)
+            assertThat(result.birthDate).isEqualTo(BIRTH_DATE)
+            assertThat(result.email).isEqualTo(EMAIL)
+        }
+
+        @DisplayName("존재하지 않는 loginId가 주어지면, NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFound_whenLoginIdDoesNotExist() {
+            // arrange
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(null)
+
+            // act
+            val result = assertThrows<CoreException> {
+                userService.getMyInfo(LOGIN_ID)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
     }
 }

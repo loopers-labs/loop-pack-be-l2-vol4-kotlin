@@ -41,9 +41,13 @@ class Member(
         if (!name.matches(NAME_REGEX)) {
             throw CoreException(ErrorType.BAD_REQUEST, "Name cannot contain special characters or numbers.")
         }
+        if (!email.matches(EMAIL_REGEX)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Email cannot contain special characters or numbers.")
+        }
     }
 
     companion object {
         private val NAME_REGEX = Regex("^[A-Za-z가-힣]+$")
+        private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
     }
 }

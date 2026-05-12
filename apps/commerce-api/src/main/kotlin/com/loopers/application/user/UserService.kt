@@ -1,4 +1,4 @@
-package com.loopers.application
+package com.loopers.application.user
 
 import com.loopers.domain.user.User
 import org.springframework.stereotype.Component

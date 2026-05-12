@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api
 
-import com.loopers.application.UserService
+import com.loopers.application.user.UserService
 import com.loopers.interfaces.api.user.UserController
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every

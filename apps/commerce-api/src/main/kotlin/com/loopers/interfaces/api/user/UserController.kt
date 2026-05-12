@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.user
 
-import com.loopers.application.UserService
+import com.loopers.application.user.UserService
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody

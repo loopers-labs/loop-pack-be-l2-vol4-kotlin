@@ -56,4 +56,21 @@ class MemberTest {
 
         Assert.assertEquals(ErrorType.BAD_REQUEST, result.errorType)
     }
+
+    @DisplayName("이메일 포멧이 유효하지 않으면 실패")
+    @Test
+    fun throwBadRequest_whenEmailFormatIsNotValid() {
+        val invalidEmail = "loopers@fsdfe"
+        val result = assertThrows<CoreException> {
+            Member(
+                loginId = "loopers123",
+                password = "encodedPassword",
+                name = "gunyoung",
+                birthDate = LocalDate.of(1970, 1, 1),
+                email = invalidEmail,
+            )
+        }
+
+        Assert.assertEquals(ErrorType.BAD_REQUEST, result.errorType)
+    }
 }

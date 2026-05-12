@@ -6,6 +6,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 data class User(
+    val id: Long = 0,
     val loginId: String,
     val password: String,
     val name: String,

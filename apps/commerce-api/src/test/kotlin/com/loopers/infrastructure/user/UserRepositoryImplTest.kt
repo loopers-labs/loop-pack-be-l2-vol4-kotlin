@@ -27,9 +27,9 @@ class UserRepositoryImplTest @Autowired constructor(
         databaseCleanUp.truncateAllTables()
     }
 
-    @DisplayName("upsert를 호출할 때,")
+    @DisplayName("save를 호출할 때,")
     @Nested
-    inner class Upsert {
+    inner class Save {
         @DisplayName("id가 없는 User를 저장하면, DB에 저장되고 id가 부여된다.")
         @Test
         fun savesNewUser_whenIdIsZero() {
@@ -43,7 +43,7 @@ class UserRepositoryImplTest @Autowired constructor(
             )
 
             // act
-            val saved = userRepository.upsert(user)
+            val saved = userRepository.save(user)
 
             // assert
             assertAll(
@@ -57,47 +57,12 @@ class UserRepositoryImplTest @Autowired constructor(
             assertThat(found).isPresent
         }
 
-        @DisplayName("id가 있고 DB에 존재하면, 해당 데이터가 업데이트된다.")
+        @DisplayName("id가 존재하는 User를 저장하면, BAD_REQUEST 예외가 발생한다.")
         @Test
-        fun updatesUser_whenIdExistsInDb() {
-            // arrange
-            val entity = userJpaRepository.save(
-                UserEntity(
-                    loginId = "testuser",
-                    password = "hashedpassword",
-                    name = "원래이름",
-                    birth = LocalDate.of(1990, 1, 1),
-                    email = "old@test.com",
-                ),
-            )
-
-            val updateUser = User(
-                id = entity.id,
-                loginId = "testuser",
-                password = "newpassword",
-                name = "변경이름",
-                birth = LocalDate.of(1990, 1, 1),
-                email = "new@test.com",
-            )
-
-            // act
-            val updated = userRepository.upsert(updateUser)
-
-            // assert
-            assertAll(
-                { assertThat(updated.id).isEqualTo(entity.id) },
-                { assertThat(updated.name).isEqualTo("변경이름") },
-                { assertThat(updated.email).isEqualTo("new@test.com") },
-                { assertThat(updated.password).isEqualTo("newpassword") },
-            )
-        }
-
-        @DisplayName("id가 있지만 DB에 존재하지 않으면, NOT_FOUND 예외가 발생한다.")
-        @Test
-        fun throwsException_whenIdNotFoundInDb() {
+        fun throwsException_whenIdExists() {
             // arrange
             val user = User(
-                id = 999L,
+                id = 1L,
                 loginId = "testuser",
                 password = "hashedpassword",
                 name = "테스트",
@@ -107,11 +72,11 @@ class UserRepositoryImplTest @Autowired constructor(
 
             // act
             val exception = assertThrows<CoreException> {
-                userRepository.upsert(user)
+                userRepository.save(user)
             }
 
             // assert
-            assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(exception.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
     }
 }

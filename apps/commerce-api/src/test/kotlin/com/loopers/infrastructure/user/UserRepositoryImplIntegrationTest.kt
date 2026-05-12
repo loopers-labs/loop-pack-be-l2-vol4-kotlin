@@ -17,7 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 
 @SpringBootTest
-class UserRepositoryImplTest @Autowired constructor(
+class UserRepositoryImplIntegrationTest @Autowired constructor(
     private val userRepository: UserRepository,
     private val userJpaRepository: UserJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,

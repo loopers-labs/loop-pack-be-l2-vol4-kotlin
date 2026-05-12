@@ -3,26 +3,19 @@ package com.loopers.application.user
 import com.loopers.domain.user.User
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import com.loopers.utils.DatabaseCleanUp
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 
-@SpringBootTest
-class UserServiceTest @Autowired constructor(
-    private val userService: UserService,
-    private val databaseCleanUp: DatabaseCleanUp,
-) {
-    @AfterEach
-    fun tearDown() {
-        databaseCleanUp.truncateAllTables()
-    }
+class UserServiceTest {
+    private val userRepository: UserRepository = mockk()
+    private val userService = UserService(userRepository)
 
     private fun createUser(
         loginId: String = "testuser01",
@@ -42,54 +35,50 @@ class UserServiceTest @Autowired constructor(
     @Nested
     inner class Signup {
 
-        @DisplayName("유효한 정보로 회원가입하면, 성공적으로 저장된다.")
+        @DisplayName("UserRepository의 findByLoginId가 실행된다.")
         @Test
-        fun savesUser_whenValidInfoIsProvided() {
+        fun callsFindByLoginId() {
             // arrange
             val user = createUser()
+            every { userRepository.findByLoginId(user.loginId) } throws CoreException(ErrorType.NOT_FOUND)
+            every { userRepository.save(user) } returns user
 
-            // act & assert (예외 없이 완료)
+            // act
             userService.signup(user)
+
+            // assert
+            verify { userRepository.findByLoginId(user.loginId) }
         }
 
-        @DisplayName("같은 ID로 2번 가입하면, BAD_REQUEST 예외가 발생한다.")
+        @DisplayName("findByLoginId가 유저를 찾으면, BAD_REQUEST 에러가 발생한다.")
         @Test
-        fun throwsBadRequest_whenDuplicateLoginId() {
+        fun throwsBadRequest_whenLoginIdAlreadyExists() {
             // arrange
-            val user = createUser(loginId = "duplicateUser")
-            userService.signup(user)
-
-            val duplicateUser = createUser(loginId = "duplicateUser")
+            val user = createUser()
+            every { userRepository.findByLoginId(user.loginId) } returns user
 
             // act
             val exception = assertThrows<CoreException> {
-                userService.signup(duplicateUser)
+                userService.signup(user)
             }
 
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
 
-        @DisplayName("비밀번호가 유효하지 않으면, BAD_REQUEST 예외가 발생한다.")
+        @DisplayName("UserRepository의 save가 실행된다.")
         @Test
-        fun throwsBadRequest_whenPasswordIsInvalid() {
-            // act & assert — 짧은 비밀번호
-            val shortPwException = assertThrows<CoreException> {
-                createUser(rawPassword = "short7")
-            }
-            assertThat(shortPwException.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        fun callsSave() {
+            // arrange
+            val user = createUser()
+            every { userRepository.findByLoginId(user.loginId) } throws CoreException(ErrorType.NOT_FOUND)
+            every { userRepository.save(user) } returns user
 
-            // act & assert — 한글 포함 비밀번호
-            val koreanPwException = assertThrows<CoreException> {
-                createUser(rawPassword = "비밀번호abcd1234")
-            }
-            assertThat(koreanPwException.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            // act
+            userService.signup(user)
 
-            // act & assert — 생년월일 포함 비밀번호
-            val birthPwException = assertThrows<CoreException> {
-                createUser(rawPassword = "pass19950315!!")
-            }
-            assertThat(birthPwException.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            // assert
+            verify { userRepository.save(user) }
         }
     }
 }

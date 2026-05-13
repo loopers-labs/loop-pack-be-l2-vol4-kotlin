@@ -44,7 +44,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
             val request = createSignUpRequest()
 
             val response = testRestTemplate.exchange(
-                "/api/v1/members",
+                SIGN_UP_ENDPOINT,
                 HttpMethod.POST,
                 HttpEntity(request),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.SignUpResponse>>() {},
@@ -61,10 +61,10 @@ class MemberV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsConflict_whenLoginIdAlreadyExists() {
             val request = createSignUpRequest(loginId = "loopers123")
-            testRestTemplate.postForEntity("/api/v1/members", request, String::class.java)
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
 
             val response = testRestTemplate.exchange(
-                "/api/v1/members",
+                SIGN_UP_ENDPOINT,
                 HttpMethod.POST,
                 HttpEntity(createSignUpRequest(loginId = "loopers123", email = "other@gmail.com")),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.SignUpResponse>>() {},
@@ -102,4 +102,8 @@ class MemberV1ApiE2ETest @Autowired constructor(
         ],
     )
     class TestApplication
+
+    companion object {
+        private const val SIGN_UP_ENDPOINT = "/api/v1/members"
+    }
 }

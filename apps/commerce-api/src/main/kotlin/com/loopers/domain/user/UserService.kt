@@ -34,6 +34,20 @@ class UserService(
         return userRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
     }
+
+    @Transactional
+    fun changePassword(loginId: String, newPassword: String) {
+        val user = userRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
+
+        Password(newPassword, user.birthDate)
+
+        if (passwordEncryptor.matches(newPassword, user.password))
+            throw CoreException(ErrorType.CONFLICT, "현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.")
+
+        val encodedNewPassword = passwordEncryptor.encode(newPassword)
+        userRepository.changePassword(loginId, encodedNewPassword)
+    }
 }
 
 

@@ -16,4 +16,8 @@ class UserRepositoryImpl(
     override fun findByLoginId(loginId: String): User? {
         return userJpaRepository.findByLoginId(loginId)?.toDomain()
     }
+
+    override fun changePassword(loginId: String, newEncodedPassword: String) {
+        userJpaRepository.findByLoginId(loginId)?.changePassword(newEncodedPassword)
+    }
 }

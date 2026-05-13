@@ -29,6 +29,10 @@ class MemberV1Dto {
         }
     }
 
+    data class ChangePasswordRequest(
+        val newPassword: String,
+    )
+
     data class MyInfoResponse(
         val loginId: String,
         val name: String,

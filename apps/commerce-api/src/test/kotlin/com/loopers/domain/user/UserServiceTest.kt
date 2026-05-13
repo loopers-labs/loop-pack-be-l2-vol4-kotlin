@@ -24,6 +24,8 @@ class UserServiceTest {
         private const val LOGIN_ID = "user01"
         private const val PASSWORD = "Password1!"
         private const val ENCODED_PASSWORD = "\$2a\$10\$hashedvalue"
+        private const val NEW_PASSWORD = "NewPass1!"
+        private const val ENCODED_NEW_PASSWORD = "\$2a\$10\$newhashedvalue"
         private const val NAME = "홍길동"
         private const val BIRTH_DATE = "19900628"
         private const val EMAIL = "test@test.com"
@@ -99,6 +101,44 @@ class UserServiceTest {
             // assert
             assertThat(result.password).isNotEqualTo(PASSWORD)
             assertThat(result.password).isEqualTo(ENCODED_PASSWORD)
+        }
+    }
+
+    @DisplayName("비밀번호 수정 시,")
+    @Nested
+    inner class ChangePassword {
+
+        @DisplayName("유효한 새 비밀번호로 변경하면, 비밀번호가 업데이트된다.")
+        @Test
+        fun changesPassword_whenValidNewPasswordIsProvided() {
+            // arrange
+            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(passwordEncryptor.matches(NEW_PASSWORD, ENCODED_PASSWORD)).thenReturn(false)
+            whenever(passwordEncryptor.encode(NEW_PASSWORD)).thenReturn(ENCODED_NEW_PASSWORD)
+
+            // act
+            userService.changePassword(LOGIN_ID, NEW_PASSWORD)
+
+            // assert
+            verify(userRepository, times(1)).changePassword(LOGIN_ID, ENCODED_NEW_PASSWORD)
+        }
+
+        @DisplayName("현재 비밀번호와 동일한 비밀번호로 변경하면, CONFLICT 예외가 발생한다.")
+        @Test
+        fun throwsConflict_whenNewPasswordIsSameAsCurrent() {
+            // arrange
+            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(passwordEncryptor.matches(PASSWORD, ENCODED_PASSWORD)).thenReturn(true)
+
+            // act
+            val result = assertThrows<CoreException> {
+                userService.changePassword(LOGIN_ID, PASSWORD)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
 

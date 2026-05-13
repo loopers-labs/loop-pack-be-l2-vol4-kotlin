@@ -24,4 +24,9 @@ class UserFacade(
         return userService.getMyInfo(loginId)
             .let { UserInfo.fromWithMasking(it) }
     }
+
+    fun changePassword(loginId: String, currentPassword: String, newPassword: String) {
+        authService.authenticate(loginId, currentPassword)
+        userService.changePassword(loginId, newPassword)
+    }
 }

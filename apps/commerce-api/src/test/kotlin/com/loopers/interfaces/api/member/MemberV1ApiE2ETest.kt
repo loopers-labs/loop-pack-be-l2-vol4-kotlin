@@ -25,9 +25,11 @@ class MemberV1ApiE2ETest @Autowired constructor(
     companion object {
         private const val ENDPOINT_REGISTER = "/api/v1/members/register"
         private const val ENDPOINT_MY_INFO = "/api/v1/members/me"
+        private const val ENDPOINT_CHANGE_PASSWORD = "/api/v1/members/password"
 
         private const val LOGIN_ID = "user01"
         private const val PASSWORD = "Password1!"
+        private const val NEW_PASSWORD = "NewPass1!"
         private const val NAME = "홍길동"
         private const val BIRTH_DATE = "19900628"
         private const val EMAIL = "test@test.com"
@@ -174,6 +176,80 @@ class MemberV1ApiE2ETest @Autowired constructor(
                 HttpMethod.GET,
                 HttpEntity<Void>(authHeaders(LOGIN_ID, "WrongPass1!")),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        private fun authHeaders(loginId: String, password: String): HttpHeaders =
+            HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", password)
+            }
+    }
+
+    @DisplayName("PATCH /api/v1/members/password")
+    @Nested
+    inner class ChangePassword {
+
+        @DisplayName("올바른 인증 헤더와 유효한 새 비밀번호로 변경하면, 200 응답을 반환한다.")
+        @Test
+        fun returnsOk_whenValidCredentialsAndNewPasswordAreProvided() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER, HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                HttpEntity(MemberV1Dto.ChangePasswordRequest(NEW_PASSWORD), authHeaders(LOGIN_ID, PASSWORD)),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode.is2xxSuccessful).isTrue()
+        }
+
+        @DisplayName("현재 비밀번호와 동일한 비밀번호로 변경하면, 409 CONFLICT 응답을 받는다.")
+        @Test
+        fun returnsConflict_whenNewPasswordIsSameAsCurrent() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER, HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                HttpEntity(MemberV1Dto.ChangePasswordRequest(PASSWORD), authHeaders(LOGIN_ID, PASSWORD)),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+        }
+
+        @DisplayName("비밀번호가 틀리면, 401 UNAUTHORIZED 응답을 받는다.")
+        @Test
+        fun returnsUnauthorized_whenPasswordIsWrong() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER, HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                HttpEntity(MemberV1Dto.ChangePasswordRequest(NEW_PASSWORD), authHeaders(LOGIN_ID, "WrongPass1!")),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
             )
 
             // assert

@@ -17,4 +17,10 @@ interface MemberV1ApiSpec {
         description = "내 정보를 조회합니다.",
     )
     fun getMyInfo(loginId: String, password: String): ApiResponse<MemberV1Dto.MyInfoResponse>
+
+    @Operation(
+        summary = "비밀번호 수정",
+        description = "비밀번호를 수정합니다.",
+    )
+    fun changePassword(loginId: String, currentPassword: String, request: MemberV1Dto.ChangePasswordRequest): ApiResponse<Unit>
 }

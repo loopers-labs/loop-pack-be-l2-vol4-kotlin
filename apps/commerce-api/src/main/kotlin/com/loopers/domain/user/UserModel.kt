@@ -24,6 +24,10 @@ class UserModel(
     var password: String = password
         protected set
 
+    fun changePassword(newEncodedPassword: String) {
+        password = newEncodedPassword
+    }
+
     fun toDomain(): User = User(
         id = this.id,
         loginId = this.loginId,

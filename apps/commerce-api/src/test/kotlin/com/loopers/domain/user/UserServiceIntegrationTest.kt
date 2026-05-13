@@ -24,6 +24,7 @@ class UserServiceIntegrationTest @Autowired constructor(
     companion object {
         private const val LOGIN_ID = "user01"
         private const val PASSWORD = "Password1!"
+        private const val NEW_PASSWORD = "NewPass1!"
         private const val NAME = "홍길동"
         private const val BIRTH_DATE = "19900628"
         private const val EMAIL = "test@test.com"
@@ -102,6 +103,43 @@ class UserServiceIntegrationTest @Autowired constructor(
                     birthDate = BIRTH_DATE,
                     email = EMAIL,
                 )
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+        }
+    }
+
+    @DisplayName("비밀번호 수정 시,")
+    @Nested
+    inner class ChangePassword {
+
+        @DisplayName("유효한 새 비밀번호로 변경하면, DB에 암호화된 새 비밀번호가 저장된다.")
+        @Test
+        fun savesNewEncodedPassword_whenValidNewPasswordIsProvided() {
+            // arrange
+            userService.register(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)
+
+            // act
+            userService.changePassword(LOGIN_ID, NEW_PASSWORD)
+
+            // assert
+            val updated = userJpaRepository.findByLoginId(LOGIN_ID)
+            assertAll(
+                { assertThat(updated?.password).isNotEqualTo(PASSWORD) },
+                { assertThat(BCryptPasswordEncoder().matches(NEW_PASSWORD, updated?.password)).isTrue() },
+            )
+        }
+
+        @DisplayName("현재 비밀번호와 동일한 비밀번호로 변경하면, CONFLICT 예외가 발생한다.")
+        @Test
+        fun throwsConflict_whenNewPasswordIsSameAsCurrent() {
+            // arrange
+            userService.register(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)
+
+            // act
+            val result = assertThrows<CoreException> {
+                userService.changePassword(LOGIN_ID, PASSWORD)
             }
 
             // assert

@@ -13,7 +13,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class MemberTest {
-
     @DisplayName("요구사항을 모두 충족하면 정상적으로 생성된다.")
     @Test
     fun createsMember_whenRequiredFieldsAreProvided() {
@@ -68,6 +67,23 @@ class MemberTest {
                 name = "gunyoung",
                 birthDate = LocalDate.of(1970, 1, 1),
                 email = invalidEmail,
+            )
+        }
+
+        Assert.assertEquals(ErrorType.BAD_REQUEST, result.errorType)
+    }
+
+    @DisplayName("생년월일이 유효하지 않으면 실패")
+    @Test
+    fun throwsBadRequest_whenBirthDateIsNotValid() {
+        val invalidBirthDate = LocalDate.now().plusDays(1)
+        val result = assertThrows<CoreException> {
+            Member(
+                loginId = "loopers123",
+                password = "encodedPassword",
+                name = "gunyoung",
+                birthDate = invalidBirthDate,
+                email = "loopers@gmail.com",
             )
         }
 

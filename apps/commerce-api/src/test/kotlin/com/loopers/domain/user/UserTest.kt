@@ -307,4 +307,123 @@ class UserTest {
             assertThat(result).isFalse()
         }
     }
+
+    @DisplayName("비밀번호를 변경할 때, ")
+    @Nested
+    inner class ChangePw {
+
+        @DisplayName("이전 비밀번호가 올바르고 새 비밀번호가 유효하면, 암호화되어 변경된다.")
+        @Test
+        fun changesPassword_whenPrevPasswordIsCorrectAndNextIsValid() {
+            // arrange
+            val prevPw = "Password1!"
+            val nextPw = "NewPass1!!"
+            val user = createUser(rawPassword = prevPw)
+
+            // act
+            val result = user.changePw(prevPw, nextPw)
+
+            // assert
+            assertThat(result.password).isNotEqualTo(nextPw)
+            assertThat(result.isCorrectPasswd(nextPw)).isTrue()
+            assertThat(result.isCorrectPasswd(prevPw)).isFalse()
+        }
+
+        @DisplayName("이전 비밀번호가 틀리면, UNAUTHORIZED 예외가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPrevPasswordIsIncorrect() {
+            // arrange
+            val user = createUser(rawPassword = "Password1!")
+
+            // act
+            val result = assertThrows<CoreException> {
+                user.changePw("WrongPass1!", "NewPass1!!")
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 8자 미만이면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNextPasswordIsTooShort() {
+            // arrange
+            val prevPw = "Password1!"
+            val user = createUser(rawPassword = prevPw)
+
+            // act
+            val result = assertThrows<CoreException> {
+                user.changePw(prevPw, "Short1!")
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("새 비밀번호가 16자를 초과하면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNextPasswordIsTooLong() {
+            // arrange
+            val prevPw = "Password1!"
+            val user = createUser(rawPassword = prevPw)
+
+            // act
+            val result = assertThrows<CoreException> {
+                user.changePw(prevPw, "Password1!abcdefg")
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("새 비밀번호에 생년월일이 포함되면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNextPasswordContainsBirthday() {
+            // arrange
+            val prevPw = "Password1!"
+            val user = createUser(rawPassword = prevPw, birth = LocalDate.of(2000, 1, 1))
+
+            // act
+            val result = assertThrows<CoreException> {
+                user.changePw(prevPw, "a20000101!")
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("새 비밀번호에 허용되지 않은 문자가 포함되면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNextPasswordContainsInvalidCharacters() {
+            // arrange
+            val prevPw = "Password1!"
+            val user = createUser(rawPassword = prevPw)
+
+            // act
+            val result = assertThrows<CoreException> {
+                user.changePw(prevPw, "Password한글1!")
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("비밀번호 변경 후 다른 필드는 변경되지 않는다.")
+        @Test
+        fun preservesOtherFields_whenPasswordIsChanged() {
+            // arrange
+            val prevPw = "Password1!"
+            val nextPw = "NewPass1!!"
+            val user = createUser(rawPassword = prevPw)
+
+            // act
+            val result = user.changePw(prevPw, nextPw)
+
+            // assert
+            assertThat(result.loginId).isEqualTo(user.loginId)
+            assertThat(result.name).isEqualTo(user.name)
+            assertThat(result.birth).isEqualTo(user.birth)
+            assertThat(result.email).isEqualTo(user.email)
+        }
+    }
 }

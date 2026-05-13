@@ -101,6 +101,35 @@ class UserModelTest {
         }
     }
 
+    @DisplayName("회원가입 시 생년월일이, ")
+    @Nested
+    inner class BirthDateValidation {
+        @DisplayName("1900-01-01 이전이면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenBirthDateIsBefore1900() {
+            val result = assertThrows<CoreException> {
+                newUserWith(birthDate = LocalDate.of(1899, 12, 31))
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("가입 날짜 이후이면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenBirthDateIsFuture() {
+            val result = assertThrows<CoreException> {
+                newUserWith(birthDate = LocalDate.now().plusDays(1))
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("1900-01-01 은 허용된다.")
+        @Test
+        fun acceptsExact1900_01_01() {
+            val user = newUserWith(birthDate = LocalDate.of(1900, 1, 1))
+            assertThat(user.birthDate).isEqualTo(LocalDate.of(1900, 1, 1))
+        }
+    }
+
     private fun newUserWith(
         loginId: String = "seondays",
         password: String = "password",

@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 
@@ -23,6 +24,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
 ) {
     companion object {
         private const val ENDPOINT_REGISTER = "/api/v1/members/register"
+        private const val ENDPOINT_MY_INFO = "/api/v1/members/me"
 
         private const val LOGIN_ID = "user01"
         private const val PASSWORD = "Password1!"
@@ -105,5 +107,83 @@ class MemberV1ApiE2ETest @Autowired constructor(
         }
 
         private fun responseType() = object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {}
+    }
+
+    @DisplayName("GET /api/v1/members/me")
+    @Nested
+    inner class GetMyInfo {
+
+        @DisplayName("올바른 인증 헤더로 조회하면, 200 응답과 이름이 마스킹된 내 정보를 반환한다.")
+        @Test
+        fun returnsMyInfoWithMaskedName_whenValidCredentialsAreProvided() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_MY_INFO,
+                HttpMethod.GET,
+                HttpEntity<Void>(authHeaders(LOGIN_ID, PASSWORD)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(response.body?.data?.loginId).isEqualTo(LOGIN_ID) },
+                { assertThat(response.body?.data?.name).isEqualTo("홍길*") },
+                { assertThat(response.body?.data?.birthDate).isEqualTo(BIRTH_DATE) },
+                { assertThat(response.body?.data?.email).isEqualTo(EMAIL) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 loginId로 조회하면, 404 NOT_FOUND 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenLoginIdDoesNotExist() {
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_MY_INFO,
+                HttpMethod.GET,
+                HttpEntity<Void>(authHeaders("nonexistent", PASSWORD)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("비밀번호가 틀리면, 401 UNAUTHORIZED 응답을 받는다.")
+        @Test
+        fun returnsUnauthorized_whenPasswordIsWrong() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_MY_INFO,
+                HttpMethod.GET,
+                HttpEntity<Void>(authHeaders(LOGIN_ID, "WrongPass1!")),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        private fun authHeaders(loginId: String, password: String): HttpHeaders =
+            HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", password)
+            }
     }
 }

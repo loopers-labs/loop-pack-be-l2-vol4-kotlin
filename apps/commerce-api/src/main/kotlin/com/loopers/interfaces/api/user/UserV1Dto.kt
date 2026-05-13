@@ -1,5 +1,7 @@
 package com.loopers.interfaces.api.user
 
+import com.fasterxml.jackson.annotation.JsonAlias
+import com.loopers.application.user.ChangePwCommand
 import com.loopers.domain.user.User
 import java.time.LocalDate
 
@@ -18,6 +20,20 @@ class UserV1Dto {
                 email = user.email,
             )
         }
+    }
+
+    data class ChangePasswordRequest(
+        @JsonAlias("oldPassword")
+        val prevPw: String,
+        @JsonAlias("newPassword")
+        val nextPw: String,
+    ) {
+        fun toCommand(loginId: String, loginPw: String): ChangePwCommand = ChangePwCommand(
+            loginId = loginId,
+            loginPw = loginPw,
+            prevPw = prevPw,
+            nextPw = nextPw,
+        )
     }
 
     data class SignupRequest(

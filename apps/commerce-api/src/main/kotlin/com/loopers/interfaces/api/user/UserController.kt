@@ -2,8 +2,10 @@ package com.loopers.interfaces.api.user
 
 import com.loopers.application.user.UserService
 import com.loopers.interfaces.api.ApiResponse
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -18,5 +20,14 @@ class UserController(
     ): ApiResponse<Any> {
         userService.signup(request.toDomain())
         return ApiResponse.success()
+    }
+
+    @GetMapping("/info")
+    fun getMyInfo(
+        @RequestHeader("X-Loopers-LoginId") loginId: String,
+        @RequestHeader("X-Loopers-LoginPw") loginPw: String,
+    ): ApiResponse<UserV1Dto.UserInfoResponse> {
+        val user = userService.login(loginId, loginPw)
+        return ApiResponse.success(UserV1Dto.UserInfoResponse.from(user))
     }
 }

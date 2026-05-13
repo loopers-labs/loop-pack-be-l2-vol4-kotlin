@@ -235,6 +235,27 @@ class MemberV1ApiE2ETest @Autowired constructor(
             assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
         }
 
+        @DisplayName("유효하지 않은 새 비밀번호로 변경하면, 400 BAD_REQUEST 응답을 받는다.")
+        @Test
+        fun returnsBadRequest_whenNewPasswordIsInvalid() {
+            // arrange
+            testRestTemplate.exchange(
+                ENDPOINT_REGISTER, HttpMethod.POST,
+                HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
+            )
+
+            // act
+            val response = testRestTemplate.exchange(
+                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                HttpEntity(MemberV1Dto.ChangePasswordRequest("short"), authHeaders(LOGIN_ID, PASSWORD)),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
         @DisplayName("비밀번호가 틀리면, 401 UNAUTHORIZED 응답을 받는다.")
         @Test
         fun returnsUnauthorized_whenPasswordIsWrong() {

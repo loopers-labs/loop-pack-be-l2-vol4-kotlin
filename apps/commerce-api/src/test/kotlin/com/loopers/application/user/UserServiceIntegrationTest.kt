@@ -128,5 +128,37 @@ class UserServiceIntegrationTest @Autowired constructor(
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
+
+        @DisplayName("loginId가 빈 값이면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenLoginIdIsEmpty() {
+            // arrange
+            val user = createUser()
+            userService.signup(user)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login("", "password1234")
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("password가 빈 값이면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPasswordIsEmpty() {
+            // arrange
+            val user = createUser()
+            userService.signup(user)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(user.loginId, "")
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
     }
 }

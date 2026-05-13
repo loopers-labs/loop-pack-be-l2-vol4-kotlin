@@ -87,6 +87,42 @@ class UserServiceTest {
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
+
+        @DisplayName("loginId가 빈 값이면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenLoginIdIsEmpty() {
+            // arrange
+            val loginId = ""
+            val password = "password1234"
+            every { userRepository.findByLoginId(loginId) } throws CoreException(ErrorType.NOT_FOUND)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(loginId, password)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("password가 빈 값이면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPasswordIsEmpty() {
+            // arrange
+            val loginId = "testuser01"
+            val password = ""
+            val user = mockk<User>()
+            every { userRepository.findByLoginId(loginId) } returns user
+            every { user.isCorrectPasswd(password) } returns false
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.login(loginId, password)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
     }
 
     @DisplayName("signup을 호출할 때,")

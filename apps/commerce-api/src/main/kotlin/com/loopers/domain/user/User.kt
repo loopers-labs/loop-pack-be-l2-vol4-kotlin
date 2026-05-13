@@ -18,6 +18,7 @@ data class User(
 
     companion object {
         private val PASSWORD_PATTERN = Regex("^[a-zA-Z0-9!@#\$%^&*()_+\\-=\\[\\]{}|;':\",./<>?~`\\\\]+$")
+        private val LOGIN_ID_PATTERN = Regex("^[a-zA-Z0-9]+$")
         private val BIRTH_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd")
 
         fun create(
@@ -27,6 +28,7 @@ data class User(
             birth: LocalDate,
             email: String,
         ): User {
+            validateLoginId(loginId)
             validatePassword(rawPassword, birth)
             return User(
                 loginId = loginId,
@@ -35,6 +37,12 @@ data class User(
                 birth = birth,
                 email = email,
             )
+        }
+
+        private fun validateLoginId(loginId: String) {
+            if (!LOGIN_ID_PATTERN.matches(loginId)) {
+                throw CoreException(ErrorType.BAD_REQUEST, "아이디는 영문과 숫자만 사용할 수 있습니다.")
+            }
         }
 
         private fun validatePassword(rawPassword: String, birth: LocalDate) {

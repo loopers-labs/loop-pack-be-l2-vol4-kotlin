@@ -14,7 +14,7 @@ class PasswordPolicyTest {
     @ValueSource(strings = ["pass", "12345678,12345678"])
     fun throwsBadRequest_whenPasswordLengthIsInvalid(password: String) {
         val result = assertThrows<CoreException> {
-            PasswordPolicy.validate(password = password)
+            PasswordPolicy.validate(rawPassword = password)
         }
 
         assertEquals(ErrorType.BAD_REQUEST, result.errorType)

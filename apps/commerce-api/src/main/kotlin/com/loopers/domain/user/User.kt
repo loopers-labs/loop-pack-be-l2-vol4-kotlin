@@ -16,6 +16,14 @@ data class User(
     fun isCorrectPasswd(rawPassword: String): Boolean =
         password == PasswordEncryptionUtil.encode(rawPassword)
 
+    fun changePw(prevPw: String, nextPw: String): User {
+        if (!isCorrectPasswd(prevPw)) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "이전 비밀번호가 올바르지 않습니다.")
+        }
+        validatePassword(nextPw, birth)
+        return copy(password = PasswordEncryptionUtil.encode(nextPw))
+    }
+
     companion object {
         private val PASSWORD_PATTERN = Regex("^[a-zA-Z0-9!@#\$%^&*()_+\\-=\\[\\]{}|;':\",./<>?~`\\\\]+$")
         private val LOGIN_ID_PATTERN = Regex("^[a-zA-Z0-9]+$")

@@ -161,4 +161,82 @@ class UserServiceIntegrationTest @Autowired constructor(
             assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
     }
+
+    @DisplayName("changePw을 호출할 때,")
+    @Nested
+    inner class ChangePw {
+
+        @DisplayName("올바른 이전 비밀번호와 유효한 새 비밀번호로 변경하면, 새 비밀번호로 로그인되고 이전 비밀번호로는 로그인되지 않는다.")
+        @Test
+        fun changesPassword_whenPrevPwIsCorrectAndNextPwIsValid() {
+            // arrange
+            val prevPw = "password1234"
+            val nextPw = "newPassword1!"
+            val user = createUser(rawPassword = prevPw)
+            userService.signup(user)
+
+            val command = ChangePwCommand(
+                loginId = user.loginId,
+                loginPw = prevPw,
+                prevPw = prevPw,
+                nextPw = nextPw,
+            )
+
+            // act
+            userService.changePw(command)
+
+            // assert — 새 비밀번호로 로그인 성공
+            val loggedInUser = userService.login(user.loginId, nextPw)
+            assertThat(loggedInUser.loginId).isEqualTo(user.loginId)
+
+            // assert — 이전 비밀번호로 로그인 실패
+            val exception = assertThrows<CoreException> {
+                userService.login(user.loginId, prevPw)
+            }
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("존재하지 않는 loginId로 호출하면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenLoginIdDoesNotExist() {
+            // arrange
+            val command = ChangePwCommand(
+                loginId = "nonExistentUser",
+                loginPw = "password1234",
+                prevPw = "password1234",
+                nextPw = "newPassword1!",
+            )
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.changePw(command)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("이전 비밀번호가 틀리면, 인증 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPrevPwIsWrong() {
+            // arrange
+            val user = createUser()
+            userService.signup(user)
+
+            val command = ChangePwCommand(
+                loginId = user.loginId,
+                loginPw = "password1234",
+                prevPw = "wrongPassword1!",
+                nextPw = "newPassword1!",
+            )
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.changePw(command)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+    }
 }

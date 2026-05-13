@@ -2,39 +2,33 @@ package com.loopers.interfaces.api.member
 
 import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.utils.DatabaseCleanUp
+import org.junit.jupiter.api.AfterEach
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.SpringBootConfiguration
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
-import org.springframework.context.annotation.ComponentScan
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDate
 
-@SpringBootTest(
-    classes = [MemberV1ApiE2ETest.TestApplication::class],
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = [
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "datasource.mysql-jpa.main.jdbc-url=jdbc:h2:mem:member-e2e;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false",
-        "datasource.mysql-jpa.main.driver-class-name=org.h2.Driver",
-        "datasource.mysql-jpa.main.username=sa",
-        "datasource.mysql-jpa.main.password=",
-    ],
-)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MemberV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val memberJpaRepository: MemberJpaRepository,
+    private val databaseCleanUp: DatabaseCleanUp,
 ) {
+    @AfterEach
+    fun tearDown() {
+        databaseCleanUp.truncateAllTables()
+    }
+
     @DisplayName("POST /api/v1/members")
     @Nested
     inner class SignUp {
@@ -88,20 +82,6 @@ class MemberV1ApiE2ETest @Autowired constructor(
             birthDate = birthDate,
             email = email,
         )
-
-    @SpringBootConfiguration
-    @EnableAutoConfiguration
-    @ConfigurationPropertiesScan(basePackages = ["com.loopers.config"])
-    @ComponentScan(
-        basePackages = [
-            "com.loopers.application",
-            "com.loopers.config",
-            "com.loopers.domain",
-            "com.loopers.infrastructure",
-            "com.loopers.interfaces.api",
-        ],
-    )
-    class TestApplication
 
     companion object {
         private const val SIGN_UP_ENDPOINT = "/api/v1/members"

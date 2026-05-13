@@ -20,7 +20,6 @@ dependencies {
     kapt("com.querydsl:querydsl-apt::jakarta")
 
     // test-fixtures
-    testRuntimeOnly("com.h2database:h2")
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))
 }

@@ -1,7 +1,9 @@
 package com.loopers.infrastructure.member
 
+import com.loopers.config.jpa.DataSourceConfig
 import com.loopers.domain.member.Member
 import com.loopers.domain.member.MemberRepository
+import com.loopers.testcontainers.MySqlTestContainersConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -16,8 +18,8 @@ import org.springframework.context.annotation.Import
 import java.time.LocalDate
 
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
-@Import(MemberRepositoryImpl::class)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(MemberRepositoryImpl::class, MySqlTestContainersConfig::class, DataSourceConfig::class)
 class MemberRepositoryIntegrationTest @Autowired constructor(
     private val memberRepository: MemberRepository,
     private val memberJpaRepository: MemberJpaRepository,

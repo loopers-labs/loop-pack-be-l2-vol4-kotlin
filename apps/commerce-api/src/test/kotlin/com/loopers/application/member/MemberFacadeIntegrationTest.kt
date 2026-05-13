@@ -1,5 +1,6 @@
 package com.loopers.application.member
 
+import com.loopers.config.jpa.DataSourceConfig
 import com.loopers.domain.member.MemberService
 import com.loopers.domain.member.MemberSignUpCommand
 import com.loopers.domain.member.PasswordEncoder
@@ -7,6 +8,7 @@ import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.infrastructure.member.MemberRepositoryImpl
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.testcontainers.MySqlTestContainersConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -20,8 +22,14 @@ import org.springframework.context.annotation.Import
 import java.time.LocalDate
 
 @DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
-@Import(MemberFacade::class, MemberService::class, MemberRepositoryImpl::class)
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(
+    MemberFacade::class,
+    MemberService::class,
+    MemberRepositoryImpl::class,
+    MySqlTestContainersConfig::class,
+    DataSourceConfig::class,
+)
 class MemberFacadeIntegrationTest @Autowired constructor(
     private val memberFacade: MemberFacade,
     private val memberJpaRepository: MemberJpaRepository,

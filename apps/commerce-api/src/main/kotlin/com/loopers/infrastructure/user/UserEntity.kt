@@ -10,11 +10,15 @@ import java.time.LocalDate
 @Table(name = "user")
 class UserEntity(
     val loginId: String,
-    val password: String,
+    var password: String,
     val name: String,
     val birth: LocalDate,
     val email: String,
 ) : BaseEntity() {
+    fun changePassword(newPassword: String) {
+        this.password = newPassword
+    }
+
     fun toDomain(): User =
         User(
             id = id,

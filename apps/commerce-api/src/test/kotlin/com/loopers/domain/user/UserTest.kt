@@ -242,5 +242,4 @@ class UserTest {
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
     }
-
 }

@@ -12,7 +12,6 @@ import org.mockito.Mockito.times
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import com.loopers.domain.user.PasswordEncryptor
 
 class UserServiceTest {
 
@@ -78,12 +77,9 @@ class UserServiceTest {
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
 
-
-
         @DisplayName("유효한 정보로 가입하면, 비밀번호는 암호화되어 저장된다.")
         @Test
         fun register_savesEncodedPassword() {
-            
             // arrange
             whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(null)
             whenever(passwordEncryptor.encode(PASSWORD)).thenReturn(ENCODED_PASSWORD)

@@ -12,7 +12,6 @@ class UserService(
 ) {
     @Transactional
     fun register(loginId: String, password: String, name: String, birthDate: String, email: String): User {
-
         if (userRepository.findByLoginId(loginId) != null) {
             throw CoreException(ErrorType.CONFLICT, "이미 가입된 로그인 ID 입니다.")
         }
@@ -42,12 +41,11 @@ class UserService(
 
         Password(newPassword, user.birthDate)
 
-        if (passwordEncryptor.matches(newPassword, user.password))
+        if (passwordEncryptor.matches(newPassword, user.password)) {
             throw CoreException(ErrorType.CONFLICT, "현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.")
+        }
 
         val encodedNewPassword = passwordEncryptor.encode(newPassword)
         userRepository.changePassword(loginId, encodedNewPassword)
     }
 }
-
-

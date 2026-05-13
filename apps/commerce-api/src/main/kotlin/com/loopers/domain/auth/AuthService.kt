@@ -16,8 +16,9 @@ class AuthService(
         val user = userRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
 
-        if (!passwordEncryptor.matches(password, user.password))
+        if (!passwordEncryptor.matches(password, user.password)) {
             throw CoreException(ErrorType.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.")
+        }
 
         return user
     }

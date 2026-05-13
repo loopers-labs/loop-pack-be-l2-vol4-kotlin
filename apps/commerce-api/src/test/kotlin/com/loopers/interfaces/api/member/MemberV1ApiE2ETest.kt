@@ -198,14 +198,16 @@ class MemberV1ApiE2ETest @Autowired constructor(
         fun returnsOk_whenValidCredentialsAndNewPasswordAreProvided() {
             // arrange
             testRestTemplate.exchange(
-                ENDPOINT_REGISTER, HttpMethod.POST,
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
                 HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
             )
 
             // act
             val response = testRestTemplate.exchange(
-                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                ENDPOINT_CHANGE_PASSWORD,
+                HttpMethod.PATCH,
                 HttpEntity(MemberV1Dto.ChangePasswordRequest(NEW_PASSWORD), authHeaders(LOGIN_ID, PASSWORD)),
                 object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
             )
@@ -219,14 +221,16 @@ class MemberV1ApiE2ETest @Autowired constructor(
         fun returnsConflict_whenNewPasswordIsSameAsCurrent() {
             // arrange
             testRestTemplate.exchange(
-                ENDPOINT_REGISTER, HttpMethod.POST,
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
                 HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
             )
 
             // act
             val response = testRestTemplate.exchange(
-                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                ENDPOINT_CHANGE_PASSWORD,
+                HttpMethod.PATCH,
                 HttpEntity(MemberV1Dto.ChangePasswordRequest(PASSWORD), authHeaders(LOGIN_ID, PASSWORD)),
                 object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
             )
@@ -240,14 +244,16 @@ class MemberV1ApiE2ETest @Autowired constructor(
         fun returnsBadRequest_whenNewPasswordIsInvalid() {
             // arrange
             testRestTemplate.exchange(
-                ENDPOINT_REGISTER, HttpMethod.POST,
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
                 HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
             )
 
             // act
             val response = testRestTemplate.exchange(
-                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                ENDPOINT_CHANGE_PASSWORD,
+                HttpMethod.PATCH,
                 HttpEntity(MemberV1Dto.ChangePasswordRequest("short"), authHeaders(LOGIN_ID, PASSWORD)),
                 object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
             )
@@ -261,14 +267,16 @@ class MemberV1ApiE2ETest @Autowired constructor(
         fun returnsUnauthorized_whenPasswordIsWrong() {
             // arrange
             testRestTemplate.exchange(
-                ENDPOINT_REGISTER, HttpMethod.POST,
+                ENDPOINT_REGISTER,
+                HttpMethod.POST,
                 HttpEntity(MemberV1Dto.RegisterRequest(LOGIN_ID, PASSWORD, NAME, BIRTH_DATE, EMAIL)),
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.RegisterResponse>>() {},
             )
 
             // act
             val response = testRestTemplate.exchange(
-                ENDPOINT_CHANGE_PASSWORD, HttpMethod.PATCH,
+                ENDPOINT_CHANGE_PASSWORD,
+                HttpMethod.PATCH,
                 HttpEntity(MemberV1Dto.ChangePasswordRequest(NEW_PASSWORD), authHeaders(LOGIN_ID, "WrongPass1!")),
                 object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
             )

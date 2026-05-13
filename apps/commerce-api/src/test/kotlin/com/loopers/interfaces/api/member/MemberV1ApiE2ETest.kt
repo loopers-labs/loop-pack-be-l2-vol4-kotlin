@@ -14,7 +14,6 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.context.annotation.ComponentScan
-import org.springframework.context.annotation.FilterType
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
@@ -92,11 +91,14 @@ class MemberV1ApiE2ETest @Autowired constructor(
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
-    @ConfigurationPropertiesScan(basePackages = ["com.loopers"])
+    @ConfigurationPropertiesScan(basePackages = ["com.loopers.config"])
     @ComponentScan(
-        basePackages = ["com.loopers"],
-        excludeFilters = [
-            ComponentScan.Filter(type = FilterType.REGEX, pattern = ["com\\.loopers\\.testcontainers\\..*"]),
+        basePackages = [
+            "com.loopers.application",
+            "com.loopers.config",
+            "com.loopers.domain",
+            "com.loopers.infrastructure",
+            "com.loopers.interfaces.api",
         ],
     )
     class TestApplication

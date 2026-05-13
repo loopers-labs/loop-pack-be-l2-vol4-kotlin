@@ -2,15 +2,16 @@ package com.loopers.domain.member
 
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertAll
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.LocalDate
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
 class MemberTest {
     @DisplayName("Member 생성")
@@ -34,11 +35,12 @@ class MemberTest {
             )
 
             assertAll(
-                { assertEquals(loginId, member.loginId) },
-                { assertEquals(password, member.password) },
-                { assertEquals(name, member.name) },
-                { assertEquals(birthDate, member.birthDate) },
-                { assertEquals(email, member.email) },
+                { assertThat(member.id).isNotNull() },
+                { assertThat(member.loginId).isEqualTo(loginId) },
+                { assertThat(member.password).isEqualTo(password) },
+                { assertThat(member.name).isEqualTo(name) },
+                { assertThat(member.birthDate).isEqualTo(birthDate) },
+                { assertThat(member.email).isEqualTo(email) },
             )
         }
 

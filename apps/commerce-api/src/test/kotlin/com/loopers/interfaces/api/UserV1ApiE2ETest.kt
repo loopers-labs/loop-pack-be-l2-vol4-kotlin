@@ -209,7 +209,7 @@ class UserV1ApiE2ETest @Autowired constructor(
 
             // assert
             assertAll(
-                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
                 { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
             )
         }

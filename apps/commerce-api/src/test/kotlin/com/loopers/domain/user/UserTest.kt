@@ -27,6 +27,79 @@ class UserTest {
     @DisplayName("유저를 생성할 때, ")
     @Nested
     inner class Create {
+        @DisplayName("영문과 숫자로만 이루어진 아이디면, 정상적으로 생성된다.")
+        @Test
+        fun createsUser_whenLoginIdIsAlphanumeric() {
+            // arrange
+            val loginId = "testUser123"
+
+            // act
+            val user = createUser(loginId = loginId)
+
+            // assert
+            assertThat(user.loginId).isEqualTo(loginId)
+        }
+
+        @DisplayName("아이디에 한글이 포함되면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequestException_whenLoginIdContainsKorean() {
+            // arrange
+            val loginId = "test유저"
+
+            // act
+            val result = assertThrows<CoreException> {
+                createUser(loginId = loginId)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("아이디에 특수문자가 포함되면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequestException_whenLoginIdContainsSpecialCharacters() {
+            // arrange
+            val loginId = "test@user!"
+
+            // act
+            val result = assertThrows<CoreException> {
+                createUser(loginId = loginId)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("아이디에 공백이 포함되면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequestException_whenLoginIdContainsSpace() {
+            // arrange
+            val loginId = "test user"
+
+            // act
+            val result = assertThrows<CoreException> {
+                createUser(loginId = loginId)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("아이디가 빈 문자열이면, BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequestException_whenLoginIdIsEmpty() {
+            // arrange
+            val loginId = ""
+
+            // act
+            val result = assertThrows<CoreException> {
+                createUser(loginId = loginId)
+            }
+
+            // assert
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
         @DisplayName("올바른 정보가 주어지면, 정상적으로 생성되고 비밀번호는 암호화된다.")
         @Test
         fun createsUser_whenValidInfoIsProvided() {

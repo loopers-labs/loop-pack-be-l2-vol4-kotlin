@@ -24,6 +24,7 @@ class UserV1ApiE2ETest @Autowired constructor(
 ) {
     companion object {
         private const val SIGNUP_ENDPOINT = "/api/v1/user/signup"
+        private const val INFO_ENDPOINT = "/api/v1/user/info"
     }
 
     @AfterEach
@@ -44,6 +45,18 @@ class UserV1ApiE2ETest @Autowired constructor(
         "birth" to birth,
         "email" to email,
     )
+
+    private fun getInfo(
+        loginId: String? = null,
+        loginPw: String? = null,
+    ): org.springframework.http.ResponseEntity<ApiResponse<Any>> {
+        val headers = HttpHeaders().apply {
+            loginId?.let { set("X-Loopers-LoginId", it) }
+            loginPw?.let { set("X-Loopers-LoginPw", it) }
+        }
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Any>>() {}
+        return testRestTemplate.exchange(INFO_ENDPOINT, HttpMethod.GET, HttpEntity<Any>(headers), responseType)
+    }
 
     private fun postSignup(body: Map<String, String>): org.springframework.http.ResponseEntity<ApiResponse<Any>> {
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
@@ -100,6 +113,74 @@ class UserV1ApiE2ETest @Autowired constructor(
             // assert
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
+            )
+        }
+    }
+
+    @DisplayName("GET /api/v1/user/info")
+    @Nested
+    inner class GetMyInfo {
+
+        private fun createUser(
+            id: String = "testuser01",
+            pw: String = "password1234",
+            name: String = "홍길동",
+            birth: String = "1995-03-15",
+            email: String = "test@example.com",
+        ) {
+            postSignup(signupRequest(id = id, pw = pw, name = name, birth = birth, email = email))
+        }
+
+        @DisplayName("유효한 헤더로 내 정보를 조회하면, 성공 응답을 받는다.")
+        @Test
+        fun returnsSuccess_whenValidHeadersAreProvided() {
+            // arrange
+            createUser()
+
+            // act
+            val response = getInfo(loginId = "testuser01", loginPw = "password1234")
+
+            // assert
+            val data = response.body?.data as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.SUCCESS) },
+                { assertThat(data?.get("loginId")).isEqualTo("testuser01") },
+                { assertThat(data?.get("email")).isEqualTo("test@example.com") },
+                { assertThat(data?.get("birth")).isEqualTo("1995-03-15") },
+            )
+        }
+
+        @DisplayName("이름의 마지막 글자가 마스킹되어 반환된다.")
+        @Test
+        fun returnsmaskedName_whenValidHeadersAreProvided() {
+            // arrange
+            createUser(name = "홍길동")
+
+            // act
+            val response = getInfo(loginId = "testuser01", loginPw = "password1234")
+
+            // assert
+            val data = response.body?.data as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(data?.get("name")).isEqualTo("홍길*") },
+            )
+        }
+
+        @DisplayName("로그인에 실패하면, 401 UNAUTHORIZED 응답을 받는다.")
+        @Test
+        fun returnsUnauthorized_whenLoginFails() {
+            // arrange
+            createUser()
+
+            // act
+            val response = getInfo(loginId = "testuser01", loginPw = "wrongPassword1")
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
                 { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
             )
         }

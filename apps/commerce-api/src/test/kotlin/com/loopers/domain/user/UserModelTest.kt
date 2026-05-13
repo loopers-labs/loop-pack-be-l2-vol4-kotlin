@@ -44,7 +44,7 @@ class UserModelTest {
         }
     }
 
-    @DisplayName("회원가입 시 ID 검증에서, ")
+    @DisplayName("회원가입 시 ID가, ")
     @Nested
     inner class LoginIdValidation {
         @DisplayName("3자 미만이면 BAD_REQUEST 예외가 발생한다.")

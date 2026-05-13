@@ -12,7 +12,7 @@ class UserModel(
     loginId: String,
     val password: String,
     name: String,
-    val birthDate: LocalDate,
+    birthDate: LocalDate,
     val email: String,
 ) : BaseEntity() {
     @Column(name = "login_id", nullable = false, unique = true, length = 20)
@@ -22,13 +22,19 @@ class UserModel(
     var name: String = name
         protected set
 
+    @Column(name = "birth_date", nullable = false)
+    var birthDate: LocalDate = birthDate
+        protected set
+
     init {
         validateLoginId(loginId)
         validateName(name)
+        validateBirthDate(birthDate)
     }
 
     companion object {
         private val LOGIN_ID_REGEX = Regex("^[a-z0-9]{3,20}$")
+        private val MIN_BIRTH_DATE: LocalDate = LocalDate.of(1900, 1, 1)
 
         private fun validateLoginId(loginId: String) {
             if (!LOGIN_ID_REGEX.matches(loginId)) {
@@ -39,6 +45,12 @@ class UserModel(
         private fun validateName(name: String) {
             if (name.isEmpty() || name.length > 20) {
                 throw CoreException(ErrorType.BAD_REQUEST, "이름은 1~20자여야 합니다.")
+            }
+        }
+
+        private fun validateBirthDate(birthDate: LocalDate) {
+            if (birthDate.isBefore(MIN_BIRTH_DATE) || birthDate.isAfter(LocalDate.now())) {
+                throw CoreException(ErrorType.BAD_REQUEST, "생년월일은 1900-01-01 이후, 가입 날짜 이전이어야 합니다.")
             }
         }
     }

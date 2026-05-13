@@ -25,6 +25,7 @@ class UserV1ApiE2ETest @Autowired constructor(
     companion object {
         private const val SIGNUP_ENDPOINT = "/api/v1/user/signup"
         private const val INFO_ENDPOINT = "/api/v1/user/info"
+        private const val CHANGE_PASSWORD_ENDPOINT = "/api/v1/user/password"
     }
 
     @AfterEach
@@ -45,6 +46,20 @@ class UserV1ApiE2ETest @Autowired constructor(
         "birth" to birth,
         "email" to email,
     )
+
+    private fun putChangePassword(
+        loginId: String? = null,
+        loginPw: String? = null,
+        body: Map<String, String>,
+    ): org.springframework.http.ResponseEntity<ApiResponse<Any>> {
+        val headers = HttpHeaders().apply {
+            contentType = MediaType.APPLICATION_JSON
+            loginId?.let { set("X-Loopers-LoginId", it) }
+            loginPw?.let { set("X-Loopers-LoginPw", it) }
+        }
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Any>>() {}
+        return testRestTemplate.exchange(CHANGE_PASSWORD_ENDPOINT, HttpMethod.PUT, HttpEntity(body, headers), responseType)
+    }
 
     private fun getInfo(
         loginId: String? = null,
@@ -109,6 +124,88 @@ class UserV1ApiE2ETest @Autowired constructor(
 
             // act
             val response = postSignup(request) // 두 번째 가입 — 실패
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
+            )
+        }
+    }
+
+    @DisplayName("PUT /api/v1/user/password")
+    @Nested
+    inner class ChangePassword {
+
+        private fun createUser(
+            id: String = "testuser01",
+            pw: String = "password1234",
+            name: String = "홍길동",
+            birth: String = "1995-03-15",
+            email: String = "test@example.com",
+        ) {
+            postSignup(signupRequest(id = id, pw = pw, name = name, birth = birth, email = email))
+        }
+
+        @DisplayName("유효한 인증 헤더와 올바른 기존 비밀번호로 요청하면, 성공 응답을 받고 변경된 비밀번호로 로그인할 수 있다.")
+        @Test
+        fun returnsSuccess_whenValidRequest() {
+            // arrange
+            createUser()
+            val body = mapOf(
+                "oldPassword" to "password1234",
+                "newPassword" to "newPassword1234",
+            )
+
+            // act
+            val response = putChangePassword(loginId = "testuser01", loginPw = "password1234", body = body)
+
+            // assert — 비밀번호 변경 성공
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.SUCCESS) },
+            )
+
+            // assert — 기존 비밀번호로 로그인 실패
+            val oldPwResponse = getInfo(loginId = "testuser01", loginPw = "password1234")
+            assertThat(oldPwResponse.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+
+            // assert — 변경된 비밀번호로 로그인 성공
+            val newPwResponse = getInfo(loginId = "testuser01", loginPw = "newPassword1234")
+            assertThat(newPwResponse.statusCode.is2xxSuccessful).isTrue()
+        }
+
+        @DisplayName("존재하지 않는 유저로 요청하면, 401 UNAUTHORIZED 응답을 받는다.")
+        @Test
+        fun returnsUnauthorized_whenUserNotExists() {
+            // arrange
+            val body = mapOf(
+                "oldPassword" to "password1234",
+                "newPassword" to "newPassword1234",
+            )
+
+            // act
+            val response = putChangePassword(loginId = "testuser01", loginPw = "password1234", body = body)
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
+                { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
+            )
+        }
+
+        @DisplayName("기존 비밀번호가 틀리면, 400 BAD_REQUEST 응답을 받는다.")
+        @Test
+        fun returnsBadRequest_whenOldPasswordIsWrong() {
+            // arrange
+            createUser()
+            val body = mapOf(
+                "oldPassword" to "wrongOldPassword1",
+                "newPassword" to "newPassword1234",
+            )
+
+            // act
+            val response = putChangePassword(loginId = "testuser01", loginPw = "password1234", body = body)
 
             // assert
             assertAll(

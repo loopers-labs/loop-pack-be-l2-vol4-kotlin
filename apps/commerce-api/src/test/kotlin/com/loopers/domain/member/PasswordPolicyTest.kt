@@ -43,10 +43,9 @@ class PasswordPolicyTest {
     }
 
     @DisplayName("패스워드에 생년월일이 포함되면 실패")
-    @Test
-    fun throwsBadRequest_whenPasswordContainsBirthDate() {
-        val rawPassword = "pp880201!"
-
+    @ParameterizedTest
+    @ValueSource(strings = ["p880201p!", "p19880201"])
+    fun throwsBadRequest_whenPasswordContainsBirthDate(rawPassword: String) {
         val result = assertThrows<CoreException> {
             PasswordPolicy.validate(
                 rawPassword = rawPassword,

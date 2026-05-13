@@ -22,20 +22,8 @@ class MemberFacadeTest {
         @DisplayName("회원가입이 성공하면 회원 정보를 반환한다")
         @Test
         fun returnsMemberInfo_whenMemberIsSignedUp() {
-            val command = MemberSignUpCommand(
-                loginId = "loopers123",
-                rawPassword = "Loopers123!",
-                name = "gunyoung",
-                birthDate = LocalDate.of(1995, 5, 20),
-                email = "loopers@gmail.com",
-            )
-            val member = Member(
-                loginId = command.loginId,
-                password = "encodedPassword",
-                name = command.name,
-                birthDate = command.birthDate,
-                email = command.email,
-            )
+            val command = createSignUpCommand()
+            val member = createMember(command)
             whenever(memberService.signUp(command)).thenReturn(member)
 
             val result = memberFacade.signUp(command)
@@ -46,5 +34,29 @@ class MemberFacadeTest {
             assertThat(result.email).isEqualTo(member.email)
             verify(memberService).signUp(command)
         }
+
+        private fun createSignUpCommand(
+            loginId: String = "loopers123",
+            rawPassword: String = "Loopers123!",
+            name: String = "gunyoung",
+            birthDate: LocalDate = LocalDate.of(1995, 5, 20),
+            email: String = "loopers@gmail.com",
+        ): MemberSignUpCommand =
+            MemberSignUpCommand(
+                loginId = loginId,
+                rawPassword = rawPassword,
+                name = name,
+                birthDate = birthDate,
+                email = email,
+            )
+
+        private fun createMember(command: MemberSignUpCommand): Member =
+            Member(
+                loginId = command.loginId,
+                password = "encodedPassword",
+                name = command.name,
+                birthDate = command.birthDate,
+                email = command.email,
+            )
     }
 }

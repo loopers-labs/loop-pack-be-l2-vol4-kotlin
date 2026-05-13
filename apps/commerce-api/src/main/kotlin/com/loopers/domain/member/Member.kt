@@ -44,6 +44,9 @@ class Member(
         if (!email.matches(EMAIL_REGEX)) {
             throw CoreException(ErrorType.BAD_REQUEST, "Email cannot contain special characters or numbers.")
         }
+        if (birthDate.isAfter(LocalDate.now())) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Birthdate must be before now.")
+        }
     }
 
     companion object {

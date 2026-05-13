@@ -125,6 +125,103 @@ class UserServiceTest {
         }
     }
 
+    @DisplayName("changePw을 호출할 때,")
+    @Nested
+    inner class ChangePw {
+
+        @DisplayName("정상적으로 비밀번호가 변경된다.")
+        @Test
+        fun changesPasswordSuccessfully() {
+            // arrange
+            val command = ChangePwCommand(
+                loginId = "testuser01",
+                loginPw = "password1234",
+                prevPw = "password1234",
+                nextPw = "newPassword1!",
+            )
+            val user = mockk<User>()
+            val updatedUser = mockk<User>()
+            every { userRepository.findByLoginId(command.loginId) } returns user
+            every { user.changePw(command.prevPw, command.nextPw) } returns updatedUser
+            every { userRepository.update(updatedUser) } returns updatedUser
+
+            // act
+            userService.changePw(command)
+
+            // assert
+            verify { userRepository.findByLoginId(command.loginId) }
+            verify { user.changePw(command.prevPw, command.nextPw) }
+            verify { userRepository.update(updatedUser) }
+        }
+
+        @DisplayName("존재하지 않는 loginId이면, UNAUTHORIZED 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenUserNotFound() {
+            // arrange
+            val command = ChangePwCommand(
+                loginId = "nonexistent",
+                loginPw = "password1234",
+                prevPw = "password1234",
+                nextPw = "newPassword1!",
+            )
+            every { userRepository.findByLoginId(command.loginId) } throws CoreException(ErrorType.NOT_FOUND)
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.changePw(command)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("이전 비밀번호가 틀리면, UNAUTHORIZED 에러가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPrevPwIsWrong() {
+            // arrange
+            val command = ChangePwCommand(
+                loginId = "testuser01",
+                loginPw = "password1234",
+                prevPw = "wrongPassword1",
+                nextPw = "newPassword1!",
+            )
+            val user = mockk<User>()
+            every { userRepository.findByLoginId(command.loginId) } returns user
+            every { user.changePw(command.prevPw, command.nextPw) } throws CoreException(ErrorType.UNAUTHORIZED, "이전 비밀번호가 올바르지 않습니다.")
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.changePw(command)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 유효하지 않으면, BAD_REQUEST 에러가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNextPwIsInvalid() {
+            // arrange
+            val command = ChangePwCommand(
+                loginId = "testuser01",
+                loginPw = "password1234",
+                prevPw = "password1234",
+                nextPw = "short",
+            )
+            val user = mockk<User>()
+            every { userRepository.findByLoginId(command.loginId) } returns user
+            every { user.changePw(command.prevPw, command.nextPw) } throws CoreException(ErrorType.BAD_REQUEST, "비밀번호는 8~16자여야 합니다.")
+
+            // act
+            val exception = assertThrows<CoreException> {
+                userService.changePw(command)
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
+
     @DisplayName("signup을 호출할 때,")
     @Nested
     inner class Signup {

@@ -130,6 +130,38 @@ class UserModelTest {
         }
     }
 
+    @DisplayName("회원가입 시 이메일이, ")
+    @Nested
+    inner class EmailValidation {
+        @DisplayName("@ 앞의 사용자 식별자가 없으면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenEmailHasNoLocalPart() {
+            val result = assertThrows<CoreException> { newUserWith(email = "@example.com") }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("@ 가 없으면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenEmailHasNoAtSign() {
+            val result = assertThrows<CoreException> { newUserWith(email = "invalid-email") }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("도메인이 없으면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenEmailHasNoDomain() {
+            val result = assertThrows<CoreException> { newUserWith(email = "user@") }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("TLD 가 없으면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenEmailHasNoTld() {
+            val result = assertThrows<CoreException> { newUserWith(email = "user@example") }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
+
     private fun newUserWith(
         loginId: String = "seondays",
         password: String = "password",

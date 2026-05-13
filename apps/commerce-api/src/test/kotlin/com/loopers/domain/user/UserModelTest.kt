@@ -83,6 +83,24 @@ class UserModelTest {
         }
     }
 
+    @DisplayName("회원가입 시 이름이, ")
+    @Nested
+    inner class NameValidation {
+        @DisplayName("빈 문자열이면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNameIsEmpty() {
+            val result = assertThrows<CoreException> { newUserWith(name = "") }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("20자를 초과하면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNameExceedsMax() {
+            val result = assertThrows<CoreException> { newUserWith(name = "가".repeat(21)) }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
+
     private fun newUserWith(
         loginId: String = "seondays",
         password: String = "password",

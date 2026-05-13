@@ -23,4 +23,11 @@ class UserRepositoryImpl(
         val entity = UserEntity.from(user)
         return userJpaRepository.save(entity).toDomain()
     }
+
+    override fun update(user: User): User {
+        val entity = userJpaRepository.findByLoginId(user.loginId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "사용자를 찾을 수 없습니다.")
+        entity.changePassword(user.password)
+        return entity.toDomain()
+    }
 }

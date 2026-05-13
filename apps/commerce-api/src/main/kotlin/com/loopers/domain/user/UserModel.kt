@@ -11,15 +11,20 @@ import java.time.LocalDate
 class UserModel(
     loginId: String,
     val password: String,
-    val name: String,
+    name: String,
     val birthDate: LocalDate,
     val email: String,
 ) : BaseEntity() {
     @Column(name = "login_id", nullable = false, unique = true, length = 20)
     val loginId: String = loginId
 
+    @Column(name = "name", nullable = false, length = 20)
+    var name: String = name
+        protected set
+
     init {
         validateLoginId(loginId)
+        validateName(name)
     }
 
     companion object {
@@ -28,6 +33,12 @@ class UserModel(
         private fun validateLoginId(loginId: String) {
             if (!LOGIN_ID_REGEX.matches(loginId)) {
                 throw CoreException(ErrorType.BAD_REQUEST, "로그인 ID는 3~20자 사이의 영문 소문자와 숫자로 이루어져야 합니다.")
+            }
+        }
+
+        private fun validateName(name: String) {
+            if (name.isEmpty() || name.length > 20) {
+                throw CoreException(ErrorType.BAD_REQUEST, "이름은 1~20자여야 합니다.")
             }
         }
     }

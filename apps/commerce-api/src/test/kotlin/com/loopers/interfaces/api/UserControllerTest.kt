@@ -2,6 +2,7 @@ package com.loopers.interfaces.api
 
 import com.loopers.application.user.UserFacade
 import com.loopers.application.user.UserService
+import com.loopers.domain.user.Password
 import com.loopers.domain.user.User
 import com.loopers.interfaces.api.user.UserController
 import com.loopers.support.error.CoreException
@@ -70,7 +71,7 @@ class UserControllerTest(
             val user = User(
                 id = 1L,
                 loginId = loginId,
-                password = "encryptedPassword",
+                password = Password("encryptedPassword"),
                 name = "홍길동",
                 birth = LocalDate.of(1995, 3, 15),
                 email = "test@example.com",

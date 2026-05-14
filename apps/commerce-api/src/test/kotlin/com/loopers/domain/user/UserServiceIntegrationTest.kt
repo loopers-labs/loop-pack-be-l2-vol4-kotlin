@@ -168,10 +168,10 @@ class UserServiceIntegrationTest @Autowired constructor(
 
             // assert
             assertAll(
-                { assertThat(result.loginId).isEqualTo(LOGIN_ID) },
-                { assertThat(result.name).isEqualTo(NAME) },
-                { assertThat(result.birthDate).isEqualTo(BIRTH_DATE) },
-                { assertThat(result.email).isEqualTo(EMAIL) },
+                { assertThat(result.loginId.value).isEqualTo(LOGIN_ID) },
+                { assertThat(result.name.value).isEqualTo(NAME) },
+                { assertThat(result.birthDate.value).isEqualTo(BIRTH_DATE) },
+                { assertThat(result.email.value).isEqualTo(EMAIL) },
             )
         }
 

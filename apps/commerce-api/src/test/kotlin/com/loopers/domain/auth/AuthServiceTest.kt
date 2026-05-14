@@ -1,5 +1,9 @@
 package com.loopers.domain.auth
 
+import com.loopers.domain.user.BirthDate
+import com.loopers.domain.user.Email
+import com.loopers.domain.user.LoginId
+import com.loopers.domain.user.Name
 import com.loopers.domain.user.PasswordEncryptor
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserRepository
@@ -26,6 +30,14 @@ class AuthServiceTest {
         private const val NAME = "홍길동"
         private const val BIRTH_DATE = "19900628"
         private const val EMAIL = "test@test.com"
+
+        private fun user() = User(
+            loginId = LoginId(LOGIN_ID),
+            password = ENCODED_PASSWORD,
+            name = Name(NAME),
+            birthDate = BirthDate(BIRTH_DATE),
+            email = Email(EMAIL),
+        )
     }
 
     @DisplayName("인증 시,")
@@ -51,8 +63,7 @@ class AuthServiceTest {
         @Test
         fun throwsUnauthorized_whenPasswordDoesNotMatch() {
             // arrange
-            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user())
             whenever(passwordEncryptor.matches(PASSWORD, ENCODED_PASSWORD)).thenReturn(false)
 
             // act
@@ -68,15 +79,14 @@ class AuthServiceTest {
         @Test
         fun returnsUser_whenValidCredentialsAreProvided() {
             // arrange
-            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user())
             whenever(passwordEncryptor.matches(PASSWORD, ENCODED_PASSWORD)).thenReturn(true)
 
             // act
             val result = authService.authenticate(LOGIN_ID, PASSWORD)
 
             // assert
-            assertThat(result.loginId).isEqualTo(LOGIN_ID)
+            assertThat(result.loginId.value).isEqualTo(LOGIN_ID)
         }
     }
 }

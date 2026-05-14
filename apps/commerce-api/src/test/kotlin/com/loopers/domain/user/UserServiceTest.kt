@@ -28,6 +28,14 @@ class UserServiceTest {
         private const val NAME = "홍길동"
         private const val BIRTH_DATE = "19900628"
         private const val EMAIL = "test@test.com"
+
+        private fun user(password: String = ENCODED_PASSWORD) = User(
+            loginId = LoginId(LOGIN_ID),
+            password = password,
+            name = Name(NAME),
+            birthDate = BirthDate(BIRTH_DATE),
+            email = Email(EMAIL),
+        )
     }
 
     @DisplayName("회원가입 시")
@@ -52,9 +60,9 @@ class UserServiceTest {
             )
 
             // assert
-            assertThat(result.loginId).isEqualTo(LOGIN_ID)
-            assertThat(result.name).isEqualTo(NAME)
-            assertThat(result.email).isEqualTo(EMAIL)
+            assertThat(result.loginId.value).isEqualTo(LOGIN_ID)
+            assertThat(result.name.value).isEqualTo(NAME)
+            assertThat(result.email.value).isEqualTo(EMAIL)
 
             verify(userRepository, times(1)).save(any())
             verify(userRepository, times(1)).findByLoginId(LOGIN_ID)
@@ -64,8 +72,7 @@ class UserServiceTest {
         @Test
         fun register_whenLoginIdAlreadyExists() {
             // arrange
-            val existingUser = User(loginId = LOGIN_ID, password = PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(existingUser)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user(PASSWORD))
 
             // act
             val result = assertThrows<CoreException> {
@@ -108,8 +115,7 @@ class UserServiceTest {
         @Test
         fun changesPassword_whenValidNewPasswordIsProvided() {
             // arrange
-            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user())
             whenever(passwordEncryptor.matches(NEW_PASSWORD, ENCODED_PASSWORD)).thenReturn(false)
             whenever(passwordEncryptor.encode(NEW_PASSWORD)).thenReturn(ENCODED_NEW_PASSWORD)
 
@@ -124,8 +130,7 @@ class UserServiceTest {
         @Test
         fun throwsConflict_whenNewPasswordIsSameAsCurrent() {
             // arrange
-            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user())
             whenever(passwordEncryptor.matches(PASSWORD, ENCODED_PASSWORD)).thenReturn(true)
 
             // act
@@ -146,17 +151,16 @@ class UserServiceTest {
         @Test
         fun returnsUser_whenValidLoginIdIsProvided() {
             // arrange
-            val user = User(loginId = LOGIN_ID, password = ENCODED_PASSWORD, name = NAME, birthDate = BIRTH_DATE, email = EMAIL)
-            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user)
+            whenever(userRepository.findByLoginId(LOGIN_ID)).thenReturn(user())
 
             // act
             val result = userService.getMyInfo(LOGIN_ID)
 
             // assert
-            assertThat(result.loginId).isEqualTo(LOGIN_ID)
-            assertThat(result.name).isEqualTo(NAME)
-            assertThat(result.birthDate).isEqualTo(BIRTH_DATE)
-            assertThat(result.email).isEqualTo(EMAIL)
+            assertThat(result.loginId.value).isEqualTo(LOGIN_ID)
+            assertThat(result.name.value).isEqualTo(NAME)
+            assertThat(result.birthDate.value).isEqualTo(BIRTH_DATE)
+            assertThat(result.email.value).isEqualTo(EMAIL)
         }
 
         @DisplayName("존재하지 않는 loginId가 주어지면, NOT_FOUND 예외가 발생한다.")

@@ -11,19 +11,19 @@ data class UserInfo(
     companion object {
         fun from(user: User): UserInfo {
             return UserInfo(
-                loginId = user.loginId,
-                name = user.name,
-                birthDate = user.birthDate,
-                email = user.email,
+                loginId = user.loginId.value,
+                name = user.name.value,
+                birthDate = user.birthDate.value,
+                email = user.email.value,
             )
         }
 
         fun fromWithMasking(user: User): UserInfo {
             return UserInfo(
-                loginId = user.loginId,
-                name = user.maskedName(),
-                birthDate = user.birthDate,
-                email = user.email,
+                loginId = user.loginId.value,
+                name = user.name.masked(),
+                birthDate = user.birthDate.value,
+                email = user.email.value,
             )
         }
     }

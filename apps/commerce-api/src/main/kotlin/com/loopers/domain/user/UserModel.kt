@@ -30,20 +30,20 @@ class UserModel(
 
     fun toDomain(): User = User(
         id = this.id,
-        loginId = this.loginId,
+        loginId = LoginId(this.loginId),
         password = this.password,
-        name = this.name,
-        birthDate = this.birthDate,
-        email = this.email,
+        name = Name(this.name),
+        birthDate = BirthDate(this.birthDate),
+        email = Email(this.email),
     )
 
     companion object {
         fun from(user: User): UserModel = UserModel(
-            loginId = user.loginId,
+            loginId = user.loginId.value,
             password = user.password,
-            name = user.name,
-            birthDate = user.birthDate,
-            email = user.email,
+            name = user.name.value,
+            birthDate = user.birthDate.value,
+            email = user.email.value,
         )
     }
 }

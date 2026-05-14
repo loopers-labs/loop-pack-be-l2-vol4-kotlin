@@ -93,6 +93,35 @@ class MemberV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.email).isEqualTo(request.email) },
             )
         }
+
+        @DisplayName("로그인 ID 에 영문자와 숫자 외 문자가 포함되면 실패한다")
+        @Test
+        fun returnsBadRequest_whenLoginIdContainsNonAlphanumericCharacters() {
+            val response = testRestTemplate.exchange(
+                GET_MY_INFO_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(Unit, createAuthHeaders("loopers-123", "Loopers123!")),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("비밀번호가 일치하지 않으면 실패한다")
+        @Test
+        fun returnsUnauthorized_whenPasswordDoesNotMatch() {
+            val request = createSignUpRequest()
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                GET_MY_INFO_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(Unit, createAuthHeaders(request.loginId, "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
     }
 
     private fun createSignUpRequest(

@@ -20,4 +20,11 @@ class MemberFacade(
         return memberService.getMyInfo(loginId, rawPassword)
             .let { MemberInfo.from(it) }
     }
+
+    fun updatePassword(
+        loginId: String,
+        rawPassword: String,
+        newRawPassword: String,
+    ) {
+    }
 }

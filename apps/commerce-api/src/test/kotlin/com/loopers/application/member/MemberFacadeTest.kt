@@ -33,4 +33,27 @@ class MemberFacadeTest {
             verify(memberService).signUp(command)
         }
     }
+
+    @DisplayName("비밀번호 수정")
+    @Nested
+    inner class UpdatePassword {
+        private val memberService = mock<MemberService>()
+        private val memberFacade = MemberFacade(memberService)
+
+        @DisplayName("비밀번호 수정 요청을 서비스로 위임한다")
+        @Test
+        fun delegatesToMemberService_whenPasswordUpdateIsRequested() {
+            memberFacade.updatePassword(
+                loginId = "loopers123",
+                rawPassword = "Loopers123!",
+                newRawPassword = "NewLoopers1!",
+            )
+
+            verify(memberService).updatePassword(
+                loginId = "loopers123",
+                rawPassword = "Loopers123!",
+                newRawPassword = "NewLoopers1!",
+            )
+        }
+    }
 }

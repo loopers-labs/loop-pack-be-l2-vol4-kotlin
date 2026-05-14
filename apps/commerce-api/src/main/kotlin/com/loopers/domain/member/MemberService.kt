@@ -40,8 +40,14 @@ class MemberService(
             throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
         }
 
-        return memberRepository.findByLoginId(loginId)
+        val member = memberRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
+
+        if (!PasswordEncoder.matches(rawPassword, member.password)) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "Member credentials do not match.")
+        }
+
+        return member
     }
 
     companion object {

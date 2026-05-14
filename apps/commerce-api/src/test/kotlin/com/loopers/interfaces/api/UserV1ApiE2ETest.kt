@@ -279,6 +279,157 @@ class UserV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("PATCH /api/v1/users/password")
+    @Nested
+    inner class ChangePassword {
+        @DisplayName("유효한 자격증명과 새 비밀번호로 요청하면 200을 반환한다.")
+        @Test
+        fun changePassword_whenRequestIsValid() {
+            // arrange
+            val loginId = "seondays"
+            val oldPassword = "OldPass1!"
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(UserV1Dto.SignUpRequest(loginId, oldPassword, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", oldPassword)
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest("NewPass1!"), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+        }
+
+        @DisplayName("X-Loopers-LoginId 헤더가 없으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun changePassword_whenLoginIdHeaderIsMissing() {
+            // act
+            val headers = HttpHeaders().apply { set("X-Loopers-LoginPw", "OldPass1!") }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest("NewPass1!"), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("X-Loopers-LoginPw 헤더가 없으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun changePassword_whenPasswordHeaderIsMissing() {
+            // act
+            val headers = HttpHeaders().apply { set("X-Loopers-LoginId", "seondays") }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest("NewPass1!"), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("현재 비밀번호가 일치하지 않으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun changePassword_whenCurrentPasswordDoesNotMatch() {
+            // arrange
+            val loginId = "seondays"
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(UserV1Dto.SignUpRequest(loginId, "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", "WrongPass1!")
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest("NewPass1!"), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 현재 비밀번호와 동일하면 400 BAD_REQUEST 를 반환한다.")
+        @Test
+        fun changePassword_whenNewPasswordIsSameAsCurrent() {
+            // arrange
+            val loginId = "seondays"
+            val password = "OldPass1!"
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(UserV1Dto.SignUpRequest(loginId, password, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", password)
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest(password), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("새 비밀번호 형식이 올바르지 않으면 400 BAD_REQUEST 를 반환한다.")
+        @Test
+        fun changePassword_whenNewPasswordIsInvalidFormat() {
+            // arrange
+            val loginId = "seondays"
+            val oldPassword = "OldPass1!"
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(UserV1Dto.SignUpRequest(loginId, oldPassword, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", oldPassword)
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/password",
+                HttpMethod.PATCH,
+                HttpEntity(UserV1Dto.ChangePasswordRequest("Pass19900101!"), headers),
+                object : ParameterizedTypeReference<ApiResponse<Unit>>() {},
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+    }
+
     private fun <T> jsonEntity(body: T): HttpEntity<T> {
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
         return HttpEntity(body, headers)

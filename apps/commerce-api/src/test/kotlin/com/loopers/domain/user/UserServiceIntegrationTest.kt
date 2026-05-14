@@ -138,4 +138,80 @@ class UserServiceIntegrationTest @Autowired constructor(
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
     }
+
+    @DisplayName("비밀번호 수정 시, ")
+    @Nested
+    inner class ChangePassword {
+        @DisplayName("올바른 현재 비밀번호와 유효한 새 비밀번호로 변경하면 정상적으로 수정된다.")
+        @Test
+        fun changePassword_whenCredentialsAreValid() {
+            // arrange
+            val loginId = "seondays"
+            val oldPassword = "OldPass1!"
+            val newPassword = "NewPass1!"
+            userService.signUp(loginId, oldPassword, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+
+            // act
+            userService.changePassword(loginId, oldPassword, newPassword)
+
+            // assert
+            assertAll(
+                { assertThat(userService.getUserInfo(loginId, newPassword).loginId).isEqualTo(loginId) },
+                {
+                    assertThrows<CoreException> { userService.getUserInfo(loginId, oldPassword) }
+                    .also { assertThat(it.errorType).isEqualTo(ErrorType.UNAUTHORIZED) }
+                },
+            )
+        }
+
+        @DisplayName("존재하지 않는 로그인 ID 로 요청하면 401 Unauthorized 예외가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenLoginIdNotFound() {
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.changePassword("nonexistent", "OldPass1!", "NewPass1!")
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("현재 비밀번호가 일치하지 않으면 401 Unauthorized 예외가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenCurrentPasswordDoesNotMatch() {
+            // arrange
+            userService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.changePassword("seondays", "WrongPass1!", "NewPass1!")
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 현재 비밀번호와 동일하면 400 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNewPasswordIsSameAsCurrent() {
+            // arrange
+            val password = "OldPass1!"
+            userService.signUp("seondays", password, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.changePassword("seondays", password, password)
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("새 비밀번호에 생년월일이 포함되면 400 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenNewPasswordContainsBirthDate() {
+            // arrange
+            userService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.changePassword("seondays", "OldPass1!", "Pass19900101!")
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
 }

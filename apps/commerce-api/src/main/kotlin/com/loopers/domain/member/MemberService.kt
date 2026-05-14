@@ -55,6 +55,26 @@ class MemberService(
         rawPassword: String,
         newRawPassword: String,
     ) {
+        if (!loginId.matches(LOGIN_ID_REGEX)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
+        }
+
+        val member = memberRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
+
+        if (!PasswordEncoder.matches(rawPassword, member.password)) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "Member credentials do not match.")
+        }
+        if (PasswordEncoder.matches(newRawPassword, member.password)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "New password must be different from current password.")
+        }
+
+        PasswordPolicy.validate(
+            rawPassword = newRawPassword,
+            birthDate = member.birthDate,
+        )
+
+        member.updatePassword(PasswordEncoder.encode(newRawPassword))
     }
 
     companion object {

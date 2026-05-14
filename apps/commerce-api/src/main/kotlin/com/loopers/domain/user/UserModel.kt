@@ -5,18 +5,23 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.Table
 import java.time.LocalDate
 
 @Entity
+@Table(name = "users")
 class UserModel(
     loginId: String,
-    val password: String,
+    password: String,
     name: String,
     birthDate: LocalDate,
     email: String,
 ) : BaseEntity() {
     @Column(name = "login_id", nullable = false, unique = true, length = 20)
     val loginId: String = loginId
+
+    @Column(name = "password", nullable = false)
+    val password: String = password
 
     @Column(name = "name", nullable = false, length = 20)
     var name: String = name

@@ -222,6 +222,26 @@ class UserV1ApiE2ETest @Autowired constructor(
             assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
         }
 
+        @DisplayName("존재하지 않는 로그인 ID 로 요청하면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun getMe_whenLoginIdNotFound() {
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetUserInfoResponse>>() {}
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", "nonexistent")
+                set("X-Loopers-LoginPw", "Password1!")
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/me",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                responseType,
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
         @DisplayName("비밀번호가 일치하지 않으면 401 Unauthorized 를 반환한다.")
         @Test
         fun getMe_whenPasswordDoesNotMatch() {

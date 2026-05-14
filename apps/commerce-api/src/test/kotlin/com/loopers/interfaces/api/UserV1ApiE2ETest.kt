@@ -143,6 +143,122 @@ class UserV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/users/me")
+    @Nested
+    inner class GetMe {
+        @DisplayName("유효한 헤더로 요청하면 200과 함께 마스킹된 회원 정보를 반환한다.")
+        @Test
+        fun getMe_whenCredentialsAreValid() {
+            // arrange
+            val loginId = "seondays"
+            val rawPassword = "Password1!"
+            val signUpRequest = UserV1Dto.SignUpRequest(
+                loginId = loginId,
+                password = rawPassword,
+                name = "선데이",
+                birthDate = LocalDate.of(1990, 1, 1),
+                email = "seondays@example.com",
+            )
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(signUpRequest),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetUserInfoResponse>>() {}
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", rawPassword)
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/me",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                responseType,
+            )
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.loginId).isEqualTo(loginId) },
+                { assertThat(response.body?.data?.name).isEqualTo("선데*") },
+                { assertThat(response.body?.data?.email).isEqualTo("seondays@example.com") },
+            )
+        }
+
+        @DisplayName("X-Loopers-LoginId 헤더가 없으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun getMe_whenLoginIdHeaderIsMissing() {
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetUserInfoResponse>>() {}
+            val headers = HttpHeaders().apply { set("X-Loopers-LoginPw", "Password1!") }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/me",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                responseType,
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("X-Loopers-LoginPw 헤더가 없으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun getMe_whenPasswordHeaderIsMissing() {
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetUserInfoResponse>>() {}
+            val headers = HttpHeaders().apply { set("X-Loopers-LoginId", "seondays") }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/me",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                responseType,
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("비밀번호가 일치하지 않으면 401 Unauthorized 를 반환한다.")
+        @Test
+        fun getMe_whenPasswordDoesNotMatch() {
+            // arrange
+            val loginId = "seondays"
+            val signUpRequest = UserV1Dto.SignUpRequest(
+                loginId = loginId,
+                password = "Password1!",
+                name = "선데이",
+                birthDate = LocalDate.of(1990, 1, 1),
+                email = "seondays@example.com",
+            )
+            testRestTemplate.exchange(
+                ENDPOINT,
+                HttpMethod.POST,
+                jsonEntity(signUpRequest),
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
+            )
+
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetUserInfoResponse>>() {}
+            val headers = HttpHeaders().apply {
+                set("X-Loopers-LoginId", loginId)
+                set("X-Loopers-LoginPw", "WrongPass1!")
+            }
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/me",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                responseType,
+            )
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+    }
+
     private fun <T> jsonEntity(body: T): HttpEntity<T> {
         val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
         return HttpEntity(body, headers)

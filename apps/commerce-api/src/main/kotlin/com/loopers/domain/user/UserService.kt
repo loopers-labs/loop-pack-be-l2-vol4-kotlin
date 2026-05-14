@@ -1,0 +1,34 @@
+package com.loopers.domain.user
+
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
+import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+
+@Component
+class UserService(
+    private val userRepository: UserRepository,
+) {
+    @Transactional
+    fun signUp(
+        loginId: String,
+        encodedPassword: EncodedPassword,
+        name: String,
+        birthDate: LocalDate,
+        email: String,
+    ): UserModel {
+        if (userRepository.existsByLoginId(loginId)) {
+            throw CoreException(ErrorType.CONFLICT, "이미 사용 중인 로그인 ID 입니다.")
+        }
+        return userRepository.save(
+            UserModel(
+                loginId = loginId,
+                encodedPassword = encodedPassword,
+                name = name,
+                birthDate = birthDate,
+                email = email,
+            ),
+        )
+    }
+}

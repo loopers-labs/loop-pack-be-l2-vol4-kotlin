@@ -26,5 +26,10 @@ class MemberFacade(
         rawPassword: String,
         newRawPassword: String,
     ) {
+        memberService.updatePassword(
+            loginId = loginId,
+            rawPassword = rawPassword,
+            newRawPassword = newRawPassword,
+        )
     }
 }

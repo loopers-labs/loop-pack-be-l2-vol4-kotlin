@@ -122,7 +122,7 @@ class UserTest {
             // assert
             val expected = User(
                 loginId = loginId,
-                password = PasswordEncryptionUtil.encode(rawPassword),
+                password = Password(PasswordEncryptionUtil.encode(rawPassword)),
                 name = name,
                 birth = birth,
                 email = email,

@@ -79,4 +79,63 @@ class UserServiceIntegrationTest @Autowired constructor(
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
+
+    @DisplayName("내 정보 조회 시, ")
+    @Nested
+    inner class GetMe {
+        @DisplayName("올바른 로그인 ID 와 비밀번호로 조회하면 정상적인 결과를 반환한다.")
+        @Test
+        fun getMe_whenCredentialsAreValid() {
+            // arrange
+            val loginId = "seondays"
+            val rawPassword = "Password1!"
+            userService.signUp(
+                loginId = loginId,
+                rawPassword = rawPassword,
+                name = "선데이",
+                birthDate = LocalDate.of(1990, 1, 1),
+                email = "seondays@example.com",
+            )
+
+            // act
+            val result = userService.getUserInfo(loginId, rawPassword)
+
+            // assert
+            assertAll(
+                { assertThat(result.loginId).isEqualTo(loginId) },
+                { assertThat(result.name).isEqualTo("선데이") },
+                { assertThat(result.email).isEqualTo("seondays@example.com") },
+            )
+        }
+
+        @DisplayName("존재하지 않는 로그인 ID 로 조회하면 UNAUTHORIZED 예외가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenLoginIdNotFound() {
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.getUserInfo(loginId = "nonexistent", rawPassword = "Password1!")
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("비밀번호가 일치하지 않으면 UNAUTHORIZED 예외가 발생한다.")
+        @Test
+        fun throwsUnauthorized_whenPasswordDoesNotMatch() {
+            // arrange
+            val loginId = "seondays"
+            userService.signUp(
+                loginId = loginId,
+                rawPassword = "Password1!",
+                name = "선데이",
+                birthDate = LocalDate.of(1990, 1, 1),
+                email = "seondays@example.com",
+            )
+
+            // act & assert
+            val result = assertThrows<CoreException> {
+                userService.getUserInfo(loginId = loginId, rawPassword = "WrongPass1!")
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+    }
 }

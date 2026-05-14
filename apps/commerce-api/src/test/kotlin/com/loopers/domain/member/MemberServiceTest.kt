@@ -106,6 +106,16 @@ class MemberServiceTest {
 
             assertThat(result).isEqualTo(member)
         }
+
+        @DisplayName("로그인 ID 에 영문과 숫자 외 문자가 포함되면 실패한다")
+        @Test
+        fun throwsBadRequest_whenLoginIdContainsNonAlphanumericCharacters() {
+            val result = assertThrows<CoreException> {
+                memberService.getMyInfo("loopers-123", "Loopers123!")
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
     }
 
     private fun createMember(

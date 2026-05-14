@@ -17,6 +17,7 @@ class MemberFacade(
         loginId: String,
         rawPassword: String,
     ): MemberInfo {
-        throw UnsupportedOperationException("Not implemented yet")
+        return memberService.getMyInfo(loginId, rawPassword)
+            .let { MemberInfo.from(it) }
     }
 }

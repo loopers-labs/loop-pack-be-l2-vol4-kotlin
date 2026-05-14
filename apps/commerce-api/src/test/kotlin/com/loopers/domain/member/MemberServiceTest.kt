@@ -105,6 +105,97 @@ class MemberServiceTest {
         }
     }
 
+    @DisplayName("비밀번호 수정")
+    @Nested
+    inner class UpdatePassword {
+        private val memberRepository = FakeMemberRepository()
+        private val memberService = MemberService(memberRepository)
+
+        @DisplayName("기존 비밀번호가 일치하고 새 비밀번호가 유효하면 비밀번호를 변경한다")
+        @Test
+        fun updatesPassword_whenCurrentPasswordMatchesAndNewPasswordIsValid() {
+            val currentPassword = "Loopers123!"
+            val newPassword = "NewLoopers1!"
+            val member = MemberFixture.createMember(
+                loginId = "loopers123",
+                password = PasswordEncoder.encode(currentPassword),
+            )
+            memberRepository.save(member)
+
+            memberService.updatePassword(
+                loginId = "loopers123",
+                rawPassword = currentPassword,
+                newRawPassword = newPassword,
+            )
+
+            assertThat(PasswordEncoder.matches(newPassword, member.password)).isTrue()
+        }
+
+        @DisplayName("기존 비밀번호가 일치하지 않으면 실패한다")
+        @Test
+        fun throwsUnauthorized_whenCurrentPasswordDoesNotMatch() {
+            memberRepository.save(
+                MemberFixture.createMember(
+                    loginId = "loopers123",
+                    password = PasswordEncoder.encode("Loopers123!"),
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                memberService.updatePassword(
+                    loginId = "loopers123",
+                    rawPassword = "Wrong123!",
+                    newRawPassword = "NewLoopers1!",
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 정책을 만족하지 않으면 실패한다")
+        @Test
+        fun throwsBadRequest_whenNewPasswordDoesNotSatisfyPolicy() {
+            memberRepository.save(
+                MemberFixture.createMember(
+                    loginId = "loopers123",
+                    password = PasswordEncoder.encode("Loopers123!"),
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                memberService.updatePassword(
+                    loginId = "loopers123",
+                    rawPassword = "Loopers123!",
+                    newRawPassword = "short",
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("현재 비밀번호와 같은 비밀번호로 변경하면 실패한다")
+        @Test
+        fun throwsBadRequest_whenNewPasswordIsSameAsCurrentPassword() {
+            val currentPassword = "Loopers123!"
+            memberRepository.save(
+                MemberFixture.createMember(
+                    loginId = "loopers123",
+                    password = PasswordEncoder.encode(currentPassword),
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                memberService.updatePassword(
+                    loginId = "loopers123",
+                    rawPassword = currentPassword,
+                    newRawPassword = currentPassword,
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
+
     private class FakeMemberRepository : MemberRepository {
         val members = mutableListOf<Member>()
 

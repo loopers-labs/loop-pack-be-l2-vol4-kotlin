@@ -50,6 +50,13 @@ class MemberService(
         return member
     }
 
+    fun updatePassword(
+        loginId: String,
+        rawPassword: String,
+        newRawPassword: String,
+    ) {
+    }
+
     companion object {
         private val LOGIN_ID_REGEX = Regex("^[A-Za-z0-9]+$")
     }

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 
+@Transactional(readOnly = true)
 @Component
 class UserService(
     private val userRepository: UserRepository,

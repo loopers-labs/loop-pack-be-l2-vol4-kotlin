@@ -36,6 +36,7 @@ class MemberService(
         loginId: String,
         rawPassword: String,
     ): Member {
-        throw UnsupportedOperationException("Not implemented yet")
+        return memberRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
     }
 }

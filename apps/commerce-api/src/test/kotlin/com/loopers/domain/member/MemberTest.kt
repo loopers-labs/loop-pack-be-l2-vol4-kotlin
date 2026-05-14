@@ -78,4 +78,18 @@ class MemberTest {
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
         }
     }
+
+    @DisplayName("비밀번호 변경")
+    @Nested
+    inner class UpdatePassword {
+        @DisplayName("새 암호화 비밀번호로 변경한다")
+        @Test
+        fun updatesPassword_whenEncodedPasswordIsProvided() {
+            val member = MemberFixture.createMember(password = "oldEncodedPassword")
+
+            member.updatePassword("newEncodedPassword")
+
+            assertThat(member.password).isEqualTo("newEncodedPassword")
+        }
+    }
 }

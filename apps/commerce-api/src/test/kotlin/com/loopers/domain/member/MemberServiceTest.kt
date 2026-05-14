@@ -77,14 +77,14 @@ class MemberServiceTest {
             assertThat(result).isEqualTo(member)
         }
 
-        @DisplayName("로그인 ID 에 영문과 숫자 외 문자가 포함되면 실패한다")
+        @DisplayName("가입되지 않은 로그인 ID 로 조회하면 실패한다")
         @Test
-        fun throwsBadRequest_whenLoginIdContainsNonAlphanumericCharacters() {
+        fun throwsNotFound_whenLoginIdDoesNotExist() {
             val result = assertThrows<CoreException> {
                 memberService.getMyInfo("loopers-123", "Loopers123!")
             }
 
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
 
         @DisplayName("비밀번호가 일치하지 않으면 실패한다")
@@ -150,6 +150,20 @@ class MemberServiceTest {
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+
+        @DisplayName("가입되지 않은 로그인 ID 로 비밀번호를 수정하면 실패한다")
+        @Test
+        fun throwsNotFound_whenLoginIdDoesNotExist() {
+            val result = assertThrows<CoreException> {
+                memberService.updatePassword(
+                    loginId = "loopers-123",
+                    rawPassword = "Loopers123!",
+                    newRawPassword = "NewLoopers1!",
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
 
         @DisplayName("새 비밀번호가 정책을 만족하지 않으면 실패한다")

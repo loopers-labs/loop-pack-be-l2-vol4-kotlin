@@ -94,9 +94,9 @@ class MemberV1ApiE2ETest @Autowired constructor(
             )
         }
 
-        @DisplayName("로그인 ID 에 영문자와 숫자 외 문자가 포함되면 실패한다")
+        @DisplayName("가입되지 않은 로그인 ID 로 조회하면 실패한다")
         @Test
-        fun returnsBadRequest_whenLoginIdContainsNonAlphanumericCharacters() {
+        fun returnsNotFound_whenLoginIdDoesNotExist() {
             val response = testRestTemplate.exchange(
                 GET_MY_INFO_ENDPOINT,
                 HttpMethod.GET,
@@ -104,7 +104,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
             )
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
         }
 
         @DisplayName("비밀번호가 일치하지 않으면 실패한다")

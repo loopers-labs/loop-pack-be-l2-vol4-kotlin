@@ -45,6 +45,17 @@ class MemberTest {
             )
         }
 
+        @DisplayName("로그인 ID 에 영문과 숫자 외 문자가 들어가면 실패")
+        @ParameterizedTest
+        @ValueSource(strings = [" ", "loopers-123", "loopers_123", "loopers!"])
+        fun throwsBadRequest_whenLoginIdContainsNonAlphanumericCharacters(loginId: String) {
+            val result = assertThrows<CoreException> {
+                MemberFixture.createMember(loginId = loginId)
+            }
+
+            assertEquals(ErrorType.BAD_REQUEST, result.errorType)
+        }
+
         @DisplayName("이름에 특수문자, 숫자, 공백이 들어가면 실패")
         @ParameterizedTest
         @ValueSource(strings = [" ", "gunyoung12", "gunyoung$!", "young young"])

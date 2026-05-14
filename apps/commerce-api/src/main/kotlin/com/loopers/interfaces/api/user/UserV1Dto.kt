@@ -31,4 +31,20 @@ class UserV1Dto {
             )
         }
     }
+
+    data class GetUserInfoResponse(
+        val loginId: String,
+        val name: String,
+        val birthDate: String,
+        val email: String,
+    ) {
+        companion object {
+            fun from(info: UserInfo): GetUserInfoResponse = GetUserInfoResponse(
+                loginId = info.loginId,
+                name = if (info.name.isEmpty()) "*" else info.name.dropLast(1) + "*",
+                birthDate = info.birthDate.toString(),
+                email = info.email,
+            )
+        }
+    }
 }

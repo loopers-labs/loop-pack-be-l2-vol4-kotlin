@@ -2,8 +2,11 @@ package com.loopers.interfaces.api.user
 
 import com.loopers.application.user.UserFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.support.auth.LoginAuth
+import com.loopers.support.auth.LoginUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -28,5 +31,14 @@ class UserV1Controller(
             email = request.email,
         )
         return ApiResponse.success(UserV1Dto.SignUpResponse.from(info))
+    }
+
+    @GetMapping("/me")
+    override fun getUserInfo(@LoginAuth loginUser: LoginUser): ApiResponse<UserV1Dto.GetUserInfoResponse> {
+        val info = userFacade.getUserInfo(
+            loginId = loginUser.loginId,
+            rawPassword = loginUser.rawPassword,
+        )
+        return ApiResponse.success(UserV1Dto.GetUserInfoResponse.from(info))
     }
 }

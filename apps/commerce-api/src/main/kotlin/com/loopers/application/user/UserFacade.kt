@@ -18,4 +18,9 @@ class UserFacade(
         return userService.signUp(loginId, rawPassword, name, birthDate, email)
             .let { UserInfo.from(it) }
     }
+
+    fun getUserInfo(loginId: String, rawPassword: String): UserInfo {
+        return userService.getUserInfo(loginId, rawPassword)
+            .let { UserInfo.from(it) }
+    }
 }

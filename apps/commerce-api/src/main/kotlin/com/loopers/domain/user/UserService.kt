@@ -35,4 +35,13 @@ class UserService(
             ),
         )
     }
+
+    fun getUserInfo(loginId: String, rawPassword: String): UserModel {
+        val user = userRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.UNAUTHORIZED)
+        if (!userPasswordEncoder.matches(rawPassword, user.password)) {
+            throw CoreException(ErrorType.UNAUTHORIZED)
+        }
+        return user
+    }
 }

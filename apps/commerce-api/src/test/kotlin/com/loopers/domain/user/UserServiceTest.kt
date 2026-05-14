@@ -80,8 +80,7 @@ class UserServiceTest {
             }
 
             // assert
-            assertThat(result.message).isEqualTo("이미 가입된 로그인 ID 입니다.")
-            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(result.errorType).isEqualTo(ErrorType.USER_ALREADY_EXISTS)
         }
 
         @DisplayName("유효한 정보로 가입하면, 비밀번호는 암호화되어 저장된다.")
@@ -139,7 +138,7 @@ class UserServiceTest {
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(result.errorType).isEqualTo(ErrorType.DUPLICATE_PASSWORD)
         }
     }
 
@@ -175,7 +174,7 @@ class UserServiceTest {
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(result.errorType).isEqualTo(ErrorType.USER_NOT_FOUND)
         }
     }
 }

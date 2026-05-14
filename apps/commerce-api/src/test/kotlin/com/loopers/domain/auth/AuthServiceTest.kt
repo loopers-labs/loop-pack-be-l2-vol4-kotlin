@@ -56,7 +56,7 @@ class AuthServiceTest {
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(result.errorType).isEqualTo(ErrorType.USER_NOT_FOUND)
         }
 
         @DisplayName("비밀번호가 일치하지 않으면, UNAUTHORIZED 예외가 발생한다.")
@@ -72,7 +72,7 @@ class AuthServiceTest {
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+            assertThat(result.errorType).isEqualTo(ErrorType.INVALID_PASSWORD)
         }
 
         @DisplayName("유효한 loginId와 비밀번호가 주어지면, 인증된 User를 반환한다.")

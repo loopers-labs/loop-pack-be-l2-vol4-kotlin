@@ -14,10 +14,10 @@ class AuthService(
 ) {
     fun authenticate(loginId: String, password: String): User {
         val user = userRepository.findByLoginId(loginId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
+            ?: throw CoreException(ErrorType.USER_NOT_FOUND)
 
         if (!passwordEncryptor.matches(password, user.password)) {
-            throw CoreException(ErrorType.UNAUTHORIZED, "비밀번호가 일치하지 않습니다.")
+            throw CoreException(ErrorType.INVALID_PASSWORD)
         }
 
         return user

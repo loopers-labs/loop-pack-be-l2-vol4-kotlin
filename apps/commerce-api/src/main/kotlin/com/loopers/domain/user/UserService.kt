@@ -14,7 +14,7 @@ class UserService(
     fun register(loginId: String, password: String, name: String, birthDate: String, email: String): User {
         val loginIdVo = LoginId(loginId)
         if (userRepository.findByLoginId(loginIdVo.value) != null) {
-            throw CoreException(ErrorType.CONFLICT, "이미 가입된 로그인 ID 입니다.")
+            throw CoreException(ErrorType.USER_ALREADY_EXISTS)
         }
 
         val birthDateVo = BirthDate(birthDate)
@@ -33,18 +33,18 @@ class UserService(
     @Transactional(readOnly = true)
     fun getMyInfo(loginId: String): User {
         return userRepository.findByLoginId(loginId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
+            ?: throw CoreException(ErrorType.USER_NOT_FOUND)
     }
 
     @Transactional
     fun changePassword(loginId: String, newPassword: String) {
         val user = userRepository.findByLoginId(loginId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 사용자입니다.")
+            ?: throw CoreException(ErrorType.USER_NOT_FOUND)
 
         Password(newPassword, user.birthDate.value)
 
         if (passwordEncryptor.matches(newPassword, user.password)) {
-            throw CoreException(ErrorType.CONFLICT, "현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.")
+            throw CoreException(ErrorType.DUPLICATE_PASSWORD)
         }
 
         val encodedNewPassword = passwordEncryptor.encode(newPassword)

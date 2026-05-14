@@ -106,7 +106,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(result.errorType).isEqualTo(ErrorType.USER_ALREADY_EXISTS)
         }
     }
 
@@ -143,7 +143,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(result.errorType).isEqualTo(ErrorType.DUPLICATE_PASSWORD)
         }
     }
 
@@ -184,7 +184,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             }
 
             // assert
-            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(result.errorType).isEqualTo(ErrorType.USER_NOT_FOUND)
         }
     }
 }

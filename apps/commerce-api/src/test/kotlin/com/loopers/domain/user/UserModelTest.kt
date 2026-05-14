@@ -27,7 +27,7 @@ class UserModelTest {
             // act
             val user = UserModel(
                 loginId = validLoginId,
-                password = validPassword,
+                encodedPassword = EncodedPassword(validPassword),
                 name = validName,
                 birthDate = validBirthDate,
                 email = validEmail,
@@ -179,7 +179,7 @@ class UserModelTest {
         email: String = "seondays@example.com",
     ) = UserModel(
         loginId = loginId,
-        password = password,
+        encodedPassword = EncodedPassword(password),
         name = name,
         birthDate = birthDate,
         email = email,

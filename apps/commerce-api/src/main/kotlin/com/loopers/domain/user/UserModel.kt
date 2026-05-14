@@ -12,7 +12,7 @@ import java.time.LocalDate
 @Table(name = "users")
 class UserModel(
     loginId: String,
-    password: String,
+    encodedPassword: EncodedPassword,
     name: String,
     birthDate: LocalDate,
     email: String,
@@ -21,7 +21,7 @@ class UserModel(
     val loginId: String = loginId
 
     @Column(name = "password", nullable = false)
-    val password: String = password
+    val password: String = encodedPassword.value
 
     @Column(name = "name", nullable = false, length = 20)
     var name: String = name

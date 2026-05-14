@@ -2,12 +2,12 @@ package com.loopers.domain.member
 
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.fixture.member.MemberFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import java.time.LocalDate
 
 class MemberServiceTest {
     @DisplayName("회원가입")
@@ -20,7 +20,7 @@ class MemberServiceTest {
         @Test
         fun savesMemberWithEncodedPassword_whenSignUpCommandIsValid() {
             val rawPassword = "Loopers123!"
-            val command = createSignUpCommand(rawPassword = rawPassword)
+            val command = MemberFixture.createSignUpCommand(rawPassword = rawPassword)
 
             val member = memberService.signUp(command)
 
@@ -32,8 +32,8 @@ class MemberServiceTest {
         @DisplayName("이미 가입된 로그인 ID 로 회원가입하면 실패한다")
         @Test
         fun throwsConflict_whenLoginIdAlreadyExists() {
-            memberRepository.save(createMember(loginId = "loopers123"))
-            val command = createSignUpCommand(loginId = "loopers123")
+            memberRepository.save(MemberFixture.createMember(loginId = "loopers123"))
+            val command = MemberFixture.createSignUpCommand(loginId = "loopers123")
 
             val result = assertThrows<CoreException> {
                 memberService.signUp(command)
@@ -45,7 +45,7 @@ class MemberServiceTest {
         @DisplayName("비밀번호 정책을 만족하지 않으면 실패한다")
         @Test
         fun throwsBadRequest_whenPasswordDoesNotSatisfyPolicy() {
-            val command = createSignUpCommand(rawPassword = "short")
+            val command = MemberFixture.createSignUpCommand(rawPassword = "short")
 
             val result = assertThrows<CoreException> {
                 memberService.signUp(command)
@@ -54,36 +54,6 @@ class MemberServiceTest {
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
             assertThat(memberRepository.members).isEmpty()
         }
-
-        private fun createSignUpCommand(
-            loginId: String = "loopers123",
-            rawPassword: String = "Loopers123!",
-            name: String = "gunyoung",
-            birthDate: LocalDate = LocalDate.of(1995, 5, 20),
-            email: String = "loopers@gmail.com",
-        ): MemberSignUpCommand =
-            MemberSignUpCommand(
-                loginId = loginId,
-                rawPassword = rawPassword,
-                name = name,
-                birthDate = birthDate,
-                email = email,
-            )
-
-        private fun createMember(
-            loginId: String = "loopers123",
-            password: String = "encodedPassword",
-            name: String = "gunyoung",
-            birthDate: LocalDate = LocalDate.of(1995, 5, 20),
-            email: String = "loopers@gmail.com",
-        ): Member =
-            Member(
-                loginId = loginId,
-                password = password,
-                name = name,
-                birthDate = birthDate,
-                email = email,
-            )
     }
 
     @DisplayName("내 정보 조회")
@@ -96,7 +66,7 @@ class MemberServiceTest {
         @Test
         fun returnsMember_whenCredentialsAreValid() {
             val rawPassword = "Loopers123!"
-            val member = createMember(
+            val member = MemberFixture.createMember(
                 loginId = "loopers123",
                 password = PasswordEncoder.encode(rawPassword),
             )
@@ -121,7 +91,7 @@ class MemberServiceTest {
         @Test
         fun throwsUnauthorized_whenPasswordDoesNotMatch() {
             memberRepository.save(
-                createMember(
+                MemberFixture.createMember(
                     loginId = "loopers123",
                     password = PasswordEncoder.encode("Loopers123!"),
                 ),
@@ -134,21 +104,6 @@ class MemberServiceTest {
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
     }
-
-    private fun createMember(
-        loginId: String = "loopers123",
-        password: String = "encodedPassword",
-        name: String = "gunyoung",
-        birthDate: LocalDate = LocalDate.of(1995, 5, 20),
-        email: String = "loopers@gmail.com",
-    ): Member =
-        Member(
-            loginId = loginId,
-            password = password,
-            name = name,
-            birthDate = birthDate,
-            email = email,
-        )
 
     private class FakeMemberRepository : MemberRepository {
         val members = mutableListOf<Member>()

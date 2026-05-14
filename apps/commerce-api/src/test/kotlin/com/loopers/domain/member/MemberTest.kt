@@ -2,6 +2,7 @@ package com.loopers.domain.member
 
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.fixture.member.MemberFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,7 +27,7 @@ class MemberTest {
             val birthDate = LocalDate.of(1970, 1, 1)
             val email = "loopers@gmail.com"
 
-            val member = createMember(
+            val member = MemberFixture.createMember(
                 loginId = loginId,
                 password = password,
                 name = name,
@@ -49,7 +50,7 @@ class MemberTest {
         @ValueSource(strings = [" ", "gunyoung12", "gunyoung$!", "young young"])
         fun throwsBadRequest_whenNameContainsNonLetters(name: String) {
             val result = assertThrows<CoreException> {
-                createMember(name = name)
+                MemberFixture.createMember(name = name)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -60,7 +61,7 @@ class MemberTest {
         @ValueSource(strings = [" ", "loopers", "@gmail.com", "loopers123@fewf", "loopers@fewf."])
         fun throwsBadRequest_whenEmailFormatIsNotValid(invalidEmail: String) {
             val result = assertThrows<CoreException> {
-                createMember(email = invalidEmail)
+                MemberFixture.createMember(email = invalidEmail)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -71,25 +72,10 @@ class MemberTest {
         fun throwsBadRequest_whenBirthDateIsNotValid() {
             val invalidBirthDate = LocalDate.now().plusDays(1)
             val result = assertThrows<CoreException> {
-                createMember(birthDate = invalidBirthDate)
+                MemberFixture.createMember(birthDate = invalidBirthDate)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
         }
-
-        private fun createMember(
-            loginId: String = "loopers123",
-            password: String = "encodedPassword",
-            name: String = "gunyoung",
-            birthDate: LocalDate = LocalDate.of(1970, 1, 1),
-            email: String = "loopers@gmail.com",
-        ): Member =
-            Member(
-                loginId = loginId,
-                password = password,
-                name = name,
-                birthDate = birthDate,
-                email = email,
-            )
     }
 }

@@ -1,8 +1,8 @@
 package com.loopers.infrastructure.member
 
 import com.loopers.config.jpa.DataSourceConfig
-import com.loopers.domain.member.Member
 import com.loopers.domain.member.MemberRepository
+import com.loopers.fixture.member.MemberFixture
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -15,7 +15,6 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.context.annotation.Import
-import java.time.LocalDate
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -30,7 +29,7 @@ class MemberRepositoryIntegrationTest @Autowired constructor(
         @DisplayName("회원을 저장하면 로그인 ID 존재 여부를 확인할 수 있다")
         @Test
         fun returnsTrue_whenMemberExistsByLoginId() {
-            val member = createMember(loginId = "loopers123")
+            val member = MemberFixture.createMember(loginId = "loopers123")
 
             val savedMember = memberRepository.save(member)
 
@@ -43,28 +42,18 @@ class MemberRepositoryIntegrationTest @Autowired constructor(
         @DisplayName("동일한 로그인 ID 로 회원을 중복 저장할 수 없다")
         @Test
         fun throwsDataIntegrityViolation_whenLoginIdIsDuplicated() {
-            memberJpaRepository.saveAndFlush(createMember(loginId = "loopers123"))
+            memberJpaRepository.saveAndFlush(MemberFixture.createMember(loginId = "loopers123"))
 
             val result = assertThrows<DataIntegrityViolationException> {
-                memberJpaRepository.saveAndFlush(createMember(loginId = "loopers123", email = "other@gmail.com"))
+                memberJpaRepository.saveAndFlush(
+                    MemberFixture.createMember(
+                        loginId = "loopers123",
+                        email = "other@gmail.com",
+                    ),
+                )
             }
 
             assertThat(result).isNotNull()
         }
-
-        private fun createMember(
-            loginId: String = "loopers123",
-            password: String = "encodedPassword",
-            name: String = "gunyoung",
-            birthDate: LocalDate = LocalDate.of(1995, 5, 20),
-            email: String = "loopers@gmail.com",
-        ): Member =
-            Member(
-                loginId = loginId,
-                password = password,
-                name = name,
-                birthDate = birthDate,
-                email = email,
-            )
     }
 }

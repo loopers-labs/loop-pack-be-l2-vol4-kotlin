@@ -60,7 +60,7 @@ class UserModel(
         }
 
         private fun validateBirthDate(birthDate: LocalDate) {
-            if (birthDate.isBefore(MIN_BIRTH_DATE) || birthDate.isAfter(LocalDate.now())) {
+            if (birthDate.isBefore(MIN_BIRTH_DATE) || !birthDate.isBefore(LocalDate.now())) {
                 throw CoreException(ErrorType.BAD_REQUEST, "생년월일은 1900-01-01 이후, 가입 날짜 이전이어야 합니다.")
             }
         }

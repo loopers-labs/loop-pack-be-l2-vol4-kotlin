@@ -122,6 +122,15 @@ class UserModelTest {
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
 
+        @DisplayName("가입 날짜와 같으면 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenBirthDateIsToday() {
+            val result = assertThrows<CoreException> {
+                newUserWith(birthDate = LocalDate.now())
+            }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
         @DisplayName("1900-01-01 은 허용된다.")
         @Test
         fun acceptsExact1900_01_01() {

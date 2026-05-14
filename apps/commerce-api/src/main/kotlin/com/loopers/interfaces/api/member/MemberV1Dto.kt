@@ -58,4 +58,8 @@ class MemberV1Dto {
             }
         }
     }
+
+    data class UpdatePasswordRequest(
+        val newPassword: String,
+    )
 }

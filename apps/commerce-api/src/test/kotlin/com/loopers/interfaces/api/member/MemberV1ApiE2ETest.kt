@@ -124,6 +124,103 @@ class MemberV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("PATCH /api/v1/members/me/password")
+    @Nested
+    inner class UpdatePassword {
+        @DisplayName("기존 비밀번호가 일치하고 새 비밀번호가 유효하면 비밀번호 수정에 성공한다")
+        @Test
+        fun returnsSuccess_whenCurrentPasswordMatchesAndNewPasswordIsValid() {
+            val request = createSignUpRequest(password = "Loopers123!")
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                UPDATE_PASSWORD_ENDPOINT,
+                HttpMethod.PATCH,
+                HttpEntity(
+                    MemberV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
+                    createAuthHeaders(request.loginId, request.password),
+                ),
+                String::class.java,
+            )
+
+            val oldPasswordResponse = testRestTemplate.exchange(
+                GET_MY_INFO_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(Unit, createAuthHeaders(request.loginId, request.password)),
+                String::class.java,
+            )
+            val newPasswordResponse = testRestTemplate.exchange(
+                GET_MY_INFO_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(Unit, createAuthHeaders(request.loginId, "NewLoopers1!")),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(oldPasswordResponse.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
+                { assertThat(newPasswordResponse.statusCode).isEqualTo(HttpStatus.OK) },
+            )
+        }
+
+        @DisplayName("기존 비밀번호가 일치하지 않으면 실패한다")
+        @Test
+        fun returnsUnauthorized_whenCurrentPasswordDoesNotMatch() {
+            val request = createSignUpRequest(password = "Loopers123!")
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                UPDATE_PASSWORD_ENDPOINT,
+                HttpMethod.PATCH,
+                HttpEntity(
+                    MemberV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
+                    createAuthHeaders(request.loginId, "Wrong123!"),
+                ),
+                String::class.java,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("새 비밀번호가 정책을 만족하지 않으면 실패한다")
+        @Test
+        fun returnsBadRequest_whenNewPasswordDoesNotSatisfyPolicy() {
+            val request = createSignUpRequest(password = "Loopers123!")
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                UPDATE_PASSWORD_ENDPOINT,
+                HttpMethod.PATCH,
+                HttpEntity(
+                    MemberV1Dto.UpdatePasswordRequest(newPassword = "short"),
+                    createAuthHeaders(request.loginId, request.password),
+                ),
+                String::class.java,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("현재 비밀번호와 같은 비밀번호로 변경하면 실패한다")
+        @Test
+        fun returnsBadRequest_whenNewPasswordIsSameAsCurrentPassword() {
+            val request = createSignUpRequest(password = "Loopers123!")
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                UPDATE_PASSWORD_ENDPOINT,
+                HttpMethod.PATCH,
+                HttpEntity(
+                    MemberV1Dto.UpdatePasswordRequest(newPassword = request.password),
+                    createAuthHeaders(request.loginId, request.password),
+                ),
+                String::class.java,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+    }
+
     private fun createSignUpRequest(
         loginId: String = "loopers123",
         password: String = "Loopers123!",
@@ -151,6 +248,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
     companion object {
         private const val SIGN_UP_ENDPOINT = "/api/v1/members"
         private const val GET_MY_INFO_ENDPOINT = "/api/v1/members/me"
+        private const val UPDATE_PASSWORD_ENDPOINT = "/api/v1/members/me/password"
         private const val LOGIN_ID_HEADER = "X-Loopers-LoginId"
         private const val LOGIN_PW_HEADER = "X-Loopers-LoginPw"
     }

@@ -36,7 +36,15 @@ class MemberService(
         loginId: String,
         rawPassword: String,
     ): Member {
+        if (!loginId.matches(LOGIN_ID_REGEX)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
+        }
+
         return memberRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
+    }
+
+    companion object {
+        private val LOGIN_ID_REGEX = Regex("^[A-Za-z0-9]+$")
     }
 }

@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.user
 
 import com.loopers.application.user.UserRepository
+import com.loopers.domain.user.Password
 import com.loopers.domain.user.User
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -36,7 +37,7 @@ class UserRepositoryImplIntegrationTest @Autowired constructor(
             // arrange
             val user = User(
                 loginId = "testuser",
-                password = "hashedpassword",
+                password = Password("hashedpassword"),
                 name = "테스트",
                 birth = LocalDate.of(1990, 1, 1),
                 email = "test@test.com",
@@ -64,7 +65,7 @@ class UserRepositoryImplIntegrationTest @Autowired constructor(
             val user = User(
                 id = 1L,
                 loginId = "testuser",
-                password = "hashedpassword",
+                password = Password("hashedpassword"),
                 name = "테스트",
                 birth = LocalDate.of(1990, 1, 1),
                 email = "test@test.com",

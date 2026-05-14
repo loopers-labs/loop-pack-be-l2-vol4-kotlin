@@ -12,4 +12,11 @@ class MemberFacade(
         return memberService.signUp(command)
             .let { MemberInfo.from(it) }
     }
+
+    fun getMyInfo(
+        loginId: String,
+        rawPassword: String,
+    ): MemberInfo {
+        throw UnsupportedOperationException("Not implemented yet")
+    }
 }

@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDate
@@ -68,6 +69,32 @@ class MemberV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/members/me")
+    @Nested
+    inner class GetMyInfo {
+        @DisplayName("로그인 ID 와 비밀번호가 유효하면 마스킹된 회원 정보를 반환한다")
+        @Test
+        fun returnsMaskedMemberInfo_whenCredentialsAreValid() {
+            val request = createSignUpRequest(name = "gunyoung")
+            testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
+
+            val response = testRestTemplate.exchange(
+                GET_MY_INFO_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(Unit, createAuthHeaders(request.loginId, request.password)),
+                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.loginId).isEqualTo(request.loginId) },
+                { assertThat(response.body?.data?.name).isEqualTo("gunyoun*") },
+                { assertThat(response.body?.data?.birthDate).isEqualTo(request.birthDate) },
+                { assertThat(response.body?.data?.email).isEqualTo(request.email) },
+            )
+        }
+    }
+
     private fun createSignUpRequest(
         loginId: String = "loopers123",
         password: String = "Loopers123!",
@@ -83,7 +110,19 @@ class MemberV1ApiE2ETest @Autowired constructor(
             email = email,
         )
 
+    private fun createAuthHeaders(
+        loginId: String,
+        password: String,
+    ): HttpHeaders =
+        HttpHeaders().apply {
+            set(LOGIN_ID_HEADER, loginId)
+            set(LOGIN_PW_HEADER, password)
+        }
+
     companion object {
         private const val SIGN_UP_ENDPOINT = "/api/v1/members"
+        private const val GET_MY_INFO_ENDPOINT = "/api/v1/members/me"
+        private const val LOGIN_ID_HEADER = "X-Loopers-LoginId"
+        private const val LOGIN_PW_HEADER = "X-Loopers-LoginPw"
     }
 }

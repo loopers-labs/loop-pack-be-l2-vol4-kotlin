@@ -11,4 +11,13 @@ interface MemberV1ApiSpec {
         description = "로그인 ID, 비밀번호, 이름, 생년월일, 이메일로 회원가입합니다.",
     )
     fun signUp(request: MemberV1Dto.SignUpRequest): ApiResponse<MemberV1Dto.SignUpResponse>
+
+    @Operation(
+        summary = "내 정보 조회",
+        description = "로그인 ID와 비밀번호 헤더로 내 정보를 조회합니다.",
+    )
+    fun getMyInfo(
+        loginId: String,
+        password: String,
+    ): ApiResponse<MemberV1Dto.MyInfoResponse>
 }

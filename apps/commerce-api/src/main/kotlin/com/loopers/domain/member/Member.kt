@@ -50,6 +50,7 @@ class Member(
     }
 
     fun updatePassword(encodedPassword: String) {
+        this.password = encodedPassword
     }
 
     companion object {

@@ -38,6 +38,9 @@ class Member(
         protected set
 
     init {
+        if (!loginId.matches(LOGIN_ID_REGEX)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
+        }
         if (!name.matches(NAME_REGEX)) {
             throw CoreException(ErrorType.BAD_REQUEST, "Name cannot contain special characters or numbers.")
         }
@@ -54,6 +57,7 @@ class Member(
     }
 
     companion object {
+        private val LOGIN_ID_REGEX = Regex("^[A-Za-z0-9]+$")
         private val NAME_REGEX = Regex("^[A-Za-z가-힣]+$")
         private val EMAIL_REGEX = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
     }

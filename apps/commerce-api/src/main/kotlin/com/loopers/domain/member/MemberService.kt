@@ -36,10 +36,6 @@ class MemberService(
         loginId: String,
         rawPassword: String,
     ): Member {
-        if (!loginId.matches(LOGIN_ID_REGEX)) {
-            throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
-        }
-
         val member = memberRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
 
@@ -56,10 +52,6 @@ class MemberService(
         rawPassword: String,
         newRawPassword: String,
     ) {
-        if (!loginId.matches(LOGIN_ID_REGEX)) {
-            throw CoreException(ErrorType.BAD_REQUEST, "LoginId must contain only letters and numbers.")
-        }
-
         val member = memberRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Member not found.")
 
@@ -76,9 +68,5 @@ class MemberService(
         )
 
         member.updatePassword(PasswordEncoder.encode(newRawPassword))
-    }
-
-    companion object {
-        private val LOGIN_ID_REGEX = Regex("^[A-Za-z0-9]+$")
     }
 }

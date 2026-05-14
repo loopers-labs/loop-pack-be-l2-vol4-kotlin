@@ -45,4 +45,21 @@ class UserService(
         }
         return user
     }
+
+    @Transactional
+    fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String): UserModel {
+        val user = userRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.UNAUTHORIZED)
+        if (!userPasswordEncoder.matches(currentRawPassword, user.password)) {
+            throw CoreException(ErrorType.UNAUTHORIZED)
+        }
+        if (userPasswordEncoder.matches(newRawPassword, user.password)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.")
+        }
+        val newEncoded = EncodedPassword(
+            userPasswordEncoder.encode(RawPassword(newRawPassword, user.birthDate).value),
+        )
+        user.changePassword(newEncoded)
+        return userRepository.save(user)
+    }
 }

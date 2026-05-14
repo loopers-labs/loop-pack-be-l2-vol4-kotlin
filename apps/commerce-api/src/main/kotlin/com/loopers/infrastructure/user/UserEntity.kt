@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.user
 
 import com.loopers.domain.BaseEntity
+import com.loopers.domain.user.Password
 import com.loopers.domain.user.User
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
@@ -23,7 +24,7 @@ class UserEntity(
         User(
             id = id,
             loginId = loginId,
-            password = password,
+            password = Password(password),
             name = name,
             birth = birth,
             email = email,
@@ -33,7 +34,7 @@ class UserEntity(
         fun from(user: User): UserEntity =
             UserEntity(
                 loginId = user.loginId,
-                password = user.password,
+                password = user.password.value,
                 name = user.name,
                 birth = user.birth,
                 email = user.email,

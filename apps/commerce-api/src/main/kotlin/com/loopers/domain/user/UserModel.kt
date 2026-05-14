@@ -21,7 +21,8 @@ class UserModel(
     val loginId: String = loginId
 
     @Column(name = "password", nullable = false)
-    val password: String = encodedPassword.value
+    var password: String = encodedPassword.value
+        protected set
 
     @Column(name = "name", nullable = false, length = 20)
     var name: String = name
@@ -34,6 +35,10 @@ class UserModel(
     @Column(name = "email", nullable = false)
     var email: String = email
         protected set
+
+    fun changePassword(encodedPassword: EncodedPassword) {
+        this.password = encodedPassword.value
+    }
 
     init {
         validateLoginId(loginId)

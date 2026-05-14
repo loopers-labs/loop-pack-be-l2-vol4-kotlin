@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: account-api
+  profiles:
+    active: local
+  config:
+    import:
+      - jpa.yml
+      - logging.yml
+      - monitoring.yml

@@ -1,6 +1,7 @@
 rootProject.name = "loopers-kotlin-spring-template"
 
 include(
+    ":apps:account-api",
     ":apps:commerce-api",
     ":apps:commerce-streamer",
     ":apps:commerce-batch",
@@ -10,6 +11,7 @@ include(
     ":supports:jackson",
     ":supports:logging",
     ":supports:monitoring",
+    ":supports:web",
 )
 
 // configurations

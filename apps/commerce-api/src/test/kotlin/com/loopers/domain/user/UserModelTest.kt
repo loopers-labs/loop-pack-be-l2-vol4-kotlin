@@ -171,6 +171,24 @@ class UserModelTest {
         }
     }
 
+    @DisplayName("비밀번호 수정 시, ")
+    @Nested
+    inner class ChangePassword {
+        @DisplayName("유효한 암호화 비밀번호로 변경하면 password 가 갱신된다.")
+        @Test
+        fun changesPassword_whenEncodedPasswordIsValid() {
+            // arrange
+            val user = newUserWith()
+            val newEncodedPassword = EncodedPassword("newEncodedValue")
+
+            // act
+            user.changePassword(newEncodedPassword)
+
+            // assert
+            assertThat(user.password).isEqualTo("newEncodedValue")
+        }
+    }
+
     private fun newUserWith(
         loginId: String = "seondays",
         password: String = "password",

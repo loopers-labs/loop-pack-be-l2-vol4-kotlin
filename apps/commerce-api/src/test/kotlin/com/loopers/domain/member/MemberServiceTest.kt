@@ -116,6 +116,23 @@ class MemberServiceTest {
 
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
+
+        @DisplayName("비밀번호가 일치하지 않으면 실패한다")
+        @Test
+        fun throwsUnauthorized_whenPasswordDoesNotMatch() {
+            memberRepository.save(
+                createMember(
+                    loginId = "loopers123",
+                    password = PasswordEncoder.encode("Loopers123!"),
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                memberService.getMyInfo("loopers123", "Wrong123!")
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
     }
 
     private fun createMember(

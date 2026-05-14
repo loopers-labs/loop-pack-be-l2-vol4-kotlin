@@ -50,6 +50,7 @@ class MemberService(
         return member
     }
 
+    @Transactional
     fun updatePassword(
         loginId: String,
         rawPassword: String,

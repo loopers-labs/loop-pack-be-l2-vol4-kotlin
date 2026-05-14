@@ -20,4 +20,14 @@ interface MemberV1ApiSpec {
         loginId: String,
         password: String,
     ): ApiResponse<MemberV1Dto.MyInfoResponse>
+
+    @Operation(
+        summary = "비밀번호 수정",
+        description = "로그인 ID와 기존 비밀번호 헤더로 인증한 뒤 새 비밀번호로 수정합니다.",
+    )
+    fun updatePassword(
+        loginId: String,
+        password: String,
+        request: MemberV1Dto.UpdatePasswordRequest,
+    ): ApiResponse<Any>
 }

@@ -29,24 +29,25 @@ class UserServiceIntegrationTest @Autowired constructor(
     @DisplayName("회원가입 시, ")
     @Nested
     inner class SignUp {
-        @DisplayName("유효한 정보로 가입하면 회원이 저장된다.")
+        @DisplayName("유효한 정보로 가입하면 회원이 저장되며 비밀번호는 BCrypt 형식으로 저장된다.")
         @Test
         fun signUp_whenAllFieldsAreValid() {
             // arrange
             val loginId = "seondays"
-            val encodedPassword = EncodedPassword("encodedPassword")
+            val rawPassword = "Password1!"
             val name = "선데이"
             val birthDate = LocalDate.of(1990, 1, 1)
             val email = "seondays@example.com"
 
             // act
-            val result = userService.signUp(loginId, encodedPassword, name, birthDate, email)
+            val result = userService.signUp(loginId, rawPassword, name, birthDate, email)
 
             // assert
             assertAll(
                 { assertThat(result.loginId).isEqualTo(loginId) },
                 { assertThat(result.name).isEqualTo(name) },
                 { assertThat(result.email).isEqualTo(email) },
+                { assertThat(result.password).startsWith("\$2") },
                 { assertThat(userJpaRepository.findByLoginId(loginId)).isNotNull() },
             )
         }
@@ -58,7 +59,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             userJpaRepository.save(
                 UserModel(
                     loginId = "seondays",
-                    encodedPassword = EncodedPassword("encodedPassword"),
+                    encodedPassword = EncodedPassword("\$2a\$10\$existingHashedPassword."),
                     name = "선데이",
                     birthDate = LocalDate.of(1990, 1, 1),
                     email = "seondays@example.com",
@@ -69,7 +70,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             val result = assertThrows<CoreException> {
                 userService.signUp(
                     loginId = "seondays",
-                    encodedPassword = EncodedPassword("encodedPassword"),
+                    rawPassword = "Password1!",
                     name = "다른이름",
                     birthDate = LocalDate.of(1990, 1, 1),
                     email = "other@example.com",

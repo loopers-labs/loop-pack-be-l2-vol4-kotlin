@@ -30,4 +30,12 @@ class MemberService(
 
         return memberRepository.save(member)
     }
+
+    @Transactional(readOnly = true)
+    fun getMyInfo(
+        loginId: String,
+        rawPassword: String,
+    ): Member {
+        throw UnsupportedOperationException("Not implemented yet")
+    }
 }

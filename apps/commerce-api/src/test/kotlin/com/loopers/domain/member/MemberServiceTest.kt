@@ -86,11 +86,52 @@ class MemberServiceTest {
             )
     }
 
+    @DisplayName("내 정보 조회")
+    @Nested
+    inner class GetMyInfo {
+        private val memberRepository = FakeMemberRepository()
+        private val memberService = MemberService(memberRepository)
+
+        @DisplayName("로그인 ID 와 비밀번호가 유효하면 회원 정보를 반환한다")
+        @Test
+        fun returnsMember_whenCredentialsAreValid() {
+            val rawPassword = "Loopers123!"
+            val member = createMember(
+                loginId = "loopers123",
+                password = PasswordEncoder.encode(rawPassword),
+            )
+            memberRepository.save(member)
+
+            val result = memberService.getMyInfo("loopers123", rawPassword)
+
+            assertThat(result).isEqualTo(member)
+        }
+    }
+
+    private fun createMember(
+        loginId: String = "loopers123",
+        password: String = "encodedPassword",
+        name: String = "gunyoung",
+        birthDate: LocalDate = LocalDate.of(1995, 5, 20),
+        email: String = "loopers@gmail.com",
+    ): Member =
+        Member(
+            loginId = loginId,
+            password = password,
+            name = name,
+            birthDate = birthDate,
+            email = email,
+        )
+
     private class FakeMemberRepository : MemberRepository {
         val members = mutableListOf<Member>()
 
         override fun existsByLoginId(loginId: String): Boolean {
             return members.any { it.loginId == loginId }
+        }
+
+        override fun findByLoginId(loginId: String): Member? {
+            return members.find { it.loginId == loginId }
         }
 
         override fun save(member: Member): Member {

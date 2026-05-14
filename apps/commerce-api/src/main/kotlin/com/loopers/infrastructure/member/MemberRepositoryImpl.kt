@@ -12,6 +12,10 @@ class MemberRepositoryImpl(
         return memberJpaRepository.existsByLoginId(loginId)
     }
 
+    override fun findByLoginId(loginId: String): Member? {
+        return memberJpaRepository.findByLoginId(loginId)
+    }
+
     override fun save(member: Member): Member {
         return memberJpaRepository.save(member)
     }

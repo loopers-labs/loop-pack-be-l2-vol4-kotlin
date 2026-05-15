@@ -19,10 +19,10 @@ modules/account-application
 └── account/application          # use case, transaction boundary, command
 
 modules/account-domain
-└── account/domain               # Account, AccountCredential, VO, validator, ports
+└── account/domain               # Account, AccountCredential, VO, validator, PasswordEncryptor port
 
 modules/account-persistence
-└── account/persistence          # Spring Data JPA repositories, adapter config
+└── account/persistence          # repository interfaces, Spring Data JPA repositories, adapter config
 
 modules/account-security
 └── account/security             # SecurityFilterChain, header filter, entry point, BCrypt PasswordEncryptor
@@ -41,6 +41,7 @@ apps/account-api -> account-security
 apps/account-api -> supports:web
 
 account-application -> account-domain
+account-application -> account-persistence
 account-persistence -> account-domain
 account-persistence -> modules:jpa
 account-security -> account-application
@@ -54,7 +55,7 @@ modules:jpa -> persistence-core
 supports:web -> supports:error
 ```
 
-`account-domain`은 HTTP DTO, `ApiResponse`, Spring MVC, Spring Security filter, Spring Data repository 구현체를 알지 않는다. 엔티티와 도메인 모델을 함께 쓰므로 JPA annotation은 허용하되, datasource/JPA 설정은 `account-persistence`와 `modules:jpa`가 담당한다.
+`account-domain`은 HTTP DTO, `ApiResponse`, Spring MVC, Spring Security filter, repository interface/구현체를 알지 않는다. 엔티티와 도메인 모델을 함께 쓰므로 JPA annotation은 허용하되, datasource/JPA 설정은 `account-persistence`와 `modules:jpa`가 담당한다.
 
 ## Domain Model
 
@@ -112,8 +113,8 @@ filter와 entry point는 servlet API 타입을 직접 참조하므로 `jakarta.s
 ## Test Responsibility
 
 - `account-domain`: VO, entity behavior, password policy 같은 순수 도메인 규칙
-- `account-application`: repository port와 encryptor를 mock한 use case 흐름
-- `account-persistence`: `@DataJpaTest`와 H2 embedded DB 기반 Spring Data JPA 동작
+- `account-application`: persistence repository interface와 encryptor를 mock한 use case 흐름
+- `account-persistence`: repository interface/adapter, `@DataJpaTest`와 H2 embedded DB 기반 Spring Data JPA 동작
 - `account-security`: header authentication filter, entry point, password encoder adapter
 - `account-api`: controller mapping, request binding, response wrapping 포함 API wiring
 - `supports:error`: 공통 예외와 ErrorCode 동작

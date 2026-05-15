@@ -1,10 +1,10 @@
 package com.loopers.account.application
 
 import com.loopers.account.domain.Account
-import com.loopers.account.domain.AccountRepository
 import com.loopers.account.domain.error.AccountErrorCode
 import com.loopers.account.domain.vo.AccountName
 import com.loopers.account.domain.vo.Email
+import com.loopers.account.persistence.AccountRepository
 import com.loopers.support.error.NotFoundException
 import java.time.LocalDate
 import org.assertj.core.api.Assertions.assertThat

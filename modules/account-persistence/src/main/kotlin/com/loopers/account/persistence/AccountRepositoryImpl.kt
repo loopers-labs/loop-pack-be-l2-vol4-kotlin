@@ -1,7 +1,6 @@
 package com.loopers.account.persistence
 
 import com.loopers.account.domain.Account
-import com.loopers.account.domain.AccountRepository
 import com.loopers.account.domain.vo.Email
 import org.springframework.stereotype.Component
 

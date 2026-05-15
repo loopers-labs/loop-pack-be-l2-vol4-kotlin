@@ -1,5 +1,7 @@
-package com.loopers.account.domain
+package com.loopers.account.persistence
 
+import com.loopers.account.domain.AccountCredential
+import com.loopers.account.domain.CredentialMethod
 import com.loopers.account.domain.vo.CredentialIdentifier
 
 interface AccountCredentialRepository {

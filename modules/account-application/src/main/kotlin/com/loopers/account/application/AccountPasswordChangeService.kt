@@ -1,12 +1,12 @@
 package com.loopers.account.application
 
-import com.loopers.account.domain.AccountCredentialRepository
 import com.loopers.account.domain.CredentialMethod
 import com.loopers.account.domain.PasswordEncryptor
 import com.loopers.account.domain.error.AccountErrorCode
 import com.loopers.account.domain.validator.PasswordValidator
 import com.loopers.account.domain.vo.CredentialIdentifier
 import com.loopers.account.domain.vo.CredentialSecret
+import com.loopers.account.persistence.AccountCredentialRepository
 import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.UnauthorizedException
 import org.springframework.stereotype.Service

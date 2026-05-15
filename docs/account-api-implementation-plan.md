@@ -10,18 +10,18 @@
 | Common web support | Done | `supports:web` 응답 래핑, `supports:error` 예외/ErrorCode, 테스트 fixture 구현 |
 | Domain model | Done | `Account`, `AccountCredential`, Embeddable VO 구현 |
 | Domain policy | Done | 이메일, 이름, 생년월일, credential identifier/secret, password validator 완료 |
-| Persistence | Done | domain repository port, JPA adapter, email/credential unique, embedded DataJpaTest 추가 |
+| Persistence | Done | persistence repository interface, JPA adapter, email/credential unique, embedded DataJpaTest 추가 |
 | Application use cases | Done | 회원가입, 내 정보 조회, 비밀번호 수정 흐름 구현 |
 | Security | Done | `account-security`에 BCrypt encryptor, stateless config, header authentication, entry point 구현 |
 | API | Done | 회원가입, 내 정보 조회, 비밀번호 수정 API 구현 |
 | Tests | Done | domain/application/persistence/api/security 관련 테스트 통과 |
-| Verification | In progress | account 관련 모듈 test와 `:apps:account-api:build` 통과. bootRun/API 수동 확인 남음 |
+| Verification | Done | account 관련 모듈 test와 `:apps:account-api:build` 통과. 8080 실행 서버 기준 API 수동 확인 완료 |
 
 ## Current Snapshot
 
-- 완료: account 멀티모듈 분리, 공통 error/web 분리, persistence-core 도입, Account/AccountCredential 모델, VO, password validator, 회원가입/내 정보 조회/비밀번호 수정 흐름, `account-security` 기반 header 인증, entry point, 관련 테스트.
-- 진행 중: 실제 서버 구동 후 API 수동 확인.
-- 다음 순서: bootRun/API 수동 확인 -> 전체 `./gradlew test` 필요 여부 결정.
+- 완료: account 멀티모듈 분리, 공통 error/web 분리, persistence-core 도입, Account/AccountCredential 모델, VO, password validator, 회원가입/내 정보 조회/비밀번호 수정 흐름, `account-security` 기반 header 인증, entry point, 관련 테스트, 8080 실행 서버 기준 API 수동 확인.
+- 진행 중: 전체 `./gradlew test` 필요 여부 결정.
+- 다음 순서: 필요 시 전체 test 실행 -> assignment branch push -> PR 설명 작성.
 
 ## TDD Rule
 
@@ -47,15 +47,15 @@
 - controller는 `ApiResponse`를 직접 반환하지 않는다. 성공 응답 wrapping은 `ResponseBodyAdvice`가 담당한다.
 - `ApiResponse` 직접 사용은 `ControllerAdvice`, `ResponseBodyAdvice`, filter/security failure writer 같은 공통 web infrastructure로 제한한다.
 - 공통 Jackson `NON_NULL` 정책을 따른다. `data = null`인 성공 응답은 `data` 필드가 생략될 수 있다.
-- service layer 테스트는 domain repository port와 `PasswordEncryptor`를 mock 처리한다. 실제 repository 동작은 `@DataJpaTest`로 분리한다.
+- service layer 테스트는 persistence repository interface와 `PasswordEncryptor`를 mock 처리한다. 실제 repository 동작은 `@DataJpaTest`로 분리한다.
 - 기본 템플릿 파일은 account 전용 패키지 선호 때문에 수정하지 않는다. account JPA 구현은 `modules:account-persistence`에 두고, 별도 persistence config로 연결한다.
 
-## Next Implementation Estimate
+## Remaining Work Estimate
 
 | Order | Task | Size | Notes |
 | --- | --- | --- | --- |
-| 1 | API 수동 확인 | M | local profile bootRun 후 회원가입/내 정보 조회/비밀번호 수정 확인 |
-| 2 | 전체 test 필요 여부 결정 | M | 시간 비용을 보고 `./gradlew test` 실행 여부 판단 |
+| 1 | 전체 test 필요 여부 결정 | M | 시간 비용을 보고 `./gradlew test` 실행 여부 판단 |
+| 2 | PR 준비 | S | assignment branch push 후 구현 범위, 테스트 결과, 남은 이슈 기록 |
 
 ## 1. Module Setup
 
@@ -79,8 +79,8 @@
 ## 2. Package Skeleton
 
 - [x] `apps/account-api/account/api`: HTTP controller, controller-local request
-- [x] `modules/account-application/account/application`: create service, command, transaction boundary
-- [x] `modules/account-domain/account/domain`: model, enum, VO, validator, repository port, password encryptor port
+- [x] `modules/account-application/account/application`: create/authentication/me/password-change service, command, transaction boundary
+- [x] `modules/account-domain/account/domain`: model, enum, VO, validator, password encryptor port
 - [x] `modules/account-domain/account/domain/error`: account error code
 - [x] `modules/account-persistence/account/persistence`: Spring Data JPA repository, adapter, repository config
 - [x] `modules/account-security/account/security`: Spring Security config, header filter, entry point, BCrypt password encryptor adapter
@@ -145,11 +145,11 @@
   - [x] 8~16자 허용
   - [x] 영문 대/소문자, 숫자, 특수문자만 허용
   - [x] 생년월일 문자열 포함 거부
-  - [ ] 현재 비밀번호와 동일한 새 비밀번호 거부
+  - [x] 현재 비밀번호와 동일한 새 비밀번호 거부는 `AccountPasswordChangeService`에서 처리
 
 ## 6. Persistence
 
-- [x] domain repository port 정의
+- [x] persistence repository interface 정의
   - [x] `AccountRepository`
   - [x] `AccountCredentialRepository`
 - [x] Spring Data JPA repository 정의
@@ -290,11 +290,47 @@
 - [x] `./gradlew :supports:web:build`
 - [x] `./gradlew :supports:error:test :supports:web:test :modules:account-domain:test :modules:account-application:test :modules:account-persistence:test --no-daemon`
 - [ ] `./gradlew test`
-- [ ] `./gradlew :apps:account-api:bootRun`
-- [ ] API 수동 확인
-- [ ] `git status --short`로 의도하지 않은 변경 확인
+- [x] 8080 실행 서버 확인
+- [x] API 수동 확인
+- [x] `git status --short`로 의도하지 않은 변경 확인
 - [ ] assignment branch push
 - [ ] PR 설명에 구현 범위, 테스트 결과, 남은 이슈 기록
+
+### Manual API Verification on 8080
+
+2026-05-15에 사용자가 다시 실행한 로컬 서버 `http://127.0.0.1:8080` 기준으로 확인했다.
+
+사전 확인:
+
+- `lsof -nP -iTCP:8080 -sTCP:LISTEN` 결과 `java` 프로세스가 8080을 listen 중이었다.
+- `GET /v3/api-docs` 결과 현재 8080 서버에는 account API만 노출되어 있었다.
+- 노출 경로는 `POST /accounts`, `GET /accounts/me`, `PATCH /accounts/me/password`였다.
+
+실행 계정:
+
+- `loginId`: `codex5151536`
+- `email`: `codex5151536@example.com`
+- `birthDate`: `1990-05-15`
+- 인증 헤더: `X-Loopers-LoginId`, `X-Loopers-LoginPw`
+
+시나리오 결과:
+
+| Step | Request | Expected | Actual |
+| --- | --- | --- | --- |
+| 1 | `POST /accounts` | 회원가입 성공 | `200 OK`, `isSuccess=true` |
+| 2 | `GET /accounts/me` with valid password | 내 정보 조회 성공 | `200 OK`, masked name, email, birthDate 반환 |
+| 3 | `GET /accounts/me` without auth | 인증 실패 | `401 COMMON:UNAUTHORIZED` |
+| 4 | `GET /accounts/me` with wrong password | 인증 실패 | `401 COMMON:UNAUTHORIZED` |
+| 5 | `PATCH /accounts/me/password` with valid current password | 비밀번호 변경 성공 | `200 OK`, `isSuccess=true` |
+| 6 | `GET /accounts/me` with old password after change | 기존 비밀번호 인증 실패 | `401 COMMON:UNAUTHORIZED` |
+| 7 | `GET /accounts/me` with new password after change | 새 비밀번호 인증 성공 | `200 OK`, 내 정보 반환 |
+| 8 | duplicate `POST /accounts` | 중복 가입 실패 | `409 ACCOUNT:DUPLICATE_LOGIN_ID` |
+
+관찰 결과:
+
+- 가입, 인증, 내 정보 조회, 비밀번호 변경, 기존 비밀번호 무효화, 새 비밀번호 인증 흐름은 기대대로 동작했다.
+- 미인증/잘못된 비밀번호/중복 로그인 ID 오류는 공통 `ApiResponse` 실패 형식으로 반환되었다.
+- 현재 8080 서버는 `account-api`로 확인되었으므로 `commerce-api`의 `/api/v1/examples/{id}`는 이 수동 검증 범위에서 제외한다.
 
 ## Open Questions
 
@@ -313,7 +349,8 @@
 | 2026-05-14 | Initial implementation plan | Architecture decision 기반 TODO 작성 |
 | 2026-05-14 | Domain model and VO tests | Embeddable VO, Account, AccountCredential 구현 |
 | 2026-05-14 | Common web support and dependency cleanup | `supports:web`, response wrapping, ErrorCode, fixture, account-api 의존성 정리 |
-| 2026-05-15 | Signup persistence flow | repository port/adapter, BCrypt encryptor, embedded DataJpaTest, H2 test profile 추가 |
+| 2026-05-15 | Signup persistence flow | repository interface/adapter, BCrypt encryptor, embedded DataJpaTest, H2 test profile 추가 |
 | 2026-05-15 | Account package cleanup | account 패키지 재구성, Model suffix 제거, 기본 JpaConfig 변경 없이 repository 위치 정리 |
 | 2026-05-15 | Account module split | `account-domain/application/persistence/security`, `persistence-core`, `supports:error` 분리 |
 | 2026-05-15 | Header authentication | `account-security`에 stateless security config, header filter, entry point, password matching 구현 |
+| 2026-05-15 | Manual API verification | 8080 실행 서버 기준 회원가입, 인증, 내 정보 조회, 비밀번호 변경, 오류 응답 시나리오 확인 |

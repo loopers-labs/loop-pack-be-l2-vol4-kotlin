@@ -1,7 +1,7 @@
 package com.loopers.account.application
 
-import com.loopers.account.domain.AccountRepository
 import com.loopers.account.domain.error.AccountErrorCode
+import com.loopers.account.persistence.AccountRepository
 import com.loopers.support.error.NotFoundException
 import java.time.LocalDate
 import org.springframework.stereotype.Service

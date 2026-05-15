@@ -32,6 +32,10 @@ class UserV1Dto {
         }
     }
 
+    data class ChangePasswordRequest(
+        @field:NotBlank val newPassword: String,
+    )
+
     data class GetUserInfoResponse(
         val loginId: String,
         val name: String,

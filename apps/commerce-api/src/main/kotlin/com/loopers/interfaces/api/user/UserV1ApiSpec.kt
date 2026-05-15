@@ -20,4 +20,10 @@ interface UserV1ApiSpec {
 
     @Operation(summary = "내 정보 조회")
     fun getUserInfo(@LoginAuth loginUser: LoginUser): ApiResponse<UserV1Dto.GetUserInfoResponse>
+
+    @Operation(summary = "비밀번호 수정")
+    fun changePassword(
+        @LoginAuth loginUser: LoginUser,
+        @Valid @RequestBody request: UserV1Dto.ChangePasswordRequest,
+    ): ApiResponse<Unit>
 }

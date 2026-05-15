@@ -23,4 +23,8 @@ class UserFacade(
         return userService.getUserInfo(loginId, rawPassword)
             .let { UserInfo.from(it) }
     }
+
+    fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String) {
+        userService.changePassword(loginId, currentRawPassword, newRawPassword)
+    }
 }

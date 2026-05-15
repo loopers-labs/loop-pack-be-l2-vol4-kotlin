@@ -7,6 +7,7 @@ import com.loopers.support.auth.LoginUser
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -40,5 +41,14 @@ class UserV1Controller(
             rawPassword = loginUser.rawPassword,
         )
         return ApiResponse.success(UserV1Dto.GetUserInfoResponse.from(info))
+    }
+
+    @PatchMapping("/password")
+    override fun changePassword(
+        @LoginAuth loginUser: LoginUser,
+        @Valid @RequestBody request: UserV1Dto.ChangePasswordRequest,
+    ): ApiResponse<Unit> {
+        userFacade.changePassword(loginUser.loginId, loginUser.rawPassword, request.newPassword)
+        return ApiResponse.success(null)
     }
 }

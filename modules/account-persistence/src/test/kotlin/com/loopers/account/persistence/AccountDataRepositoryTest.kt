@@ -17,12 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.domain.EntityScan
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
-import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 
 @DataJpaTest
 @EntityScan(basePackageClasses = [Account::class])
-@Import(AccountPersistenceConfig::class)
 class AccountDataRepositoryTest @Autowired constructor(
     private val accountJpaRepository: AccountJpaRepository,
     private val accountCredentialJpaRepository: AccountCredentialJpaRepository,

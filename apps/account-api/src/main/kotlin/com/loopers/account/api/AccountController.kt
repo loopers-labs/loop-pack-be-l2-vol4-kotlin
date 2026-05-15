@@ -1,11 +1,9 @@
 package com.loopers.account.api
 
 import com.loopers.account.application.AccountCreateCommand
-import com.loopers.account.application.AccountCreateService
 import com.loopers.account.application.AccountMeInfo
-import com.loopers.account.application.AccountMeService
 import com.loopers.account.application.AccountPasswordChangeCommand
-import com.loopers.account.application.AccountPasswordChangeService
+import com.loopers.account.application.AccountService
 import com.loopers.account.security.AccountAuthenticationAttributes
 import java.time.LocalDate
 import org.springframework.web.bind.annotation.GetMapping
@@ -19,15 +17,13 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/accounts")
 class AccountController(
-    private val accountCreateService: AccountCreateService,
-    private val accountMeService: AccountMeService,
-    private val accountPasswordChangeService: AccountPasswordChangeService,
+    private val accountService: AccountService,
 ) {
     @PostMapping
     fun createAccount(
         @RequestBody request: AccountCreateRequest,
     ) {
-        accountCreateService.create(request.toCommand())
+        accountService.create(request.toCommand())
     }
 
     @GetMapping("/me")
@@ -35,14 +31,14 @@ class AccountController(
         @RequestAttribute(AccountAuthenticationAttributes.ACCOUNT_ID) accountId: Long,
         @RequestAttribute(AccountAuthenticationAttributes.LOGIN_ID) loginId: String,
     ): AccountMeResponse =
-        accountMeService.getMe(accountId, loginId).toResponse()
+        accountService.getMe(accountId, loginId).toResponse()
 
     @PatchMapping("/me/password")
     fun changePassword(
         @RequestAttribute(AccountAuthenticationAttributes.LOGIN_ID) loginId: String,
         @RequestBody request: AccountPasswordChangeRequest,
     ) {
-        accountPasswordChangeService.change(request.toCommand(loginId))
+        accountService.changePassword(request.toCommand(loginId))
     }
 }
 

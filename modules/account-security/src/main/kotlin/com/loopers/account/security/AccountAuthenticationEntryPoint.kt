@@ -35,3 +35,7 @@ class AccountAuthenticationEntryPoint(
             else -> UnauthorizedException()
         }
 }
+
+class AccountAuthenticationException(
+    val coreException: CoreException,
+) : AuthenticationException(coreException.message, coreException)

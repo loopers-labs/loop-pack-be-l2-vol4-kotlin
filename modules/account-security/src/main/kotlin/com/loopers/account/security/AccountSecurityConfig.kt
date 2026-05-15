@@ -1,6 +1,6 @@
 package com.loopers.account.security
 
-import com.loopers.account.application.AccountAuthenticationService
+import com.loopers.account.application.AccountService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -11,7 +11,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 class AccountSecurityConfig(
-    private val accountAuthenticationService: AccountAuthenticationService,
+    private val accountService: AccountService,
     private val accountAuthenticationEntryPoint: AccountAuthenticationEntryPoint,
 ) {
     @Bean
@@ -29,7 +29,7 @@ class AccountSecurityConfig(
                     .anyRequest().authenticated()
             }
             .addFilterBefore(
-                AccountHeaderAuthenticationFilter(accountAuthenticationService, accountAuthenticationEntryPoint),
+                AccountHeaderAuthenticationFilter(accountService, accountAuthenticationEntryPoint),
                 UsernamePasswordAuthenticationFilter::class.java,
             )
             .build()

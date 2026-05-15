@@ -1,7 +1,7 @@
 package com.loopers.account.security
 
 import com.loopers.account.application.AccountAuthenticateCommand
-import com.loopers.account.application.AccountAuthenticationService
+import com.loopers.account.application.AccountService
 import com.loopers.support.error.UnauthorizedException
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
@@ -13,7 +13,7 @@ import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.web.filter.OncePerRequestFilter
 
 class AccountHeaderAuthenticationFilter(
-    private val accountAuthenticationService: AccountAuthenticationService,
+    private val accountService: AccountService,
     private val authenticationEntryPoint: AuthenticationEntryPoint,
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
@@ -43,7 +43,7 @@ class AccountHeaderAuthenticationFilter(
         }
 
         runCatching {
-            accountAuthenticationService.authenticate(
+            accountService.authenticate(
                 AccountAuthenticateCommand(
                     loginId = loginId,
                     password = password,
@@ -94,3 +94,18 @@ class AccountHeaderAuthenticationFilter(
         private const val API_DOCS_PATH_PREFIX = "/v3/api-docs"
     }
 }
+
+object AccountAuthenticationHeaders {
+    const val LOGIN_ID = "X-Loopers-LoginId"
+    const val PASSWORD = "X-Loopers-LoginPw"
+}
+
+object AccountAuthenticationAttributes {
+    const val ACCOUNT_ID = "accountId"
+    const val LOGIN_ID = "loginId"
+}
+
+data class AccountPrincipal(
+    val accountId: Long,
+    val loginId: String,
+)

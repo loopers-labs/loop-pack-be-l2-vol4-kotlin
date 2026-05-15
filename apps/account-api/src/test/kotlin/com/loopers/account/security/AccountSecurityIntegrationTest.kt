@@ -2,7 +2,7 @@ package com.loopers.account.security
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.account.application.AccountCreateCommand
-import com.loopers.account.application.AccountCreateService
+import com.loopers.account.application.AccountService
 import com.loopers.support.error.CommonErrorCode
 import java.time.LocalDate
 import org.junit.jupiter.api.DisplayName
@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional
 class AccountSecurityIntegrationTest @Autowired constructor(
     private val mockMvc: MockMvc,
     private val objectMapper: ObjectMapper,
-    private val accountCreateService: AccountCreateService,
+    private val accountService: AccountService,
 ) {
     @DisplayName("POST /accounts")
     @Nested
@@ -150,7 +150,7 @@ class AccountSecurityIntegrationTest @Autowired constructor(
     )
 
     private fun createAccount() {
-        accountCreateService.create(
+        accountService.create(
             AccountCreateCommand(
                 loginId = LOGIN_ID,
                 email = EMAIL,

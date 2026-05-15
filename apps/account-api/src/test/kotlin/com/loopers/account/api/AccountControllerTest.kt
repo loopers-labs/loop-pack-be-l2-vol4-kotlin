@@ -2,7 +2,7 @@ package com.loopers.account.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.account.application.AccountCreateCommand
-import com.loopers.account.application.AccountCreateService
+import com.loopers.account.application.AccountService
 import com.loopers.account.security.AccountAuthenticationAttributes
 import java.time.LocalDate
 import org.junit.jupiter.api.DisplayName
@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 class AccountControllerTest @Autowired constructor(
     private val mockMvc: MockMvc,
     private val objectMapper: ObjectMapper,
-    private val accountCreateService: AccountCreateService,
+    private val accountService: AccountService,
     private val jdbcTemplate: JdbcTemplate,
 ) {
     @DisplayName("POST /accounts")
@@ -86,7 +86,7 @@ class AccountControllerTest @Autowired constructor(
         @DisplayName("인증된 account 기준으로 내 정보를 반환한다.")
         @Test
         fun returnsMyAccountInfo_whenAccountIsAuthenticated() {
-            accountCreateService.create(
+            accountService.create(
                 AccountCreateCommand(
                     loginId = ME_LOGIN_ID,
                     email = ME_EMAIL,
@@ -117,7 +117,7 @@ class AccountControllerTest @Autowired constructor(
         @DisplayName("기존 비밀번호와 새 비밀번호가 유효하면 성공 응답을 반환한다.")
         @Test
         fun returnsSuccess_whenPasswordChangeRequestIsValid() {
-            accountCreateService.create(
+            accountService.create(
                 AccountCreateCommand(
                     loginId = PASSWORD_CHANGE_LOGIN_ID,
                     email = PASSWORD_CHANGE_EMAIL,
@@ -138,7 +138,7 @@ class AccountControllerTest @Autowired constructor(
         @DisplayName("새 비밀번호 형식이 유효하지 않으면 400 BAD_REQUEST 응답을 반환한다.")
         @Test
         fun returnsBadRequest_whenNewPasswordIsInvalid() {
-            accountCreateService.create(
+            accountService.create(
                 AccountCreateCommand(
                     loginId = INVALID_NEW_PASSWORD_LOGIN_ID,
                     email = INVALID_NEW_PASSWORD_EMAIL,
@@ -160,7 +160,7 @@ class AccountControllerTest @Autowired constructor(
         @DisplayName("기존 비밀번호가 일치하지 않으면 401 UNAUTHORIZED 응답을 반환한다.")
         @Test
         fun returnsUnauthorized_whenCurrentPasswordDoesNotMatch() {
-            accountCreateService.create(
+            accountService.create(
                 AccountCreateCommand(
                     loginId = WRONG_CURRENT_PASSWORD_LOGIN_ID,
                     email = WRONG_CURRENT_PASSWORD_EMAIL,

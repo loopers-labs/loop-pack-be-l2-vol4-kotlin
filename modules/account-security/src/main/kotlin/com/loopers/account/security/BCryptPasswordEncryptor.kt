@@ -10,4 +10,10 @@ class BCryptPasswordEncryptor(
 ) : PasswordEncryptor {
     override fun encode(rawPassword: String): String =
         passwordEncoder.encode(rawPassword)
+
+    override fun matches(
+        rawPassword: String,
+        encodedPassword: String,
+    ): Boolean =
+        passwordEncoder.matches(rawPassword, encodedPassword)
 }

@@ -1,8 +1,8 @@
 package com.loopers.account.domain
 
-import com.loopers.domain.BaseEntity
 import com.loopers.account.domain.vo.AccountName
 import com.loopers.account.domain.vo.Email
+import com.loopers.domain.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity

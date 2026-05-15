@@ -40,7 +40,7 @@ class AccountCreateServiceTest {
         val command = validCreateCommand()
         whenever(accountCredentialRepository.existsBy(eq(CredentialMethod.PASSWORD), any()))
             .thenReturn(false)
-        whenever(passwordEncryptor.encode(command.password)).thenReturn("encoded-password")
+        whenever(passwordEncryptor.encode(command.password)).thenReturn(ENCODED_PASSWORD)
         whenever(accountRepository.save(any<Account>())).thenAnswer { invocation -> invocation.arguments[0] as Account }
         whenever(accountCredentialRepository.save(any<AccountCredential>()))
             .thenAnswer { invocation -> invocation.arguments[0] as AccountCredential }
@@ -62,7 +62,7 @@ class AccountCreateServiceTest {
             { assertThat(savedCredential.account).isSameAs(savedAccount) },
             { assertThat(savedCredential.method).isEqualTo(CredentialMethod.PASSWORD) },
             { assertThat(savedCredential.identifier.value).isEqualTo(command.loginId) },
-            { assertThat(savedCredential.secret.value).isEqualTo("encoded-password") },
+            { assertThat(savedCredential.secret.value).isEqualTo(ENCODED_PASSWORD) },
         )
     }
 
@@ -128,7 +128,7 @@ class AccountCreateServiceTest {
     @Test
     fun throwsBadRequest_whenLoginIdIsInvalid() {
         // given
-        val command = validCreateCommand(loginId = "shoeone!")
+        val command = validCreateCommand(loginId = INVALID_LOGIN_ID)
 
         // when
         val result = assertThrows<BadRequestException> {
@@ -145,7 +145,7 @@ class AccountCreateServiceTest {
     @Test
     fun throwsBadRequest_whenEmailIsInvalid() {
         // given
-        val command = validCreateCommand(email = "user@")
+        val command = validCreateCommand(email = INVALID_EMAIL)
 
         // when
         val result = assertThrows<BadRequestException> {
@@ -162,7 +162,7 @@ class AccountCreateServiceTest {
     @Test
     fun throwsBadRequest_whenPasswordIsInvalid() {
         // given
-        val command = validCreateCommand(password = "abc123!")
+        val command = validCreateCommand(password = INVALID_PASSWORD)
 
         // when
         val result = assertThrows<BadRequestException> {
@@ -176,11 +176,11 @@ class AccountCreateServiceTest {
     }
 
     private fun validCreateCommand(
-        loginId: String = "shoeone96",
-        email: String = "user@example.com",
-        password: String = "abf15!@#",
-        name: String = "홍길동",
-        birthDate: LocalDate = LocalDate.of(1996, 1, 1),
+        loginId: String = LOGIN_ID,
+        email: String = EMAIL,
+        password: String = RAW_PASSWORD,
+        name: String = ACCOUNT_NAME,
+        birthDate: LocalDate = BIRTH_DATE,
     ): AccountCreateCommand =
         AccountCreateCommand(
             loginId = loginId,
@@ -189,4 +189,16 @@ class AccountCreateServiceTest {
             name = name,
             birthDate = birthDate,
         )
+
+    private companion object {
+        private const val LOGIN_ID = "shoeone96"
+        private const val INVALID_LOGIN_ID = "shoeone!"
+        private const val EMAIL = "user@example.com"
+        private const val INVALID_EMAIL = "user@"
+        private const val RAW_PASSWORD = "abf15!@#"
+        private const val INVALID_PASSWORD = "abc123!"
+        private const val ENCODED_PASSWORD = "encoded-password"
+        private const val ACCOUNT_NAME = "홍길동"
+        private val BIRTH_DATE: LocalDate = LocalDate.of(1996, 1, 1)
+    }
 }

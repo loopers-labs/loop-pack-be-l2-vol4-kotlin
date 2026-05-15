@@ -8,5 +8,10 @@ interface AccountCredentialRepository {
         identifier: CredentialIdentifier,
     ): Boolean
 
+    fun findBy(
+        method: CredentialMethod,
+        identifier: CredentialIdentifier,
+    ): AccountCredential?
+
     fun save(credential: AccountCredential): AccountCredential
 }

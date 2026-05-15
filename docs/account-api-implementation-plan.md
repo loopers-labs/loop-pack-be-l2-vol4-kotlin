@@ -11,17 +11,17 @@
 | Domain model | Done | `Account`, `AccountCredential`, Embeddable VO 구현 |
 | Domain policy | Done | 이메일, 이름, 생년월일, credential identifier/secret, password validator 완료 |
 | Persistence | Done | domain repository port, JPA adapter, email/credential unique, embedded DataJpaTest 추가 |
-| Application use cases | In progress | 회원가입 저장 흐름 완료. 내 정보 조회, 비밀번호 수정 남음 |
-| Security | In progress | BCrypt encryptor 완료. header authentication 구현 남음 |
-| API | In progress | 회원가입 API thin slice 작성 중. 공통 response/error 기반은 완료 |
-| Tests | In progress | domain/application/persistence/api/support 테스트 분리 완료. security 테스트 남음 |
+| Application use cases | Done | 회원가입, 내 정보 조회, 비밀번호 수정 흐름 구현 |
+| Security | Done | `account-security`에 BCrypt encryptor, stateless config, header authentication, entry point 구현 |
+| API | Done | 회원가입, 내 정보 조회, 비밀번호 수정 API 구현 |
+| Tests | Done | domain/application/persistence/api/security 관련 테스트 통과 |
 | Verification | In progress | account 관련 모듈 test와 `:apps:account-api:build` 통과. bootRun/API 수동 확인 남음 |
 
 ## Current Snapshot
 
-- 완료: account 멀티모듈 분리, 공통 error/web 분리, persistence-core 도입, Account/AccountCredential 모델, VO, password validator, 회원가입 저장 흐름, domain/application/persistence/api/support 테스트.
-- 진행 중: 회원가입 API thin slice 검증과 인증 흐름 설계.
-- 다음 순서: 회원가입 API 중복 응답 확인 -> 내 정보 조회 thin slice -> header 인증 -> 비밀번호 수정.
+- 완료: account 멀티모듈 분리, 공통 error/web 분리, persistence-core 도입, Account/AccountCredential 모델, VO, password validator, 회원가입/내 정보 조회/비밀번호 수정 흐름, `account-security` 기반 header 인증, entry point, 관련 테스트.
+- 진행 중: 실제 서버 구동 후 API 수동 확인.
+- 다음 순서: bootRun/API 수동 확인 -> 전체 `./gradlew test` 필요 여부 결정.
 
 ## TDD Rule
 
@@ -39,7 +39,7 @@
 - `@SpringBootTest(webEnvironment = RANDOM_PORT)`: embedded server와 실제 HTTP stack까지 확인할 때 사용한다. 최종 API E2E나 외부 client 관점 검증에만 둔다.
 - `@DataJpaTest`: Repository slice 검증에 사용한다. 기본은 embedded DB이며, MySQL 특화 동작 검증이 필요할 때만 Testcontainers/MySQL 설정을 추가한다.
 - `account-api` 테스트 프로필은 H2 embedded datasource를 사용한다. `modules:jpa` test fixtures의 MySQL Testcontainers 설정은 기본으로 가져오지 않는다.
-- 현재 회원가입 API thin slice는 실제 포트가 필요하지 않으므로 `@SpringBootTest` + `MockMvc` 또는 `@WebMvcTest`를 사용한다.
+- account API/controller/security integration 검증은 실제 포트가 필요하지 않으므로 `@SpringBootTest` + `MockMvc`를 사용한다.
 - `V1` suffix와 `/api/v1` route는 명시 요청 전까지 사용하지 않는다.
 - request DTO가 해당 controller에서만 쓰이면 controller 파일에 함께 둔다.
 - `Command`는 모듈 경계 입력 모델이 필요할 때 사용한다. 현재 회원가입은 `AccountCreateCommand`로 API request와 application 입력을 분리한다.
@@ -54,16 +54,15 @@
 
 | Order | Task | Size | Notes |
 | --- | --- | --- | --- |
-| 1 | 회원가입 API 중복 loginId 응답 확인 | S | `409 CONFLICT`, `ACCOUNT:DUPLICATE_LOGIN_ID` |
-| 2 | 내 정보 조회 API thin slice | M | header 인증 전에는 principal 경계만 임시 설계 |
-| 3 | custom header authentication | L | `X-Loopers-LoginId`, `X-Loopers-LoginPw`, SecurityContext, 실패 응답 |
-| 4 | 비밀번호 수정 API/use case | M | 기존 비밀번호 검증, 재사용 금지, 새 secret 저장 |
+| 1 | API 수동 확인 | M | local profile bootRun 후 회원가입/내 정보 조회/비밀번호 수정 확인 |
+| 2 | 전체 test 필요 여부 결정 | M | 시간 비용을 보고 `./gradlew test` 실행 여부 판단 |
 
 ## 1. Module Setup
 
 - [x] `settings.gradle.kts`에 `:apps:account-api` 포함 여부 확인 및 정리
 - [x] `apps/account-api/build.gradle.kts`를 `commerce-api` 패턴에 맞춰 정리
-- [x] `spring-boot-starter-security`는 `account-api`에만 추가
+- [x] `spring-boot-starter-security`는 `account-security`에 추가하고 `account-api`는 모듈 의존으로 사용
+- [x] `spring-security-web/config/crypto` 직접 의존 분리는 보류. 현재는 `account-security`가 Spring Security 기반 인증/암호화 adapter를 함께 담당하므로 starter 유지
 - [x] `spring-boot-docker-compose`는 `account-api`에만 `developmentOnly`로 추가
 - [x] 루트 `compose.yaml`을 `jpa.yml` local MySQL 설정과 맞춰 추가
 - [x] 공통 의존성은 기존 구조를 따른다: `modules:jpa`, `supports:jackson`, `supports:logging`, `supports:monitoring`, `supports:web`
@@ -84,7 +83,7 @@
 - [x] `modules/account-domain/account/domain`: model, enum, VO, validator, repository port, password encryptor port
 - [x] `modules/account-domain/account/domain/error`: account error code
 - [x] `modules/account-persistence/account/persistence`: Spring Data JPA repository, adapter, repository config
-- [x] `modules/account-security/account/security`: BCrypt password encryptor adapter
+- [x] `modules/account-security/account/security`: Spring Security config, header filter, entry point, BCrypt password encryptor adapter
 - [x] `supports/error`: common error code and exception base
 - [x] `supports/web`: response wrapping and web exception handling
 - [x] `domain`이 Spring MVC, Security filter, DTO, JPA 구현체를 참조하지 않도록 확인
@@ -176,45 +175,45 @@
   - [x] 이메일 중복 검사
   - [x] 비밀번호 암호화
   - [x] account와 credential 저장
-- [ ] 내 정보 조회
-  - [ ] 인증된 account 기준 조회
-  - [ ] 반환 정보: 로그인 ID, 이름, 생년월일, 이메일
-  - [ ] 이름 마지막 글자 마스킹
-- [ ] 비밀번호 수정
-  - [ ] 기존 비밀번호 검증
-  - [ ] 새 비밀번호 정책 검증
-  - [ ] 현재 비밀번호 재사용 거부
-  - [ ] 새 비밀번호 암호화 후 저장
-- [ ] 트랜잭션 경계는 application 계층에 둔다
+- [x] 내 정보 조회
+  - [x] 인증된 account 기준 조회
+  - [x] 반환 정보: 로그인 ID, 이름, 생년월일, 이메일
+  - [x] 이름 마지막 글자 마스킹
+- [x] 비밀번호 수정
+  - [x] 기존 비밀번호 검증
+  - [x] 새 비밀번호 정책 검증
+  - [x] 현재 비밀번호 재사용 거부
+  - [x] 새 비밀번호 암호화 후 저장
+- [x] 트랜잭션 경계는 application 계층에 둔다
 
 ## 8. Spring Security
 
-- [ ] stateless security config 구성
-- [ ] form login 비활성화
-- [ ] default basic login 비활성화
-- [ ] 회원가입 API는 `permitAll`
-- [ ] 내 정보 조회, 비밀번호 수정 API는 인증 필요
-- [ ] `X-Loopers-LoginId`, `X-Loopers-LoginPw` 헤더 상수 정의
-- [ ] custom authentication filter 구현
-- [ ] 로그인 ID/비밀번호로 credential 조회 및 비밀번호 검증
-- [ ] 인증 성공 시 account 식별자를 principal에 담는다
-- [ ] 인증 실패 응답 정책 확정 및 구현
+- [x] stateless security config 구성
+- [x] form login 비활성화
+- [x] default basic login 비활성화
+- [x] 회원가입 API는 `permitAll`
+- [x] 내 정보 조회, 비밀번호 수정 API는 인증 필요
+- [x] `X-Loopers-LoginId`, `X-Loopers-LoginPw` 헤더 상수 정의
+- [x] custom authentication filter 구현
+- [x] 로그인 ID/비밀번호로 credential 조회 및 비밀번호 검증
+- [x] 인증 성공 시 account 식별자를 principal/request attribute에 담는다
+- [x] 인증 실패 응답 정책 확정 및 구현
 - [x] domain에는 `PasswordEncryptor` port만 노출
 - [x] `account-security`에서 Spring Security `PasswordEncoder`로 구현
 
 ## 9. API Layer
 
-- [ ] URI 확정
+- [x] URI 확정
   - [x] `POST /accounts`
-  - [ ] `GET /accounts/me`
-  - [ ] `PATCH /accounts/me/password`
+  - [x] `GET /accounts/me`
+  - [x] `PATCH /accounts/me/password`
 - [x] 회원가입 request DTO 정의
-- [ ] response DTO 정의
+- [x] response DTO 정의
 - [x] 회원가입 controller request를 service command로 변환
-- [ ] 조회/수정 controller request를 service로 전달하고 필요한 response DTO로 변환
+- [x] 조회/수정 controller request를 service로 전달하고 필요한 response DTO로 변환
 - [x] `supports:web`의 `ApiResponse` 패턴 준비
 - [x] `ErrorCode` interface와 domain별 error code enum 방식 준비
-- [ ] API별 request/response mapping에서 오류 응답 확인
+- [x] API별 request/response mapping에서 오류 응답 확인
 - [ ] OpenAPI annotation은 기존 `commerce-api` 스타일을 따른다
 
 ## 10. Test Inventory
@@ -226,7 +225,7 @@
   - [x] 길이 7 실패, 16 초과 실패
   - [x] 허용되지 않은 문자 실패
   - [x] 생년월일 `yyyyMMdd`, `yyMMdd` 포함 실패
-  - [ ] 현재 비밀번호 재사용 실패
+  - [x] 현재 비밀번호 재사용 실패는 `AccountPasswordChangeServiceTest`에서 검증
 - [x] `CredentialIdentifierTest`
   - [x] 영문/숫자 성공
   - [x] 공백, 한글, 특수문자 실패
@@ -254,18 +253,20 @@
   - [x] credential 저장 후 `method + identifier` 존재 여부 조회
   - [x] account 저장 후 email 존재 여부 조회
   - [x] 중복 email 저장 시 DB unique 제약 실패
-- [ ] `AccountMeUseCaseTest`
-  - [ ] 내 정보 조회 성공
-  - [ ] 이름 마스킹 반환
-- [ ] `AccountPasswordChangeUseCaseTest`
-  - [ ] 비밀번호 수정 성공
-  - [ ] 기존 비밀번호 불일치 실패
-  - [ ] 현재 비밀번호 재사용 실패
-- [ ] `AccountApiE2ETest`
-  - [ ] 회원가입은 인증 헤더 없이 성공
-  - [ ] 보호 API는 헤더 없으면 실패
-  - [ ] 보호 API는 올바른 헤더면 성공
-  - [ ] 잘못된 비밀번호면 실패
+- [x] `AccountMeServiceTest`
+  - [x] 내 정보 조회 성공
+  - [x] 이름 마스킹 반환
+- [x] `AccountPasswordChangeServiceTest`
+  - [x] 비밀번호 수정 성공
+  - [x] credential 없음 실패
+  - [x] 기존 비밀번호 불일치 실패
+  - [x] 새 비밀번호 정책 실패
+  - [x] 현재 비밀번호 재사용 실패
+- [x] `AccountSecurityIntegrationTest`
+  - [x] 회원가입은 인증 헤더 없이 성공
+  - [x] 보호 API는 헤더 없으면 실패
+  - [x] 보호 API는 올바른 헤더면 성공
+  - [x] 잘못된 비밀번호면 실패
 - [x] `ApiResponseTest`
   - [x] 성공 응답 shape
   - [x] 실패 응답 shape
@@ -282,6 +283,9 @@
 
 - [x] `./gradlew :apps:account-api:test`
 - [x] `./gradlew :apps:account-api:build`
+- [x] `./gradlew :apps:account-api:test --tests '*AccountControllerTest' --tests '*AccountSecurityIntegrationTest'`
+- [x] `./gradlew :modules:account-security:test :modules:account-application:test :modules:account-persistence:test :apps:account-api:test`
+- [x] `./gradlew :modules:account-security:ktlintCheck :apps:account-api:ktlintCheck :apps:account-api:build`
 - [x] `./gradlew :supports:web:test`
 - [x] `./gradlew :supports:web:build`
 - [x] `./gradlew :supports:error:test :supports:web:test :modules:account-domain:test :modules:account-application:test :modules:account-persistence:test --no-daemon`
@@ -298,8 +302,8 @@
 - [x] 생년월일은 미래 날짜를 거부한다
 - [x] 생년월일 API 입력 포맷 확정
 - [x] `ErrorType` 대신 `ErrorCode` interface와 domain별 enum을 사용한다
-- [ ] 인증 실패 세부 ErrorCode 결정
-- [ ] API URI를 위 제안대로 확정할지 결정
+- [x] 인증 실패 세부 ErrorCode 결정: `CommonErrorCode.UNAUTHORIZED`
+- [x] API URI를 위 제안대로 확정
 - [x] 한 글자 이름 마스킹 결과는 `*`로 한다
 
 ## Change Log
@@ -312,3 +316,4 @@
 | 2026-05-15 | Signup persistence flow | repository port/adapter, BCrypt encryptor, embedded DataJpaTest, H2 test profile 추가 |
 | 2026-05-15 | Account package cleanup | account 패키지 재구성, Model suffix 제거, 기본 JpaConfig 변경 없이 repository 위치 정리 |
 | 2026-05-15 | Account module split | `account-domain/application/persistence/security`, `persistence-core`, `supports:error` 분리 |
+| 2026-05-15 | Header authentication | `account-security`에 stateless security config, header filter, entry point, password matching 구현 |

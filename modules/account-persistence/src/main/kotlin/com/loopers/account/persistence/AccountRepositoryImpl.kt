@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component
 class AccountRepositoryImpl(
     private val accountJpaRepository: AccountJpaRepository,
 ) : AccountRepository {
+    override fun findById(id: Long): Account? =
+        accountJpaRepository.findById(id).orElse(null)
+
     override fun existsByEmail(email: Email): Boolean =
         accountJpaRepository.existsByEmailValue(email.value)
 

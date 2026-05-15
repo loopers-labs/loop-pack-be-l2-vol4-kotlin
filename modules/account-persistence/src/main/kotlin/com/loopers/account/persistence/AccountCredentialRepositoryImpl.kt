@@ -10,6 +10,12 @@ import org.springframework.stereotype.Component
 class AccountCredentialRepositoryImpl(
     private val accountCredentialJpaRepository: AccountCredentialJpaRepository,
 ) : AccountCredentialRepository {
+    override fun findBy(
+        method: CredentialMethod,
+        identifier: CredentialIdentifier,
+    ): AccountCredential? =
+        accountCredentialJpaRepository.findByMethodAndIdentifierValue(method, identifier.value)
+
     override fun existsBy(
         method: CredentialMethod,
         identifier: CredentialIdentifier,

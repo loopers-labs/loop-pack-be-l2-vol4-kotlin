@@ -6,7 +6,7 @@
 - Account 구현은 `account-domain`, `account-application`, `account-persistence`, `account-security` 모듈로 분리한다.
 - 엔티티와 도메인 모델은 현재 코드베이스 관례에 맞춰 하나로 사용한다.
 - JPA 공통 기반은 `modules:persistence-core`에 두고, `modules:jpa`와 account domain이 함께 사용한다.
-- Spring Security 암호화 구현은 `account-security`에 두고, HTTP 인증 설정은 `account-api`에서 조립한다.
+- Spring Security 기반 인증 구현은 `account-security`에 두고, `account-api`는 API controller와 DTO를 담당한다.
 
 ## Module Structure
 
@@ -25,7 +25,7 @@ modules/account-persistence
 └── account/persistence          # Spring Data JPA repositories, adapter config
 
 modules/account-security
-└── account/security             # BCrypt PasswordEncryptor implementation
+└── account/security             # SecurityFilterChain, header filter, entry point, BCrypt PasswordEncryptor
 
 modules/persistence-core         # BaseEntity, minimal Jakarta Persistence API
 supports/error                   # ErrorCode, CoreException, status-specific exceptions
@@ -43,7 +43,10 @@ apps/account-api -> supports:web
 account-application -> account-domain
 account-persistence -> account-domain
 account-persistence -> modules:jpa
+account-security -> account-application
 account-security -> account-domain
+account-security -> supports:web
+account-security -> supports:error
 
 account-domain -> persistence-core
 account-domain -> supports:error
@@ -88,7 +91,11 @@ OAuth 등이 실제로 필요해지면 `method`에 `GOOGLE`, `KAKAO` 같은 값�
 
 ## Spring Security
 
-`account-security`는 Spring Security crypto 의존성으로 `PasswordEncryptor`를 구현한다. `account-api`는 HTTP 보안 설정과 header 인증 filter를 조립한다.
+`account-security`는 Spring Security 기반 HTTP 인증 설정과 header 인증 filter, 실패 응답 entry point, `PasswordEncryptor` 구현을 담당한다. `account-api`는 인증 결과를 request attribute로 받아 controller use case에 전달한다.
+
+의존성은 `spring-boot-starter-security`를 유지한다. 현재 `account-security`가 `SecurityFilterChain`, custom filter, entry point, `PasswordEncoder`를 함께 담당하므로 Spring Security 기능 묶음으로 관리하는 편이 단순하다. `spring-security-web/config/crypto` 직접 의존이나 `account-crypto` 분리는 암호화 기능만 별도 재사용해야 하는 요구가 생길 때 검토한다.
+
+filter와 entry point는 servlet API 타입을 직접 참조하므로 `jakarta.servlet-api`를 `compileOnly`로 둔다. 실행 시에는 `account-api`의 web runtime이 servlet API를 제공한다.
 
 기본 전략:
 
@@ -97,13 +104,17 @@ OAuth 등이 실제로 필요해지면 `method`에 `GOOGLE`, `KAKAO` 같은 값�
 - `X-Loopers-LoginId`, `X-Loopers-LoginPw`를 읽는 custom filter 사용
 - stateless API로 구성하고 form login/default basic login은 비활성화
 - 비밀번호 저장/검증은 Spring Security `PasswordEncoder` 사용
-- domain에는 `PasswordEncryptor` port만 둔다.
+- domain에는 `PasswordEncryptor` port만 둔다
+- 인증 성공 시 `AccountPrincipal`을 `SecurityContext`에 저장하고, controller 입력용으로 `accountId`, `loginId` request attribute를 함께 저장한다
+- 인증 실패는 `AccountAuthenticationEntryPoint`가 `supports:web`의 공통 `ApiResponse` 형식으로 변환한다
+- 인증 실패 코드는 `CommonErrorCode.UNAUTHORIZED`를 사용한다
 
 ## Test Responsibility
 
 - `account-domain`: VO, entity behavior, password policy 같은 순수 도메인 규칙
 - `account-application`: repository port와 encryptor를 mock한 use case 흐름
 - `account-persistence`: `@DataJpaTest`와 H2 embedded DB 기반 Spring Data JPA 동작
+- `account-security`: header authentication filter, entry point, password encoder adapter
 - `account-api`: controller mapping, request binding, response wrapping 포함 API wiring
 - `supports:error`: 공통 예외와 ErrorCode 동작
 - `supports:web`: response wrapping, controller advice, filter writer 동작

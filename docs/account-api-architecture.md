@@ -2,42 +2,60 @@
 
 ## Decisions
 
-- 회원 기능은 `apps:account-api`라는 별도 실행 애플리케이션에서 구현한다.
-- `account-domain`, `account-security` 같은 추가 Gradle 모듈은 아직 만들지 않는다.
-- `account-api` 내부는 Layered Architecture 패키지로 나누고, 추후 모듈 분리가 쉬운 경계를 유지한다.
+- 회원 기능은 `apps:account-api` 실행 애플리케이션에서 제공한다.
+- Account 구현은 `account-domain`, `account-application`, `account-persistence`, `account-security` 모듈로 분리한다.
 - 엔티티와 도메인 모델은 현재 코드베이스 관례에 맞춰 하나로 사용한다.
-- Spring Security는 `account-api`에만 적용한다.
+- JPA 공통 기반은 `modules:persistence-core`에 두고, `modules:jpa`와 account domain이 함께 사용한다.
+- Spring Security 암호화 구현은 `account-security`에 두고, HTTP 인증 설정은 `account-api`에서 조립한다.
 
-## Module And Package Structure
+## Module Structure
 
 ```text
 apps/account-api
-└── src/main/kotlin/com/loopers
-    ├── interfaces/api/account
-    ├── interfaces/security
-    ├── application/account
-    ├── domain/account
-    └── infrastructure/account
-```
+├── account/api                  # Controller, request DTO, HTTP mapping
+└── AccountApiApplication
 
-- `interfaces/api/account`: Controller, API spec, request/response DTO, header 입력 처리
-- `interfaces/security`: `SecurityFilterChain`, custom authentication filter, 인증 토큰/실패 처리
-- `application/account`: 회원가입, 내 정보 조회, 비밀번호 수정 유스케이스와 트랜잭션 경계
-- `domain/account`: `AccountModel`, `AccountCredentialModel`, 도메인 정책, repository/encryptor port
-- `infrastructure/account`: Spring Data JPA 구현체, Spring Security `PasswordEncoder` 어댑터
+modules/account-application
+└── account/application          # use case, transaction boundary, command
+
+modules/account-domain
+└── account/domain               # Account, AccountCredential, VO, validator, ports
+
+modules/account-persistence
+└── account/persistence          # Spring Data JPA repositories, adapter config
+
+modules/account-security
+└── account/security             # BCrypt PasswordEncryptor implementation
+
+modules/persistence-core         # BaseEntity, minimal Jakarta Persistence API
+supports/error                   # ErrorCode, CoreException, status-specific exceptions
+supports/web                     # ApiResponse, ControllerAdvice, ResponseBodyAdvice
+```
 
 의존 방향은 아래처럼 유지한다.
 
 ```text
-interfaces -> application -> domain
-infrastructure -> domain
+apps/account-api -> account-application
+apps/account-api -> account-persistence
+apps/account-api -> account-security
+apps/account-api -> supports:web
+
+account-application -> account-domain
+account-persistence -> account-domain
+account-persistence -> modules:jpa
+account-security -> account-domain
+
+account-domain -> persistence-core
+account-domain -> supports:error
+modules:jpa -> persistence-core
+supports:web -> supports:error
 ```
 
-`domain`은 HTTP DTO, `ApiResponse`, Spring MVC, Spring Security filter, JPA repository 구현을 알지 않는다.
+`account-domain`은 HTTP DTO, `ApiResponse`, Spring MVC, Spring Security filter, Spring Data repository 구현체를 알지 않는다. 엔티티와 도메인 모델을 함께 쓰므로 JPA annotation은 허용하되, datasource/JPA 설정은 `account-persistence`와 `modules:jpa`가 담당한다.
 
 ## Domain Model
 
-회원 프로필과 인증 수단은 분리한다. `AccountModel`은 사용자 프로필과 식별 대상이고, `AccountCredentialModel`은 로그인 ID/비밀번호 같은 인증 수단이다. 민감 정보와 인증 방식은 변경 축이 다르고, 한 account가 여러 credential을 가질 수 있으므로 같은 엔티티에 묶지 않는다.
+회원 프로필과 인증 수단은 분리한다. `Account`는 사용자 프로필이고, `AccountCredential`은 로그인 ID/비밀번호 같은 인증 수단이다. 민감 정보와 인증 방식은 변경 축이 다르고, 한 account가 여러 credential을 가질 수 있으므로 같은 엔티티에 묶지 않는다.
 
 ```text
 account
@@ -62,22 +80,14 @@ account_credential
 - `secret`에는 암호화된 비밀번호만 저장한다.
 - `account`는 비밀번호를 알지 않는다.
 - 유니크 제약은 `account_credential(method, identifier)` 기준으로 둔다.
-- 회원가입은 `AccountModel`과 `AccountCredentialModel`을 함께 생성한다.
+- 회원가입은 `Account`와 `AccountCredential`을 함께 생성한다.
 - 비밀번호 수정은 account profile 변경이 아니라 credential 변경이다.
 
 OAuth 등이 실제로 필요해지면 `method`에 `GOOGLE`, `KAKAO` 같은 값을 추가하고, `identifier`에는 provider subject를 저장한다. 지금은 `PASSWORD`만 구현한다.
 
 ## Spring Security
 
-`account-api`에는 `spring-boot-starter-security`를 추가한다. 버전은 루트 Gradle의 Spring Boot dependency management를 따르므로 별도 버전을 명시하지 않는다.
-
-```kotlin
-dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-security")
-}
-```
-
-이 의존성은 루트 `subprojects` 공통 의존성에 넣지 않는다. Spring Security가 classpath에 있으면 보안 자동 설정이 활성화될 수 있으므로, 사용 앱인 `account-api`에만 둔다.
+`account-security`는 Spring Security crypto 의존성으로 `PasswordEncryptor`를 구현한다. `account-api`는 HTTP 보안 설정과 header 인증 filter를 조립한다.
 
 기본 전략:
 
@@ -86,18 +96,16 @@ dependencies {
 - `X-Loopers-LoginId`, `X-Loopers-LoginPw`를 읽는 custom filter 사용
 - stateless API로 구성하고 form login/default basic login은 비활성화
 - 비밀번호 저장/검증은 Spring Security `PasswordEncoder` 사용
-- domain에는 `PasswordEncryptor` port를 두고, infrastructure가 `PasswordEncoder`로 구현한다.
+- domain에는 `PasswordEncryptor` port만 둔다.
 
-## Future Extraction
+## Test Responsibility
 
-아래 조건이 실제로 생기면 별도 모듈 분리를 검토한다.
-
-- 여러 앱이 account 도메인 규칙을 직접 재사용한다.
-- `account-batch`, `account-streamer`, `admin-api` 같은 실행 앱이 추가된다.
-- 동일한 인증 필터/클라이언트 코드가 여러 앱에서 필요해진다.
-- account core를 독립 빌드/테스트할 만큼 도메인이 커진다.
-
-`commerce-api`가 나중에 계정 인증이 필요하더라도 `AccountModel`이나 repository를 직접 의존하지 않는다. 우선 `account-api` 호출 또는 `account-client` 모듈을 검토한다.
+- `account-domain`: VO, entity behavior, password policy 같은 순수 도메인 규칙
+- `account-application`: repository port와 encryptor를 mock한 use case 흐름
+- `account-persistence`: `@DataJpaTest`와 H2 embedded DB 기반 Spring Data JPA 동작
+- `account-api`: controller mapping, request binding, response wrapping 포함 API wiring
+- `supports:error`: 공통 예외와 ErrorCode 동작
+- `supports:web`: response wrapping, controller advice, filter writer 동작
 
 ## References
 

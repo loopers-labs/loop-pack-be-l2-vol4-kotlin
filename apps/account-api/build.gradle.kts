@@ -7,6 +7,10 @@ plugins {
 dependencies {
     // add-ons
     implementation(project(":modules:jpa"))
+    implementation(project(":modules:account-application"))
+    implementation(project(":modules:account-persistence"))
+    implementation(project(":modules:account-security"))
+    implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
     implementation(project(":supports:monitoring"))
@@ -18,8 +22,7 @@ dependencies {
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
     developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 
-    // test-fixtures
-    testImplementation(testFixtures(project(":modules:jpa")))
+    testRuntimeOnly("com.h2database:h2")
 }
 
 tasks.named<BootRun>("bootRun") {

@@ -12,11 +12,13 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.domain.EntityScan
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 
 @DataJpaTest
 @EntityScan(basePackageClasses = [Account::class])
@@ -56,6 +58,53 @@ class AccountDataRepositoryTest @Autowired constructor(
             { assertThat(exists).isTrue() },
             { assertThat(missing).isFalse() },
         )
+    }
+
+    @DisplayName("account를 저장하면 email로 존재 여부를 조회한다.")
+    @Test
+    fun returnsExists_whenAccountEmailIsSaved() {
+        // given
+        accountJpaRepository.save(
+            Account(
+                name = AccountName("홍길동"),
+                birthDate = LocalDate.of(1996, 1, 1),
+                email = Email("user@example.com"),
+            ),
+        )
+
+        // when
+        val exists = accountJpaRepository.existsByEmailValue("user@example.com")
+        val missing = accountJpaRepository.existsByEmailValue("other@example.com")
+
+        // then
+        assertAll(
+            { assertThat(exists).isTrue() },
+            { assertThat(missing).isFalse() },
+        )
+    }
+
+    @DisplayName("같은 email의 account를 중복 저장하면 DB unique 제약으로 실패한다.")
+    @Test
+    fun throwsDataIntegrityViolation_whenAccountEmailIsDuplicated() {
+        // given
+        accountJpaRepository.saveAndFlush(
+            Account(
+                name = AccountName("홍길동"),
+                birthDate = LocalDate.of(1996, 1, 1),
+                email = Email("user@example.com"),
+            ),
+        )
+
+        // when & then
+        assertThrows<DataIntegrityViolationException> {
+            accountJpaRepository.saveAndFlush(
+                Account(
+                    name = AccountName("김철수"),
+                    birthDate = LocalDate.of(1995, 1, 1),
+                    email = Email("user@example.com"),
+                ),
+            )
+        }
     }
 }
 

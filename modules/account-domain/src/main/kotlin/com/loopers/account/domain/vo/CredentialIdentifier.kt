@@ -13,7 +13,7 @@ class CredentialIdentifier(
 ) {
     @Column(name = "identifier", nullable = false, length = 255)
     var value: String = value
-        protected set
+        private set
 
     init {
         if (method == CredentialMethod.PASSWORD && !PASSWORD_IDENTIFIER_REGEX.matches(value)) {

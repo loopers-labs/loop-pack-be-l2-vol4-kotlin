@@ -35,6 +35,9 @@ class AccountCreateService(
         if (accountCredentialRepository.existsBy(CredentialMethod.PASSWORD, identifier)) {
             throw ConflictException(AccountErrorCode.DUPLICATE_LOGIN_ID)
         }
+        if (accountRepository.existsByEmail(email)) {
+            throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)
+        }
 
         val account = accountRepository.save(
             Account(

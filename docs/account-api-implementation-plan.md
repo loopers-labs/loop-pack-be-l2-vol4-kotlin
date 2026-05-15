@@ -10,7 +10,7 @@
 | Common web support | Done | `supports:web` 응답 래핑, `supports:error` 예외/ErrorCode, 테스트 fixture 구현 |
 | Domain model | Done | `Account`, `AccountCredential`, Embeddable VO 구현 |
 | Domain policy | Done | 이메일, 이름, 생년월일, credential identifier/secret, password validator 완료 |
-| Persistence | Done | domain repository port, JPA adapter, embedded DataJpaTest 추가 |
+| Persistence | Done | domain repository port, JPA adapter, email/credential unique, embedded DataJpaTest 추가 |
 | Application use cases | In progress | 회원가입 저장 흐름 완료. 내 정보 조회, 비밀번호 수정 남음 |
 | Security | In progress | BCrypt encryptor 완료. header authentication 구현 남음 |
 | API | In progress | 회원가입 API thin slice 작성 중. 공통 response/error 기반은 완료 |
@@ -110,6 +110,7 @@
   - [x] `name`
   - [x] `birthDate`
   - [x] `email`
+  - [x] email 유니크 제약 추가
   - [x] base columns는 `BaseEntity` 관례를 따른다
 - [x] `AccountCredential` 정의
   - [x] `account`
@@ -121,6 +122,7 @@
 - [x] `method = PASSWORD`일 때 `identifier`는 로그인 ID로 사용
 - [x] `secret`에는 암호화된 비밀번호만 저장
 - [x] `account_credential(method, identifier)` 유니크 제약 추가
+- [x] `account(email)` 유니크 제약 추가
 - [x] 회원가입 시 `Account`와 `AccountCredential`을 함께 생성
 - [x] 비밀번호 수정은 `AccountCredential.secret`만 변경
 
@@ -160,6 +162,7 @@
 - [x] `AccountPersistenceConfig`로 account persistence repository scan 구성
 - [x] `method + identifier` 조회 메서드 구현
 - [x] 로그인 ID 중복 여부 조회 구현
+- [x] email 중복 여부 조회 구현
 - [ ] 유니크 제약 위반을 도메인/애플리케이션 예외로 변환
 - [ ] soft delete가 필요한 경우 기존 `BaseEntity` 관례에 맞춰 처리
 
@@ -170,6 +173,7 @@
   - [x] `AccountCreateCommand`로 API request와 application 입력 분리
   - [x] 입력 정책 검증
   - [x] 로그인 ID 중복 검사
+  - [x] 이메일 중복 검사
   - [x] 비밀번호 암호화
   - [x] account와 credential 저장
 - [ ] 내 정보 조회
@@ -245,8 +249,11 @@
 - [x] `AccountCreateServiceTest`
   - [x] 회원가입 성공 시 account/credential 저장
   - [x] 중복 로그인 ID 실패
+  - [x] 중복 이메일 실패
 - [x] `AccountDataRepositoryTest`
   - [x] credential 저장 후 `method + identifier` 존재 여부 조회
+  - [x] account 저장 후 email 존재 여부 조회
+  - [x] 중복 email 저장 시 DB unique 제약 실패
 - [ ] `AccountMeUseCaseTest`
   - [ ] 내 정보 조회 성공
   - [ ] 이름 마스킹 반환

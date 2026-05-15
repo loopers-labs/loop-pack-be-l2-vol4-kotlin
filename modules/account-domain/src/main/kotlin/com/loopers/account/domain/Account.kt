@@ -7,10 +7,19 @@ import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import java.time.LocalDate
 
 @Entity
-@Table(name = "account")
+@Table(
+    name = "account",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_account_email",
+            columnNames = ["email"],
+        ),
+    ],
+)
 class Account(
     name: AccountName,
     birthDate: LocalDate,
@@ -18,15 +27,15 @@ class Account(
 ) : BaseEntity() {
     @Embedded
     var name: AccountName = name
-        protected set
+        private set
 
     @Column(name = "birth_date", nullable = false)
     var birthDate: LocalDate = birthDate
-        protected set
+        private set
 
     @Embedded
     var email: Email = email
-        protected set
+        private set
 
     fun maskedName(): String =
         name.masked()

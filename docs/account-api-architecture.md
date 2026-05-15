@@ -79,6 +79,7 @@ account_credential
 - `method = PASSWORD`일 때 `identifier`는 사용자가 입력한 로그인 ID이다.
 - `secret`에는 암호화된 비밀번호만 저장한다.
 - `account`는 비밀번호를 알지 않는다.
+- `account.email`은 가입 계정 단위로 유니크하게 관리한다.
 - 유니크 제약은 `account_credential(method, identifier)` 기준으로 둔다.
 - 회원가입은 `Account`와 `AccountCredential`을 함께 생성한다.
 - 비밀번호 수정은 account profile 변경이 아니라 credential 변경이다.

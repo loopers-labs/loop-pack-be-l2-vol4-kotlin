@@ -7,6 +7,7 @@ enum class AccountErrorCode(
 ) : ErrorCode {
     ACCOUNT_NOT_FOUND("계정을 찾을 수 없습니다."),
     DUPLICATE_LOGIN_ID("이미 가입된 로그인 ID입니다."),
+    DUPLICATE_EMAIL("이미 가입된 이메일입니다."),
     INVALID_EMAIL("이메일 형식이 올바르지 않습니다."),
     INVALID_BIRTH_DATE("생년월일이 올바르지 않습니다."),
     INVALID_ACCOUNT_NAME("이름이 올바르지 않습니다."),

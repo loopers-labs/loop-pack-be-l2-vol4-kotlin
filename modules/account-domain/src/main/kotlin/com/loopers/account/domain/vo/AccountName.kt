@@ -11,7 +11,7 @@ class AccountName(
 ) {
     @Column(name = "name", nullable = false, length = 100)
     var value: String = value
-        protected set
+        private set
 
     init {
         if (value.isBlank()) {

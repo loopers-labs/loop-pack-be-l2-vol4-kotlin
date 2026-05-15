@@ -33,20 +33,20 @@ class AccountCredential(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "account_id", nullable = false)
     var account: Account = account
-        protected set
+        private set
 
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 50)
     var method: CredentialMethod = method
-        protected set
+        private set
 
     @Embedded
     var identifier: CredentialIdentifier = identifier
-        protected set
+        private set
 
     @Embedded
     var secret: CredentialSecret = secret
-        protected set
+        private set
 
     fun changeSecret(newSecret: CredentialSecret) {
         this.secret = newSecret

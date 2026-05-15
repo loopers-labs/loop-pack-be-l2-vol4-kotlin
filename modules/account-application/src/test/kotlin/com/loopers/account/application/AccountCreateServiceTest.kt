@@ -86,6 +86,27 @@ class AccountCreateServiceTest {
         )
     }
 
+    @DisplayName("이미 가입된 이메일이면 CONFLICT 예외가 발생하고 저장하지 않는다.")
+    @Test
+    fun throwsConflictAndDoesNotSave_whenEmailAlreadyExists() {
+        // given
+        val command = validCreateCommand()
+        whenever(accountCredentialRepository.existsBy(eq(CredentialMethod.PASSWORD), any())).thenReturn(false)
+        whenever(accountRepository.existsByEmail(any())).thenReturn(true)
+
+        // when
+        val result = assertThrows<ConflictException> {
+            service.create(command)
+        }
+
+        // then
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(AccountErrorCode.DUPLICATE_EMAIL) },
+            { verify(accountRepository, never()).save(any<Account>()) },
+            { verify(accountCredentialRepository, never()).save(any<AccountCredential>()) },
+        )
+    }
+
     @DisplayName("미래 생년월일이면 BAD_REQUEST 예외가 발생한다.")
     @Test
     fun throwsBadRequest_whenBirthDateIsFuture() {

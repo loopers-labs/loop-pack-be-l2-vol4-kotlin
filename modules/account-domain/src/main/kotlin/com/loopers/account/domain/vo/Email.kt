@@ -11,7 +11,7 @@ class Email(
 ) {
     @Column(name = "email", nullable = false, length = 255)
     var value: String = value
-        protected set
+        private set
 
     init {
         if (!EMAIL_REGEX.matches(value)) {

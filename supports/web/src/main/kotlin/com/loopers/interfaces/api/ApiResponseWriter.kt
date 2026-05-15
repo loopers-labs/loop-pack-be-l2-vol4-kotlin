@@ -3,6 +3,7 @@ package com.loopers.interfaces.api
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.support.error.CoreException
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import java.nio.charset.StandardCharsets
 
@@ -12,10 +13,11 @@ class ApiResponseWriter(
     fun write(
         response: HttpServletResponse,
         exception: CoreException,
+        status: HttpStatus,
     ) {
-        response.status = exception.status.value()
+        response.status = status.value()
         response.contentType = MediaType.APPLICATION_JSON_VALUE
         response.characterEncoding = StandardCharsets.UTF_8.name()
-        objectMapper.writeValue(response.writer, ApiResponse.fail(exception))
+        objectMapper.writeValue(response.writer, ApiResponse.fail(exception, status))
     }
 }

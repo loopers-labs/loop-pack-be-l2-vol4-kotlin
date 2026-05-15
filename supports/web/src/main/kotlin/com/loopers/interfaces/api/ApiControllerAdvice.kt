@@ -5,9 +5,14 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.CommonErrorCode
+import com.loopers.support.error.ConflictException
 import com.loopers.support.error.CoreException
+import com.loopers.support.error.ForbiddenException
+import com.loopers.support.error.InternalServerException
 import com.loopers.support.error.NotFoundException
+import com.loopers.support.error.UnauthorizedException
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -62,11 +67,24 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handle(e: Throwable): ResponseEntity<ApiResponse<*>> {
         log.error("Exception : {}", e.message, e)
-        return failureResponse(com.loopers.support.error.InternalServerException())
+        return failureResponse(InternalServerException())
     }
 
-    private fun failureResponse(exception: CoreException): ResponseEntity<ApiResponse<*>> =
-        ResponseEntity(ApiResponse.fail(exception), exception.status)
+    private fun failureResponse(exception: CoreException): ResponseEntity<ApiResponse<*>> {
+        val status = resolveStatus(exception)
+        return ResponseEntity(ApiResponse.fail(exception, status), status)
+    }
+
+    private fun resolveStatus(exception: CoreException): HttpStatus =
+        when (exception) {
+            is BadRequestException -> HttpStatus.BAD_REQUEST
+            is UnauthorizedException -> HttpStatus.UNAUTHORIZED
+            is ForbiddenException -> HttpStatus.FORBIDDEN
+            is NotFoundException -> HttpStatus.NOT_FOUND
+            is ConflictException -> HttpStatus.CONFLICT
+            is InternalServerException -> HttpStatus.INTERNAL_SERVER_ERROR
+            else -> HttpStatus.INTERNAL_SERVER_ERROR
+        }
 
     private fun resolveMessage(e: HttpMessageNotReadableException): String =
         when (val rootCause = e.rootCause) {

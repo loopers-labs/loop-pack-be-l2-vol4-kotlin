@@ -27,10 +27,13 @@ data class ApiResponse<T>(
                 data = data,
             )
 
-        fun fail(exception: CoreException): ApiResponse<Any?> =
+        fun fail(
+            exception: CoreException,
+            status: HttpStatus,
+        ): ApiResponse<Any?> =
             ApiResponse(
                 isSuccess = false,
-                status = exception.status.value(),
+                status = status.value(),
                 code = exception.errorCode.code,
                 message = exception.message,
                 data = null,

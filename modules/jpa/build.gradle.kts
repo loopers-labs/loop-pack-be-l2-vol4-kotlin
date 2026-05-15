@@ -4,6 +4,8 @@ plugins {
 }
 
 dependencies {
+    api(project(":modules:persistence-core"))
+
     // jpa
     api("org.springframework.boot:spring-boot-starter-data-jpa")
     // querydsl

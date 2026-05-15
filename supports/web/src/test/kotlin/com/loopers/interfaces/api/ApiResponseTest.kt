@@ -30,14 +30,14 @@ class ApiResponseTest {
         )
     }
 
-    @DisplayName("실패 응답은 exception의 status, code, message, timestamp를 가진다.")
+    @DisplayName("실패 응답은 HTTP status, exception의 code, message, timestamp를 가진다.")
     @Test
     fun failResponseHasExceptionStatusCodeMessageAndTimestamp() {
         // arrange
         val exception = badRequestException(TestErrorCode.INVALID_VALUE)
 
         // act
-        val response = ApiResponse.fail(exception)
+        val response = ApiResponse.fail(exception, HttpStatus.BAD_REQUEST)
 
         // assert
         assertAll(

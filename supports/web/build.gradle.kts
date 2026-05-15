@@ -1,4 +1,5 @@
 dependencies {
+    implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
 
     implementation("org.springframework:spring-webmvc")

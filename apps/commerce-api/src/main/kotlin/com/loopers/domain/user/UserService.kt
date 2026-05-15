@@ -47,7 +47,7 @@ class UserService(
     }
 
     @Transactional
-    fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String): UserModel {
+    fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String) {
         val user = userRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.UNAUTHORIZED)
         if (!userPasswordEncoder.matches(currentRawPassword, user.password)) {
@@ -60,6 +60,5 @@ class UserService(
             userPasswordEncoder.encode(RawPassword(newRawPassword, user.birthDate).value),
         )
         user.changePassword(newEncoded)
-        return userRepository.save(user)
     }
 }

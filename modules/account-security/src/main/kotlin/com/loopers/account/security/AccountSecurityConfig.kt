@@ -24,7 +24,7 @@ class AccountSecurityConfig(
             .exceptionHandling { it.authenticationEntryPoint(accountAuthenticationEntryPoint) }
             .authorizeHttpRequests {
                 it
-                    .requestMatchers(HttpMethod.POST, ACCOUNTS_PATH).permitAll()
+                    .requestMatchers(HttpMethod.POST, USERS_PATH).permitAll()
                     .requestMatchers(ACTUATOR_PATH, SWAGGER_UI_PATH, API_DOCS_PATH).permitAll()
                     .anyRequest().authenticated()
             }
@@ -35,7 +35,7 @@ class AccountSecurityConfig(
             .build()
 
     private companion object {
-        private const val ACCOUNTS_PATH = "/accounts"
+        private const val USERS_PATH = "/api/v1/users"
         private const val ACTUATOR_PATH = "/actuator/**"
         private const val SWAGGER_UI_PATH = "/swagger-ui/**"
         private const val API_DOCS_PATH = "/v3/api-docs/**"

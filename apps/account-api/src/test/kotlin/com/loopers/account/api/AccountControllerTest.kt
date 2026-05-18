@@ -15,8 +15,8 @@ import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
@@ -28,7 +28,7 @@ class AccountControllerTest @Autowired constructor(
     private val accountService: AccountService,
     private val jdbcTemplate: JdbcTemplate,
 ) {
-    @DisplayName("POST /accounts")
+    @DisplayName("POST /api/v1/users")
     @Nested
     inner class Create {
         @DisplayName("유효한 회원가입 요청이면 성공 응답을 반환한다.")
@@ -80,7 +80,7 @@ class AccountControllerTest @Autowired constructor(
         }
     }
 
-    @DisplayName("GET /accounts/me")
+    @DisplayName("GET /api/v1/users/me")
     @Nested
     inner class Me {
         @DisplayName("인증된 account 기준으로 내 정보를 반환한다.")
@@ -111,7 +111,7 @@ class AccountControllerTest @Autowired constructor(
         }
     }
 
-    @DisplayName("PATCH /accounts/me/password")
+    @DisplayName("PUT /api/v1/users/password")
     @Nested
     inner class ChangePassword {
         @DisplayName("기존 비밀번호와 새 비밀번호가 유효하면 성공 응답을 반환한다.")
@@ -193,7 +193,7 @@ class AccountControllerTest @Autowired constructor(
         loginId: String,
         request: Map<String, String>,
     ) = perform(
-        patch(ACCOUNT_PASSWORD_PATH)
+        put(ACCOUNT_PASSWORD_PATH)
             .requestAttr(AccountAuthenticationAttributes.LOGIN_ID, loginId)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)),
@@ -222,9 +222,9 @@ class AccountControllerTest @Autowired constructor(
         )
 
     private companion object {
-        private const val ACCOUNTS_PATH = "/accounts"
-        private const val ACCOUNT_ME_PATH = "/accounts/me"
-        private const val ACCOUNT_PASSWORD_PATH = "/accounts/me/password"
+        private const val ACCOUNTS_PATH = "/api/v1/users"
+        private const val ACCOUNT_ME_PATH = "/api/v1/users/me"
+        private const val ACCOUNT_PASSWORD_PATH = "/api/v1/users/password"
 
         private const val FIELD_LOGIN_ID = "loginId"
         private const val FIELD_EMAIL = "email"

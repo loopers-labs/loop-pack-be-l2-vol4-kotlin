@@ -24,6 +24,7 @@
 
 ### MUST
 
+- **사용자에게는 항상 존댓말로 응대한다. 반말 절대 금지.** (~야 / ~지 / ~네 / ~잖아 같은 어미 사용 금지, 모든 응답은 ~습니다 / ~합니다 / ~입니다 어미)
 - Kotlin + Java 21
 - 패키지는 `com.loopers` 아래에 둔다
 - `.editorconfig` 준수: IntelliJ Kotlin style, 130자 줄 제한, trailing commas, no wildcard imports
@@ -216,7 +217,8 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 ### Account API Implementation Direction
 
 - 현재 요구사항부터 바깥쪽으로 구현. 컨트롤러/API 계약을 먼저 만들고, 필요해진 다음 의존성만 추가한다.
-- 명시적 요청이 없는 한 `V1` 네이밍이나 `/api/v1` 라우트를 도입하지 않는다. `AccountController`, `/accounts` 같이 단순한 이름을 쓴다.
+- 외부 라우트는 `/api/v1/users` 컨벤션을 따른다 (평가 스펙). 내부 도메인 명칭은 `account` 유지 — `user`는 MySQL `mysql.user` 시스템 테이블 / Spring Security `User` 클래스와 충돌하므로 내부 코드에 도입하지 않는다.
+- 결과적으로 `AccountController`가 `/api/v1/users`를 매핑하고, 내부 모듈/패키지/클래스/DB 테이블은 `account_*` 명칭을 유지한다. 응답 JSON 필드는 도메인 필드명(`loginId`, `email`, ...) 그대로라 외부에 `account`라는 단어는 노출되지 않는다.
 - 요청 DTO는 단일 컨트롤러에서만 쓰이면 컨트롤러 파일에 함께 둔다. 재사용/크기 때문에 필요할 때만 별도 파일로 분리.
 - 테스트/요구사항이 필요로 하기 전에 `Facade`, security, 추가 어댑터 레이어를 만들지 않는다.
 - 실제 모듈 경계를 넘을 때만 `Command`를 사용한다. `AccountCreateCommand`가 API → application 입력 모델로 합의됨.

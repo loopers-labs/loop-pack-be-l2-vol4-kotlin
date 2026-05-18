@@ -7,15 +7,15 @@ import com.loopers.account.application.AccountService
 import com.loopers.account.security.AccountAuthenticationAttributes
 import java.time.LocalDate
 import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestAttribute
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/accounts")
+@RequestMapping("/api/v1/users")
 class AccountController(
     private val accountService: AccountService,
 ) {
@@ -33,7 +33,7 @@ class AccountController(
     ): AccountMeResponse =
         accountService.getMe(accountId, loginId).toResponse()
 
-    @PatchMapping("/me/password")
+    @PutMapping("/password")
     fun changePassword(
         @RequestAttribute(AccountAuthenticationAttributes.LOGIN_ID) loginId: String,
         @RequestBody request: AccountPasswordChangeRequest,

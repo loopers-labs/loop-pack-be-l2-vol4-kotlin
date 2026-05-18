@@ -18,7 +18,7 @@ class AccountHeaderAuthenticationFilter(
 ) : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val path = requestPath(request)
-        return (request.method == HttpMethod.POST.name() && path == ACCOUNTS_PATH) ||
+        return (request.method == HttpMethod.POST.name() && path == USERS_PATH) ||
             path.startsWith(ACTUATOR_PATH_PREFIX) ||
             path.startsWith(SWAGGER_UI_PATH_PREFIX) ||
             path.startsWith(API_DOCS_PATH_PREFIX)
@@ -88,7 +88,7 @@ class AccountHeaderAuthenticationFilter(
         request.servletPath.ifBlank { request.requestURI }
 
     private companion object {
-        private const val ACCOUNTS_PATH = "/accounts"
+        private const val USERS_PATH = "/api/v1/users"
         private const val ACTUATOR_PATH_PREFIX = "/actuator"
         private const val SWAGGER_UI_PATH_PREFIX = "/swagger-ui"
         private const val API_DOCS_PATH_PREFIX = "/v3/api-docs"

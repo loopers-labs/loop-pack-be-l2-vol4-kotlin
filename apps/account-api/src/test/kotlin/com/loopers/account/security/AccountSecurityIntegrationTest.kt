@@ -15,8 +15,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -29,7 +29,7 @@ class AccountSecurityIntegrationTest @Autowired constructor(
     private val objectMapper: ObjectMapper,
     private val accountService: AccountService,
 ) {
-    @DisplayName("POST /accounts")
+    @DisplayName("POST /api/v1/users")
     @Nested
     inner class Create {
         @DisplayName("인증 헤더 없이도 회원가입 요청은 허용된다.")
@@ -49,7 +49,7 @@ class AccountSecurityIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("GET /accounts/me")
+    @DisplayName("GET /api/v1/users/me")
     @Nested
     inner class Me {
         @DisplayName("인증 헤더가 없으면 공통 실패 응답 형식으로 UNAUTHORIZED를 반환한다.")
@@ -87,7 +87,7 @@ class AccountSecurityIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("PATCH /accounts/me/password")
+    @DisplayName("PUT /api/v1/users/password")
     @Nested
     inner class ChangePassword {
         @DisplayName("인증 헤더가 없으면 공통 실패 응답 형식으로 UNAUTHORIZED를 반환한다.")
@@ -140,7 +140,7 @@ class AccountSecurityIntegrationTest @Autowired constructor(
         loginId: String? = null,
         password: String? = null,
     ) = perform(
-        patch(ACCOUNTS_PASSWORD_PATH)
+        put(ACCOUNTS_PASSWORD_PATH)
             .contentType(MediaType.APPLICATION_JSON)
             .apply {
                 loginId?.let { header(LOGIN_ID_HEADER, it) }
@@ -177,9 +177,9 @@ class AccountSecurityIntegrationTest @Autowired constructor(
         )
 
     private companion object {
-        private const val ACCOUNTS_PATH = "/accounts"
-        private const val ACCOUNTS_ME_PATH = "/accounts/me"
-        private const val ACCOUNTS_PASSWORD_PATH = "/accounts/me/password"
+        private const val ACCOUNTS_PATH = "/api/v1/users"
+        private const val ACCOUNTS_ME_PATH = "/api/v1/users/me"
+        private const val ACCOUNTS_PASSWORD_PATH = "/api/v1/users/password"
         private const val LOGIN_ID_HEADER = AccountAuthenticationHeaders.LOGIN_ID
         private const val PASSWORD_HEADER = AccountAuthenticationHeaders.PASSWORD
         private const val FIELD_LOGIN_ID = "loginId"

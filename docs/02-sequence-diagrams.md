@@ -389,32 +389,38 @@ sequenceDiagram
 sequenceDiagram
     actor Admin as 관리자
     participant Controller as AdminBrandController
-    participant Service as BrandService
-    participant Repo as BrandRepository
+    participant Facade as BrandFacade
+    participant BrandService as BrandService
+    participant ProductFacade as ProductFacade
+    participant OrderService as OrderService
 
     Admin->>Controller: ASC-BRAND-5: DELETE /api/admin/brands/{brandId}
     Note over Controller: X-Loopers-Ldap 헤더 검증
 
-    Controller->>Service: deleteBrand(brandId)
-    Service->>Repo: findById(brandId)
+    Controller->>Facade: deleteBrand(brandId)
+    Facade->>BrandService: findById(brandId)
 
     alt 브랜드 미존재
-        Repo-->>Service: null
-        Service-->>Controller: throw NotFoundException
+        BrandService-->>Facade: throw NotFoundException
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Admin: 404 Not Found
     else 브랜드 존재
-        Repo-->>Service: Brand
-        Service->>Service: 해당 브랜드 상품의 미완료 주문 존재 확인
+        BrandService-->>Facade: Brand
+        Facade->>OrderService: 해당 브랜드 상품의 미완료 주문 존재 확인
         alt 미완료 주문 존재
-            Service-->>Controller: throw ConflictException
+            OrderService-->>Facade: true
+            Facade-->>Controller: throw ConflictException
             Controller-->>Admin: 409 Conflict
         else 삭제 가능
-            Note over Service: ASC-PRODUCT-5: 각 상품 삭제 위임
-            Note over Service: (좋아요 hard delete, 좋아요 수 hard delete, 재고 soft delete, 상품 soft delete)
-            Service->>Repo: delete(brand)
-            Note over Repo: 브랜드 hard delete
-            Repo-->>Service: void
-            Service-->>Controller: void
+            OrderService-->>Facade: false
+            Note over Facade: ASC-PRODUCT-5: 각 상품 삭제 위임
+            Facade->>ProductFacade: deleteProduct(productId) (각 상품)
+            Note over ProductFacade: 재고 soft delete, 좋아요 hard delete, 좋아요 수 hard delete, 상품 soft delete
+            ProductFacade-->>Facade: void
+            Facade->>BrandService: delete(brand)
+            Note over BrandService: 브랜드 hard delete
+            BrandService-->>Facade: void
+            Facade-->>Controller: void
             Controller-->>Admin: 200 OK
         end
     end
@@ -527,32 +533,32 @@ sequenceDiagram
 sequenceDiagram
     actor Admin as 관리자
     participant Controller as AdminProductController
-    participant Service as ProductService
-    participant BrandRepo as BrandRepository
-    participant ProductRepo as ProductRepository
-    participant StockRepo as StockRepository
-    participant LikeCountRepo as LikeCountRepository
+    participant Facade as ProductFacade
+    participant BrandService as BrandService
+    participant ProductService as ProductService
+    participant StockService as StockService
+    participant LikeCountService as LikeCountService
 
     Admin->>Controller: ASC-PRODUCT-3: POST /api/admin/products {name, price, description, brandId, stockQuantity}
     Note over Controller: X-Loopers-Ldap 헤더 검증
 
-    Controller->>Service: createProduct(request)
-    Service->>BrandRepo: findById(brandId)
+    Controller->>Facade: createProduct(request)
+    Facade->>BrandService: findById(brandId)
 
     alt 브랜드 미존재
-        BrandRepo-->>Service: null
-        Service-->>Controller: throw NotFoundException
+        BrandService-->>Facade: throw NotFoundException
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Admin: 404 Not Found
     else 브랜드 존재
-        BrandRepo-->>Service: Brand
-        Service->>ProductRepo: save(Product)
-        ProductRepo-->>Service: Product
-        Service->>StockRepo: save(Stock(productId, quantity))
-        Note over StockRepo: ASC-STOCK-1: 재고 초기값 생성
-        StockRepo-->>Service: Stock
-        Service->>LikeCountRepo: save(LikeCount(productId, 0))
-        LikeCountRepo-->>Service: LikeCount
-        Service-->>Controller: ProductResponse
+        BrandService-->>Facade: Brand
+        Facade->>ProductService: save(Product)
+        ProductService-->>Facade: Product
+        Facade->>StockService: create(productId, quantity)
+        Note over StockService: ASC-STOCK-1: 재고 초기값 생성
+        StockService-->>Facade: void
+        Facade->>LikeCountService: create(productId, 0)
+        LikeCountService-->>Facade: void
+        Facade-->>Controller: ProductResponse
         Controller-->>Admin: 201 Created
     end
 ```
@@ -563,36 +569,34 @@ sequenceDiagram
 sequenceDiagram
     actor Admin as 관리자
     participant Controller as AdminProductController
-    participant Service as ProductService
-    participant ProductRepo as ProductRepository
-    participant StockRepo as StockRepository
+    participant Facade as ProductFacade
+    participant ProductService as ProductService
+    participant StockService as StockService
 
     Admin->>Controller: ASC-PRODUCT-4: PUT /api/admin/products/{productId} {name, price, description, stockQuantity}
     Note over Controller: X-Loopers-Ldap 헤더 검증
 
-    Controller->>Service: updateProduct(productId, request)
+    Controller->>Facade: updateProduct(productId, request)
 
     alt 요청에 brandId 포함 (변경 시도)
-        Service-->>Controller: throw BadRequestException
+        Facade-->>Controller: throw BadRequestException
         Controller-->>Admin: 400 Bad Request (브랜드는 수정 불가)
     end
 
-    Service->>ProductRepo: findById(productId)
+    Facade->>ProductService: findById(productId)
 
     alt 상품 미존재 또는 삭제된 상품
-        ProductRepo-->>Service: null
-        Service-->>Controller: throw NotFoundException
+        ProductService-->>Facade: throw NotFoundException
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Admin: 404 Not Found
     else 상품 존재
-        ProductRepo-->>Service: Product
-        Service->>ProductRepo: save(Product)
-        ProductRepo-->>Service: Product
-        Service->>StockRepo: findByProductId(productId)
-        StockRepo-->>Service: Stock
-        Service->>StockRepo: save(Stock(quantity = stockQuantity))
-        Note over StockRepo: ASC-STOCK-2: 재고 수량 변경
-        StockRepo-->>Service: Stock
-        Service-->>Controller: ProductResponse
+        ProductService-->>Facade: Product
+        Facade->>ProductService: update(product, name, price, description)
+        ProductService-->>Facade: Product
+        Facade->>StockService: update(productId, stockQuantity)
+        Note over StockService: ASC-STOCK-2: 재고 수량 변경
+        StockService-->>Facade: void
+        Facade-->>Controller: ProductResponse
         Controller-->>Admin: 200 OK
     end
 ```
@@ -603,50 +607,51 @@ sequenceDiagram
 sequenceDiagram
     actor Admin as 관리자
     participant Controller as AdminProductController
-    participant Service as ProductService
-    participant ProductRepo as ProductRepository
-    participant OrderRepo as OrderRepository
+    participant Facade as ProductFacade
+    participant ProductService as ProductService
+    participant OrderService as OrderService
+    participant StockService as StockService
     participant LikeService as LikeService
-    participant StockRepo as StockRepository
 
     Admin->>Controller: ASC-PRODUCT-5: DELETE /api/admin/products/{productId}
     Note over Controller: X-Loopers-Ldap 헤더 검증
 
-    Controller->>Service: deleteProduct(productId)
-    Service->>ProductRepo: findById(productId)
+    Controller->>Facade: deleteProduct(productId)
+    Facade->>ProductService: findActiveById(productId)
 
     alt 상품 미존재 또는 이미 삭제된(soft delete) 상품
-        ProductRepo-->>Service: null
-        Service-->>Controller: throw NotFoundException
+        ProductService-->>Facade: throw NotFoundException
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Admin: 404 Not Found
     else 상품 존재
-        ProductRepo-->>Service: Product
-        Service->>OrderRepo: existsIncompleteOrderByProductId(productId)
+        ProductService-->>Facade: Product
+        Facade->>OrderService: existsIncompleteOrderByProductId(productId)
         alt 미완료 주문 존재
-            OrderRepo-->>Service: true
-            Service-->>Controller: throw ConflictException
+            OrderService-->>Facade: true
+            Facade-->>Controller: throw ConflictException
             Controller-->>Admin: 409 Conflict
         else 삭제 가능
-            OrderRepo-->>Service: false
-            Service->>StockRepo: ASC-STOCK-3: soft delete
+            OrderService-->>Facade: false
+            Facade->>StockService: delete(productId)
+            Note over StockService: ASC-STOCK-3: soft delete
             alt 재고 삭제 실패
-                StockRepo-->>Service: throw Exception
-                Service-->>Controller: throw InternalServerErrorException
+                StockService-->>Facade: throw Exception
+                Facade-->>Controller: throw InternalServerErrorException
                 Controller-->>Admin: 500 Internal Server Error
             else 재고 삭제 성공
-                StockRepo-->>Service: void
-                Service->>LikeService: SC-LIKE-4: deleteAllByProductId (hard delete)
-                Note over LikeService: SC-LIKECOUNT-3: 좋아요 수 hard delete 연쇄
+                StockService-->>Facade: void
+                Facade->>LikeService: deleteAllByProductId(productId)
+                Note over LikeService: SC-LIKE-4: hard delete + SC-LIKECOUNT-3: 좋아요 수 hard delete 연쇄
                 alt 좋아요 삭제 실패
-                    LikeService-->>Service: throw Exception
-                    Note over Service,StockRepo: 재고 soft delete 롤백
-                    Service-->>Controller: throw InternalServerErrorException
+                    LikeService-->>Facade: throw Exception
+                    Note over Facade,StockService: 재고 soft delete 롤백
+                    Facade-->>Controller: throw InternalServerErrorException
                     Controller-->>Admin: 500 Internal Server Error
                 else 좋아요 삭제 성공
-                    LikeService-->>Service: void
-                    Service->>ProductRepo: soft delete (product)
-                    ProductRepo-->>Service: void
-                    Service-->>Controller: void
+                    LikeService-->>Facade: void
+                    Facade->>ProductService: softDelete(product)
+                    ProductService-->>Facade: void
+                    Facade-->>Controller: void
                     Controller-->>Admin: 200 OK
                 end
             end
@@ -751,36 +756,36 @@ sequenceDiagram
 sequenceDiagram
     actor Member as 회원
     participant Controller as LikeController
-    participant Service as LikeService
-    participant ProductRepo as ProductRepository
-    participant LikeRepo as LikeRepository
-    participant LikeCountRepo as LikeCountRepository
+    participant Facade as LikeFacade
+    participant ProductService as ProductService
+    participant LikeService as LikeService
+    participant LikeCountService as LikeCountService
 
     Member->>Controller: SC-LIKE-1: POST /api/products/{productId}/likes
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
 
-    Controller->>Service: addLike(memberId, productId)
-    Service->>ProductRepo: existsActiveById(productId)
+    Controller->>Facade: addLike(memberId, productId)
+    Facade->>ProductService: existsActiveById(productId)
 
     alt 상품 미존재 또는 삭제된(soft delete) 상품
-        ProductRepo-->>Service: false
-        Service-->>Controller: throw NotFoundException
+        ProductService-->>Facade: false
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Member: 404 Not Found
     else 상품 존재
-        ProductRepo-->>Service: true
-        Service->>LikeRepo: findByMemberIdAndProductId(memberId, productId)
+        ProductService-->>Facade: true
+        Facade->>LikeService: findByMemberIdAndProductId(memberId, productId)
         alt 이미 좋아요 존재 (멱등)
-            LikeRepo-->>Service: Like
-            Service-->>Controller: void
+            LikeService-->>Facade: Like
+            Facade-->>Controller: void
             Controller-->>Member: 200 OK (무시)
         else 좋아요 미존재
-            LikeRepo-->>Service: null
-            Service->>LikeRepo: save(Like(memberId, productId))
-            LikeRepo-->>Service: Like
-            Service->>LikeCountRepo: incrementByProductId(productId)
-            Note over LikeCountRepo: SC-LIKECOUNT-1: 좋아요 수 +1
-            LikeCountRepo-->>Service: void
-            Service-->>Controller: void
+            LikeService-->>Facade: null
+            Facade->>LikeService: save(memberId, productId)
+            LikeService-->>Facade: Like
+            Facade->>LikeCountService: increment(productId)
+            Note over LikeCountService: SC-LIKECOUNT-1: 좋아요 수 +1
+            LikeCountService-->>Facade: void
+            Facade-->>Controller: void
             Controller-->>Member: 200 OK
         end
     end
@@ -792,36 +797,36 @@ sequenceDiagram
 sequenceDiagram
     actor Member as 회원
     participant Controller as LikeController
-    participant Service as LikeService
-    participant ProductRepo as ProductRepository
-    participant LikeRepo as LikeRepository
-    participant LikeCountRepo as LikeCountRepository
+    participant Facade as LikeFacade
+    participant ProductService as ProductService
+    participant LikeService as LikeService
+    participant LikeCountService as LikeCountService
 
     Member->>Controller: SC-LIKE-2: DELETE /api/products/{productId}/likes
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
 
-    Controller->>Service: removeLike(memberId, productId)
-    Service->>ProductRepo: existsActiveById(productId)
+    Controller->>Facade: removeLike(memberId, productId)
+    Facade->>ProductService: existsActiveById(productId)
 
     alt 상품 미존재 또는 삭제된(soft delete) 상품
-        ProductRepo-->>Service: false
-        Service-->>Controller: throw NotFoundException
+        ProductService-->>Facade: false
+        Facade-->>Controller: throw NotFoundException
         Controller-->>Member: 404 Not Found
     else 상품 존재
-        ProductRepo-->>Service: true
-        Service->>LikeRepo: findByMemberIdAndProductId(memberId, productId)
+        ProductService-->>Facade: true
+        Facade->>LikeService: findByMemberIdAndProductId(memberId, productId)
         alt 좋아요 미존재 (멱등)
-            LikeRepo-->>Service: null
-            Service-->>Controller: void
+            LikeService-->>Facade: null
+            Facade-->>Controller: void
             Controller-->>Member: 200 OK (무시)
         else 좋아요 존재
-            LikeRepo-->>Service: Like
-            Service->>LikeRepo: delete(like)
-            LikeRepo-->>Service: void
-            Service->>LikeCountRepo: decrementByProductId(productId)
-            Note over LikeCountRepo: SC-LIKECOUNT-2: 좋아요 수 -1 (최소 0)
-            LikeCountRepo-->>Service: void
-            Service-->>Controller: void
+            LikeService-->>Facade: Like
+            Facade->>LikeService: delete(like)
+            LikeService-->>Facade: void
+            Facade->>LikeCountService: decrement(productId)
+            Note over LikeCountService: SC-LIKECOUNT-2: 좋아요 수 -1 (최소 0)
+            LikeCountService-->>Facade: void
+            Facade-->>Controller: void
             Controller-->>Member: 200 OK
         end
     end
@@ -839,12 +844,15 @@ sequenceDiagram
     Member->>Controller: SC-LIKE-3: GET /api/members/{memberId}/likes
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
 
-    alt 존재하지 않는 userId
+    Controller->>Service: getLikedProducts(loginMemberId, memberId)
+
+    alt 존재하지 않는 memberId
+        Service-->>Controller: throw NotFoundException
         Controller-->>Member: 404 Not Found
     else 본인이 아닌 memberId
+        Service-->>Controller: throw ForbiddenException
         Controller-->>Member: 403 Forbidden
     else 본인 확인
-        Controller->>Service: getLikedProducts(memberId)
         Service->>LikeRepo: findAllByMemberId(memberId)
         Note over LikeRepo: Product + Brand JOIN
         LikeRepo-->>Service: List<Like + Product>
@@ -934,97 +942,97 @@ sequenceDiagram
 sequenceDiagram
     actor Member as 회원
     participant Controller as OrderController
-    participant OrderService as OrderService
-    participant ProductRepo as ProductRepository
+    participant Facade as OrderFacade
+    participant ProductService as ProductService
     participant StockService as StockService
     participant PointService as PointService
-    participant OrderRepo as OrderRepository
+    participant OrderService as OrderService
     participant PayService as PayService
     participant Gateway as PaymentGateway (stub)
 
     Member->>Controller: SC-ORDER-1: POST /api/orders {items: [{productId, quantity}], usePoint}
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
 
-    Controller->>OrderService: createOrder(memberId, request)
+    Controller->>Facade: createOrder(memberId, request)
 
     %% 1. 상품 존재 확인 및 정보 조회
     loop 각 주문 항목
-        OrderService->>ProductRepo: findActiveById(productId)
+        Facade->>ProductService: findActiveById(productId)
         alt 상품 미존재 또는 삭제된(soft delete) 상품
-            ProductRepo-->>OrderService: null
-            OrderService-->>Controller: throw NotFoundException
+            ProductService-->>Facade: throw NotFoundException
+            Facade-->>Controller: throw NotFoundException
             Controller-->>Member: 404 Not Found
         else
-            ProductRepo-->>OrderService: Product (스냅샷용: 상품명, 가격, 브랜드명)
+            ProductService-->>Facade: Product (스냅샷용: 상품명, 가격, 브랜드명)
         end
     end
 
     %% 1.5. 주문 금액 검증
-    Note over OrderService: totalAmount = Σ(상품 가격 × 수량)
+    Note over Facade: totalAmount = Σ(상품 가격 × 수량)
     alt 사용 포인트 > 총 주문 금액
-        OrderService-->>Controller: throw BadRequestException
+        Facade-->>Controller: throw BadRequestException
         Controller-->>Member: 400 Bad Request (포인트가 주문 금액 초과)
     end
 
     %% 2. 재고 차감
     loop 각 주문 항목
-        OrderService->>StockService: decrease(productId, quantity)
+        Facade->>StockService: decrease(productId, quantity)
         alt 재고 부족
-            Note over OrderService: 이미 차감된 재고 복원 (SC-STOCK-2)
-            StockService-->>OrderService: throw BadRequestException
-            OrderService-->>Controller: throw BadRequestException
+            Note over Facade: 이미 차감된 재고 복원 (SC-STOCK-2)
+            StockService-->>Facade: throw BadRequestException
+            Facade-->>Controller: throw BadRequestException
             Controller-->>Member: 400 Bad Request (재고 부족)
         else
-            StockService-->>OrderService: void
+            StockService-->>Facade: void
         end
     end
 
     %% 3. 포인트 차감
-    OrderService->>PointService: use(memberId, usePoint)
+    Facade->>PointService: use(memberId, usePoint)
     alt 보유 포인트 부족
-        PointService-->>OrderService: throw BadRequestException
-        Note over OrderService: 차감된 재고 전체 복원 (SC-STOCK-2)
+        PointService-->>Facade: throw BadRequestException
+        Note over Facade: 차감된 재고 전체 복원 (SC-STOCK-2)
         loop 각 주문 항목
-            OrderService->>StockService: restore(productId, quantity)
-            StockService-->>OrderService: void
+            Facade->>StockService: restore(productId, quantity)
+            StockService-->>Facade: void
         end
-        OrderService-->>Controller: throw BadRequestException
+        Facade-->>Controller: throw BadRequestException
         Controller-->>Member: 400 Bad Request (포인트 부족)
     else
-        PointService-->>OrderService: void
+        PointService-->>Facade: void
     end
 
     %% 4. 주문 생성
-    OrderService->>OrderRepo: save(Order(CREATED, items with snapshots))
-    OrderRepo-->>OrderService: Order
+    Facade->>OrderService: save(Order(CREATED → PAYMENT_PENDING, items with snapshots))
+    OrderService-->>Facade: Order
 
     %% 5~6. 결제 요청
-    OrderService->>PayService: requestPayment(orderId, actualAmount)
+    Facade->>PayService: requestPayment(orderId, actualAmount)
     PayService->>Gateway: requestPayment(orderId, amount)
 
     alt 결제 성공
         Gateway-->>PayService: SUCCESS
-        PayService-->>OrderService: PaymentResult(SUCCESS)
-        OrderService->>OrderRepo: updateStatus(PAYMENT_COMPLETED)
-        OrderRepo-->>OrderService: void
-        OrderService->>PointService: earn(memberId, actualAmount * 1%)
+        PayService-->>Facade: PaymentResult(SUCCESS)
+        Facade->>OrderService: updateStatus(PAYMENT_COMPLETED)
+        OrderService-->>Facade: void
+        Facade->>PointService: earn(memberId, actualAmount * 1%)
         Note over PointService: SC-POINT-2: 포인트 적립 (소수점 내림)
-        PointService-->>OrderService: void
-        OrderService-->>Controller: OrderResponse
+        PointService-->>Facade: void
+        Facade-->>Controller: OrderResponse
         Controller-->>Member: 201 Created
     else 결제 실패
         Gateway-->>PayService: FAIL
-        PayService-->>OrderService: PaymentResult(FAIL)
-        Note over OrderService: SC-ORDER-4: 주문 취소 처리
-        OrderService->>OrderRepo: updateStatus(CANCELLED)
-        OrderRepo-->>OrderService: void
-        OrderService->>StockService: restore(각 항목의 productId, quantity)
+        PayService-->>Facade: PaymentResult(FAIL)
+        Note over Facade: SC-ORDER-4: 주문 취소 처리
+        Facade->>OrderService: updateStatus(CANCELLED)
+        OrderService-->>Facade: void
+        Facade->>StockService: restore(각 항목의 productId, quantity)
         Note over StockService: SC-STOCK-2: 재고 복원
-        StockService-->>OrderService: void
-        OrderService->>PointService: restore(memberId, usePoint)
+        StockService-->>Facade: void
+        Facade->>PointService: restore(memberId, usePoint)
         Note over PointService: SC-POINT-3: 포인트 복원
-        PointService-->>OrderService: void
-        OrderService-->>Controller: throw PaymentFailedException
+        PointService-->>Facade: void
+        Facade-->>Controller: throw PaymentFailedException
         Controller-->>Member: 500 Internal Server Error
     end
 ```
@@ -1085,6 +1093,27 @@ sequenceDiagram
     end
 ```
 
+### SC-ORDER-4: 주문을 취소한다 (결제 실패 시)
+
+```mermaid
+sequenceDiagram
+    participant Facade as OrderFacade
+    participant OrderService as OrderService
+    participant StockService as StockService
+    participant PointService as PointService
+
+    Facade->>OrderService: updateStatus(orderId, CANCELLED)
+    OrderService-->>Facade: void
+
+    loop 각 주문 항목
+        Facade->>StockService: SC-STOCK-2: restore(productId, quantity)
+        StockService-->>Facade: void
+    end
+
+    Facade->>PointService: SC-POINT-3: restore(memberId, usedPoint)
+    PointService-->>Facade: void
+```
+
 ### ASC-ORDER-1: 주문 목록을 조회한다 (관리자)
 
 ```mermaid
@@ -1100,7 +1129,7 @@ sequenceDiagram
     Controller->>Service: getAllOrders(page, size)
     Service->>Repo: findAll(pageable)
     Repo-->>Service: Page<Order>
-    Service-->>Controller: PageResponse<AdminOrderListResponse>
+    Service-->>Controller: PageResponse<AdminOrderListResponse> (orderId, memberId, loginId, status, totalAmount, orderedAt)
     Controller-->>Admin: 200 OK
 ```
 
@@ -1125,7 +1154,7 @@ sequenceDiagram
         Controller-->>Admin: 404 Not Found
     else 주문 존재
         Repo-->>Service: Order (with OrderItems)
-        Service-->>Controller: AdminOrderDetailResponse
+        Service-->>Controller: AdminOrderDetailResponse (orderId, memberId, loginId, status, totalAmount, usePoint, actualAmount, earnPoint, orderedAt, items)
         Controller-->>Admin: 200 OK
     end
 ```

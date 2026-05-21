@@ -29,7 +29,12 @@ class ApiControllerAdvice {
 
     @ExceptionHandler
     fun handle(e: CoreException): ResponseEntity<ApiResponse<*>> {
-        log.warn("CoreException : {}", e.message, e)
+        val status = resolveStatus(e)
+        if (status.is5xxServerError) {
+            log.error("CoreException [{}] {}", e.errorCode.code, e.message, e)
+        } else {
+            log.warn("CoreException [{}] {}", e.errorCode.code, e.message)
+        }
         return failureResponse(e)
     }
 

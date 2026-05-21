@@ -28,81 +28,83 @@ class ApiControllerAdvice {
     private val log = LoggerFactory.getLogger(ApiControllerAdvice::class.java)
 
     @ExceptionHandler
-    fun handle(e: CoreException): ResponseEntity<ApiResponse<*>> {
-        val status = resolveStatus(e)
-        if (status.is5xxServerError) {
-            log.error("CoreException [{}] {}", e.errorCode.code, e.message, e)
-        } else {
-            log.warn("CoreException [{}] {}", e.errorCode.code, e.message)
-        }
-        return failureResponse(e)
-    }
+    fun handle(e: BadRequestException) = handleClientError(e, HttpStatus.BAD_REQUEST)
+
+    @ExceptionHandler
+    fun handle(e: UnauthorizedException) = handleClientError(e, HttpStatus.UNAUTHORIZED)
+
+    @ExceptionHandler
+    fun handle(e: ForbiddenException) = handleClientError(e, HttpStatus.FORBIDDEN)
+
+    @ExceptionHandler
+    fun handle(e: NotFoundException) = handleClientError(e, HttpStatus.NOT_FOUND)
+
+    @ExceptionHandler
+    fun handle(e: ConflictException) = handleClientError(e, HttpStatus.CONFLICT)
+
+    @ExceptionHandler
+    fun handle(e: InternalServerException) = handleServerError(e, HttpStatus.INTERNAL_SERVER_ERROR)
 
     @ExceptionHandler
     fun handleBadRequest(e: MethodArgumentTypeMismatchException): ResponseEntity<ApiResponse<*>> {
         val type = e.requiredType?.simpleName ?: "unknown"
         val value = e.value ?: "null"
         val message = "요청 파라미터 '${e.name}' (타입: $type)의 값 '$value'이(가) 잘못되었습니다."
-        return failureResponse(BadRequestException(CommonErrorCode.BAD_REQUEST, message))
+        return handleClientError(BadRequestException(CommonErrorCode.BAD_REQUEST, message), HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler
     fun handleBadRequest(e: MissingServletRequestParameterException): ResponseEntity<ApiResponse<*>> {
         val message = "필수 요청 파라미터 '${e.parameterName}' (타입: ${e.parameterType})가 누락되었습니다."
-        return failureResponse(BadRequestException(CommonErrorCode.BAD_REQUEST, message))
+        return handleClientError(BadRequestException(CommonErrorCode.BAD_REQUEST, message), HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler
-    fun handleBadRequest(e: HttpMessageNotReadableException): ResponseEntity<ApiResponse<*>> =
-        failureResponse(BadRequestException(CommonErrorCode.BAD_REQUEST, resolveMessage(e)))
+    fun handleBadRequest(e: HttpMessageNotReadableException) =
+        handleClientError(BadRequestException(CommonErrorCode.BAD_REQUEST, resolveMessage(e)), HttpStatus.BAD_REQUEST)
 
     @ExceptionHandler
     fun handleBadRequest(e: ServerWebInputException): ResponseEntity<ApiResponse<*>> {
         val missingParams = extractMissingParameter(e.reason ?: "")
-        return if (missingParams.isNotEmpty()) {
-            failureResponse(BadRequestException(CommonErrorCode.BAD_REQUEST, "필수 요청 값 '$missingParams'가 누락되었습니다."))
+        val ex = if (missingParams.isNotEmpty()) {
+            BadRequestException(CommonErrorCode.BAD_REQUEST, "필수 요청 값 '$missingParams'가 누락되었습니다.")
         } else {
-            failureResponse(BadRequestException(CommonErrorCode.BAD_REQUEST))
+            BadRequestException(CommonErrorCode.BAD_REQUEST)
         }
+        return handleClientError(ex, HttpStatus.BAD_REQUEST)
     }
 
     @ExceptionHandler
-    fun handleNotFound(e: NoResourceFoundException): ResponseEntity<ApiResponse<*>> =
-        failureResponse(NotFoundException(CommonErrorCode.NOT_FOUND))
+    fun handleNotFound(e: NoResourceFoundException) =
+        handleClientError(NotFoundException(CommonErrorCode.NOT_FOUND), HttpStatus.NOT_FOUND)
 
     @ExceptionHandler
     fun handleConflict(e: DataIntegrityViolationException): ResponseEntity<ApiResponse<*>> {
         val isUniqueViolation = e.message?.contains("Duplicate", ignoreCase = true) == true
         return if (isUniqueViolation) {
             log.warn("Unique constraint violation. cause: {}", e.cause?.javaClass?.simpleName)
-            failureResponse(ConflictException(CommonErrorCode.CONFLICT))
+            handleClientError(ConflictException(CommonErrorCode.CONFLICT), HttpStatus.CONFLICT)
         } else {
             log.error("DataIntegrityViolation (non-unique). cause: {}", e.cause?.javaClass?.simpleName, e)
-            failureResponse(InternalServerException())
+            handleServerError(InternalServerException(), HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
     @ExceptionHandler
     fun handle(e: Throwable): ResponseEntity<ApiResponse<*>> {
         log.error("Exception : {}", e.message, e)
-        return failureResponse(InternalServerException())
+        return handleServerError(InternalServerException(), HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
-    private fun failureResponse(exception: CoreException): ResponseEntity<ApiResponse<*>> {
-        val status = resolveStatus(exception)
-        return ResponseEntity(ApiResponse.fail(exception, status), status)
+    private fun handleClientError(e: CoreException, status: HttpStatus): ResponseEntity<ApiResponse<*>> {
+        log.warn("[{}]", e.errorCode.code)
+        return ResponseEntity(ApiResponse.fail(e, status), status)
     }
 
-    private fun resolveStatus(exception: CoreException): HttpStatus =
-        when (exception) {
-            is BadRequestException -> HttpStatus.BAD_REQUEST
-            is UnauthorizedException -> HttpStatus.UNAUTHORIZED
-            is ForbiddenException -> HttpStatus.FORBIDDEN
-            is NotFoundException -> HttpStatus.NOT_FOUND
-            is ConflictException -> HttpStatus.CONFLICT
-            is InternalServerException -> HttpStatus.INTERNAL_SERVER_ERROR
-            else -> HttpStatus.INTERNAL_SERVER_ERROR
-        }
+    private fun handleServerError(e: CoreException, status: HttpStatus): ResponseEntity<ApiResponse<*>> {
+        log.error("[{}]", e.errorCode.code, e)
+        return ResponseEntity(ApiResponse.fail(e, status), status)
+    }
 
     private fun resolveMessage(e: HttpMessageNotReadableException): String =
         when (val rootCause = e.rootCause) {

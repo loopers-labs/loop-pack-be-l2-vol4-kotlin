@@ -6,6 +6,8 @@ import java.time.format.DateTimeFormatter
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import kotlin.test.Test
 
 class PasswordValidatorTest {
@@ -63,6 +65,15 @@ class PasswordValidatorTest {
 
         assertThrows<BadRequestException> {
             PasswordValidator.validate(wrongPassword2, birthDate)
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["ab1996-01-01!", "ab,96,01,01x", "a96_01_01_x", "z19/96/01/01!"])
+    @DisplayName("특수문자로 구분된 생년월일도 우회로 사용할 수 없다")
+    fun wrongWithBirthDateSplitBySpecialChars(wrongPassword: String) {
+        assertThrows<BadRequestException> {
+            PasswordValidator.validate(wrongPassword, birthDate)
         }
     }
 }

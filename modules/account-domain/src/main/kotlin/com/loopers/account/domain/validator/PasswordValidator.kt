@@ -25,7 +25,11 @@ object PasswordValidator {
             throw BadRequestException(AccountErrorCode.INVALID_PASSWORD)
         }
 
-        if (rawPassword.contains(birthDate.format(BIRTH_DATE_FORMATTER).substring(2))) {
+        val birthDateDigits = birthDate.format(BIRTH_DATE_FORMATTER)
+        val passwordDigits = rawPassword.filter(Char::isDigit)
+        val yyMMdd = birthDateDigits.substring(2)
+
+        if (passwordDigits.contains(birthDateDigits) || passwordDigits.contains(yyMMdd)) {
             throw BadRequestException(AccountErrorCode.INVALID_PASSWORD)
         }
     }

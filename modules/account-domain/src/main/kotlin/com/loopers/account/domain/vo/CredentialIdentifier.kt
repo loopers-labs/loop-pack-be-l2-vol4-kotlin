@@ -16,6 +16,9 @@ class CredentialIdentifier(
         private set
 
     init {
+        if (value.length > 255) {
+            throw BadRequestException(AccountErrorCode.INVALID_CREDENTIAL_IDENTIFIER)
+        }
         if (method == CredentialMethod.PASSWORD && !PASSWORD_IDENTIFIER_REGEX.matches(value)) {
             throw BadRequestException(AccountErrorCode.INVALID_CREDENTIAL_IDENTIFIER)
         }

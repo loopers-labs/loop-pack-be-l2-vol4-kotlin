@@ -39,4 +39,19 @@ class CredentialIdentifierTest {
             { assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_CREDENTIAL_IDENTIFIER) },
         )
     }
+
+    @DisplayName("식별자가 255자를 초과하면, BAD_REQUEST 예외가 발생한다.")
+    @Test
+    fun throwsBadRequestException_whenValueExceedsColumnLength() {
+        // given
+        val value = "a".repeat(256)
+
+        // when
+        val result = assertThrows<BadRequestException> {
+            CredentialIdentifier(CredentialMethod.PASSWORD, value)
+        }
+
+        // then
+        assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_CREDENTIAL_IDENTIFIER)
+    }
 }

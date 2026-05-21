@@ -11,7 +11,6 @@ sequenceDiagram
     participant Product as Product 도메인
     participant Order as Order 도메인
     participant Like as Like 도메인
-    participant LikeCount as LikeCount 도메인
     participant Stock as Stock 도메인
 
     Admin->>Brand: ASC-BRAND-5: 브랜드 삭제
@@ -28,9 +27,7 @@ sequenceDiagram
             Brand->>Product: ASC-PRODUCT-5: 상품 삭제 (productId)
             Product->>Stock: ASC-STOCK-3: 재고 soft delete
             Stock-->>Product: 완료
-            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 전체 삭제 (hard delete)
-            Like->>LikeCount: SC-LIKECOUNT-3: 좋아요 수 삭제 (hard delete)
-            LikeCount-->>Like: 완료
+            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제 (hard delete)
             Like-->>Product: 완료
             Product->>Product: 상품 soft delete
             Product-->>Brand: 완료
@@ -49,7 +46,7 @@ sequenceDiagram
     participant Product as Product 도메인
     participant Brand as Brand 도메인
     participant Stock as Stock 도메인
-    participant LikeCount as LikeCount 도메인
+    participant Like as Like 도메인
 
     Admin->>Product: ASC-PRODUCT-3: 상품 등록 (brandId, stockQuantity)
     Product->>Brand: 브랜드 존재 확인
@@ -58,8 +55,8 @@ sequenceDiagram
     Product->>Product: 상품 저장
     Product->>Stock: ASC-STOCK-1: 재고 초기값 생성 (quantity)
     Stock-->>Product: 완료
-    Product->>LikeCount: 좋아요 수 초기화 (count = 0)
-    LikeCount-->>Product: 완료
+    Product->>Like: 좋아요 수 초기화 (count = 0)
+    Like-->>Product: 완료
     Product-->>Admin: 등록 완료
 ```
 
@@ -87,7 +84,6 @@ sequenceDiagram
     participant Order as Order 도메인
     participant Stock as Stock 도메인
     participant Like as Like 도메인
-    participant LikeCount as LikeCount 도메인
 
     Admin->>Product: ASC-PRODUCT-5: 상품 삭제
     Product->>Order: 미완료 주문 존재 확인
@@ -102,15 +98,12 @@ sequenceDiagram
             Product-->>Admin: 실패 (재고 삭제 중 오류 발생)
         else 재고 삭제 성공
             Stock-->>Product: 완료
-            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 전체 삭제 (hard delete)
-            Like->>LikeCount: SC-LIKECOUNT-3: 좋아요 수 삭제 (hard delete)
+            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제 (hard delete)
             alt 좋아요 삭제 실패
-                LikeCount-->>Like: 실패
                 Like-->>Product: 실패
                 Note over Product,Stock: 재고 soft delete 롤백
                 Product-->>Admin: 실패 (좋아요 삭제 중 오류 발생)
             else 좋아요 삭제 성공
-                LikeCount-->>Like: 완료
                 Like-->>Product: 완료
                 Product->>Product: 상품 soft delete
                 Product-->>Admin: 삭제 완료
@@ -126,10 +119,9 @@ sequenceDiagram
     actor Member as 회원
     participant Like as Like 도메인
     participant Product as Product 도메인
-    participant LikeCount as LikeCount 도메인
 
     rect rgb(230, 245, 230)
-        Note over Member,LikeCount: SC-LIKE-1: 좋아요 등록
+        Note over Member,Product: SC-LIKE-1: 좋아요 등록
         Member->>Like: 좋아요 등록 (memberId, productId)
         Like->>Product: 상품 존재 확인
         alt 상품 미존재 또는 삭제된(soft delete) 상품
@@ -139,8 +131,7 @@ sequenceDiagram
             Product-->>Like: true
             Like->>Like: 기존 좋아요 확인
             alt 새로 등록
-                Like->>LikeCount: SC-LIKECOUNT-1: 좋아요 수 +1
-                LikeCount-->>Like: void
+                Note over Like: 좋아요 저장 + 좋아요 수 +1
             else 이미 존재 (멱등)
                 Note over Like: 무시, 후속 동작 없음
             end
@@ -149,7 +140,7 @@ sequenceDiagram
     end
 
     rect rgb(245, 230, 230)
-        Note over Member,LikeCount: SC-LIKE-2: 좋아요 취소
+        Note over Member,Product: SC-LIKE-2: 좋아요 취소
         Member->>Like: 좋아요 취소 (memberId, productId)
         Like->>Product: 상품 존재 확인
         alt 상품 미존재 또는 삭제된(soft delete) 상품
@@ -159,8 +150,7 @@ sequenceDiagram
             Product-->>Like: true
             Like->>Like: 기존 좋아요 확인
             alt 존재하여 삭제
-                Like->>LikeCount: SC-LIKECOUNT-2: 좋아요 수 -1 (최소 0)
-                LikeCount-->>Like: void
+                Note over Like: 좋아요 삭제 + 좋아요 수 -1 (최소 0)
             else 미존재 (멱등)
                 Note over Like: 무시, 후속 동작 없음
             end
@@ -457,7 +447,7 @@ sequenceDiagram
     participant Service as ProductService
     participant ProductRepo as ProductRepository
     participant StockRepo as StockRepository
-    participant LikeCountRepo as LikeCountRepository
+    participant LikeService as LikeService
 
     User->>Controller: SC-PRODUCT-2: GET /api/products/{productId}
     Controller->>Service: getProduct(productId)
@@ -471,8 +461,8 @@ sequenceDiagram
         ProductRepo-->>Service: Product (with Brand)
         Service->>StockRepo: findByProductId(productId)
         StockRepo-->>Service: Stock
-        Service->>LikeCountRepo: findByProductId(productId)
-        LikeCountRepo-->>Service: LikeCount
+        Service->>LikeService: getLikeCount(productId)
+        LikeService-->>Service: Long
         Service-->>Controller: ProductDetailResponse
         Controller-->>User: 200 OK
     end
@@ -505,7 +495,7 @@ sequenceDiagram
     participant Service as ProductService
     participant ProductRepo as ProductRepository
     participant StockRepo as StockRepository
-    participant LikeCountRepo as LikeCountRepository
+    participant LikeService as LikeService
 
     Admin->>Controller: ASC-PRODUCT-2: GET /api/admin/products/{productId}
     Note over Controller: X-Loopers-Ldap 헤더 검증
@@ -520,8 +510,8 @@ sequenceDiagram
         ProductRepo-->>Service: Product (with Brand)
         Service->>StockRepo: findByProductId(productId)
         StockRepo-->>Service: Stock
-        Service->>LikeCountRepo: findByProductId(productId)
-        LikeCountRepo-->>Service: LikeCount
+        Service->>LikeService: getLikeCount(productId)
+        LikeService-->>Service: Long
         Service-->>Controller: AdminProductDetailResponse (id, name, price, description, brandId, brandName, stockQuantity, likeCount, createdAt, updatedAt)
         Controller-->>Admin: 200 OK
     end
@@ -537,7 +527,7 @@ sequenceDiagram
     participant BrandService as BrandService
     participant ProductService as ProductService
     participant StockService as StockService
-    participant LikeCountService as LikeCountService
+    participant LikeService as LikeService
 
     Admin->>Controller: ASC-PRODUCT-3: POST /api/admin/products {name, price, description, brandId, stockQuantity}
     Note over Controller: X-Loopers-Ldap 헤더 검증
@@ -556,8 +546,9 @@ sequenceDiagram
         Facade->>StockService: create(productId, quantity)
         Note over StockService: ASC-STOCK-1: 재고 초기값 생성
         StockService-->>Facade: void
-        Facade->>LikeCountService: create(productId, 0)
-        LikeCountService-->>Facade: void
+        Facade->>LikeService: initLikeCount(productId)
+        Note over LikeService: 좋아요 수 초기화 (count = 0)
+        LikeService-->>Facade: void
         Facade-->>Controller: ProductResponse
         Controller-->>Admin: 201 Created
     end
@@ -641,7 +632,7 @@ sequenceDiagram
             else 재고 삭제 성공
                 StockService-->>Facade: void
                 Facade->>LikeService: deleteAllByProductId(productId)
-                Note over LikeService: SC-LIKE-4: hard delete + SC-LIKECOUNT-3: 좋아요 수 hard delete 연쇄
+                Note over LikeService: SC-LIKE-4: 좋아요 + 좋아요 수 hard delete
                 alt 좋아요 삭제 실패
                     LikeService-->>Facade: throw Exception
                     Note over Facade,StockService: 재고 soft delete 롤백
@@ -759,7 +750,6 @@ sequenceDiagram
     participant Facade as LikeFacade
     participant ProductService as ProductService
     participant LikeService as LikeService
-    participant LikeCountService as LikeCountService
 
     Member->>Controller: SC-LIKE-1: POST /api/products/{productId}/likes
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
@@ -773,21 +763,11 @@ sequenceDiagram
         Controller-->>Member: 404 Not Found
     else 상품 존재
         ProductService-->>Facade: true
-        Facade->>LikeService: findByMemberIdAndProductId(memberId, productId)
-        alt 이미 좋아요 존재 (멱등)
-            LikeService-->>Facade: Like
-            Facade-->>Controller: void
-            Controller-->>Member: 200 OK (무시)
-        else 좋아요 미존재
-            LikeService-->>Facade: null
-            Facade->>LikeService: save(memberId, productId)
-            LikeService-->>Facade: Like
-            Facade->>LikeCountService: increment(productId)
-            Note over LikeCountService: SC-LIKECOUNT-1: 좋아요 수 +1
-            LikeCountService-->>Facade: void
-            Facade-->>Controller: void
-            Controller-->>Member: 200 OK
-        end
+        Facade->>LikeService: addLike(memberId, productId)
+        Note over LikeService: 좋아요 존재 확인 → 없으면 저장 + 좋아요 수 +1, 있으면 무시 (멱등)
+        LikeService-->>Facade: void
+        Facade-->>Controller: void
+        Controller-->>Member: 200 OK
     end
 ```
 
@@ -800,7 +780,6 @@ sequenceDiagram
     participant Facade as LikeFacade
     participant ProductService as ProductService
     participant LikeService as LikeService
-    participant LikeCountService as LikeCountService
 
     Member->>Controller: SC-LIKE-2: DELETE /api/products/{productId}/likes
     Note over Controller: X-Loopers-LoginId + X-Loopers-LoginPw 헤더 검증
@@ -814,21 +793,11 @@ sequenceDiagram
         Controller-->>Member: 404 Not Found
     else 상품 존재
         ProductService-->>Facade: true
-        Facade->>LikeService: findByMemberIdAndProductId(memberId, productId)
-        alt 좋아요 미존재 (멱등)
-            LikeService-->>Facade: null
-            Facade-->>Controller: void
-            Controller-->>Member: 200 OK (무시)
-        else 좋아요 존재
-            LikeService-->>Facade: Like
-            Facade->>LikeService: delete(like)
-            LikeService-->>Facade: void
-            Facade->>LikeCountService: decrement(productId)
-            Note over LikeCountService: SC-LIKECOUNT-2: 좋아요 수 -1 (최소 0)
-            LikeCountService-->>Facade: void
-            Facade-->>Controller: void
-            Controller-->>Member: 200 OK
-        end
+        Facade->>LikeService: removeLike(memberId, productId)
+        Note over LikeService: 좋아요 존재 확인 → 있으면 삭제 + 좋아요 수 -1 (최소 0), 없으면 무시 (멱등)
+        LikeService-->>Facade: void
+        Facade-->>Controller: void
+        Controller-->>Member: 200 OK
     end
 ```
 
@@ -865,71 +834,17 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant ProductService as ProductService
+    participant ProductFacade as ProductFacade
     participant Service as LikeService
     participant LikeRepo as LikeRepository
-    participant LikeCountService as LikeCountService
     participant LikeCountRepo as LikeCountRepository
 
-    ProductService->>Service: SC-LIKE-4: deleteAllByProductId(productId)
+    ProductFacade->>Service: SC-LIKE-4: deleteAllByProductId(productId)
     Service->>LikeRepo: hard delete all by productId
     LikeRepo-->>Service: void
-    Service->>LikeCountService: SC-LIKECOUNT-3: deleteByProductId(productId)
-    LikeCountService->>LikeCountRepo: hard delete by productId
-    LikeCountRepo-->>LikeCountService: void
-    LikeCountService-->>Service: void
-    Service-->>ProductService: void
-```
-
-### SC-LIKECOUNT-1: 좋아요 수를 1 증가시킨다
-
-```mermaid
-sequenceDiagram
-    participant LikeService as LikeService
-    participant Service as LikeCountService
-    participant LikeCountRepo as LikeCountRepository
-
-    LikeService->>Service: SC-LIKECOUNT-1: increment(productId)
-    Service->>LikeCountRepo: incrementByProductId(productId)
-    Note over LikeCountRepo: count = count + 1
-    LikeCountRepo-->>Service: void
-    Service-->>LikeService: void
-```
-
-### SC-LIKECOUNT-2: 좋아요 수를 1 감소시킨다
-
-```mermaid
-sequenceDiagram
-    participant LikeService as LikeService
-    participant Service as LikeCountService
-    participant LikeCountRepo as LikeCountRepository
-
-    LikeService->>Service: SC-LIKECOUNT-2: decrement(productId)
-    Service->>LikeCountRepo: findByProductId(productId)
-    LikeCountRepo-->>Service: LikeCount
-
-    alt 좋아요 수가 0인 경우
-        Note over Service: 0 유지 (음수 방지)
-    else 감소 가능
-        Service->>LikeCountRepo: decrementByProductId(productId)
-        Note over LikeCountRepo: count = count - 1
-        LikeCountRepo-->>Service: void
-    end
-    Service-->>LikeService: void
-```
-
-### SC-LIKECOUNT-3: 상품의 좋아요 수를 삭제한다
-
-```mermaid
-sequenceDiagram
-    participant LikeService as LikeService
-    participant Service as LikeCountService
-    participant LikeCountRepo as LikeCountRepository
-
-    LikeService->>Service: SC-LIKECOUNT-3: deleteByProductId(productId)
     Service->>LikeCountRepo: hard delete by productId
     LikeCountRepo-->>Service: void
-    Service-->>LikeService: void
+    Service-->>ProductFacade: void
 ```
 
 ---

@@ -363,9 +363,9 @@
   3. 포인트를 차감한다 (사용 시). (→ SC-POINT-1)
   4. 주문을 생성한다. 1에서 조회한 상품 정보를 스냅샷으로 저장한다.
   5. 주문 상태는 CREATED로 설정된다.
-  6. 결제를 요청한다. (→ SC-PAY-1)
+  6. 결제를 요청한다. 주문 상태를 PAYMENT_PENDING으로 변경한다. (→ SC-PAY-1)
   7. 결제 결과에 따라 분기한다.
-     - 성공: 주문 상태를 PAYMENT_PENDING → PAYMENT_COMPLETED로 변경한다. 포인트를 적립한다. (→ SC-POINT-2)
+     - 성공: 주문 상태를 PAYMENT_COMPLETED로 변경한다. 포인트를 적립한다. (→ SC-POINT-2)
      - 실패: 주문을 취소한다. (→ SC-ORDER-4)
 - 예외/조건 분기:
   - 존재하지 않는 상품 ID → 404 Not Found

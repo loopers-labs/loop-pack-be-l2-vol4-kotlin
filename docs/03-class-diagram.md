@@ -43,7 +43,7 @@ classDiagram
 | 삭제 정책 | hard delete |
 | name | 필수, 유니크 (중복 등록/수정 시 409 Conflict) |
 | 삭제 선행조건 | 해당 브랜드 상품에 미완료 주문이 없어야 함 (있으면 409 Conflict) |
-| Cascade 삭제 | 브랜드 삭제 → 각 상품에 대해 상품 삭제 흐름 수행 (상품 soft delete, 재고 soft delete, 좋아요 hard delete, 좋아요 수 hard delete) |
+| Cascade 삭제 | 브랜드 삭제 → 각 상품에 대해 상품 삭제 흐름 수행 (상품 삭제, 재고 삭제, 좋아요 hard delete, 좋아요 수 hard delete) |
 
 ---
 
@@ -57,8 +57,7 @@ classDiagram
         -description: String
         -brand: Brand
         +update(name: String, price: Long, description: String) void
-        +softDelete() void
-        +isDeleted() Boolean
+        +delete() void
     }
 
     Product --> Brand : 소속 (N-1)
@@ -66,11 +65,11 @@ classDiagram
 
 | 규칙 | 설명 |
 |---|---|
-| 삭제 정책 | soft delete |
+| 삭제 정책 | soft delete (조회 시 자동 필터링, 삭제된 상품은 노출되지 않음) |
 | price | 필수, 0 초과 |
 | brand | 등록 시 결정, 이후 변경 불가 (변경 시도 → 400 Bad Request) |
 | 삭제 선행조건 | 미완료 주문이 없어야 함 (있으면 409 Conflict) |
-| Cascade 삭제 | 상품 삭제 → 재고 soft delete, 좋아요 전체 hard delete, 좋아요 수 hard delete |
+| Cascade 삭제 | 상품 삭제 → 재고 삭제, 좋아요 전체 hard delete, 좋아요 수 hard delete |
 | 목록 정렬 | `latest` (기본), `price_asc`, `likes_desc` |
 
 ---
@@ -85,8 +84,7 @@ classDiagram
         +decrease(amount: Int) void
         +restore(amount: Int) void
         +updateQuantity(quantity: Int) void
-        +softDelete() void
-        +isDeleted() Boolean
+        +delete() void
     }
 
     Stock --> Product : 대응 (1-1)
@@ -94,7 +92,7 @@ classDiagram
 
 | 규칙 | 설명 |
 |---|---|
-| 삭제 정책 | soft delete (상품과 동일 생명주기) |
+| 삭제 정책 | soft delete (상품과 동일 생명주기, 조회 시 자동 필터링) |
 | quantity | 0 이상, 음수 불가 |
 | decrease | 현재 수량 < 요청 수량이면 실패 (400 Bad Request) |
 | restore | 주문 취소/결제 실패 시 차감했던 수량만큼 복원 |
@@ -132,7 +130,7 @@ classDiagram
 | 멱등성 | 중복 등록 → 무시(200), 미등록 취소 → 무시(200) |
 | 등록 후속 | 새로 등록된 경우에만 LikeCount +1 |
 | 취소 후속 | 실제 삭제된 경우에만 LikeCount -1 (최소 0 유지) |
-| 좋아요한 상품 조회 | 본인만 가능 (타인 → 403 Forbidden) |
+| 좋아요한 상품 조회 | 본인만 가능 (타인 → 403 Forbidden), 어드민은 모든 회원 조회 가능 |
 | LikeCount 용도 | 상품 목록 `likes_desc` 정렬, 상품 상세 좋아요 수 표시 |
 | 생성 시점 | LikeCount는 상품 등록 시 count=0으로 함께 생성 |
 
@@ -205,7 +203,7 @@ stateDiagram-v2
 | 적립 포인트 | `earnPoint = floor(actualAmount * 0.01)` |
 | 사용 포인트 제약 | 총 주문 금액 초과 불가, 보유 포인트 초과 불가 |
 | 미완료 주문 | `CREATED`, `PAYMENT_PENDING`, `PAYMENT_COMPLETED`, `SHIPPING` 상태 |
-| 주문 상세 조회 | 본인만 가능 (타인 → 403 Forbidden) |
+| 주문 상세 조회 | 본인만 가능 (타인 → 403 Forbidden), 어드민은 모든 주문 조회 가능 |
 
 **주문 생성 흐름:**
 1. 상품 존재 확인 및 정보 조회 (스냅샷)

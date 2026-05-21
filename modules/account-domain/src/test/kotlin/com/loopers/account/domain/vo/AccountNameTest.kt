@@ -64,4 +64,32 @@ class AccountNameTest {
         // then
         assertThat(result).isEqualTo("홍길*")
     }
+
+    @DisplayName("이름이 최대 길이(100자)이면, 이름 VO를 생성한다.")
+    @Test
+    fun createsAccountName_whenValueIsAtMaxLength() {
+        // given
+        val value = "가".repeat(AccountName.MAX_LENGTH)
+
+        // when
+        val accountName = AccountName(value)
+
+        // then
+        assertThat(accountName.value).isEqualTo(value)
+    }
+
+    @DisplayName("이름이 최대 길이(100자)를 초과하면, BAD_REQUEST 예외가 발생한다.")
+    @Test
+    fun throwsBadRequestException_whenValueExceedsMaxLength() {
+        // given
+        val value = "가".repeat(AccountName.MAX_LENGTH + 1)
+
+        // when
+        val result = assertThrows<BadRequestException> {
+            AccountName(value)
+        }
+
+        // then
+        assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_ACCOUNT_NAME)
+    }
 }

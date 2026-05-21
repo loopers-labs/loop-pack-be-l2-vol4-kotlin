@@ -9,12 +9,12 @@ import jakarta.persistence.Embeddable
 class AccountName(
     value: String,
 ) {
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = MAX_LENGTH)
     var value: String = value
         private set
 
     init {
-        if (value.isBlank()) {
+        if (value.isBlank() || value.length > MAX_LENGTH) {
             throw BadRequestException(AccountErrorCode.INVALID_ACCOUNT_NAME)
         }
     }
@@ -34,4 +34,8 @@ class AccountName(
 
     override fun toString(): String =
         value
+
+    companion object {
+        const val MAX_LENGTH = 100
+    }
 }

@@ -43,11 +43,10 @@ class PasswordValidatorTest {
         }
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = ["ab12 cd!@#", "ab12한글!@", "ab12cd€!@"])
     @DisplayName("영문 대소문자, 숫자, 특수문자 이외의 문자가 포함된 비밀번호는 사용할 수 없다")
-    fun wrongWithNotAllowedCharacterPassword() {
-        val wrongPassword = "a1wbc123  !1231adsf"
-
+    fun wrongWithNotAllowedCharacterPassword(wrongPassword: String) {
         assertThrows<BadRequestException> {
             PasswordValidator.validate(wrongPassword, birthDate)
         }

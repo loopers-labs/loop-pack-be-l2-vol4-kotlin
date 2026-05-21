@@ -2,7 +2,9 @@
 
 ## 0. 크로스 도메인 이벤트 흐름
 
-### 브랜드 삭제 시 Cascade 흐름
+> 이 섹션은 도메인 단위의 개요 흐름입니다. 실제 클래스 레벨의 상세 흐름은 각 도메인별 시퀀스(섹션 1~7)를 참고해주세요.
+
+### 브랜드 삭제 시 연쇄 삭제 흐름
 
 ```mermaid
 sequenceDiagram
@@ -25,15 +27,15 @@ sequenceDiagram
     else 삭제 가능
         loop 각 상품에 대해
             Brand->>Product: ASC-PRODUCT-5: 상품 삭제 (productId)
-            Product->>Stock: ASC-STOCK-3: 재고 soft delete
+            Product->>Stock: ASC-STOCK-3: 재고 삭제
             Stock-->>Product: 완료
-            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제 (hard delete)
+            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제
             Like-->>Product: 완료
-            Product->>Product: 상품 soft delete
+            Product->>Product: 상품 삭제
             Product-->>Brand: 완료
         end
 
-        Brand->>Brand: 브랜드 hard delete
+        Brand->>Brand: 브랜드 삭제
         Brand-->>Admin: 삭제 완료
     end
 ```
@@ -75,7 +77,7 @@ sequenceDiagram
     Product-->>Admin: 수정 완료
 ```
 
-### 상품 삭제 시 Cascade 흐름
+### 상품 삭제 시 연쇄 삭제 흐름
 
 ```mermaid
 sequenceDiagram
@@ -92,20 +94,20 @@ sequenceDiagram
     alt 미완료 주문 존재
         Product-->>Admin: 실패 (미완료 주문이 있어 삭제 불가)
     else 삭제 가능
-        Product->>Stock: ASC-STOCK-3: 재고 soft delete
+        Product->>Stock: ASC-STOCK-3: 재고 삭제
         alt 재고 삭제 실패
             Stock-->>Product: 실패
             Product-->>Admin: 실패 (재고 삭제 중 오류 발생)
         else 재고 삭제 성공
             Stock-->>Product: 완료
-            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제 (hard delete)
+            Product->>Like: SC-LIKE-4: 해당 상품 좋아요 + 좋아요 수 전체 삭제
             alt 좋아요 삭제 실패
                 Like-->>Product: 실패
-                Note over Product,Stock: 재고 soft delete 롤백
+                Note over Product,Stock: 재고 삭제 복원
                 Product-->>Admin: 실패 (좋아요 삭제 중 오류 발생)
             else 좋아요 삭제 성공
                 Like-->>Product: 완료
-                Product->>Product: 상품 soft delete
+                Product->>Product: 상품 삭제
                 Product-->>Admin: 삭제 완료
             end
         end
@@ -124,7 +126,7 @@ sequenceDiagram
         Note over Member,Product: SC-LIKE-1: 좋아요 등록
         Member->>Like: 좋아요 등록 (memberId, productId)
         Like->>Product: 상품 존재 확인
-        alt 상품 미존재 또는 삭제된(soft delete) 상품
+        alt 상품 미존재 또는 삭제된 상품
             Product-->>Like: false
             Like-->>Member: 404 Not Found
         else 상품 존재
@@ -132,7 +134,7 @@ sequenceDiagram
             Like->>Like: 기존 좋아요 확인
             alt 새로 등록
                 Note over Like: 좋아요 저장 + 좋아요 수 +1
-            else 이미 존재 (멱등)
+            else 이미 존재 (중복 무시)
                 Note over Like: 무시, 후속 동작 없음
             end
             Like-->>Member: 완료
@@ -143,7 +145,7 @@ sequenceDiagram
         Note over Member,Product: SC-LIKE-2: 좋아요 취소
         Member->>Like: 좋아요 취소 (memberId, productId)
         Like->>Product: 상품 존재 확인
-        alt 상품 미존재 또는 삭제된(soft delete) 상품
+        alt 상품 미존재 또는 삭제된 상품
             Product-->>Like: false
             Like-->>Member: 404 Not Found
         else 상품 존재
@@ -151,7 +153,7 @@ sequenceDiagram
             Like->>Like: 기존 좋아요 확인
             alt 존재하여 삭제
                 Note over Like: 좋아요 삭제 + 좋아요 수 -1 (최소 0)
-            else 미존재 (멱등)
+            else 미존재 (중복 무시)
                 Note over Like: 무시, 후속 동작 없음
             end
             Like-->>Member: 완료
@@ -169,12 +171,12 @@ sequenceDiagram
     participant Stock as Stock 도메인
     participant Point as Point 도메인
     participant Pay as Pay 도메인
-    participant Gateway as PaymentGateway (stub)
+    participant Gateway as PaymentGateway (가짜 결제)
 
     Member->>Order: SC-ORDER-1: 주문 생성 (items, usePoint)
 
     rect rgb(240, 248, 255)
-        Note over Order,Product: Step 1. 상품 정보 조회 (스냅샷)
+        Note over Order,Product: Step 1. 상품 정보 조회 (주문 시점 정보 저장용)
         loop 각 주문 항목
             Order->>Product: SC-PRODUCT-2: 상품 존재 확인 및 정보 조회
             Product-->>Order: 상품 정보 (상품명, 가격, 브랜드명)

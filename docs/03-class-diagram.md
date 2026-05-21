@@ -151,7 +151,7 @@ classDiagram
         +updateStatus(status: OrderStatus) void
         +getActualAmount() Long
         +getEarnPoint() Long
-        Note: getEarnPoint()는 status가 PAYMENT_COMPLETED 이상일 때만 계산값 반환, 그 외 0
+        Note: getEarnPoint()는 status가 PAYMENT_COMPLETED, SHIPPING, DELIVERED일 때만 계산값 반환, 그 외 0
     }
 
     class OrderItem {
@@ -258,7 +258,7 @@ classDiagram
 | 규칙 | 설명 |
 |---|---|
 | 삭제 정책 | soft delete (상태 변경으로 관리) |
-| 결제 가능 조건 | CREATED 상태의 주문만 결제 요청 가능 |
+| 결제 가능 조건 | CREATED 상태의 주문에서 PAYMENT_PENDING으로 전환 후 결제 요청 |
 | 상태 흐름 | `READY → IN_PROGRESS → SUCCESS / FAIL` |
 | 외부 결제 | `PaymentGateway` 인터페이스 + `StubPaymentGateway` (항상 성공) |
 | 결제 실패 시 | 재고 복원 + 포인트 복원 + 주문 CANCELLED |
@@ -350,7 +350,7 @@ classDiagram
 | 결정 사항 | 근거 |
 |---|---|
 | 도메인 객체는 다른 도메인 객체를 직접 참조 | ID가 아닌 객체 참조로 도메인 관계를 명확히 표현 |
-| `Like`, `LikeCount`는 `BaseEntity` 미상속 | hard delete 대상이며 `deletedAt`, `updatedAt`이 불필요 |
+| `Like`, `LikeCount`는 `BaseEntity` 미상속 | `BaseEntity`는 `id`, `createdAt`, `updatedAt`, `deletedAt`을 제공하는 공통 엔티티. `Like`, `LikeCount`는 hard delete 대상이며 `deletedAt`, `updatedAt`이 불필요 |
 | `OrderItem`은 `Order`의 일급 컬렉션 요소 | 1:N 컴포지션, Order 없이 독립 존재 불가 |
 | `OrderItem`에 스냅샷 저장 | 주문 시점의 상품 정보 보존 (원본 변경에 영향받지 않음) |
 | `Stock`을 `Product`에서 분리 | 동시성 제어 시 별도 락 가능, 관심사 분리 |

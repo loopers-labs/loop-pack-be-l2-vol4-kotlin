@@ -12,6 +12,7 @@ import com.loopers.support.error.InternalServerException
 import com.loopers.support.error.NotFoundException
 import com.loopers.support.error.UnauthorizedException
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -63,6 +64,18 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handleNotFound(e: NoResourceFoundException): ResponseEntity<ApiResponse<*>> =
         failureResponse(NotFoundException(CommonErrorCode.NOT_FOUND))
+
+    @ExceptionHandler
+    fun handleConflict(e: DataIntegrityViolationException): ResponseEntity<ApiResponse<*>> {
+        val isUniqueViolation = e.message?.contains("Duplicate", ignoreCase = true) == true
+        return if (isUniqueViolation) {
+            log.warn("Unique constraint violation. cause: {}", e.cause?.javaClass?.simpleName)
+            failureResponse(ConflictException(CommonErrorCode.CONFLICT))
+        } else {
+            log.error("DataIntegrityViolation (non-unique). cause: {}", e.cause?.javaClass?.simpleName, e)
+            failureResponse(InternalServerException())
+        }
+    }
 
     @ExceptionHandler
     fun handle(e: Throwable): ResponseEntity<ApiResponse<*>> {

@@ -1,1 +1,14 @@
 logging.config: classpath:logback/logback.xml
+
+# SqlExceptionHelper의 ERROR 로그에 PII(이메일 등) / constraint name / SQL이 그대로 노출되므로
+# 운영 프로파일에서는 끈다. 디버깅은 ApiControllerAdvice의 cause class + stacktrace로 한다.
+# local/local-dev/test는 디버깅 편의를 위해 그대로 출력하도록 둔다.
+---
+spring.config.activate.on-profile: dev
+logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+---
+spring.config.activate.on-profile: qa
+logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF
+---
+spring.config.activate.on-profile: prd
+logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

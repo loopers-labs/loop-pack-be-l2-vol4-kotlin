@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.account.application.AccountCreateCommand
 import com.loopers.account.application.AccountService
 import com.loopers.account.security.AccountAuthenticationAttributes
+import com.loopers.support.DatabaseCleanup
 import java.time.LocalDate
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -27,7 +29,13 @@ class AccountControllerTest @Autowired constructor(
     private val objectMapper: ObjectMapper,
     private val accountService: AccountService,
     private val jdbcTemplate: JdbcTemplate,
+    private val databaseCleanup: DatabaseCleanup,
 ) {
+    @BeforeEach
+    fun cleanup() {
+        databaseCleanup.execute()
+    }
+
     @DisplayName("POST /api/v1/users")
     @Nested
     inner class Create {

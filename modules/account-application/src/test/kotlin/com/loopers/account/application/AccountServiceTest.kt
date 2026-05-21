@@ -245,9 +245,9 @@ class AccountServiceTest {
         assertThat(result.errorCode).isEqualTo(CommonErrorCode.UNAUTHORIZED)
     }
 
-    @DisplayName("로그인 ID 형식이 인증용 credential 식별자로 유효하지 않으면 UNAUTHORIZED 예외가 발생한다.")
+    @DisplayName("로그인 ID 형식이 인증용 credential 식별자로 유효하지 않으면 BAD_REQUEST 예외가 발생한다.")
     @Test
-    fun throwsUnauthorized_whenLoginIdIsInvalidForAuthenticate() {
+    fun throwsBadRequest_whenLoginIdIsInvalidForAuthenticate() {
         // given
         val command = AccountAuthenticateCommand(
             loginId = INVALID_LOGIN_ID,
@@ -255,13 +255,13 @@ class AccountServiceTest {
         )
 
         // when
-        val result = assertThrows<UnauthorizedException> {
+        val result = assertThrows<BadRequestException> {
             service.authenticate(command)
         }
 
         // then
         assertAll(
-            { assertThat(result.errorCode).isEqualTo(CommonErrorCode.UNAUTHORIZED) },
+            { assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_CREDENTIAL_IDENTIFIER) },
             { verify(accountCredentialRepository, never()).findBy(any(), any()) },
             { verify(passwordEncryptor, never()).matches(any(), any()) },
         )

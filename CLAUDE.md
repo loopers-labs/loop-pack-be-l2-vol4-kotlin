@@ -32,6 +32,7 @@
 - 도메인 에러 코드는 owning 도메인 모듈의 enum으로 정의하고 `com.loopers.support.error.ErrorCode`를 구현한다
 - 코딩 전에 `gradle.properties`, `build.gradle.kts`로 버전을 확인하고, version-sensitive 동작은 공식 vendor docs로 검증한다
 - 아키텍처 경계(`interfaces` / `application` / `domain` / `infrastructure`)를 보존한다 — 편의를 위해 도메인 규칙을 다른 레이어로 옮기지 않는다
+- `./gradlew :apps:<app>:bootRun` 실행 시 **항상 `--args='--spring.profiles.active=<profile>'`을 명시한다**. 앱 `application.yaml`에 `spring.profiles.active` default를 두지 않음 — 프로파일 미지정 시 datasource 등이 비어 기동 실패. IDE는 Run Configuration의 프로파일 필드를 직접 설정한다.
 
 ### MUST NOT
 
@@ -180,7 +181,7 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 | `./gradlew test` | 테스트만 |
 | `./gradlew ktlintCheck` | Kotlin 포맷 체크 |
 | `./gradlew ktlintFormat` | Kotlin 포맷 적용 |
-| `./gradlew :apps:commerce-api:bootRun --args='--spring.profiles.active=local'` | API 기동 |
+| `./gradlew :apps:<app>:bootRun --args='--spring.profiles.active=local'` | API 기동 (`--args` 누락 시 프로파일 미설정으로 기동 실패. §1 MUST 참고) |
 | `docker-compose -f ./docker/infra-compose.yml up` | 의존성 기동 |
 
 ---
@@ -246,11 +247,13 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 
 ### Module Boundaries
 
+이 프로젝트는 **layered architecture**를 채택한다 — multi-module은 코드 정리/재사용 목적이고, hexagonal의 port-adapter 패턴(domain에 port, persistence에 adapter)은 도입하지 않는다. `account-application`이 `account-persistence`의 repository 인터페이스에 직접 의존하는 게 의도된 구조다. 도메인 복잡도가 더 커져 의존성 역전이 비용 대비 가치 있어질 때 hexagonal로 전환 검토.
+
 | 모듈 | 소유 |
 |---|---|
-| `account-domain` | entities, VO, validators, repository ports, `PasswordEncryptor` |
-| `account-application` | use case, command, 트랜잭션 경계 |
-| `account-persistence` | Spring Data JPA 리포지토리 + port 어댑터 |
+| `account-domain` | entities, VO, validators, `PasswordEncryptor` 인터페이스 |
+| `account-application` | use case, command, 트랜잭션 경계. `account-persistence`의 repository 인터페이스에 직접 의존 |
+| `account-persistence` | repository 인터페이스 + Spring Data JPA 구현체 |
 | `account-security` | Spring Security crypto 어댑터 |
 | `supports:error` | error code / exception (Spring MVC 상태 매핑 없음) |
 | `supports:web` | 예외 → HTTP 응답 매핑, 성공 응답 래핑 |

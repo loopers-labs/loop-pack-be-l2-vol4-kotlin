@@ -59,7 +59,7 @@ class AccountService(
 
     @Transactional(readOnly = true)
     fun authenticate(command: AccountAuthenticateCommand): AccountAuthenticatedInfo {
-        val identifier = createPasswordIdentifier(command.loginId)
+        val identifier = CredentialIdentifier(CredentialMethod.PASSWORD, command.loginId)
         val credential = accountCredentialRepository.findBy(CredentialMethod.PASSWORD, identifier)
             ?: throw UnauthorizedException()
 
@@ -113,13 +113,6 @@ class AccountService(
             throw BadRequestException(AccountErrorCode.INVALID_BIRTH_DATE)
         }
     }
-
-    private fun createPasswordIdentifier(loginId: String): CredentialIdentifier =
-        try {
-            CredentialIdentifier(CredentialMethod.PASSWORD, loginId)
-        } catch (e: BadRequestException) {
-            throw UnauthorizedException()
-        }
 }
 
 data class AccountCreateCommand(

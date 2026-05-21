@@ -3,8 +3,10 @@ package com.loopers.account.security
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.account.application.AccountCreateCommand
 import com.loopers.account.application.AccountService
+import com.loopers.support.DatabaseCleanup
 import com.loopers.support.error.CommonErrorCode
 import java.time.LocalDate
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -19,16 +21,20 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import org.springframework.transaction.annotation.Transactional
 
-@Transactional
 @SpringBootTest
 @AutoConfigureMockMvc
 class AccountSecurityIntegrationTest @Autowired constructor(
     private val mockMvc: MockMvc,
     private val objectMapper: ObjectMapper,
     private val accountService: AccountService,
+    private val databaseCleanup: DatabaseCleanup,
 ) {
+    @BeforeEach
+    fun cleanup() {
+        databaseCleanup.execute()
+    }
+
     @DisplayName("POST /api/v1/users")
     @Nested
     inner class Create {

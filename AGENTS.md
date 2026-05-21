@@ -74,7 +74,7 @@ HTTP examples are in `http/`; local infrastructure is in `docker/`.
 - `./gradlew build`: compiles modules and runs tests.
 - `./gradlew test`: runs tests.
 - `./gradlew ktlintCheck` / `./gradlew ktlintFormat`: check/apply Kotlin formatting.
-- `./gradlew :apps:commerce-api:bootRun --args='--spring.profiles.active=local'`: starts API.
+- `./gradlew :apps:<app>:bootRun --args='--spring.profiles.active=local'`: starts API. Always include `--args` — apps no longer hardcode a default `spring.profiles.active`, so omitting the flag leaves datasource and other profile-bound config unset and the app fails to start. IDE Run Configurations must set the profile explicitly.
 - `docker-compose -f ./docker/infra-compose.yml up`: starts dependencies.
 
 ## Git and Pull Requests

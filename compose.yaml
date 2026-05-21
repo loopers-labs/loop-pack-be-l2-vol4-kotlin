@@ -1,3 +1,8 @@
+# Local development defaults consumed by Spring Boot's spring-boot-docker-compose
+# (registered as `developmentOnly` in apps/account-api/build.gradle.kts), so this file
+# is NOT included in production artifacts (bootJar) and these values are not used in
+# dev/qa/prd profiles. The credentials below are conventional local defaults — not
+# secrets. Override via environment variables before any real deployment.
 services:
   mysql:
     image: mysql:8.0

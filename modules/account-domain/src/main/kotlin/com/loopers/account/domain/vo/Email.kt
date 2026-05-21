@@ -14,7 +14,7 @@ class Email(
         private set
 
     init {
-        if (!EMAIL_REGEX.matches(value)) {
+        if (value.length > 255 || !EMAIL_REGEX.matches(value)) {
             throw BadRequestException(AccountErrorCode.INVALID_EMAIL)
         }
     }

@@ -38,4 +38,20 @@ class EmailTest {
             { assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_EMAIL) },
         )
     }
+
+    @DisplayName("이메일이 255자를 초과하면, BAD_REQUEST 예외가 발생한다.")
+    @Test
+    fun throwsBadRequestException_whenValueExceedsColumnLength() {
+        // given
+        val localPart = "a".repeat(244)
+        val value = "$localPart@example.com"
+
+        // when
+        val result = assertThrows<BadRequestException> {
+            Email(value)
+        }
+
+        // then
+        assertThat(result.errorCode).isEqualTo(AccountErrorCode.INVALID_EMAIL)
+    }
 }

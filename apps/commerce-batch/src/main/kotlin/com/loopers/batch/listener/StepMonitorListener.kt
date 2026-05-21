@@ -20,9 +20,9 @@ class StepMonitorListener : StepExecutionListener {
                 """
                     [에러 발생]
                     jobName: ${stepExecution.jobExecution.jobInstance.jobName}
-                    exceptions: 
+                    exceptions:
                     ${stepExecution.failureExceptions.mapNotNull { it.message }.joinToString("\n")}
-                """.trimIndent()
+                """.trimIndent(),
             )
             // error 발생 시 slack 등 다른 채널로 모니터 전송
             return ExitStatus.FAILED

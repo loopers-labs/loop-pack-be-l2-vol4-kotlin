@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: account-api
+  config:
+    import:
+      - jpa.yml
+      - logging.yml
+      - monitoring.yml

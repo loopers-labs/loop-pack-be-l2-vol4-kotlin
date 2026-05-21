@@ -91,8 +91,8 @@ class ApiControllerAdvice {
     }
 
     @ExceptionHandler
-    fun handle(e: Throwable): ResponseEntity<ApiResponse<*>> {
-        log.error("Exception : {}", e.message, e)
+    fun handle(e: RuntimeException): ResponseEntity<ApiResponse<*>> {
+        log.error("Unhandled exception", e)
         return handleServerError(InternalServerException(), HttpStatus.INTERNAL_SERVER_ERROR)
     }
 

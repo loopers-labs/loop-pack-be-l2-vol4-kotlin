@@ -89,6 +89,16 @@ throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)
 - ❌ `ErrorType` enum 도입
 - ❌ 새로운 공통 `ErrorCode` 인터페이스 만들기
 
+**DB unique race 처리 (JPA + Hibernate):**
+- 회원가입처럼 사전 `existsBy` 체크가 race를 못 막는 경우, **service 레이어에서 `try-catch` + `saveAndFlush`를 하지 말고** `ApiControllerAdvice`의 `DataIntegrityViolationException` 핸들러에서 일괄 변환한다. service에 영속성 디테일(`flush`) 누수 회피 + unique 위반 외의 충돌(FK/NOT NULL/CHECK)도 한 곳에서 처리.
+- JPA + Hibernate 환경에서는 Spring이 `DuplicateKeyException`까지 변환하지 않고 `DataIntegrityViolationException`에서 멈춘다 ([SPR-11669](https://github.com/spring-projects/spring-framework/issues/16292)). 따라서 `e.message`에 `"Duplicate"` 키워드가 있는지로 unique 위반(`ConflictException(CommonErrorCode.CONFLICT)`, 409)과 그 외(`InternalServerException`, 500)를 분기한다.
+- 로깅: 운영 PII 노출 방지를 위해 advice에선 `e.cause?.javaClass?.simpleName`만 로깅 (`e.message` 직접 출력 금지). Hibernate 자체 `SqlExceptionHelper`는 `dev/qa/prd` 프로파일에서 OFF.
+
+**인증 흐름 status 분포:**
+- 로그인(`authenticate`)에서 loginId 형식 위반은 **400 BadRequest로 자연 전파** (`createPasswordIdentifier` 같은 401 wrapping 헬퍼 만들지 않는다). 의미 정합성 우선 — 입력 형식 검증은 인증 단계 이전이라 401 통일(OWASP의 ID enumeration 차단)보다 의미 정합성이 더 가치 있다고 결정 (관대한 형식 규칙 + 학습 컨텍스트).
+- 존재 안 함 / 비밀번호 불일치 → 401 (`UnauthorizedException()` default = `CommonErrorCode.UNAUTHORIZED`)
+- 회원가입에서 같은 형식 위반은 그대로 400 — 같은 검증 규칙이지만 컨텍스트별로 status가 갈리는 것이 의도된 설계
+
 ---
 
 ## 3. Design Principles
@@ -115,6 +125,15 @@ throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)
 **별도 파일로 분리해야 할 때:**
 - 여러 owner가 재사용
 - 안정적 도메인/인프라 개념 (예: `AccountErrorCode.kt`, `domain/vo/*`, Redis configuration properties)
+
+**도메인 VO (`@Embeddable`) 검증 패턴:**
+- 컬럼 길이 상한은 `@Column.length`와 `init` 검증 양쪽에 **직접 숫자**로 둔다. `MAX_LENGTH` 같은 companion 상수는 도입하지 않는다 — 한 클래스에서만 쓰이는 값이고 `@Column` 바로 옆에 `init`이 위치하면 literal repetition이 매직 넘버보다 명확하다. 상수는 사용처가 진짜 여러 곳일 때만.
+- `init`에서 길이 + 형식 모두 검증해 도메인 invariant를 fail-fast로 강제 — 컬럼 상한 초과가 DB 단계까지 가서 500으로 떨어지지 않도록.
+- `toString()`은 원문 `value`를 그대로 반환. `"[PROTECTED]"` 등 마스킹을 도메인 객체에 박지 않는다 — 도메인 레이어에 로깅 정책을 누수시키지 않음. 운영 PII 노출은 인프라 레이어에서 처리 (예: `org.hibernate.engine.jdbc.spi.SqlExceptionHelper`를 `dev/qa/prd`에서 OFF, `supports/logging/logging.yml` 참조). 단 앱 코드에서 VO를 직접 문자열 보간(`"$identifier"`)이나 `logger.debug("{}", value)`로 로깅하지 말 것 — toString이 호출되어 마스킹 우회됨.
+- JPA naming: Spring Boot 기본 `SpringPhysicalNamingStrategy` 가정 (`AccountCredential` → `account_credential`). `@Table.name` 미명시도 같은 결과. Hibernate 단독 default(변환 없음)와 다르다.
+
+**도메인 throw 시 PII 노출 회피:**
+- `BadRequestException(AccountErrorCode.XXX)`처럼 `errorCode`만 사용. `customMessage`에 사용자 입력값(이메일/loginId 등)을 끼워넣지 않는다 — `ApiControllerAdvice`가 `e.message`를 로깅하면 PII가 로그에 남는다.
 
 ---
 
@@ -154,6 +173,11 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 ```bash
 ./gradlew :apps:commerce-api:test --tests '*ExampleServiceIntegrationTest'
 ```
+
+**통합 테스트 격리:**
+- `@SpringBootTest` 통합 테스트는 `DatabaseCleanup` 유틸 + `@BeforeEach`로 cleanup 호출 (예: `apps/account-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt`). `@Transactional`을 테스트 클래스에 일괄 부착하지 않는다 — propagation 경계 충돌(`REQUIRES_NEW`/`@Async`/`@TransactionalEventListener` 롤백 누락), JPA dirty checking flush 타이밍 가림, lazy loading 가림, race 검증 봉쇄, MockMvc 트랜잭션 경계 불확실성 등 함정이 누적된다.
+- `@BeforeEach`로 호출한다 (`@AfterEach` 단독은 crash 시 다음 테스트가 오염된 DB에서 시작). `DatabaseCleanup`은 `@Component @Profile("test")`로 운영 노출 차단, JPA 메타모델 기반 자동 테이블 추출, MySQL syntax(`SET FOREIGN_KEY_CHECKS=0`, `TRUNCATE`, `ALTER TABLE … AUTO_INCREMENT = 1`)로 H2 `MODE=MySQL` + Testcontainers MySQL 모두 호환.
+- 다른 앱에서 같은 패턴이 필요해지면 `supports`의 testFixtures로 promote (현재는 account-api 한정 — YAGNI).
 
 > 컨트롤러/리포지토리별 구체 전략은 §12 Account Notes 참고.
 

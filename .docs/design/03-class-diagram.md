@@ -18,7 +18,6 @@
   - [3.3 Likes (ProductLike · LikeEvent)](#33-likes-productlike--likeevent)
   - [3.4 Orders (Order · OrderItem)](#34-orders-order--orderitem)
 - [4. 공통 패턴](#4-공통-패턴)
-- [5. SSOT 동기화 체크리스트](#5-ssot-동기화-체크리스트)
 
 ---
 
@@ -691,18 +690,3 @@ DB 레벨 FK / `ON DELETE CASCADE`를 두지 않으므로(`conventions.md` §1),
 - **약어 alias 금지** — 클래스/엔티티/필터/서비스/리포지토리/컨트롤러 이름은 모두 **풀네임 PascalCase**. `Ctrl`, `Svc`, `Repo`, `Mgr`, `Cfg`, `LoginAuthFilter` 같은 축약형은 본 문서·mermaid·코드·PR 본문에서 모두 금지 (`docs/ubiquitous-language.md` §9).
 - mermaid 클래스 다이어그램의 클래스 이름은 **소스 코드의 정식 클래스명**과 동일하게 유지합니다.
 - 행위자(actor) 호칭은 **"사용자 / 로그인 사용자 / 관리자"** 만 사용합니다 (`docs/ubiquitous-language.md` §1).
-
----
-
-## 5. SSOT 동기화 체크리스트
-
-본 문서를 갱신할 때 다음을 함께 점검합니다.
-
-- [ ] 변경 사항이 `docs/week2/{도메인}/*-final.html` §3 (도메인 모델) 에 먼저 반영되었는가?
-- [ ] 새 어휘 / 약어 / actor 호칭이 `docs/ubiquitous-language.md`에 등록되어 있는가?
-- [ ] 영속성 정책 변경(FK · 삭제 정책 · 이력 정책)이 `docs/conventions.md`와 정합한가?
-- [ ] mermaid 다이어그램에 약어 alias / 단일 문자 alias가 섞이지 않았는가?
-- [ ] 외부 평가 스펙(`/api/v1/users/{userId}`)과 내부 도메인 어휘(`account`)의 분리가 유지되는가?
-- [ ] 결정 미정 항목(`?N` 카드)의 ID 인덱스가 SSOT의 결정 카드와 일치하는가?
-
-> 본 문서가 SSOT와 어긋나면 **SSOT(`*-final.html`)가 항상 정답**입니다. 본 문서는 그 종합 본일 뿐입니다.

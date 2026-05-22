@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Week 2 · Likes 시나리오 → 추출 모델</title>
+<style>
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --muted: #71717A;
+    --line: #E4E4E7;
+    --line-soft: #F4F4F5;
+
+    --ok: #047857;
+    --warn: #B45309;
+    --err: #B91C1C;
+    --decide: #4F46E5;
+    --future: #0E7490;
+
+    --create: #047857;
+    --read:   #1D4ED8;
+    --update: #B45309;
+    --delete: #B91C1C;
+
+    --ok-soft:    #ECFDF5;
+    --warn-soft:  #FFFBEB;
+    --err-soft:   #FEF2F2;
+    --decide-soft:#EEF2FF;
+    --future-soft:#ECFEFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 36px;
+  }
+  header.page h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.5px; }
+  header.page .meta { color: var(--muted); font-size: 13px; }
+
+  section { margin-bottom: 44px; }
+  section h2 {
+    font-size: 18px; margin: 0 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  section h2 .num {
+    background: var(--line-soft); color: var(--muted);
+    border: 1px solid var(--line);
+    width: 24px; height: 24px;
+    border-radius: 12px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 600;
+  }
+  section h2.hero {
+    font-size: 22px;
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 10px;
+  }
+  section h2.hero .num {
+    background: var(--text); color: #fff; border-color: var(--text);
+  }
+  section h2 small {
+    font-size: 12px; color: var(--muted); font-weight: 400;
+    margin-left: 6px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+  code {
+    background: #F4F4F5; padding: 1px 5px; border-radius: 3px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+  }
+
+  /* ─── 시나리오 명세 (단일 리스트, CRUD 그루핑) ─── */
+  .crud-group {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .crud-header {
+    padding: 10px 14px; font-weight: 600; font-size: 13.5px; letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .crud-group.create .crud-header { background: var(--ok-soft);     color: var(--create); }
+  .crud-group.read   .crud-header { background: #EFF6FF;            color: var(--read); }
+  .crud-group.update .crud-header { background: var(--warn-soft);   color: var(--update); }
+  .crud-group.delete .crud-header { background: var(--err-soft);    color: var(--delete); }
+  .crud-header .count {
+    background: rgba(0,0,0,0.06); color: var(--muted);
+    padding: 1px 8px; border-radius: 10px;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .scen-list { list-style: none; padding: 0; margin: 0; }
+  .scen-list li {
+    padding: 11px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 12px; font-size: 14px;
+  }
+  .scen-list li:last-child { border-bottom: none; }
+  .scen-list .sid {
+    font-family: ui-monospace, monospace; font-size: 11.5px;
+    color: var(--muted); min-width: 50px; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; text-align: center;
+  }
+  .scen-list .stext { flex: 1; }
+  .scen-list .stag {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--ok-soft); color: var(--ok); font-weight: 600;
+    border: 1px solid #A7F3D0;
+  }
+  .scen-list .stag.exception {
+    background: var(--warn-soft); color: var(--warn); border-color: #FDE68A;
+  }
+  .scen-list .scode {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--muted); min-width: 70px; text-align: right;
+  }
+
+  /* ─── 라이프사이클 플로우 차트 ─── */
+  .lifecycle-flow {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 24px 16px; margin: 16px 0 8px;
+  }
+  .lc-entry { text-align: center; margin-bottom: 8px; }
+  .lc-entry-box {
+    display: inline-block; background: #F4F4F5; border: 1px dashed var(--muted);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--muted);
+  }
+  .lc-arrow-down {
+    font-size: 18px; color: var(--muted); margin: 4px 0; text-align: center;
+  }
+  .lc-row {
+    display: flex; align-items: stretch; gap: 6px;
+    justify-content: center; flex-wrap: wrap; margin: 10px 0;
+  }
+  .lc-box {
+    flex: 1; min-width: 175px; background: #FFFFFF; border: 2px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; text-align: center; font-size: 12.5px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .lc-box.create { border-color: var(--create); }
+  .lc-box.read   { border-color: var(--read); }
+  .lc-box.update { border-color: var(--update); }
+  .lc-box.delete { border-color: var(--delete); }
+  .lc-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .lc-actor {
+    font-size: 10.5px; background: var(--line-soft); color: var(--muted);
+    padding: 1px 8px; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid var(--line);
+  }
+  .lc-method {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 10.5px;
+    color: var(--muted); margin-bottom: 4px; word-break: break-all;
+  }
+  .lc-result { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+  .lc-box.create .lc-result { color: var(--create); }
+  .lc-box.read   .lc-result { color: var(--read); }
+  .lc-box.update .lc-result { color: var(--update); }
+  .lc-box.delete .lc-result { color: var(--delete); }
+  .lc-ids {
+    font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: #444; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; margin-bottom: 4px;
+  }
+  .lc-errors { font-size: 10.5px; color: var(--warn); }
+  .lc-arrow-right {
+    display: flex; align-items: center; font-size: 20px; color: var(--muted);
+  }
+  .lc-cascade { text-align: center; margin-top: 6px; }
+  .lc-cascade-box {
+    display: inline-block; background: #FEF2F2; border: 1px dashed var(--err);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--err);
+  }
+
+  /* ─── 추출 영역 공통 ─── */
+  .extract-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .extract-card h3 {
+    margin: 0 0 12px; font-size: 14.5px;
+    padding-bottom: 6px; border-bottom: 1px dashed var(--line);
+  }
+
+  table.fields {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.fields th, table.fields td {
+    padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line);
+  }
+  table.fields th {
+    background: #F4F4F5; font-weight: 600; font-size: 12px;
+  }
+  table.fields td.field-name {
+    font-family: ui-monospace, monospace; font-weight: 600; color: var(--text);
+  }
+  table.fields td.field-source {
+    font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted);
+  }
+  table.fields td.field-type {
+    color: var(--muted); font-size: 12px;
+  }
+  .invariants, .relations { margin-top: 12px; font-size: 13px; }
+  .invariants ul, .relations ul { margin: 6px 0; padding-left: 20px; }
+  .invariants li, .relations li { margin-bottom: 4px; }
+  .invariants .source, .relations .source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+
+  /* ─── DB 테이블 ─── */
+  .db-table {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+  }
+  .db-table-header {
+    background: var(--line-soft); color: var(--text);
+    padding: 6px 12px; font-weight: 600; font-size: 13px;
+    font-family: ui-monospace, monospace;
+    border-bottom: 1px solid var(--line);
+  }
+  .db-table table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+    background: #fff;
+  }
+  .db-table th, .db-table td {
+    padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: left;
+  }
+  .db-table th {
+    background: #F4F4F5; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; font-weight: 600;
+  }
+  .db-table td.col-name {
+    font-family: ui-monospace, monospace; font-weight: 600;
+  }
+  .db-table td.col-type {
+    font-family: ui-monospace, monospace; color: var(--muted); font-size: 11.5px;
+  }
+  .db-table td.col-source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+  .db-constraints {
+    background: #EEF2FF; border-top: 1px dashed var(--decide);
+    padding: 8px 12px; font-size: 12px;
+  }
+  .db-constraints strong { color: var(--decide); }
+
+  /* ─── ER 박스 다이어그램 ─── */
+  .db-layout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .db-layout { grid-template-columns: 1fr; } }
+  .db-layout-left, .db-layout-right { min-width: 0; }
+  .er-section-label {
+    font-size: 11.5px; color: var(--muted); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+  }
+  .er-entity {
+    border: 1.5px solid var(--text);
+    border-radius: 6px; background: #fff;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .er-entity-name {
+    background: var(--text); color: #fff;
+    padding: 6px 12px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 13px; font-weight: 600;
+  }
+  .er-cols { list-style: none; padding: 0; margin: 0; }
+  .er-cols li {
+    padding: 5px 10px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 30px 1fr auto;
+    gap: 8px; align-items: center;
+  }
+  .er-cols li:last-child { border-bottom: none; }
+  .er-cols li.muted { color: var(--muted); font-style: italic; }
+  .er-cols .key {
+    font-size: 9.5px; padding: 1px 4px; border-radius: 3px;
+    font-weight: 700; text-align: center;
+    font-family: system-ui, sans-serif;
+  }
+  .er-cols .key.pk { background: #FEF3C7; color: #B45309; }
+  .er-cols .key.uk { background: #DBEAFE; color: #1D4ED8; }
+  .er-cols .key.fk { background: #EDE9FE; color: #6D28D9; }
+  .er-cols .key.empty { background: transparent; }
+  .er-cols .name { font-weight: 600; color: var(--text); }
+  .er-cols .type { color: var(--muted); font-size: 11px; text-align: right; }
+  .er-relation {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 4px 0;
+    font-size: 11.5px; color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+  .er-relation .arrow {
+    font-size: 18px; color: var(--text);
+  }
+
+  /* ─── API 시퀀스 (SVG, mermaid-style) ─── */
+  .seq-block {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .seq-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .seq-title .sid {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    background: #F4F4F5; padding: 2px 6px; border-radius: 3px; color: var(--muted);
+  }
+  .seq-desc { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .seq-svg-wrap { overflow-x: auto; padding: 4px 0; }
+  .seq-svg {
+    display: block;
+    width: 100%; height: auto;
+    margin: 0 auto;
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  }
+  .seq-svg .actor-box        { fill: #F4F4F5; stroke: #E4E4E7; }
+  .seq-svg .actor-box.client { fill: #FAFAFA; stroke: #E4E4E7; }
+  .seq-svg .actor-box.filter { fill: #EEF2FF; stroke: #C7D2FE; }
+  .seq-svg .actor-box.db     { fill: #ECFEFF; stroke: #A5F3FC; }
+  .seq-svg .actor-text        { fill: #18181B; font-size: 12px; font-weight: 600; }
+  .seq-svg .actor-text.muted  { fill: #71717A; }
+  .seq-svg .actor-text.filter { fill: #4F46E5; }
+  .seq-svg .actor-text.db     { fill: #0E7490; }
+
+  .seq-svg .lifeline {
+    stroke: #D4D4D8; stroke-dasharray: 4 4; stroke-width: 1;
+  }
+  .seq-svg .msg-line {
+    stroke: #27272A; stroke-width: 1.3; fill: none;
+  }
+  .seq-svg .msg-line.ret { stroke: #047857; stroke-dasharray: 6 4; }
+  .seq-svg .msg-line.err { stroke: #B91C1C; stroke-dasharray: 6 4; }
+
+  .seq-svg .msg-text {
+    fill: #27272A; font-size: 11.5px;
+    paint-order: stroke;
+    stroke: #fff; stroke-width: 3; stroke-linejoin: round;
+  }
+  .seq-svg .msg-text.ret { fill: #047857; }
+  .seq-svg .msg-text.err { fill: #B91C1C; }
+
+  .seq-svg .step-num-bg, .seq-svg .step-num-text { display: none; }
+
+  /* ─── 결정 / 미래 카드 ─── */
+  .card {
+    background: #F5F3FF; border: 1px solid var(--line);
+    border-left: 4px solid var(--decide); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .card.future {
+    border-left-color: var(--future); background: #ECFEFF;
+  }
+  .card header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px; gap: 12px; flex-wrap: wrap;
+  }
+  .card h3 { margin: 0; font-size: 14.5px; }
+  .card .id {
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: var(--muted); font-size: 11.5px; margin-right: 6px;
+  }
+  .card .flow { margin: 0 0 8px; color: #333; font-size: 13px; }
+  .decide-box {
+    background: #EEF2FF; border: 1px dashed var(--decide);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .decide-box strong { color: var(--decide); }
+  .future-box {
+    background: #F0FDFA; border: 1px dashed var(--future);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .future-box strong { color: var(--future); }
+
+  footer.page {
+    margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 12px;
+  }
+
+  /* ─── cross-link 앵커 ─── */
+  a.xref {
+    color: var(--decide); text-decoration: none;
+    border-bottom: 1px dotted #C7D2FE;
+    padding-bottom: 1px;
+    transition: background 0.1s, border-bottom-style 0.1s;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  a.xref:hover {
+    background: var(--decide-soft);
+    border-bottom-style: solid;
+  }
+  a.xref.q { color: var(--future); border-bottom-color: #A5F3FC; }
+  a.xref.q:hover { background: var(--future-soft); }
+  /* anchor 점프 시 sticky header 침범 방지용 여백 */
+  .scen-list li[id], .seq-block[id], .card[id], .crud-group[id] {
+    scroll-margin-top: 16px;
+  }
+  /* 시퀀스 다이어그램 트랜잭션 박스 */
+  .tx-box {
+    fill: rgba(96, 75, 200, 0.06);
+    stroke: #6b46c1;
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+    rx: 4;
+  }
+  .tx-label {
+    font-size: 10px;
+    font-weight: 600;
+    fill: #6b46c1;
+    letter-spacing: 0.4px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="page">
+    <h1>Likes · 시나리오 → 추출 모델</h1>
+    <div class="meta">
+      Week 2 / Domain 3 of 4 · 시나리오부터 출발해서 도메인 / DB / API 시퀀스를 차례로 도출합니다.
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 1.  ★ 유저 시나리오 명세 — 모든 작업의 출발점   -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="hero"><span class="num">1</span>유저 시나리오 명세</h2>
+    <p class="lead">
+      이 도메인이 가져야 할 모든 동작을 한 문장씩 정리한다. <strong>이게 1차 입력이고, 아래 모든 섹션은 여기서 도출된다.</strong>
+      Likes는 toggle / 조회만 — UPDATE 그룹은 존재하지 않는다. 인증은 모든 동작이 <code>user_required: O</code>.
+    </p>
+
+    <div class="crud-group create">
+      <div class="crud-header">CREATE · 좋아요 등록 <span class="count">5건</span></div>
+      <ul class="scen-list">
+        <li id="l-c1"><span class="sid">L-C1</span><span class="stext">로그인 사용자가 상품에 좋아요를 등록한다.<br><small style="color:var(--muted);">LIKE 액션이 LikeEvent에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">200/201</span></li>
+        <li id="l-c2"><span class="sid">L-C2</span><span class="stext">인증 헤더가 없거나 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+        <li id="l-c3"><span class="sid">L-C3</span><span class="stext">존재하지 않는 productId로 좋아요를 시도하면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="l-c4"><span class="sid">L-C4</span><span class="stext">이미 좋아요한 상품에 다시 좋아요를 시도할 때의 동작 (멱등 200 vs 충돌 409).</span><span class="stag exception">예외</span><span class="scode"><a class="xref q" href="#l-q1">L-?1</a></span></li>
+        <li id="l-c5"><span class="sid">L-C5</span><span class="stext">productId 형식이 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group delete">
+      <div class="crud-header">DELETE · 좋아요 취소 <span class="count">5건</span></div>
+      <ul class="scen-list">
+        <li id="l-d1"><span class="sid">L-D1</span><span class="stext">로그인 사용자가 좋아요한 상품의 좋아요를 취소한다.<br><small style="color:var(--muted);">UNLIKE 액션이 LikeEvent에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">200/204</span></li>
+        <li id="l-d2"><span class="sid">L-D2</span><span class="stext">인증 헤더가 없거나 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+        <li id="l-d3"><span class="sid">L-D3</span><span class="stext">좋아요한 적이 없는 상품에 대해 취소를 시도할 때의 동작 (멱등 204 vs 404).</span><span class="stag exception">예외</span><span class="scode"><a class="xref q" href="#l-q2">L-?2</a></span></li>
+        <li id="l-d4"><span class="sid">L-D4</span><span class="stext">존재하지 않는 productId로 좋아요 취소를 시도하면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="l-d5"><span class="sid">L-D5</span><span class="stext">productId 형식이 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group read">
+      <div class="crud-header">READ · 내가 좋아요한 상품 목록 조회 <span class="count">5건</span></div>
+      <ul class="scen-list">
+        <li id="l-r1"><span class="sid">L-R1</span><span class="stext">로그인 사용자가 본인의 좋아요 상품 목록을 조회한다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="l-r2"><span class="sid">L-R2</span><span class="stext">인증 헤더가 없거나 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+        <li id="l-r3"><span class="sid">L-R3</span><span class="stext">로그인 사용자가 본인이 아닌 다른 userId로 조회를 시도하면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode"><a class="xref q" href="#l-q5">L-?5</a></span></li>
+        <li id="l-r4"><span class="sid">L-R4</span><span class="stext">존재하지 않는 userId 형식의 path로 조회 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400/404</span></li>
+        <li id="l-r5"><span class="sid">L-R5</span><span class="stext">목록 정렬 / 페이지 파라미터 정책 (big-picture 명시 없음).</span><span class="stag">정상</span><span class="scode"><a class="xref q" href="#l-q4">L-?4</a></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 2.  시나리오 → 라이프사이클 흐름               -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">2</span>시나리오 → 라이프사이클 흐름 <small>위 시나리오들의 시간축 시각화</small></h2>
+    <p class="lead">Likes는 toggle 도메인 — 등록 ↔ 취소가 양방향으로 반복되고, READ는 그 위에 별도 축으로 얹힌다. UPDATE는 의미적으로 존재하지 않음. 좌측은 <strong>현재 상태(Likes)</strong>의 INSERT/DELETE 토글, 우측은 <strong>이력(LikeEvent)</strong>의 append-only 축.</p>
+
+    <div class="lifecycle-flow">
+      <div class="lc-entry"><div class="lc-entry-box">사용자 인증 (X-Loopers-LoginId / X-Loopers-LoginPw)</div></div>
+      <div class="lc-arrow-down">↓</div>
+
+      <!-- 좌: Likes 현재상태 toggle / 우: LikeEvent append-only -->
+      <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap: 20px; align-items: stretch;">
+        <!-- 좌측: Likes (현재 상태) -->
+        <div style="border: 1px dashed var(--line); border-radius: 6px; padding: 12px;">
+          <div class="er-section-label" style="margin-bottom:10px;">Likes — 현재 상태 (hard delete · status 없음)</div>
+
+          <div style="text-align:center; margin-bottom:10px;">
+            <span style="display:inline-block; background:#F4F4F5; border:1px dashed var(--muted); padding:4px 10px; border-radius:4px; font-size:12px; color:var(--muted);">(none) — row 미존재</span>
+          </div>
+
+          <div class="lc-row">
+            <div class="lc-box create">
+              <div class="lc-title">CREATE</div>
+              <div class="lc-actor">사용자</div>
+              <div class="lc-method">POST /api/v1/products/{productId}/likes</div>
+              <div class="lc-result">→ ACTIVE (INSERT)</div>
+              <div class="lc-ids">L-C1 ~ C5</div>
+              <div class="lc-errors">예외: 400 · 401 · 404 · (409)</div>
+            </div>
+            <div class="lc-arrow-right">↔</div>
+            <div class="lc-box delete">
+              <div class="lc-title">DELETE</div>
+              <div class="lc-actor">사용자</div>
+              <div class="lc-method">DELETE /api/v1/products/{productId}/likes</div>
+              <div class="lc-result">→ (none) (hard DELETE)</div>
+              <div class="lc-ids">L-D1 ~ D5</div>
+              <div class="lc-errors">예외: 400 · 401 · 404</div>
+            </div>
+          </div>
+
+          <div style="text-align:center; font-size:11.5px; color:var(--muted); margin-top:6px;">
+            (none) → ACTIVE → (none) 토글 · (user_id, product_id) UK로 멱등성 보장
+          </div>
+
+          <div class="lc-arrow-down" style="margin-top:10px;">↓ (좋아요 상태 위에)</div>
+
+          <div class="lc-row">
+            <div class="lc-box read">
+              <div class="lc-title">READ</div>
+              <div class="lc-actor">사용자 (본인만)</div>
+              <div class="lc-method">GET /api/v1/users/{userId}/likes</div>
+              <div class="lc-result">200 OK</div>
+              <div class="lc-ids">L-R1 ~ R5</div>
+              <div class="lc-errors">예외: 400 · 401 · 403/404</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 우측: LikeEvent (이력) -->
+        <div style="border: 1px dashed var(--future); border-radius: 6px; padding: 12px; background:#F0FDFA;">
+          <div class="er-section-label" style="margin-bottom:10px; color:var(--future);">LikeEvent — 이력 (append-only)</div>
+
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="background:#fff; border:1px solid var(--future); border-radius:4px; padding:8px 10px; font-size:12px;">
+              <strong style="color:var(--ok);">+ append</strong> <code>action=LIKE</code><br>
+              <span style="color:var(--muted); font-size:11px;">recorded_at = now()</span>
+            </div>
+            <div style="text-align:center; color:var(--muted); font-size:14px;">↓</div>
+            <div style="background:#fff; border:1px solid var(--future); border-radius:4px; padding:8px 10px; font-size:12px;">
+              <strong style="color:var(--err);">+ append</strong> <code>action=UNLIKE</code><br>
+              <span style="color:var(--muted); font-size:11px;">recorded_at = now()</span>
+            </div>
+            <div style="text-align:center; color:var(--muted); font-size:14px;">↓</div>
+            <div style="background:#fff; border:1px solid var(--future); border-radius:4px; padding:8px 10px; font-size:12px;">
+              <strong style="color:var(--ok);">+ append</strong> <code>action=LIKE</code><br>
+              <span style="color:var(--muted); font-size:11px;">recorded_at = now()</span>
+            </div>
+            <div style="text-align:center; color:var(--muted); font-size:11px;">… UPDATE/DELETE 없음</div>
+          </div>
+
+          <div style="margin-top:10px; font-size:11px; color:var(--future); text-align:center; line-height:1.5;">
+            매 토글마다 새 row INSERT<br>
+            책임: 통계 · 행동 분석 · 이력 보존
+          </div>
+        </div>
+      </div>
+
+      <!-- Likes ↔ LikeEvent 관계 표시 -->
+      <div style="margin-top:14px; padding: 10px 14px; background:#F0FDFA; border:1px dashed var(--future); border-radius:6px; font-size:12px; color:var(--future); text-align:center;">
+        <strong>관계:</strong> Likes의 INSERT/DELETE가 LikeEvent에 <strong>비동기 append</strong>를 트리거 · 실패 시 로깅 (<a class="xref q" href="#l-q7">L-?7</a>)
+      </div>
+
+      <div class="lc-cascade">
+        <div class="lc-arrow-down">↓ side effect (미래)</div>
+        <div class="lc-cascade-box" style="background:#ECFEFF;border-color:var(--future);color:var(--future);">좋아요 행동 데이터 → 랭킹 / 추천 비동기 집계 (<a class="xref q" href="#l-f1">L-F1</a>) · LikeEvent를 소스로 활용</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 3.  시나리오 → 도메인 모델                     -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">3</span>시나리오 → 도메인 모델 <small>ProductLike (현재 상태) + LikeEvent (이력)</small></h2>
+    <p class="lead">위 시나리오에서 추출된 좋아요 도메인의 책임. <strong>현재 상태</strong>는 <code>ProductLike</code>(hard delete), <strong>이력</strong>은 <code>LikeEvent</code>(append-only)로 책임 분리. 외부 사례(Instagram append-only, Facebook TAO) 조사 후 결정.</p>
+
+    <div class="extract-card">
+      <h3>ProductLike 엔티티 필드 <small style="color:var(--muted); font-weight:400; font-size:11.5px;">— 현재 상태 · hard delete</small></h3>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처 시나리오</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK)</td><td>시스템 부여 식별자</td><td class="field-source">모든 시나리오</td></tr>
+          <tr><td class="field-name">userId</td><td class="field-type">Long</td><td>좋아요를 누른 사용자 (soft ref)</td><td class="field-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-r1">L-R1</a>, <a class="xref" href="#l-r3">L-R3</a></td></tr>
+          <tr><td class="field-name">productId</td><td class="field-type">Long</td><td>좋아요 대상 상품 (soft ref)</td><td class="field-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-c3">L-C3</a>, <a class="xref" href="#l-d1">L-D1</a></td></tr>
+          <tr><td class="field-name">createdAt</td><td class="field-type">LocalDateTime</td><td>BaseEntity · 정렬 후보 (응답 노출 X)</td><td class="field-source"><a class="xref" href="#l-r1">L-R1</a>, <a class="xref q" href="#l-q4">L-?4</a></td></tr>
+          <tr><td class="field-name">updatedAt</td><td class="field-type">LocalDateTime</td><td>BaseEntity (응답 노출 X)</td><td class="field-source">BaseEntity</td></tr>
+          <tr><td class="field-name">createdBy</td><td class="field-type">String</td><td>BaseEntity (응답 노출 X)</td><td class="field-source">BaseEntity</td></tr>
+          <tr><td class="field-name">updatedBy</td><td class="field-type">String</td><td>BaseEntity (응답 노출 X)</td><td class="field-source">BaseEntity</td></tr>
+        </tbody>
+      </table>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li>(<code>userId</code>, <code>productId</code>) 유일성 — 동일 유저가 같은 상품에 좋아요를 두 번 가질 수 없음. UK로 멱등성 보장. 출처 <a class="xref" href="#l-c4">L-C4</a> / <a class="xref q" href="#l-q1">L-?1</a></li>
+          <li><strong>status 컬럼 없음 · state machine 없음</strong> — UNLIKE 시 row hard delete, 다시 LIKE 시 새 row INSERT</li>
+          <li><code>userId</code>는 존재하는 사용자 — application 레벨 검증 (FK 없음). 출처 <a class="xref" href="#l-c1">L-C1</a></li>
+          <li><code>productId</code>는 존재하는 상품 — 404 처리 출처 <a class="xref" href="#l-c3">L-C3</a>, <a class="xref" href="#l-d4">L-D4</a></li>
+          <li>좋아요 자체는 mutable 필드 없음 — UPDATE 그룹이 없는 이유</li>
+        </ul>
+      </div>
+
+      <div class="relations">
+        <strong>연관 관계</strong>
+        <ul>
+          <li>ProductLike → User (N:1, 논리 참조) · userId — 유저 탈퇴 시 cascade 정책은 결정 보류</li>
+          <li>ProductLike → Product (N:1, 논리 참조) · productId — 상품 삭제 시 cascade 정책 (Brand 도메인의 cascade 흐름과 정합 필요)</li>
+          <li>Product.likeCount 비정규화 가능성 — <a class="xref q" href="#l-q3">L-?3</a> (Product 도메인의 <code>likes_desc</code> 정렬과 연동)</li>
+          <li>ProductLike의 INSERT/DELETE는 LikeEvent에 비동기 append를 트리거 (<a class="xref q" href="#l-q7">L-?7</a>)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="extract-card" style="border-left: 4px solid var(--future);">
+      <h3>LikeEvent 엔티티 필드 <small style="color:var(--future); font-weight:400; font-size:11.5px;">— 이력 · append-only (신규)</small></h3>
+      <p style="margin: 0 0 10px; font-size: 12.5px; color: var(--muted);">
+        big-picture.md "유저 행동은 모두 기록되고, 그 데이터는 이후 다양한 기능으로 확장될 수 있어요" 근거. 매 토글마다 새 row insert — UPDATE/DELETE 없음.
+      </p>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK, auto-increment)</td><td>시스템 부여 식별자</td><td class="field-source">신규</td></tr>
+          <tr><td class="field-name">userId</td><td class="field-type">Long</td><td>액션 주체 (soft ref)</td><td class="field-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-d1">L-D1</a></td></tr>
+          <tr><td class="field-name">productId</td><td class="field-type">Long</td><td>액션 대상 (soft ref)</td><td class="field-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-d1">L-D1</a></td></tr>
+          <tr><td class="field-name">action</td><td class="field-type">Enum (LIKE / UNLIKE)</td><td>토글 액션 종류</td><td class="field-source">신규</td></tr>
+          <tr><td class="field-name">recordedAt</td><td class="field-type">LocalDateTime</td><td>이벤트 발생 시각</td><td class="field-source">신규</td></tr>
+        </tbody>
+      </table>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li><strong>append-only</strong> — UPDATE/DELETE 없음. 매 토글마다 새 row insert</li>
+          <li>UK 없음 — 같은 (userId, productId)가 LIKE → UNLIKE → LIKE 식으로 여러 row 생성 가능</li>
+          <li>책임 분리: <strong>현재 상태</strong>는 ProductLike가, <strong>이력</strong>은 LikeEvent가 보유</li>
+        </ul>
+      </div>
+
+      <div class="relations">
+        <strong>책임 / 활용</strong>
+        <ul>
+          <li>통계 · 행동 분석 · 이력 보존</li>
+          <li>미래 비동기 집계의 소스 (<a class="xref q" href="#l-f1">L-F1</a>)</li>
+          <li>LikeEvent → User / Product (논리 참조) · FK 없음</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 4.  시나리오 → DB 테이블                       -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">4</span>시나리오 → DB 테이블 <small>영속성 매핑</small></h2>
+    <p class="lead">naming은 Spring Boot 기본 <code>SpringPhysicalNamingStrategy</code> 가정 (camelCase → snake_case). 좌측은 컬럼 명세, 우측은 ER 다이어그램.</p>
+
+    <div class="db-layout">
+      <!-- 좌측: 텍스트 명세 -->
+      <div class="db-layout-left">
+        <div class="er-section-label">컬럼 명세</div>
+
+        <div class="db-table">
+          <div class="db-table-header">product_like <span style="font-weight:400; color:var(--muted); font-size:11px;">— 현재 상태 · hard delete</span></div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">전부</td></tr>
+              <tr><td class="col-name">user_id</td><td class="col-type">BIGINT</td><td>NOT NULL (논리 참조)</td><td class="col-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-r1">L-R1</a></td></tr>
+              <tr><td class="col-name">product_id</td><td class="col-type">BIGINT</td><td>NOT NULL (논리 참조)</td><td class="col-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-c3">L-C3</a></td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL (BaseEntity)</td><td class="col-source">BaseEntity, <a class="xref q" href="#l-q4">L-?4</a></td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL (BaseEntity)</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">created_by</td><td class="col-type">VARCHAR</td><td>(BaseEntity)</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">updated_by</td><td class="col-type">VARCHAR</td><td>(BaseEntity)</td><td class="col-source">BaseEntity</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>제약:</strong> <code>UNIQUE KEY uk_product_like_user_product (user_id, product_id)</code> — 출처 <a class="xref" href="#l-c4">L-C4</a> / <a class="xref q" href="#l-q1">L-?1</a><br>
+            <strong>인덱스:</strong> <code>idx_product_like_user (user_id, created_at DESC)</code> — 내 목록 조회 정렬 — <a class="xref q" href="#l-q4">L-?4</a><br>
+            <strong>status 컬럼 없음:</strong> UNLIKE 시 row hard delete, 다시 LIKE 시 새 row INSERT
+          </div>
+        </div>
+
+        <div class="db-table" style="border-left: 3px solid var(--future);">
+          <div class="db-table-header" style="background:#F0FDFA; color:var(--future);">like_event <span style="font-weight:400; font-size:11px;">— 이력 · append-only (신규)</span></div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">신규</td></tr>
+              <tr><td class="col-name">user_id</td><td class="col-type">BIGINT</td><td>NOT NULL (논리 참조)</td><td class="col-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-d1">L-D1</a></td></tr>
+              <tr><td class="col-name">product_id</td><td class="col-type">BIGINT</td><td>NOT NULL (논리 참조)</td><td class="col-source"><a class="xref" href="#l-c1">L-C1</a>, <a class="xref" href="#l-d1">L-D1</a></td></tr>
+              <tr><td class="col-name">action</td><td class="col-type">VARCHAR or ENUM</td><td>NOT NULL · LIKE / UNLIKE</td><td class="col-source">신규</td></tr>
+              <tr><td class="col-name">recorded_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">신규</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints" style="background:#F0FDFA; border-top-color:var(--future);">
+            <strong style="color:var(--future);">append-only:</strong> UPDATE/DELETE 없음. 매 토글마다 새 row INSERT.<br>
+            <strong style="color:var(--future);">UK 없음:</strong> 같은 (user_id, product_id) 페어가 여러 row를 가질 수 있음.<br>
+            <strong style="color:var(--future);">책임:</strong> 통계 · 행동 분석 · 이력 보존 (미래 비동기 집계 소스 <a class="xref q" href="#l-f1">L-F1</a>)
+          </div>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-header">product (likeCount 비정규화 옵션)</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="col-name">like_count</td>
+                <td class="col-type">BIGINT</td>
+                <td>NOT NULL DEFAULT 0 (도입 여부 결정)</td>
+                <td class="col-source"><a class="xref q" href="#l-q3">L-?3</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>비정규화:</strong> Product의 <code>sort=likes_desc</code> 정렬 성능을 위해 <code>product.like_count</code>를 두는지, 매번 <code>COUNT(*)</code>로 가는지의 결정. 비동기 집계와도 연결 (<a class="xref q" href="#l-f1">L-F1</a>).
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: ER 다이어그램 -->
+      <div class="db-layout-right">
+        <div class="er-section-label">ER 다이어그램</div>
+
+        <div class="er-entity">
+          <div class="er-entity-name">user</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...other columns</span><span class="type">(User 도메인)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation">
+          <span>1</span>
+          <span class="arrow" style="color: var(--muted); letter-spacing:-1px;">┄┄┄┄→</span>
+          <span>N</span>
+          <span style="margin-left:8px;">user_id (논리)</span>
+        </div>
+
+        <div class="er-entity">
+          <div class="er-entity-name">product_like</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">user_id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">product_id</span><span class="type">BIGINT</span></li>
+            <li><span class="key uk">UK</span><span class="name">(user_id, product_id)</span><span class="type">복합 UK</span></li>
+            <li><span class="key empty"></span><span class="name">created_at</span><span class="type">DATETIME(6)</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...BaseEntity 4컬럼</span><span class="type"></span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation">
+          <span>N</span>
+          <span class="arrow" style="color: var(--muted); letter-spacing:-1px;">←┄┄┄┄</span>
+          <span>1</span>
+          <span style="margin-left:8px;">product_id (논리)</span>
+        </div>
+
+        <div class="er-entity">
+          <div class="er-entity-name">product</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">like_count?</span><span class="type">비정규화 옵션</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...other columns</span><span class="type">(Product 도메인)</span></li>
+          </ul>
+        </div>
+
+        <!-- LikeEvent ER (신규) -->
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line);">
+          <div class="er-section-label" style="color: var(--future);">like_event (이력 · append-only)</div>
+
+          <div class="er-entity" style="border-color: var(--future);">
+            <div class="er-entity-name" style="background: var(--future);">like_event</div>
+            <ul class="er-cols">
+              <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+              <li><span class="key empty"></span><span class="name">user_id</span><span class="type">BIGINT</span></li>
+              <li><span class="key empty"></span><span class="name">product_id</span><span class="type">BIGINT</span></li>
+              <li><span class="key empty"></span><span class="name">action</span><span class="type">LIKE/UNLIKE</span></li>
+              <li><span class="key empty"></span><span class="name">recorded_at</span><span class="type">DATETIME(6)</span></li>
+            </ul>
+          </div>
+
+          <div class="er-relation" style="color: var(--future); justify-content: flex-start; padding: 6px 4px;">
+            <span style="font-size: 11px;">user / product → like_event 점선 (논리 참조 · UK 없음)</span>
+          </div>
+        </div>
+
+        <!-- FK 미설정 메모 박스 -->
+        <div style="margin-top: 14px; padding: 12px 14px; background: var(--decide-soft); border: 1px dashed var(--decide); border-radius: 6px; font-size: 12px; line-height: 1.6;">
+          <strong style="color: var(--decide);">DB 제약(FK) 없음.</strong>
+          <code>user_id</code>, <code>product_id</code> 등은 논리 참조입니다. 무결성은 애플리케이션 레이어 책임 — 자세한 정책은 <code>docs/conventions.md</code> 참조.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 5.  시나리오 → API 시퀀스 (SVG)                -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">5</span>시나리오 → API 시퀀스 <small>액터 가로 컬럼 · 시간 위→아래</small></h2>
+    <p class="lead">대표 시나리오에 대한 호출 흐름. 실선 = 호출, 점선(녹/적) = return / 에러 응답.</p>
+
+    <!-- 화살표 마커 정의 (공통) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#27272A"/>
+        </marker>
+        <marker id="ah-ret" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+        </marker>
+        <marker id="ah-err" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#B91C1C"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- ────── L-C1 ────── -->
+    <div class="seq-block" id="seq-c1">
+      <div class="seq-title"><a class="xref" href="#l-c1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">L-C1</span></a> 로그인 사용자가 상품에 좋아요를 등록한다 (정상)</div>
+      <div class="seq-desc">LoginAuth 헤더 검증 → product_like INSERT (UK 위반 시 멱등) → LikeEvent에 LIKE 액션 비동기 append (실패 시 로깅)</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1010 430" style="max-width:1010px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 950) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AccountHeaderAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">LikeController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">LikeService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">LikeRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box db" x="895" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="950" y="34" text-anchor="middle">LikeEventRepository</text>
+
+          <!-- Lifelines -->
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="420"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="420"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="420"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="420"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="420"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="420"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="420"/>
+
+          <!-- Transaction box: Service 호출(y=165) ~ INSERT(y=245), LikeEventRepository async append는 박스 밖 -->
+          <rect class="tx-box" x="490" y="152" width="360" height="106"/>
+          <text class="tx-label" x="500" y="146">Transaction</text>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">POST /api/v1/products/{id}/likes</text>
+
+          <!-- 2: y=125 -->
+          <line class="msg-line" x1="250" y1="125" x2="388" y2="125" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="119" text-anchor="middle">LoginId/Pw 검증 통과</text>
+
+          <!-- 3: y=165 controller → service -->
+          <line class="msg-line" x1="390" y1="165" x2="528" y2="165" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="159" text-anchor="middle">like(userId, productId)</text>
+
+          <!-- 4: y=205 service → likesRepository INSERT -->
+          <line class="msg-line" x1="530" y1="205" x2="668" y2="205" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="199" text-anchor="middle">save(ProductLike)</text>
+
+          <!-- 5: y=245 repo → DB -->
+          <line class="msg-line" x1="670" y1="245" x2="808" y2="245" marker-end="url(#ah)"/>
+          <text class="msg-text" x="740" y="239" text-anchor="middle">INSERT INTO product_like (UK 충돌 시 무시 · 멱등)</text>
+
+          <!-- 6: y=285 DB return -->
+          <line class="msg-line ret" x1="810" y1="285" x2="672" y2="285" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="740" y="279" text-anchor="middle">OK (or UK 위반 → 멱등 swallow)</text>
+
+          <!-- 7: y=330 service → LikeEventRepository (async, dashed) -->
+          <line class="msg-line" x1="530" y1="330" x2="948" y2="330" marker-end="url(#ah)" stroke-dasharray="6 4"/>
+          <text class="msg-text" x="740" y="324" text-anchor="middle" style="fill:#0E7490">append(LIKE) [async · 실패 시 로깅]</text>
+
+          <!-- 8: y=375 (응답은 LikeEvent와 독립, 동기 path 종료) -->
+          <line class="msg-line ret" x1="530" y1="375" x2="112" y2="375" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="320" y="369" text-anchor="middle">200/201 · (응답 형태: L-?6) — LikeEvent와 독립</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── L-D1 ────── -->
+    <div class="seq-block" id="seq-d1">
+      <div class="seq-title"><a class="xref" href="#l-d1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">L-D1</span></a> 로그인 사용자가 좋아요를 취소한다 (정상)</div>
+      <div class="seq-desc">LoginAuth 헤더 검증 → product_like DELETE → LikeEvent에 UNLIKE 액션 비동기 append (실패 시 로깅)</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1010 385" style="max-width:1010px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AccountHeaderAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">LikeController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">LikeService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">LikeRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box db" x="895" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="950" y="34" text-anchor="middle">LikeEventRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="375"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="375"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="375"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="375"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="375"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="375"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="375"/>
+
+          <!-- Transaction box: Service 호출(y=165) ~ DELETE(y=245), LikeEventRepository async append는 박스 밖 -->
+          <rect class="tx-box" x="490" y="152" width="360" height="106"/>
+          <text class="tx-label" x="500" y="146">Transaction</text>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">DELETE /api/v1/products/{id}/likes</text>
+
+          <!-- 2: y=125 -->
+          <line class="msg-line" x1="250" y1="125" x2="388" y2="125" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="119" text-anchor="middle">LoginId/Pw 검증 통과</text>
+
+          <!-- 3: y=165 controller → service -->
+          <line class="msg-line" x1="390" y1="165" x2="528" y2="165" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="159" text-anchor="middle">unlike(userId, productId)</text>
+
+          <!-- 4: y=205 service → repo -->
+          <line class="msg-line" x1="530" y1="205" x2="668" y2="205" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="199" text-anchor="middle">deleteByUserAndProduct(...)</text>
+
+          <!-- 5: y=245 repo → DB -->
+          <line class="msg-line" x1="670" y1="245" x2="808" y2="245" marker-end="url(#ah)"/>
+          <text class="msg-text" x="740" y="239" text-anchor="middle">DELETE FROM product_like WHERE user_id=? AND product_id=?</text>
+
+          <!-- 6: y=285 DB return -->
+          <line class="msg-line ret" x1="810" y1="285" x2="672" y2="285" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="740" y="279" text-anchor="middle">OK (or 0 rows · 멱등 여부 L-?2)</text>
+
+          <!-- 7: y=325 service → LikeEventRepository (async) -->
+          <line class="msg-line" x1="530" y1="325" x2="948" y2="325" marker-end="url(#ah)" stroke-dasharray="6 4"/>
+          <text class="msg-text" x="740" y="319" text-anchor="middle" style="fill:#0E7490">append(UNLIKE) [async · 실패 시 로깅]</text>
+
+          <!-- 8: y=365 응답 -->
+          <line class="msg-line ret" x1="530" y1="365" x2="112" y2="365" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="320" y="359" text-anchor="middle">200/204 · (멱등 여부 L-?2) — LikeEvent와 독립</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── L-R1 ────── -->
+    <div class="seq-block" id="seq-r1">
+      <div class="seq-title"><a class="xref" href="#l-r1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">L-R1</span></a> 본인의 좋아요 상품 목록을 조회한다 (정상)</div>
+      <div class="seq-desc">LoginAuth → path userId가 인증된 사용자와 일치하는지 검증 → product_like 조회 (조인 또는 별도 호출로 product 정보 join)</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 870 380" style="max-width:870px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AccountHeaderAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">LikeController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">LikeService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">LikeRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="370"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="370"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="370"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="370"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="370"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="370"/>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">GET /api/v1/users/{userId}/likes</text>
+
+          <!-- 2: y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">LoginId/Pw 검증 통과</text>
+
+          <!-- 3: y=175 (self-check) -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">findMyLikes(loginUser, pathUserId)</text>
+
+          <!-- 4: y=220 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">findByUserId(userId, pageable)</text>
+
+          <!-- 5: y=265 -->
+          <line class="msg-line" x1="670" y1="265" x2="808" y2="265" marker-end="url(#ah)"/>
+          <text class="msg-text" x="740" y="259" text-anchor="middle">SELECT ... WHERE user_id = ?</text>
+
+          <!-- 6: y=310 -->
+          <line class="msg-line ret" x1="810" y1="310" x2="532" y2="310" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="670" y="304" text-anchor="middle">List&lt;ProductLike&gt;</text>
+
+          <!-- 7: y=355 -->
+          <line class="msg-line ret" x1="810" y1="355" x2="112" y2="355" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="349" text-anchor="middle">200 OK · MyLikesResponse</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── L-R3 ────── -->
+    <div class="seq-block" id="seq-r3">
+      <div class="seq-title"><a class="xref" href="#l-r3" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">L-R3</span></a> 타 사용자의 userId로 조회 시도 (예외)</div>
+      <div class="seq-desc">AccountHeaderAuthenticationFilter는 통과 (인증은 OK) → LikeController에서 path {userId}와 인증된 사용자 ID 불일치 → 예외 발생 → 응답 반환. 응답 status는 결정 카드 <a class="xref q" href="#l-q5">L-?5</a> (403 vs 404).</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 450 215" style="max-width:450px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AccountHeaderAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">LikeController</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="205"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="205"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="205"/>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">GET /api/v1/users/{타유저ID}/likes</text>
+
+          <!-- 2: y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">인증 통과 (loginUserId 식별)</text>
+
+          <!-- 3: y=185 — userId 불일치 → 예외 → 응답 -->
+          <line class="msg-line err" x1="390" y1="185" x2="112" y2="185" marker-end="url(#ah-err)"/>
+          <text class="msg-text err" x="250" y="173" text-anchor="middle">userId 불일치 → throw ForbiddenException (또는 NotFoundException — L-?5)</text>
+          <text class="msg-text err" x="250" y="200" text-anchor="middle">→ 403 FORBIDDEN (또는 404 — L-?5)</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 6.  결정 필요 항목                              -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">6</span>결정 필요 항목</h2>
+
+    <div class="card" id="l-q1">
+      <header><h3><span class="id">L-?1</span>중복 좋아요 동작 (멱등 vs 충돌)</h3></header>
+      <p class="flow">이미 좋아요한 상품에 다시 <code>POST /likes</code>가 들어왔을 때.</p>
+      <div class="decide-box">
+        <strong>A. 멱등</strong> — 200/204로 조용히 무시 (UK 위반은 try/catch로 swallow). UI 단의 토글 재전송에 견고.<br>
+        <strong>B. 충돌 409</strong> — 명시적 거부. 클라이언트가 상태를 더 정확히 인지.<br>
+        <strong>추천: A (멱등).</strong> 토글 UX 표준 + 네트워크 재시도 안전. UK 위반 (<code>DataIntegrityViolationException</code>)을 서비스에서 의도적으로 catch.
+      </div>
+    </div>
+
+    <div class="card" id="l-q2">
+      <header><h3><span class="id">L-?2</span>좋아요 안 한 상품에 대한 취소 (멱등 vs 404)</h3></header>
+      <p class="flow"><code>DELETE /likes</code>인데 좋아요 row가 없을 때.</p>
+      <div class="decide-box">
+        <strong>A. 멱등 204</strong> — DELETE의 RFC 7231 시맨틱(idempotent). 토글 UX와 정합.<br>
+        <strong>B. 404</strong> — 명시적 미존재. 단 좋아요 정보 노출에 가까워짐.<br>
+        <strong>추천: A (멱등 204).</strong> L-?1의 등록 멱등 결정과 짝.
+      </div>
+    </div>
+
+    <div class="card" id="l-q3">
+      <header><h3><span class="id">L-?3</span>좋아요 카운트 비정규화 (products.like_count)</h3></header>
+      <p class="flow">Product 도메인의 <code>sort=likes_desc</code> 정렬 요구사항과 연동.</p>
+      <div class="decide-box">
+        <strong>A. 매번 COUNT(*)</strong> — 정합성 100%, 정렬 성능 부담.<br>
+        <strong>B. <code>products.like_count</code> 비정규화 + toggle 시 +/- 1</strong> — 정렬은 단일 컬럼 인덱스로 빠름, 동시성 시 race / drift 위험 (낙관락 또는 원자적 UPDATE 필요).<br>
+        <strong>C. 비동기 집계</strong> — 미래(<a class="xref q" href="#l-f1">L-F1</a>)와 정합. 이번 주는 과도.<br>
+        <strong>이번 주: A로 두고 미래에 B로 전환.</strong> Product 도메인 설계와 동기화 필요.
+      </div>
+    </div>
+
+    <div class="card" id="l-q4">
+      <header><h3><span class="id">L-?4</span>내 좋아요 목록의 정렬·페이지 정책</h3></header>
+      <p class="flow"><code>GET /api/v1/users/{userId}/likes</code>의 정렬/페이지 파라미터. big-picture에 명시 없음.</p>
+      <div class="decide-box">
+        <strong>제안</strong>: 기본 정렬 <code>created_at DESC</code> (최근 좋아요한 순). <code>page=0&amp;size=20</code> 기본값. 인덱스는 <code>(user_id, created_at DESC)</code>.<br>
+        <strong>대안</strong>: 정렬 옵션 노출 (<code>latest</code> / <code>oldest</code>) — YAGNI 우려, 요구사항 없는 한 단일 정렬.
+      </div>
+    </div>
+
+    <div class="card" id="l-q5">
+      <header><h3><span class="id">L-?5</span>타 사용자 userId 접근 시 응답 status (403 vs 404)</h3></header>
+      <p class="flow">big-picture: "유저는 타 사용자의 정보에 직접 접근할 수 없습니다". 명시적 거부 status는 미결정.</p>
+      <div class="decide-box">
+        <strong>A. 403 FORBIDDEN</strong> — 의미상 정확 (인증은 OK, 권한 없음).<br>
+        <strong>B. 404 NOT_FOUND</strong> — 다른 유저의 존재 여부조차 노출 안 함 (정보 누설 회피, OWASP A01:2021 권장).<br>
+        <strong>추천: A (403).</strong> 학습 프로젝트 + 의미 정합성 우선. 운영 보안 단계에서 B로 전환 가능.
+      </div>
+    </div>
+
+    <div class="card" id="l-q6">
+      <header><h3><span class="id">L-?6</span>좋아요 등록 응답 형태 (200 vs 201 vs 204)</h3></header>
+      <p class="flow">big-picture 명시 없음. 멱등 결정(L-?1)과 짝.</p>
+      <div class="decide-box">
+        <strong>A. 201 + Body</strong> — 신규 생성 의미가 정확. 그러나 멱등 시 "이미 있음"인데 201은 어색.<br>
+        <strong>B. 200 + Body</strong> — 멱등과 정합. 응답에 좋아요 상태/likeCount를 담을 수 있음.<br>
+        <strong>C. 204 No Content</strong> — 가장 단순. 클라이언트가 별도 GET으로 상태 확인.<br>
+        <strong>추천: B (200 + 좋아요 상태/likeCount 응답).</strong> 토글 UX에서 즉시 갱신 데이터를 받을 수 있고 멱등과도 정합.
+      </div>
+    </div>
+
+    <div class="card" id="l-q7">
+      <header><h3><span class="id">L-?7</span>LikeEvent 적재 정책 (비동기 + 실패 시 로깅)</h3></header>
+      <p class="flow">LIKE/UNLIKE 토글이 발생할 때 LikeEvent에 어떻게 append할지의 정책.</p>
+      <div class="decide-box">
+        <strong>결정: 비동기 append · 실패 시 로깅.</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>본 흐름(<code>product_like</code> INSERT/DELETE)이 LikeEvent 적재 실패로 인해 영향받지 않도록 비동기로 분리합니다.</li>
+          <li>LikeEvent 적재가 실패하면 로깅만 합니다 — 사용자 응답은 정상 처리.</li>
+          <li>현재 상태(<code>product_like</code>)와 이력(<code>like_event</code>)은 책임이 분리되어 있으므로, 이력 일부 누락은 통계 정확도에 영향을 주지만 토글 정확성은 훼손되지 않습니다.</li>
+        </ul>
+        <strong>이번 주는 의도만.</strong> 구현 디테일(메시지 큐 / outbox / retry · backoff 정책 등)은 미설계 — 진짜 필요해질 때 결정합니다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 7.  미래 확장 마킹                              -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">7</span>미래 확장 마킹</h2>
+
+    <div class="card future" id="l-f1">
+      <header><h3><span class="id">L-F1</span>좋아요 행동 데이터 → 랭킹 / 추천 비동기 집계</h3></header>
+      <p class="flow">big-picture "추가 비전" — 좋아요/주문 행동 데이터를 비동기 집계해 정렬/추천 모델로 활용. 이번 주는 미설계.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li><code>product_like</code> 테이블은 원천 이벤트의 소스. 삭제 시 hard delete 외에도 soft delete / 이벤트 outbox로 전환 가능한 여지를 닫지 않음</li>
+          <li>likeCount 비정규화(<a class="xref q" href="#l-q3">L-?3</a>)는 동기 +/- 대신 비동기 집계로 옮기는 길도 열어둠</li>
+          <li>좋아요 토글에 도메인 이벤트 발행 훅을 둘 자리를 마련 (이번 주는 미구현)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card future" id="l-f2">
+      <header><h3><span class="id">L-F2</span>Role 분리 · Brand staff 좋아요 통계 조회</h3></header>
+      <p class="flow">big-picture "추가 비전" — Brand=Tenant 비전 하에서 Brand staff가 자기 brand 상품의 좋아요 통계만 조회 (총 좋아요 수 / 트렌드). 이번 주는 Role enum 미결정.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>좋아요 row가 <code>user_id</code>, <code>product_id</code>의 정규화된 형태로 남아야 brand_id 기반 집계가 가능 (product → brand_id join)</li>
+          <li>Role 분리 시 어떤 권한이 <code>/admin/brands/{brandId}/likes/stats</code> 같은 엔드포인트를 가질지는 미결정 — 본 도메인 설계는 권한 축에 종속되지 않게 유지</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page">
+    <code>docs/week2/scenarios/03-likes.html</code> · 변경 시 브라우저 새로고침으로 확인 · 시나리오(Section 1) 추가/수정 시 Section 2~5에 반영 확인
+  </footer>
+
+</div>
+<script>
+/* loopers-seq-svg-resize */
+(function () {
+  function init() {
+    document.querySelectorAll('.seq-svg').forEach(processSvg);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function processSvg(svg) {
+    if (svg.dataset.seqResized === '1') return;
+    var actorTexts = Array.from(svg.querySelectorAll('.actor-text'));
+    if (actorTexts.length === 0) return;
+    actorTexts.sort(function (a, b) {
+      return parseFloat(a.getAttribute('x')) - parseFloat(b.getAttribute('x'));
+    });
+    var oldCx = actorTexts.map(function (t) { return parseFloat(t.getAttribute('x')); });
+    var minWidth = 70;
+    var padX = 24;
+    var colGap = 28;
+
+    var widths = actorTexts.map(function (t) {
+      var bb = t.getBBox();
+      return Math.max(minWidth, Math.ceil(bb.width) + padX);
+    });
+
+    var newCx = new Array(oldCx.length);
+    newCx[0] = oldCx[0];
+    for (var i = 1; i < widths.length; i++) {
+      newCx[i] = newCx[i - 1] + widths[i - 1] / 2 + widths[i] / 2 + colGap;
+    }
+
+    function remapX(x) {
+      // 가장 가까운 컬럼에 매우 근접하면 snap
+      var bestIdx = 0, bestDist = Infinity;
+      for (var i = 0; i < oldCx.length; i++) {
+        var d = Math.abs(x - oldCx[i]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      if (bestDist < 3) return newCx[bestIdx];
+      // 두 컬럼 사이라면 선형 보간
+      for (var j = 0; j < oldCx.length - 1; j++) {
+        if (x > oldCx[j] && x < oldCx[j + 1]) {
+          var frac = (x - oldCx[j]) / (oldCx[j + 1] - oldCx[j]);
+          return newCx[j] + frac * (newCx[j + 1] - newCx[j]);
+        }
+      }
+      // 범위 밖 — 가장 가까운 컬럼에서 같은 오프셋
+      return newCx[bestIdx] + (x - oldCx[bestIdx]);
+    }
+
+    // actor rect + text 위치/크기 갱신
+    actorTexts.forEach(function (t, i) {
+      var cx = newCx[i];
+      var w = widths[i];
+      t.setAttribute('x', cx);
+      var rect = t.previousElementSibling;
+      while (rect && !(rect.tagName.toLowerCase() === 'rect' && rect.classList.contains('actor-box'))) {
+        rect = rect.previousElementSibling;
+      }
+      if (rect) {
+        rect.setAttribute('x', cx - w / 2);
+        rect.setAttribute('width', w);
+      }
+    });
+
+    // lifelines
+    svg.querySelectorAll('.lifeline').forEach(function (line) {
+      var nx = remapX(parseFloat(line.getAttribute('x1')));
+      line.setAttribute('x1', nx);
+      line.setAttribute('x2', nx);
+    });
+
+    // msg lines
+    svg.querySelectorAll('.msg-line').forEach(function (line) {
+      line.setAttribute('x1', remapX(parseFloat(line.getAttribute('x1'))));
+      line.setAttribute('x2', remapX(parseFloat(line.getAttribute('x2'))));
+    });
+
+    // msg texts
+    svg.querySelectorAll('.msg-text').forEach(function (t) {
+      t.setAttribute('x', remapX(parseFloat(t.getAttribute('x'))));
+    });
+
+    // viewBox + max-width
+    var lastCx = newCx[newCx.length - 1];
+    var lastW = widths[widths.length - 1];
+    var rightEdge = lastCx + lastW / 2 + 24;
+    var vbAttr = svg.getAttribute('viewBox');
+    if (vbAttr) {
+      var vbParts = vbAttr.split(/\s+/).map(parseFloat);
+      vbParts[2] = rightEdge - vbParts[0];
+      svg.setAttribute('viewBox', vbParts.join(' '));
+    }
+    svg.style.maxWidth = rightEdge + 'px';
+
+    svg.dataset.seqResized = '1';
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -17,6 +17,9 @@
 | 새 레이어/Facade/추상화 도입 충동 | §3 Design Principles, §12 |
 | 버전/라이브러리 사용법 확인 | §10 Versions |
 | 커밋/PR | §9 Git / PR |
+| 도메인 어휘 / 인증 / URL / 사용자 호칭 / DTO 표기 / 시나리오 문구 | `docs/ubiquitous-language.md` (산출물 작성 전 **반드시** 참조) |
+| 클래스/컴포넌트/시퀀스 다이어그램 명명 (약어 사용 충동) | `docs/ubiquitous-language.md` §9 약어 금지 |
+| 행위자 호칭 (사용자/관리자) | `docs/ubiquitous-language.md` §1 행위자 |
 
 ---
 
@@ -43,6 +46,9 @@
 - 새 `ErrorCode` 인터페이스 도입 / 공통 에러 코드 추상화 중복
 - 단일 구현체를 위한 인터페이스
 - 투기적 레이어/추상화/확장 포인트
+- **약어/축약형 클래스/컴포넌트명 사용** (`Ctrl`, `Ctl`, `Svc`, `Repo`, `Mgr`, `Cfg`, `Auth` 단독, `Resp`, `Req`, `Adv`, `Cmd`, `Ex` 단독). 코드/시나리오/시퀀스 다이어그램/PR 본문/주석 모두 풀네임만. 정정 매핑은 `docs/ubiquitous-language.md` §9 참조
+- **Mermaid 시퀀스 다이어그램의 단일 문자 / 축약형 participant alias** (`participant F as XxxFilter`, `participant Ctl as XxxController`). 풀네임을 그대로 participant 명으로 사용
+- **행위자 호칭으로 "대고객" / "어드민" 사용** (한국어 자연 표현이 아님). 시나리오/문서/PR 본문 모두 **사용자 / 로그인 사용자 / 관리자** 사용 (`docs/ubiquitous-language.md` §1 참조)
 
 ---
 

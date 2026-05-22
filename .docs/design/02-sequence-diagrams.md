@@ -1,10 +1,10 @@
 # Week 2 · API 시퀀스 다이어그램 종합
 
-> 4개 도메인(Brand / Product / Likes / Order) 시나리오 HTML(`docs/week2/scenarios/*-final.html`, 일부는 비-final HTML이 최신)을 단일 진실 출처(SSOT)로 삼아 도출한 대표 시퀀스 모음입니다.
+> 4개 도메인(Brand / Product / Likes / Order) 시나리오 HTML(`docs/week2/{도메인}/*-final.html`, 일부는 비-final HTML이 최신)을 단일 진실 출처(SSOT)로 삼아 도출한 대표 시퀀스 모음입니다.
 > 어휘 / 컴포넌트 풀네임 / 인증 헤더 / 응답 status 매핑은 `docs/ubiquitous-language.md`를 따릅니다. 충돌 시 사전이 정답입니다.
 >
 > 본 문서가 다루지 않는 영역:
-> - 도메인 모델 / DB 스키마 → 각 도메인 시나리오 HTML (`docs/week2/scenarios/`)
+> - 도메인 모델 / DB 스키마 → 각 도메인 시나리오 HTML (`docs/week2/{도메인}/`)
 > - 에러 핸들링 패턴 / Exception 매핑 → `CLAUDE.md` §2 Error Handling
 > - 영속성 공통 규약(FK 미설정 / Soft delete / Cascade 정책) → `docs/conventions.md`
 
@@ -66,9 +66,9 @@ sequenceDiagram
 
 ## 2. Brand · 관리자 삭제 + Product application-level cascade (S-D1)
 
-**시나리오**: 관리자가 브랜드를 삭제하면 해당 브랜드의 모든 상품도 함께 삭제된다.
+**시나리오**: 관리자가 브랜드를 삭제하면 해당 브랜드의 `status`가 `DELETED`로 전이되고, 해당 브랜드의 모든 상품도 cascade로 함께 `DELETED`로 전이된다 (**soft delete**).
 **경로**: `DELETE /api-admin/v1/brands/{brandId}`
-**핵심**: **DB cascade 사용 안 함**. 같은 `@Transactional` 안에서 `BrandService`가 `ProductService.deleteByBrand(brandId)`를 먼저 호출 → 그 후 brand 삭제. 주문 스냅샷은 별도 도메인이라 영향 없음.
+**핵심**: **DB cascade 사용 안 함 + Soft delete (status 전이)**. 같은 `@Transactional` 안에서 `BrandService`가 `ProductService.softDeleteByBrand(brandId)`를 먼저 호출 → 그 후 brand를 soft delete. 주문 스냅샷은 별도 도메인이라 영향 없음. 별도로 `BrandHistory`에 비동기 append.
 
 ```mermaid
 sequenceDiagram
@@ -81,23 +81,25 @@ sequenceDiagram
     participant ProductRepository
     participant BrandRepository
     participant Database
+    participant BrandHistoryRepository
 
     Client->>AdminLdapAuthenticationFilter: DELETE /api-admin/v1/brands/{brandId}
     AdminLdapAuthenticationFilter->>AdminBrandController: LDAP 헤더 검증 통과
 
     rect rgba(72, 144, 226, 0.10)
-    note over BrandService,Database: 단일 @Transactional 경계 (application-level cascade)
+    note over BrandService,Database: 단일 @Transactional 경계 (application-level cascade · soft delete)
     AdminBrandController->>BrandService: delete(brandId)
     BrandService->>BrandRepository: findById(brandId)
     BrandRepository->>Database: SELECT * FROM brand WHERE id = ?
     Database-->>BrandRepository: Brand
-    BrandService->>ProductService: deleteByBrand(brandId)
-    ProductService->>ProductRepository: deleteByBrandId(brandId)
-    ProductRepository->>Database: DELETE FROM product WHERE brand_id = ?
+    BrandService->>ProductService: softDeleteByBrand(brandId)
+    ProductService->>ProductRepository: softDeleteByBrandId(brandId)
+    ProductRepository->>Database: UPDATE product SET status='DELETED' WHERE brand_id = ?
     Database-->>ProductRepository: rows affected
-    BrandService->>BrandRepository: deleteById(brandId)
-    BrandRepository->>Database: DELETE FROM brand WHERE id = ?
+    BrandService->>BrandRepository: softDeleteById(brandId)
+    BrandRepository->>Database: UPDATE brand SET status='DELETED' WHERE id = ?
     Database-->>BrandRepository: ok
+    BrandService-->>BrandHistoryRepository: [async] append(action=DELETE) · 실패 시 로깅
     end
 
     BrandService-->>AdminBrandController: void
@@ -105,8 +107,10 @@ sequenceDiagram
 ```
 
 **설계 결정 (B-?3, `docs/conventions.md` §1)**:
+- **Soft delete + 2-state machine** (`status: ACTIVE → DELETED` 단방향). hard delete 아님 — row 보존으로 운영 복원/감사에 대응.
 - DB에 `ON DELETE CASCADE` 두지 않음 → 향후 샤딩/MSA 대비 + 다른 도메인 영향(주문 스냅샷 등)을 명시적으로 통제.
 - 주문 도메인은 `order_item`에 product/brand 정보를 스냅샷으로 보존 → 과거 주문 기록은 무영향.
+- 변경 이력은 `BrandHistory`에 비동기 append. 실패 시 로깅만 (인프라 디테일은 본 주차 범위 밖).
 
 ---
 
@@ -289,5 +293,5 @@ sequenceDiagram
 
 ---
 
-> 원본 SSOT: `docs/week2/scenarios/01-brand-final.html`, `docs/week2/scenarios/02-product-final.html`, `docs/week2/scenarios/03-likes.html`, `docs/week2/scenarios/04-orders-final.html`.
+> 원본 SSOT: `docs/week2/01-brand/01-brand-final.html`, `docs/week2/02-product/02-product-final.html`, `docs/week2/03-likes/03-likes.html`, `docs/week2/04-orders/04-orders-final.html`.
 > 시나리오 ID(`S-`, `P-`, `L-`, `O-`)와 결정 카드(`-?N`)는 각 HTML / 정제본 md에서 정의됩니다.

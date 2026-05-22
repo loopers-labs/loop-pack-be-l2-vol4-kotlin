@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Week 2 · Product 시나리오 → 추출 모델</title>
+<style>
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --muted: #71717A;
+    --line: #E4E4E7;
+    --line-soft: #F4F4F5;
+
+    --ok: #047857;
+    --warn: #B45309;
+    --err: #B91C1C;
+    --decide: #4F46E5;
+    --future: #0E7490;
+
+    --create: #047857;
+    --read:   #1D4ED8;
+    --update: #B45309;
+    --delete: #B91C1C;
+
+    --ok-soft:    #ECFDF5;
+    --warn-soft:  #FFFBEB;
+    --err-soft:   #FEF2F2;
+    --decide-soft:#EEF2FF;
+    --future-soft:#ECFEFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 36px;
+  }
+  header.page h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.5px; }
+  header.page .meta { color: var(--muted); font-size: 13px; }
+
+  section { margin-bottom: 44px; }
+  section h2 {
+    font-size: 18px; margin: 0 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  section h2 .num {
+    background: var(--line-soft); color: var(--muted);
+    border: 1px solid var(--line);
+    width: 24px; height: 24px;
+    border-radius: 12px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 600;
+  }
+  section h2.hero {
+    font-size: 22px;
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 10px;
+  }
+  section h2.hero .num {
+    background: var(--text); color: #fff; border-color: var(--text);
+  }
+  section h2 small {
+    font-size: 12px; color: var(--muted); font-weight: 400;
+    margin-left: 6px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+  code {
+    background: #F4F4F5; padding: 1px 5px; border-radius: 3px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+  }
+
+  /* ─── 시나리오 명세 (단일 리스트, CRUD 그루핑) ─── */
+  .crud-group {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .crud-header {
+    padding: 10px 14px; font-weight: 600; font-size: 13.5px; letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .crud-group.create .crud-header { background: var(--ok-soft);     color: var(--create); }
+  .crud-group.read   .crud-header { background: #EFF6FF;            color: var(--read); }
+  .crud-group.update .crud-header { background: var(--warn-soft);   color: var(--update); }
+  .crud-group.delete .crud-header { background: var(--err-soft);    color: var(--delete); }
+  .crud-header .count {
+    background: rgba(0,0,0,0.06); color: var(--muted);
+    padding: 1px 8px; border-radius: 10px;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .scen-list { list-style: none; padding: 0; margin: 0; }
+  .scen-list li {
+    padding: 11px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 12px; font-size: 14px;
+  }
+  .scen-list li:last-child { border-bottom: none; }
+  .scen-list .sid {
+    font-family: ui-monospace, monospace; font-size: 11.5px;
+    color: var(--muted); min-width: 50px; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; text-align: center;
+  }
+  .scen-list .stext { flex: 1; }
+  .scen-list .stag {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--ok-soft); color: var(--ok); font-weight: 600;
+    border: 1px solid #A7F3D0;
+  }
+  .scen-list .stag.exception {
+    background: var(--warn-soft); color: var(--warn); border-color: #FDE68A;
+  }
+  .scen-list .scode {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--muted); min-width: 70px; text-align: right;
+  }
+
+  /* ─── 라이프사이클 플로우 차트 ─── */
+  .lifecycle-flow {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 24px 16px; margin: 16px 0 8px;
+  }
+  .lc-entry { text-align: center; margin-bottom: 8px; }
+  .lc-entry-box {
+    display: inline-block; background: #F4F4F5; border: 1px dashed var(--muted);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--muted);
+  }
+  .lc-arrow-down {
+    font-size: 18px; color: var(--muted); margin: 4px 0; text-align: center;
+  }
+  .lc-row {
+    display: flex; align-items: stretch; gap: 6px;
+    justify-content: center; flex-wrap: wrap; margin: 10px 0;
+  }
+  .lc-box {
+    flex: 1; min-width: 175px; background: #FFFFFF; border: 2px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; text-align: center; font-size: 12.5px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .lc-box.create { border-color: var(--create); }
+  .lc-box.read   { border-color: var(--read); }
+  .lc-box.update { border-color: var(--update); }
+  .lc-box.delete { border-color: var(--delete); }
+  .lc-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .lc-actor {
+    font-size: 10.5px; background: var(--line-soft); color: var(--muted);
+    padding: 1px 8px; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid var(--line);
+  }
+  .lc-method {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 10.5px;
+    color: var(--muted); margin-bottom: 4px; word-break: break-all;
+  }
+  .lc-result { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+  .lc-box.create .lc-result { color: var(--create); }
+  .lc-box.read   .lc-result { color: var(--read); }
+  .lc-box.update .lc-result { color: var(--update); }
+  .lc-box.delete .lc-result { color: var(--delete); }
+  .lc-ids {
+    font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: #444; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; margin-bottom: 4px;
+  }
+  .lc-errors { font-size: 10.5px; color: var(--warn); }
+  .lc-arrow-right {
+    display: flex; align-items: center; font-size: 20px; color: var(--muted);
+  }
+  .lc-cascade { text-align: center; margin-top: 6px; }
+  .lc-cascade-box {
+    display: inline-block; background: #FEF2F2; border: 1px dashed var(--err);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--err);
+  }
+
+  /* ─── 추출 영역 공통 ─── */
+  .extract-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .extract-card h3 {
+    margin: 0 0 12px; font-size: 14.5px;
+    padding-bottom: 6px; border-bottom: 1px dashed var(--line);
+  }
+
+  table.fields {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.fields th, table.fields td {
+    padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line);
+  }
+  table.fields th {
+    background: #F4F4F5; font-weight: 600; font-size: 12px;
+  }
+  table.fields td.field-name {
+    font-family: ui-monospace, monospace; font-weight: 600; color: var(--text);
+  }
+  table.fields td.field-source {
+    font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted);
+  }
+  table.fields td.field-type {
+    color: var(--muted); font-size: 12px;
+  }
+  .invariants, .relations { margin-top: 12px; font-size: 13px; }
+  .invariants ul, .relations ul { margin: 6px 0; padding-left: 20px; }
+  .invariants li, .relations li { margin-bottom: 4px; }
+  .invariants .source, .relations .source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+
+  /* ─── DB 테이블 ─── */
+  .db-table {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+  }
+  .db-table-header {
+    background: var(--line-soft); color: var(--text);
+    padding: 6px 12px; font-weight: 600; font-size: 13px;
+    font-family: ui-monospace, monospace;
+    border-bottom: 1px solid var(--line);
+  }
+  .db-table table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+    background: #fff;
+  }
+  .db-table th, .db-table td {
+    padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: left;
+  }
+  .db-table th {
+    background: #F4F4F5; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; font-weight: 600;
+  }
+  .db-table td.col-name {
+    font-family: ui-monospace, monospace; font-weight: 600;
+  }
+  .db-table td.col-type {
+    font-family: ui-monospace, monospace; color: var(--muted); font-size: 11.5px;
+  }
+  .db-table td.col-source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+  .db-constraints {
+    background: #EEF2FF; border-top: 1px dashed var(--decide);
+    padding: 8px 12px; font-size: 12px;
+  }
+  .db-constraints strong { color: var(--decide); }
+
+  /* ─── ER 박스 다이어그램 ─── */
+  .db-layout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .db-layout { grid-template-columns: 1fr; } }
+  .db-layout-left, .db-layout-right { min-width: 0; }
+  .er-section-label {
+    font-size: 11.5px; color: var(--muted); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+  }
+  .er-entity {
+    border: 1.5px solid var(--text);
+    border-radius: 6px; background: #fff;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .er-entity-name {
+    background: var(--text); color: #fff;
+    padding: 6px 12px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 13px; font-weight: 600;
+  }
+  .er-cols { list-style: none; padding: 0; margin: 0; }
+  .er-cols li {
+    padding: 5px 10px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 30px 1fr auto;
+    gap: 8px; align-items: center;
+  }
+  .er-cols li:last-child { border-bottom: none; }
+  .er-cols li.muted { color: var(--muted); font-style: italic; }
+  .er-cols .key {
+    font-size: 9.5px; padding: 1px 4px; border-radius: 3px;
+    font-weight: 700; text-align: center;
+    font-family: system-ui, sans-serif;
+  }
+  .er-cols .key.pk { background: #FEF3C7; color: #B45309; }
+  .er-cols .key.uk { background: #DBEAFE; color: #1D4ED8; }
+  .er-cols .key.fk { background: #EDE9FE; color: #6D28D9; }
+  .er-cols .key.empty { background: transparent; }
+  .er-cols .name { font-weight: 600; color: var(--text); }
+  .er-cols .type { color: var(--muted); font-size: 11px; text-align: right; }
+  .er-relation {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 4px 0;
+    font-size: 11.5px; color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+  .er-relation .arrow {
+    font-size: 18px; color: var(--text);
+  }
+
+  /* ─── API 시퀀스 (SVG, mermaid-style) ─── */
+  .seq-block {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .seq-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .seq-title .sid {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    background: #F4F4F5; padding: 2px 6px; border-radius: 3px; color: var(--muted);
+  }
+  .seq-desc { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .seq-svg-wrap { overflow-x: auto; padding: 4px 0; }
+  .seq-svg {
+    display: block;
+    width: 100%; height: auto;
+    margin: 0 auto;
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  }
+  .seq-svg .actor-box        { fill: #F4F4F5; stroke: #E4E4E7; }
+  .seq-svg .actor-box.client { fill: #FAFAFA; stroke: #E4E4E7; }
+  .seq-svg .actor-box.filter { fill: #EEF2FF; stroke: #C7D2FE; }
+  .seq-svg .actor-box.db     { fill: #ECFEFF; stroke: #A5F3FC; }
+  .seq-svg .actor-text        { fill: #18181B; font-size: 12px; font-weight: 600; }
+  .seq-svg .actor-text.muted  { fill: #71717A; }
+  .seq-svg .actor-text.filter { fill: #4F46E5; }
+  .seq-svg .actor-text.db     { fill: #0E7490; }
+
+  .seq-svg .lifeline {
+    stroke: #D4D4D8; stroke-dasharray: 4 4; stroke-width: 1;
+  }
+  .seq-svg .msg-line {
+    stroke: #27272A; stroke-width: 1.3; fill: none;
+  }
+  .seq-svg .msg-line.ret { stroke: #047857; stroke-dasharray: 6 4; }
+  .seq-svg .msg-line.err { stroke: #B91C1C; stroke-dasharray: 6 4; }
+
+  .seq-svg .msg-text {
+    fill: #27272A; font-size: 11.5px;
+    paint-order: stroke;
+    stroke: #fff; stroke-width: 3; stroke-linejoin: round;
+  }
+  .seq-svg .msg-text.ret { fill: #047857; }
+  .seq-svg .msg-text.err { fill: #B91C1C; }
+
+  .seq-svg .step-num-bg, .seq-svg .step-num-text { display: none; }
+
+  /* ─── 트랜잭션 박스 ─── */
+  .tx-box {
+    fill: rgba(96, 75, 200, 0.06);
+    stroke: #6b46c1;
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+    rx: 4;
+  }
+  .tx-label {
+    font-size: 10px;
+    font-weight: 600;
+    fill: #6b46c1;
+    letter-spacing: 0.4px;
+  }
+
+  /* ─── 결정 / 미래 카드 ─── */
+  .card {
+    background: #F5F3FF; border: 1px solid var(--line);
+    border-left: 4px solid var(--decide); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .card.future {
+    border-left-color: var(--future); background: #ECFEFF;
+  }
+  .card header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px; gap: 12px; flex-wrap: wrap;
+  }
+  .card h3 { margin: 0; font-size: 14.5px; }
+  .card .id {
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: var(--muted); font-size: 11.5px; margin-right: 6px;
+  }
+  .card .flow { margin: 0 0 8px; color: #333; font-size: 13px; }
+  .decide-box {
+    background: #EEF2FF; border: 1px dashed var(--decide);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .decide-box strong { color: var(--decide); }
+  .future-box {
+    background: #F0FDFA; border: 1px dashed var(--future);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .future-box strong { color: var(--future); }
+
+  footer.page {
+    margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 12px;
+  }
+
+  /* ─── cross-link 앵커 ─── */
+  a.xref {
+    color: var(--decide); text-decoration: none;
+    border-bottom: 1px dotted #C7D2FE;
+    padding-bottom: 1px;
+    transition: background 0.1s, border-bottom-style 0.1s;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  a.xref:hover {
+    background: var(--decide-soft);
+    border-bottom-style: solid;
+  }
+  a.xref.q { color: var(--future); border-bottom-color: #A5F3FC; }
+  a.xref.q:hover { background: var(--future-soft); }
+  /* anchor 점프 시 sticky header 침범 방지용 여백 */
+  .scen-list li[id], .seq-block[id], .card[id], .crud-group[id] {
+    scroll-margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="page">
+    <h1>Product · 시나리오 → 추출 모델</h1>
+    <div class="meta">
+      Week 2 / Domain 2 of 4 · 시나리오부터 출발해서 도메인 / DB / API 시퀀스를 차례로 도출합니다.
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 1.  ★ 유저 시나리오 명세 — 모든 작업의 출발점   -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="hero"><span class="num">1</span>유저 시나리오 명세</h2>
+    <p class="lead">
+      이 도메인이 가져야 할 모든 동작을 한 문장씩 정리한다. <strong>이게 1차 입력이고, 아래 모든 섹션은 여기서 도출된다.</strong>
+      누락이 보이면 이 섹션에 한 줄 추가 → 그 변경이 라이프사이클 / 도메인 / DB / 시퀀스 어디에 영향 가는지 점검.
+    </p>
+
+    <div class="crud-group create">
+      <div class="crud-header">CREATE · 관리자 상품 등록 <span class="count">4건</span></div>
+      <ul class="scen-list">
+        <li id="p-c1"><span class="sid">P-C1</span><span class="stext">관리자는 이미 등록된 brandId 아래에 상품을 생성할 수 있다.<br><small>※ 변경 이력이 product_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">201</span></li>
+        <li id="p-c2"><span class="sid">P-C2</span><span class="stext">관리자 LDAP 헤더(<code>X-Loopers-Ldap</code>)가 없거나 값이 <code>loopers.admin</code>이 아니면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+        <li id="p-c3"><span class="sid">P-C3</span><span class="stext">존재하지 않는 brandId로 상품 등록을 시도하면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="p-c4"><span class="sid">P-C4</span><span class="stext">필수 필드가 누락되거나 형식이 잘못되면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group read">
+      <div class="crud-header">READ · 조회 <span class="count">8건</span></div>
+      <ul class="scen-list">
+        <li id="p-r1"><span class="sid">P-R1</span><span class="stext">사용자는 단건 상품을 조회할 수 있다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r2"><span class="sid">P-R2</span><span class="stext">사용자는 상품 목록을 페이지네이션으로 조회할 수 있다 (기본 정렬: latest).</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r3"><span class="sid">P-R3</span><span class="stext">사용자는 brandId 쿼리로 특정 브랜드의 상품만 필터링해서 조회할 수 있다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r4"><span class="sid">P-R4</span><span class="stext">사용자는 sort=price_asc / likes_desc 로 정렬해서 조회할 수 있다 (선택 구현).</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r5"><span class="sid">P-R5</span><span class="stext">관리자는 등록된 상품 목록을 페이지네이션과 brandId 필터로 조회할 수 있다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r6"><span class="sid">P-R6</span><span class="stext">관리자는 단건 상품을 조회할 수 있다 (사용자보다 풍부한 응답).</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-r7"><span class="sid">P-R7</span><span class="stext">존재하지 않는 productId로 조회 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="p-r8"><span class="sid">P-R8</span><span class="stext">productId / brandId / page / size 형식이 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group update">
+      <div class="crud-header">UPDATE · 관리자 상품 수정 <span class="count">4건</span></div>
+      <ul class="scen-list">
+        <li id="p-u1"><span class="sid">P-U1</span><span class="stext">관리자는 상품 정보를 수정할 수 있다 (brandId는 불변).<br><small>※ 변경 이력이 product_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="p-u2"><span class="sid">P-U2</span><span class="stext">요청에 다른 brandId가 포함되어도 brandId는 변경되지 않는다 (무시 또는 거부).</span><span class="stag exception">예외</span><span class="scode">400/무시</span></li>
+        <li id="p-u3"><span class="sid">P-U3</span><span class="stext">존재하지 않는 productId 수정 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="p-u4"><span class="sid">P-U4</span><span class="stext">관리자 LDAP 헤더(<code>X-Loopers-Ldap</code>)가 없거나 값이 <code>loopers.admin</code>이 아니면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group delete">
+      <div class="crud-header">DELETE · 관리자 상품 삭제 <span class="count">3건</span></div>
+      <ul class="scen-list">
+        <li id="p-d1"><span class="sid">P-D1</span><span class="stext">관리자가 상품을 삭제하면 해당 상품의 status가 <code>DELETED</code>로 전이된다 (soft delete). 주문 스냅샷은 보존되므로 과거 주문 기록에는 영향이 없다.<br><small>※ 변경 이력이 product_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">204</span></li>
+        <li id="p-d2"><span class="sid">P-D2</span><span class="stext">존재하지 않는 productId 삭제 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="p-d3"><span class="sid">P-D3</span><span class="stext">관리자 LDAP 헤더(<code>X-Loopers-Ldap</code>)가 없거나 값이 <code>loopers.admin</code>이 아니면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 2.  시나리오 → 라이프사이클 흐름               -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">2</span>시나리오 → 라이프사이클 흐름 <small>위 시나리오들의 시간축 시각화</small></h2>
+    <p class="lead">시나리오들을 데이터의 라이프사이클(들어옴 → 노출 → 변경 → 사라짐)로 정렬. 각 박스 안에 해당 시나리오 ID + 예외 코드.</p>
+
+    <div class="lifecycle-flow">
+      <div class="lc-entry"><div class="lc-entry-box">선행 조건: 해당 brand가 이미 등록되어 있어야 함 (<a class="xref" href="#p-c3">P-C3</a>)</div></div>
+      <div class="lc-arrow-down">↓</div>
+
+      <div class="lc-row">
+        <div class="lc-box create">
+          <div class="lc-title">CREATE</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">POST /api-admin/v1/products</div>
+          <div class="lc-result">201 CREATED · status=ACTIVE</div>
+          <div class="lc-ids">P-C1 · C2 · C3 · C4</div>
+          <div class="lc-errors">예외: 400 · 401 · 404</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box read">
+          <div class="lc-title">READ</div>
+          <div class="lc-actor">사용자 · 관리자</div>
+          <div class="lc-method">GET /api/v1/products · /api/v1/products/{id}</div>
+          <div class="lc-result">200 OK · status=ACTIVE</div>
+          <div class="lc-ids">P-R1 ~ R8</div>
+          <div class="lc-errors">예외: 400 · 404</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box update">
+          <div class="lc-title">UPDATE</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">PUT /api-admin/v1/products/{id}</div>
+          <div class="lc-result">200 OK · status=ACTIVE</div>
+          <div class="lc-ids">P-U1 · U2 · U3 · U4</div>
+          <div class="lc-errors">예외: 400 · 401 · 404</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box delete">
+          <div class="lc-title">DELETE (soft)</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">DELETE /api-admin/v1/products/{id}</div>
+          <div class="lc-result">204 · status: ACTIVE → DELETED</div>
+          <div class="lc-ids">P-D1 · D2 · D3</div>
+          <div class="lc-errors">예외: 401 · 404</div>
+        </div>
+      </div>
+
+      <div class="lc-cascade">
+        <div class="lc-arrow-down">↓ 외부 트리거 (Brand 도메인 S-D1) · application cascade · soft delete 전이</div>
+        <div class="lc-cascade-box">Brand status가 DELETED로 전이되면 해당 brand의 모든 product도 status=DELETED로 함께 전이</div>
+      </div>
+
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line);">
+        <div class="er-section-label" style="margin-bottom: 10px;">곁가지: 변경 이력 (after-only snapshot)</div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;">
+          <div style="background: #fff; border: 2px solid var(--text); border-radius: 6px; padding: 10px 16px; font-size: 12.5px; min-width: 160px; text-align: center;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Product</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--muted);">status: ACTIVE / DELETED</div>
+          </div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 18px; letter-spacing: 4px;">- - →</span>
+            <span style="margin-top: 2px;">append on CUD (async)</span>
+          </div>
+          <div style="background: #fff; border: 2px dashed var(--future); border-radius: 6px; padding: 10px 16px; font-size: 12.5px; min-width: 160px; text-align: center; color: var(--future);">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">ProductHistory</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px;">action: CREATE / UPDATE / DELETE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 3.  시나리오 → 도메인 모델                     -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">3</span>시나리오 → 도메인 모델 <small>Product 엔티티의 필드 · invariant · 연관</small></h2>
+    <p class="lead">위 시나리오에서 추출된 Product 도메인의 책임. 각 항목 옆에 출처 시나리오 ID. 시나리오에서 명시되지 않은 필드는 결정 카드(<a class="xref q" href="#p-q1">P-?1</a>)로 위임.</p>
+
+    <div class="extract-card">
+      <h3>Product 엔티티 필드</h3>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK)</td><td>시스템 부여 식별자</td><td class="field-source">모든 시나리오</td></tr>
+          <tr><td class="field-name">brandId</td><td class="field-type">Long (FK)</td><td>상품이 속한 브랜드 식별자</td><td class="field-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-c3">P-C3</a>, <a class="xref" href="#p-r3">P-R3</a></td></tr>
+          <tr><td class="field-name">name</td><td class="field-type">String</td><td>상품명 (도메인 필드 후보 — 결정 필요)</td><td class="field-source"><a class="xref q" href="#p-q1">P-?1</a></td></tr>
+          <tr><td class="field-name">price</td><td class="field-type">Money / Long</td><td>판매가 (<code>sort=price_asc</code> 정렬 키)</td><td class="field-source"><a class="xref" href="#p-r4">P-R4</a>, <a class="xref q" href="#p-q1">P-?1</a></td></tr>
+          <tr><td class="field-name">description</td><td class="field-type">String?</td><td>상세 설명 (응답 분기 결정 필요)</td><td class="field-source"><a class="xref q" href="#p-q1">P-?1</a>, <a class="xref q" href="#p-q2">P-?2</a></td></tr>
+          <tr><td class="field-name">likeCount</td><td class="field-type">Long</td><td>좋아요 집계 (<code>likes_desc</code> 정렬용 — 비정규화 vs 카운트 결정)</td><td class="field-source"><a class="xref" href="#p-r4">P-R4</a>, <a class="xref q" href="#p-q5">P-?5</a></td></tr>
+          <tr><td class="field-name">status</td><td class="field-type">Status (ACTIVE / DELETED)</td><td>생명주기 상태. soft delete 시 DELETED로 전이</td><td class="field-source"><a class="xref" href="#p-d1">P-D1</a></td></tr>
+          <tr><td class="field-name">createdAt</td><td class="field-type">LocalDateTime</td><td>생성 시각 (<code>sort=latest</code> 정렬 키, BaseEntity, 응답 비노출)</td><td class="field-source"><a class="xref" href="#p-r2">P-R2</a></td></tr>
+          <tr><td class="field-name">updatedAt</td><td class="field-type">LocalDateTime</td><td>최종 수정 시각 (BaseEntity, 응답 비노출)</td><td class="field-source"><a class="xref" href="#p-u1">P-U1</a></td></tr>
+          <tr><td class="field-name">createdBy</td><td class="field-type">String</td><td>생성 actor (BaseEntity, 응답 비노출)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">updatedBy</td><td class="field-type">String</td><td>최종 수정 actor (BaseEntity, 응답 비노출)</td><td class="field-source">감사</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top:12px; padding:10px 12px; background:#FEF3C7; border-left:3px solid #F59E0B; border-radius:4px; font-size:13px;">
+        <strong>재고 수량은 Product 필드가 아니다.</strong> <code>Inventory</code> 도메인으로 분리되어 별도 테이블 <code>inventory</code>에 보관하며 <code>inventory.product_id</code> (1:1)로 연결한다. 분리 근거(라이프사이클 / 정합성 모델 / 캐시 전략 차이)는 ubiquitous-language §7 "도메인 책임 분리 (Product vs Inventory)" 및 결정 카드 <a class="xref q" href="#p-q4">P-?4</a> 참조.
+      </p>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li><code>brandId</code>는 존재하는 brand여야 함 — 출처 <a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-c3">P-C3</a></li>
+          <li><code>brandId</code>는 생성 후 불변 — 출처 <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-u2">P-U2</a></li>
+          <li><code>id</code>는 시스템 부여, 불변 — 출처 <a class="xref" href="#p-u1">P-U1</a></li>
+          <li><code>price &gt;= 0</code> (음수 금지) — 출처 <a class="xref" href="#p-c4">P-C4</a>, <a class="xref q" href="#p-q1">P-?1</a></li>
+          <li><code>name</code> 길이 제약 (예: 1~100자) — 출처 <a class="xref" href="#p-c4">P-C4</a>, <a class="xref q" href="#p-q1">P-?1</a></li>
+          <li><code>status</code> 상태 전이는 ACTIVE → DELETED 단방향 (DELETED에서 ACTIVE로 복원하는 시나리오 없음) — 출처 <a class="xref" href="#p-d1">P-D1</a></li>
+          <li>재고 invariant(<code>quantity &gt;= 0</code>, 주문 차감 보장 등)는 Inventory 도메인이 소유</li>
+        </ul>
+      </div>
+
+      <div class="relations">
+        <strong>연관 관계</strong>
+        <ul>
+          <li>Product → Brand (N:1) · brand_id soft reference · Brand 삭제(soft) 시 application cascade로 Product도 status=DELETED로 함께 전이 — 출처 <a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-d1">P-D1</a> (Brand 도메인 S-D1과 연동)</li>
+          <li>Product ↔ Inventory (1:1) · 별도 도메인 · <code>inventory.product_id</code> (UK) · Product 생성 시 함께 생성, 삭제(soft) 시 application cascade로 함께 archive — <a class="xref q" href="#p-q4">P-?4</a> 본문 참조</li>
+          <li>Product ↔ Like (1:N, 미래 Like 도메인) — <a class="xref q" href="#p-q5">P-?5</a>에서 likeCount 비정규화 여부 결정</li>
+          <li>Product → ProductHistory (1:N, soft reference) · CUD 시 ProductHistory append (비동기) — 출처 <a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-d1">P-D1</a></li>
+          <li>Product → OrderItem (스냅샷) · Product 삭제(soft)가 과거 주문 기록에 영향 X — 출처 <a class="xref" href="#p-d1">P-D1</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="extract-card">
+      <h3>ProductHistory 엔티티 필드 <small style="font-size:11.5px; color: var(--muted); font-weight: 400;">— after-only snapshot (변경 후 상태만 기록)</small></h3>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK)</td><td>시스템 부여 식별자</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">productId</td><td class="field-type">Long</td><td>대상 Product의 id (soft reference, FK 아님)</td><td class="field-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-d1">P-D1</a></td></tr>
+          <tr><td class="field-name">brandId</td><td class="field-type">Long</td><td>변경 후 brandId (snapshot)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">name</td><td class="field-type">String</td><td>변경 후 상품명 (snapshot)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">price</td><td class="field-type">Long</td><td>변경 후 가격 (snapshot)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">stock</td><td class="field-type">Int</td><td>변경 후 재고 수량 (snapshot, Inventory에서 조회)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">action</td><td class="field-type">Action (CREATE / UPDATE / DELETE)</td><td>변경 종류</td><td class="field-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-d1">P-D1</a></td></tr>
+          <tr><td class="field-name">actor</td><td class="field-type">String</td><td>변경을 일으킨 주체 (관리자 식별자)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">recordedAt</td><td class="field-type">LocalDateTime</td><td>이력 적재 시각</td><td class="field-source">감사</td></tr>
+        </tbody>
+      </table>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li><code>productId</code>는 soft reference — Product 삭제(soft) 후에도 ProductHistory는 유지된다 (FK 제약 없음)</li>
+          <li>after-only snapshot — 변경 전 상태는 저장하지 않는다 (필요 시 이전 row를 조회)</li>
+          <li>append-only — UPDATE / DELETE 안 함, 새 row만 추가</li>
+          <li>비동기 적재 — CUD 트랜잭션 commit 후 비동기로 append (인프라는 <a class="xref q" href="#p-f3">P-F3</a>에서 결정)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 4.  시나리오 → DB 테이블                       -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">4</span>시나리오 → DB 테이블 <small>영속성 매핑</small></h2>
+    <p class="lead">naming은 Spring Boot 기본 <code>SpringPhysicalNamingStrategy</code> 가정 (camelCase → snake_case). 좌측은 컬럼 명세, 우측은 ER 다이어그램.</p>
+
+    <div class="db-layout">
+      <!-- 좌측: 텍스트 명세 -->
+      <div class="db-layout-left">
+        <div class="er-section-label">컬럼 명세</div>
+
+        <div class="db-table">
+          <div class="db-table-header">product</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">전부</td></tr>
+              <tr><td class="col-name">brand_id</td><td class="col-type">BIGINT</td><td>NOT NULL · <strong>soft reference (FK 없음)</strong></td><td class="col-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-c3">P-C3</a></td></tr>
+              <tr><td class="col-name">name</td><td class="col-type">VARCHAR(100)</td><td>NOT NULL</td><td class="col-source"><a class="xref" href="#p-c4">P-C4</a>, <a class="xref q" href="#p-q1">P-?1</a></td></tr>
+              <tr><td class="col-name">price</td><td class="col-type">BIGINT</td><td>NOT NULL, CHECK ≥ 0</td><td class="col-source"><a class="xref" href="#p-r4">P-R4</a>, <a class="xref q" href="#p-q1">P-?1</a></td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">VARCHAR(1000)</td><td>NULL</td><td class="col-source"><a class="xref q" href="#p-q1">P-?1</a></td></tr>
+              <tr><td class="col-name">like_count</td><td class="col-type">BIGINT</td><td>NOT NULL DEFAULT 0</td><td class="col-source"><a class="xref" href="#p-r4">P-R4</a>, <a class="xref q" href="#p-q5">P-?5</a></td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">VARCHAR(20)</td><td>NOT NULL · ACTIVE / DELETED</td><td class="col-source"><a class="xref" href="#p-d1">P-D1</a></td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">BaseEntity, <a class="xref" href="#p-r2">P-R2</a></td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source"><a class="xref" href="#p-u1">P-U1</a>, BaseEntity</td></tr>
+              <tr><td class="col-name">created_by</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">updated_by</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>인덱스:</strong>
+            <code>INDEX idx_product_brand_id (brand_id)</code> — 출처 <a class="xref" href="#p-r3">P-R3</a>, <a class="xref" href="#p-r5">P-R5</a> ·
+            <code>INDEX idx_product_created_at (created_at DESC)</code> — 출처 <a class="xref" href="#p-r2">P-R2</a> ·
+            정렬 인덱스 추가는 <a class="xref q" href="#p-q3">P-?3</a>에서 결정.
+          </div>
+          <div class="db-constraints" style="border-top:none;">
+            <strong>cascade:</strong> Application 레벨 (<code>BrandService.delete</code> → <code>ProductService.softDeleteByBrand</code>). Brand status가 DELETED로 전이될 때 Product도 status=DELETED로 함께 전이 (Brand 도메인 <a class="xref" href="#" style="pointer-events:none;">S-D1</a> 참조). 주문 스냅샷은 별도 테이블에 보존되므로 영향 없음 (<a class="xref" href="#p-d1">P-D1</a>). Inventory 행은 Product 생성/삭제(soft) 트랜잭션 내에서 application cascade로 함께 생성/archive.
+          </div>
+        </div>
+
+        <p style="margin-top:6px; font-size:12px; color:#52525B;">
+          <code>stock</code> 컬럼은 product 테이블에 두지 않는다 — 별도 <code>inventory</code> 테이블 소유 (<a class="xref q" href="#p-q4">P-?4</a>).
+        </p>
+
+        <div class="db-table">
+          <div class="db-table-header">product_history</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">product_id</td><td class="col-type">BIGINT</td><td>NOT NULL · <strong>soft reference (FK 없음)</strong></td><td class="col-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-d1">P-D1</a></td></tr>
+              <tr><td class="col-name">brand_id</td><td class="col-type">BIGINT</td><td>NOT NULL · 변경 후 snapshot</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">name</td><td class="col-type">VARCHAR(100)</td><td>NOT NULL · 변경 후 snapshot</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">price</td><td class="col-type">BIGINT</td><td>NOT NULL · 변경 후 snapshot</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">stock</td><td class="col-type">INT</td><td>NOT NULL · 변경 후 snapshot (Inventory에서 조회)</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">action</td><td class="col-type">VARCHAR(20)</td><td>NOT NULL · CREATE / UPDATE / DELETE</td><td class="col-source"><a class="xref" href="#p-c1">P-C1</a>, <a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-d1">P-D1</a></td></tr>
+              <tr><td class="col-name">actor</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">recorded_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">감사</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>append-only:</strong> CUD 시 새 row append (비동기). product 삭제(soft) 후에도 row 유지. 외부 노출 endpoint는 <a class="xref q" href="#p-f4">P-F4</a>에서 결정.
+          </div>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-header">inventory <span style="font-weight:400; font-size:11px; opacity:0.75;">(참조 — Inventory 외부 도메인)</span></div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>비고</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">—</td></tr>
+              <tr><td class="col-name">product_id</td><td class="col-type">BIGINT</td><td>NOT NULL, <strong>UK</strong>, FK → product(id)</td><td class="col-source">1:1 매핑, application cascade</td></tr>
+              <tr><td class="col-name">quantity</td><td class="col-type">INT</td><td>NOT NULL, CHECK ≥ 0</td><td class="col-source">단일 컬럼 vs available/reserved 분리는 별도 결정 카드</td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            구체 컬럼/제약/인덱스는 Inventory 도메인 시나리오의 결정 사항. 본 문서에서는 Product와의 관계만 명시.
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: ER 다이어그램 -->
+      <div class="db-layout-right">
+        <div class="er-section-label">ER 다이어그램</div>
+
+        <div class="er-entity">
+          <div class="er-entity-name">product</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">brand_id</span><span class="type">BIGINT · soft ref</span></li>
+            <li><span class="key empty"></span><span class="name">name</span><span class="type">VARCHAR(100)</span></li>
+            <li><span class="key empty"></span><span class="name">price</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">description</span><span class="type">VARCHAR(1000) NULL</span></li>
+            <li><span class="key empty"></span><span class="name">like_count</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">status</span><span class="type">VARCHAR(20)</span></li>
+            <li><span class="key empty"></span><span class="name">created_at</span><span class="type">DATETIME(6)</span></li>
+            <li><span class="key empty"></span><span class="name">updated_at</span><span class="type">DATETIME(6)</span></li>
+            <li><span class="key empty"></span><span class="name">created_by</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">updated_by</span><span class="type">VARCHAR(50)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation">
+          <span>N</span>
+          <span class="arrow" style="letter-spacing: 3px;">- - - →</span>
+          <span>1</span>
+          <span style="margin-left:8px;">soft ref · 애플리케이션 cascade (soft delete 전이)</span>
+        </div>
+
+        <div class="er-entity" style="border-style:dashed; opacity:0.85;">
+          <div class="er-entity-name" style="background:#52525B;">brand (외부 도메인 — 01-brand-final.html 참조)</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...other columns</span><span class="type">(01-brand-final 참조)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation" style="margin-top: 10px;">
+          <span>1</span>
+          <span class="arrow" style="letter-spacing: 3px;">- - - →</span>
+          <span>N</span>
+          <span style="margin-left:8px;">soft ref · append on CUD (async)</span>
+        </div>
+
+        <div class="er-entity" style="border-color: var(--future);">
+          <div class="er-entity-name" style="background: var(--future);">product_history</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">product_id</span><span class="type">BIGINT · soft ref</span></li>
+            <li><span class="key empty"></span><span class="name">brand_id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">name</span><span class="type">VARCHAR(100)</span></li>
+            <li><span class="key empty"></span><span class="name">price</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">stock</span><span class="type">INT</span></li>
+            <li><span class="key empty"></span><span class="name">action</span><span class="type">VARCHAR(20)</span></li>
+            <li><span class="key empty"></span><span class="name">actor</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">recorded_at</span><span class="type">DATETIME(6)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation" style="margin-top: 10px;">
+          <span>1</span>
+          <span class="arrow" style="letter-spacing: 3px;">- - - →</span>
+          <span>1</span>
+          <span style="margin-left:8px;">soft ref · application cascade</span>
+        </div>
+
+        <div class="er-entity" style="border-style:dashed; opacity:0.85;">
+          <div class="er-entity-name" style="background:#52525B;">inventory (외부 도메인 — Inventory)</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">product_id</span><span class="type">BIGINT · UK · soft ref</span></li>
+            <li><span class="key empty"></span><span class="name">quantity</span><span class="type">INT ≥ 0</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...</span><span class="type">(Inventory 시나리오 참조)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-constraints" style="margin-top: 14px; border: 1px dashed var(--decide); border-top: 1px dashed var(--decide); border-radius: 6px;">
+      <strong>DB 제약(FK) 없음.</strong> 위 ERD의 모든 관계선(product ↔ brand, product ↔ product_history, product ↔ inventory)은 <code>brand_id</code> / <code>product_id</code> 같은 <strong>논리 참조(soft reference)</strong>일 뿐 DB 레벨 FK 제약을 두지 않습니다. 무결성·cascade는 애플리케이션 레이어 책임 (예: <code>BrandService.delete</code>가 <code>ProductService.softDeleteByBrand</code>를 명시적으로 호출, Product 삭제(soft) 시 ProductHistory append와 Inventory archive를 함께 수행). 자세한 규칙은 <code>docs/conventions.md</code> 참조.
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 5.  시나리오 → API 시퀀스 (SVG)                -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">5</span>시나리오 → API 시퀀스 <small>액터 가로 컬럼 · 시간 위→아래</small></h2>
+    <p class="lead">대표 시나리오에 대한 호출 흐름. 실선 = 호출, 점선(녹/적) = return / 에러 응답.</p>
+
+    <!-- 화살표 마커 정의 (공통) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#27272A"/>
+        </marker>
+        <marker id="ah-ret" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+        </marker>
+        <marker id="ah-err" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#B91C1C"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- ────── P-C1 ────── -->
+    <div class="seq-block" id="seq-c1">
+      <div class="seq-title"><a class="xref" href="#p-c1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-C1</span></a> 관리자가 상품을 생성한다 (정상)</div>
+      <div class="seq-desc">LDAP 헤더 검증 통과 → brand 존재 검증 → 도메인 객체 생성 → DB persist → 201 응답 → product_history 비동기 append</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1240 490" style="max-width:1240px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 950, 1090) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminProductController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">BrandRepository</text>
+          <rect class="actor-box" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="810" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="895" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="950" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="1035" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="1090" y="34" text-anchor="middle" style="fill:#0E7490">ProductHistoryRepository</text>
+
+          <!-- Lifelines -->
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="480"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="480"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="480"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="480"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="480"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="480"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="480"/>
+          <line class="lifeline" x1="1090" y1="50" x2="1090" y2="480"/>
+
+          <!-- Transaction box: ProductService.create → INSERT product (history append는 박스 밖) -->
+          <rect class="tx-box" x="475" y="195" width="515" height="185" />
+          <text class="tx-label" x="485" y="189">Transaction</text>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">POST /api-admin/v1/products</text>
+
+          <!-- 2: y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">LDAP 헤더 검증 통과</text>
+
+          <!-- 3: y=175 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">create(ProductCreateCommand)</text>
+
+          <!-- 4: y=220 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">existsById(brandId)</text>
+
+          <!-- 5: y=265 -->
+          <line class="msg-line ret" x1="670" y1="265" x2="532" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="600" y="259" text-anchor="middle">true</text>
+
+          <!-- 6: y=310 -->
+          <line class="msg-line" x1="530" y1="310" x2="808" y2="310" marker-end="url(#ah)"/>
+          <text class="msg-text" x="670" y="304" text-anchor="middle">save(Product · status=ACTIVE)</text>
+
+          <!-- 7: y=355 -->
+          <line class="msg-line" x1="810" y1="355" x2="948" y2="355" marker-end="url(#ah)"/>
+          <text class="msg-text" x="880" y="349" text-anchor="middle">INSERT INTO product</text>
+
+          <!-- 8: y=400 (return) -->
+          <line class="msg-line ret" x1="950" y1="400" x2="112" y2="400" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="530" y="394" text-anchor="middle">201 Created · ProductAdminResponse</text>
+
+          <!-- 9: y=455 (async history append, dashed) -->
+          <line class="msg-line" x1="585" y1="455" x2="1035" y2="455" marker-end="url(#ah)" stroke-dasharray="4 3"/>
+          <text class="msg-text" x="810" y="449" text-anchor="middle">[async] append(action=CREATE)</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-C3 ────── -->
+    <div class="seq-block" id="seq-c3">
+      <div class="seq-title"><a class="xref" href="#p-c3" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-C3</span></a> 존재하지 않는 brandId로 등록 시도 (예외)</div>
+      <div class="seq-desc">brand 존재 검증에서 단락. product persist 도달 못함. 예외 발생 지점(ProductService) → Client로 직접 응답.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 590 290" style="max-width:590px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="250" y="34" text-anchor="middle">AdminProductController</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">BrandRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="280"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="280"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="280"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="280"/>
+
+          <!-- 1: y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">POST /api/v1/admin/products · 미존재 brandId</text>
+
+          <!-- 2: y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">create(cmd)</text>
+
+          <!-- 3: y=175 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">existsById(brandId) → false</text>
+
+          <!-- 4: throw at ProductService, y=220 -->
+          <text class="msg-text err" x="390" y="220" text-anchor="middle">throw NotFoundException(BRAND_NOT_FOUND)</text>
+
+          <!-- 5: err return → Client 직접, y=265 -->
+          <line class="msg-line err" x1="390" y1="265" x2="112" y2="265" marker-end="url(#ah-err)"/>
+          <text class="msg-text err" x="250" y="259" text-anchor="middle">404 NOT_FOUND · BRAND_NOT_FOUND</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-R1 ────── -->
+    <div class="seq-block" id="seq-r1">
+      <div class="seq-title"><a class="xref" href="#p-r1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-R1</span></a> 사용자가 단건 상품을 조회한다 (정상)</div>
+      <div class="seq-desc">user_required: X · 인증 우회 → 조회 → 200 응답 (사용자용 응답 DTO)</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 710 290" style="max-width:710px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="250" y="34" text-anchor="middle">ProductController</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="670" y="34" text-anchor="middle">Database</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="280"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="280"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="280"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="280"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="280"/>
+
+          <!-- 1 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">GET /api/v1/products/{id}</text>
+
+          <!-- 2 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">findById(productId)</text>
+
+          <!-- 3 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">findById(productId)</text>
+
+          <!-- 4 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">SELECT * FROM product WHERE id = ?</text>
+
+          <!-- 5 ret -->
+          <line class="msg-line ret" x1="670" y1="265" x2="112" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="390" y="259" text-anchor="middle">200 OK · ProductPublicResponse</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-R2 ────── -->
+    <div class="seq-block" id="seq-r2">
+      <div class="seq-title"><a class="xref" href="#p-r2" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-R2</span></a> 사용자 목록 조회 (정렬 + 페이지네이션)</div>
+      <div class="seq-desc">기본 sort=latest, brandId 필터 + page/size 처리. 정렬·필터 분기는 서비스/리포지토리에서.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 710 290" style="max-width:710px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="250" y="34" text-anchor="middle">ProductController</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="670" y="34" text-anchor="middle">Database</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="280"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="280"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="280"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="280"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="280"/>
+
+          <!-- 1 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">GET /api/v1/products?brandId=&amp;sort=&amp;page=&amp;size=</text>
+
+          <!-- 2 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">list(query)</text>
+
+          <!-- 3 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">findAll(Pageable + Spec)</text>
+
+          <!-- 4 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">SELECT ... ORDER BY created_at DESC LIMIT</text>
+
+          <!-- 5 ret -->
+          <line class="msg-line ret" x1="670" y1="265" x2="112" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="390" y="259" text-anchor="middle">200 OK · Page&lt;ProductPublicResponse&gt;</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-U1 ────── -->
+    <div class="seq-block" id="seq-u1">
+      <div class="seq-title"><a class="xref" href="#p-u1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-U1</span></a> 관리자가 상품을 수정한다 (정상, brand_id 불변)</div>
+      <div class="seq-desc">LDAP 통과 → 기존 product 로드 → 도메인 메서드로 부분 수정 (brand_id 변경 시도는 거부/무시) → dirty checking → 200 응답 → product_history 비동기 append</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1240 435" style="max-width:1240px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 1090) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminProductController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="1035" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="1090" y="34" text-anchor="middle" style="fill:#0E7490">ProductHistoryRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="425"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="425"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="425"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="425"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="425"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="425"/>
+          <line class="lifeline" x1="1090" y1="50" x2="1090" y2="425"/>
+
+          <!-- Transaction box: update → UPDATE on flush (history append는 박스 밖) -->
+          <rect class="tx-box" x="475" y="195" width="390" height="180" />
+          <text class="tx-label" x="485" y="189">Transaction</text>
+
+          <!-- 1 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">PUT /api-admin/v1/products/{id}</text>
+
+          <!-- 2 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">LDAP 헤더 검증 통과</text>
+
+          <!-- 3 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">update(id, ProductUpdateCommand)</text>
+
+          <!-- 4 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">findById(id)</text>
+
+          <!-- 5 ret -->
+          <line class="msg-line ret" x1="670" y1="265" x2="532" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="600" y="259" text-anchor="middle">Product (managed)</text>
+
+          <!-- 6 (도메인 메서드 — brand_id 변경 시도는 거부, 자기 자신 호출) -->
+          <line class="msg-line" x1="530" y1="310" x2="530" y2="320" />
+          <text class="msg-text" x="530" y="304" text-anchor="middle">product.applyChanges(cmd) · brand_id 무시</text>
+
+          <!-- 7 ret commit -->
+          <line class="msg-line ret" x1="810" y1="355" x2="112" y2="355" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="349" text-anchor="middle">200 OK · ProductAdminResponse · UPDATE on flush</text>
+
+          <!-- 8 async history append, dashed -->
+          <line class="msg-line" x1="585" y1="400" x2="1035" y2="400" marker-end="url(#ah)" stroke-dasharray="4 3"/>
+          <text class="msg-text" x="810" y="394" text-anchor="middle">[async] append(action=UPDATE)</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-D1 ────── -->
+    <div class="seq-block" id="seq-d1">
+      <div class="seq-title"><a class="xref" href="#p-d1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-D1</span></a> 관리자가 상품을 삭제한다 (soft delete)</div>
+      <div class="seq-desc">LDAP 통과 → 기존 product 로드 → status를 DELETED로 전이 → 204 응답 → product_history 비동기 append.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1240 435" style="max-width:1240px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 1090) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminProductController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="1035" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="1090" y="34" text-anchor="middle" style="fill:#0E7490">ProductHistoryRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="425"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="425"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="425"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="425"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="425"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="425"/>
+          <line class="lifeline" x1="1090" y1="50" x2="1090" y2="425"/>
+
+          <!-- Transaction box: delete → UPDATE on flush (history append는 박스 밖) -->
+          <rect class="tx-box" x="475" y="195" width="390" height="180" />
+          <text class="tx-label" x="485" y="189">Transaction</text>
+
+          <!-- 1 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">DELETE /api-admin/v1/products/{id}</text>
+
+          <!-- 2 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">LDAP 헤더 검증 통과</text>
+
+          <!-- 3 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">delete(id)</text>
+
+          <!-- 4 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">findById(id)</text>
+
+          <!-- 5 ret -->
+          <line class="msg-line ret" x1="670" y1="265" x2="532" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="600" y="259" text-anchor="middle">Product (managed)</text>
+
+          <!-- 6 self-call (도메인 메서드 — status 전이) -->
+          <line class="msg-line" x1="530" y1="310" x2="530" y2="320" />
+          <text class="msg-text" x="530" y="304" text-anchor="middle">product.markDeleted() · status: ACTIVE → DELETED</text>
+
+          <!-- 7 UPDATE on commit -->
+          <line class="msg-line ret" x1="810" y1="355" x2="112" y2="355" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="349" text-anchor="middle">204 No Content · UPDATE product SET status='DELETED' on flush</text>
+
+          <!-- 8 async history append, dashed -->
+          <line class="msg-line" x1="585" y1="400" x2="1035" y2="400" marker-end="url(#ah)" stroke-dasharray="4 3"/>
+          <text class="msg-text" x="810" y="394" text-anchor="middle">[async] append(action=DELETE)</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── P-D1 cascade (Brand → Product) ────── -->
+    <div class="seq-block" id="seq-d1-cascade">
+      <div class="seq-title"><a class="xref" href="#p-d1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">P-D1</span></a> Brand 삭제 cascade (soft delete 전이)</div>
+      <div class="seq-desc">Brand status가 DELETED로 전이될 때 application cascade로 해당 brand의 모든 Product도 status=DELETED 일괄 전이 → Product 각각 product_history에 DELETE action 비동기 append. Brand 도메인 S-D1과 연동.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 870 335" style="max-width:870px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670) -->
+          <rect class="actor-box" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="110" y="34" text-anchor="middle">BrandService</text>
+          <rect class="actor-box" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="250" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">ProductRepository</text>
+          <rect class="actor-box db" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="530" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle" style="fill:#0E7490">ProductHistoryRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="325"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="325"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="325"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="325"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="325"/>
+
+          <!-- Transaction box: ProductService.softDeleteByBrand → cascade UPDATE (async history append는 박스 밖) -->
+          <rect class="tx-box" x="195" y="68" width="390" height="172" />
+          <text class="tx-label" x="575" y="62" text-anchor="end">Transaction</text>
+
+          <!-- 1: BrandService → ProductService -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">softDeleteByBrand(brandId)</text>
+
+          <!-- 2: ProductService → ProductRepository -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">updateStatusByBrandId(brandId, DELETED)</text>
+
+          <!-- 3: ProductRepository → DB -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">UPDATE product SET status='DELETED' WHERE brand_id = ?</text>
+
+          <!-- 4: DB ret -->
+          <line class="msg-line ret" x1="530" y1="220" x2="392" y2="220" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="214" text-anchor="middle">N rows affected</text>
+
+          <!-- 5: ProductService → ProductHistoryRepository (async, per product) -->
+          <line class="msg-line" x1="305" y1="265" x2="615" y2="265" marker-end="url(#ah)" stroke-dasharray="4 3"/>
+          <text class="msg-text" x="460" y="259" text-anchor="middle">[async] for each product → append(action=DELETE)</text>
+
+          <!-- 6: ret -->
+          <line class="msg-line ret" x1="250" y1="310" x2="112" y2="310" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="180" y="304" text-anchor="middle">cascade 완료</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 6.  결정 필요 항목                              -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">6</span>결정 필요 항목</h2>
+
+    <div class="card" id="p-q1">
+      <header><h3><span class="id">P-?1</span>Product의 도메인 필드</h3></header>
+      <p class="flow">big-picture.md가 product 필드를 명시하지 않음 (정렬 키 <code>price</code>와 brand 연관만 추론 가능).</p>
+      <div class="decide-box">
+        <strong>후보:</strong> name(필수), price(필수, 정렬 키), description(선택), imageUrl(선택), brandId(필수, FK)<br>
+        <strong>추천:</strong> 위 5개 + BaseEntity timestamps. imageUrl은 첫 등록 시점에 단일 URL 컬럼으로 시작, 다중 이미지/상세 페이지 본문 같은 확장은 미루기.<br>
+        <strong>제외:</strong> 재고 수량(<code>quantity</code>)은 Product 필드 후보에서 제외 — Inventory 도메인 소유 (<a class="xref q" href="#p-q4">P-?4</a>).
+      </div>
+    </div>
+
+    <div class="card" id="p-q2">
+      <header><h3><span class="id">P-?2</span>사용자 응답 vs 관리자 응답 차이</h3></header>
+      <p class="flow">big-picture.md가 명시적으로 "상품/브랜드 정보 중 고객과 관리자에게 제공되어야 할 정보에 대해 고민해보세요"라고 함.</p>
+      <div class="decide-box">
+        <strong>사용자 (ProductPublicResponse)</strong>: id, name, price, description, imageUrl, brand(id+name), likeCount, <strong>재고 상태 derived</strong> (<code>inStock: boolean</code> 또는 <code>stockStatus: enum</code> — Inventory 조회 후 derived. 정확 수량 노출 X)<br>
+        <strong>관리자 (ProductAdminResponse)</strong>: 위 + createdAt, updatedAt, <strong>재고 정확 수량</strong> (<code>stockQuantity: Int</code> — Inventory에서 조회), (관리지표: 매출/주문수/노출 여부 등 — 미래)<br>
+        <strong>구현:</strong> 같은 도메인 객체 → 응답 DTO 두 종 분리. Brand 도메인의 <code>B-?2</code>와 일관된 패턴. Inventory 조회는 application 레이어에서 JOIN 또는 별도 호출로 합성.
+      </div>
+    </div>
+
+    <div class="card" id="p-q3">
+      <header><h3><span class="id">P-?3</span>정렬 옵션 (필수 vs 선택)</h3></header>
+      <p class="flow">big-picture.md: "필수는 <code>latest</code>, 그 외는 <code>price_asc</code>, <code>likes_desc</code> 정도로 제한해도 충분".</p>
+      <div class="decide-box">
+        <strong>1단계 (필수):</strong> <code>latest</code> = ORDER BY created_at DESC, id DESC<br>
+        <strong>2단계 (선택):</strong> <code>price_asc</code> = ORDER BY price ASC, id ASC<br>
+        <strong>3단계 (선택, 비정규화 의존):</strong> <code>likes_desc</code> = ORDER BY like_count DESC, id DESC — <a class="xref q" href="#p-q5">P-?5</a> 결정에 의존<br>
+        화이트리스트 enum으로 받기, 잘못된 값은 400.
+      </div>
+    </div>
+
+    <div class="card" id="p-q4">
+      <header><h3><span class="id">P-?4</span>재고 모델 (결정 완료 · <code>Inventory</code> 별도 도메인으로 분리)</h3></header>
+      <p class="flow"><strong>결정:</strong> B안 — 별도 <code>Inventory</code> 도메인 / <code>inventory</code> 테이블 (1:1) 채택. <code>product.stock</code> 컬럼은 두지 않는다.</p>
+      <div class="decide-box">
+        <strong>근거 (락 경합 회피가 아니라 라이프사이클 / 정합성 / 캐시 전략의 본질적 차이):</strong>
+        <table style="margin-top:8px; font-size:12px; width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="background:#FAFAFA;"><th style="text-align:left; padding:4px 8px; border:1px solid #E4E4E7;">축</th><th style="text-align:left; padding:4px 8px; border:1px solid #E4E4E7;">Product</th><th style="text-align:left; padding:4px 8px; border:1px solid #E4E4E7;">Inventory</th></tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">변경 트리거</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">사람의 editorial 수정</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">시스템 이벤트 (주문/취소) + 관리자 입고</td></tr>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">변경 빈도</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">낮음 (월/주 단위)</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">높음 (피크 시 초당 수십~수천 건)</td></tr>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">변경 단위</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">row 전체 교체 (PUT)</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">정수 delta (<code>quantity -= 1</code>)</td></tr>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">정합성 모델</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">last-write-wins 허용</td><td style="padding:4px 8px; border:1px solid #E4E4E7;"><strong>lost update 절대 금지</strong> (오버셀링)</td></tr>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">캐시 전략</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">CDN/Redis 적극 캐싱</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">캐싱 위험 (실시간성 critical)</td></tr>
+            <tr><td style="padding:4px 8px; border:1px solid #E4E4E7;">확장 축</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">attribute 폭발 (variant/image/SEO)</td><td style="padding:4px 8px; border:1px solid #E4E4E7;">상태 분화 (available/reserved/on_hand) + location</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:8px; font-size:12px; color:#52525B;">
+          일반 SELECT는 InnoDB MVCC에서 X-lock에 막히지 않는다 — 분리 근거는 락 경합이 아니라 위 6축의 본질적 차이. 빅테크 표준(Shopify <code>Product → InventoryItem → InventoryLevel</code>, Amazon FBA <code>Available/Reserved/Inbound</code>)과 DDD Bounded Context 관점이 일치.
+        </p>
+        <strong>본 주차 범위 (구체 구현은 후속 결정):</strong>
+        <ul style="margin-top:6px;">
+          <li>✅ 구조적 분리 확정 — Product에서 <code>stock</code> 컬럼 제거, <code>inventory</code> 별도 테이블 (1:1)</li>
+          <li>✅ ubiquitous-language §7에 <code>Inventory</code> 엔티티 등록 + 외부 노출은 derived 표현(<code>inStock</code>/<code>stockStatus</code>)만 허용</li>
+          <li>⏸️ 단일 <code>quantity</code> 컬럼 vs <code>available</code>/<code>reserved</code> 분리 — 결제 도입 시점에 재방문</li>
+          <li>⏸️ 차감 시점 (주문 즉시 vs 결제 시 reserve→commit) — <code>O-?2</code></li>
+          <li>⏸️ 동시성 제어 (atomic UPDATE WHERE / 비관락 / 낙관락 / 분산락) — <code>O-?3</code></li>
+          <li>⏸️ 이력 테이블 <code>stock_movement</code> — 미래 카드 (감사 로그 요구가 명시되면 도입)</li>
+          <li>⏸️ 멀티-warehouse / location별 재고 — 미래 카드</li>
+        </ul>
+        <strong>관계 / cascade:</strong>
+        <ul style="margin-top:6px;">
+          <li>1:1 매핑 — <code>inventory.product_id</code> (UK, FK → product(id))</li>
+          <li>Product 생성 → 같은 트랜잭션에서 Inventory 생성 (application 레벨)</li>
+          <li>Product 삭제 → application cascade로 Inventory 함께 archive (<a class="xref" href="#p-d1">P-D1</a> 가정 유지)</li>
+          <li>주문 스냅샷에 <code>quantity</code> 보존하지 않음 — 주문 시점 재고 잔량은 비즈니스 의미 없음</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" id="p-q5">
+      <header><h3><span class="id">P-?5</span>likes_desc 정렬용 likeCount 비정규화 vs COUNT 쿼리</h3></header>
+      <p class="flow"><code>likes_desc</code> 정렬을 매 요청마다 <code>COUNT(*) FROM like ...</code>로 처리하면 비싸진다.</p>
+      <div class="decide-box">
+        <strong>A. like_count 컬럼 비정규화</strong> — POST/DELETE like 시점에 증감, 정렬 인덱스 단순. 동시성 처리 필요(원자 증감 또는 락).<br>
+        <strong>B. 매 조회 시 JOIN + COUNT</strong> — 일관성 확실, 성능 저하.<br>
+        <strong>C. 배치 집계 (랭킹 테이블)</strong> — 실시간성 trade-off, 미래 옵션.<br>
+        <strong>추천:</strong> A로 시작. 실시간성 vs 비용 균형. Like 도메인 설계와 동시 결정해야 함.
+      </div>
+    </div>
+
+    <div class="card" id="p-q6">
+      <header><h3><span class="id">P-?6</span>삭제 방식 (결정됨: soft delete)</h3></header>
+      <p class="flow">결정 완료. 도메인 전체 기본 정책인 soft delete + <code>ACTIVE</code>/<code>DELETED</code> state를 따른다 (<code>docs/conventions.md</code>).</p>
+      <div class="decide-box">
+        <strong>결정:</strong> Soft delete + <code>status</code> 컬럼 (ACTIVE/DELETED). Product는 무조건 soft delete.<br>
+        <strong>근거:</strong> Brand cascade로 status 전이만 일어나도 OrderItem snapshot에는 영향 없음. 복구·이력·통계 측면에서 전체 도메인과 일관성 유지.<br>
+        <strong>이력 보존:</strong> <code>product_history</code>에 비동기 append (<a class="xref" href="#p-f3">P-F3</a>).
+      </div>
+    </div>
+
+    <div class="card" id="p-q7">
+      <header><h3><span class="id">P-?7</span>brand 미존재 vs brand soft-deleted 응답 코드 (결정됨: 404 통일)</h3></header>
+      <p class="flow">결정 완료. 미존재 / soft deleted 모두 <code>404 BRAND_NOT_FOUND</code>로 통일.</p>
+      <div class="decide-box">
+        <strong>결정:</strong> A안 (404 통일).<br>
+        <strong>근거:</strong> 외부에서는 "없는 것"으로 일관 표시. ID enumeration 차단. 운영 요구가 명시되기 전엔 의미 구분(410/409) 가치보다 단순함이 우선.<br>
+        <strong>재방문 조건:</strong> 클라이언트에 "있었는데 사라짐" 또는 "비활성" 의미를 명시해야 하는 운영 요구 발생 시 B/C로 전환.
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 7.  미래 확장 마킹                              -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">7</span>미래 확장 마킹</h2>
+
+    <div class="card future" id="p-f1">
+      <header><h3><span class="id">P-F1</span>Brand staff (Brand = Tenant) 의 자기 brand 상품 CRUD</h3></header>
+      <p class="flow">Brand 단위 운영자 계정이 자기 brand의 상품만 CRUD. Platform Admin과 동일한 API 모양을 권한만 분리. 상세는 <code>docs/big-picture.md</code>의 "추가 비전".</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li><code>brand_id</code>를 product에 FK로 유지 — 권한 격리의 축. 비정규화 금지.</li>
+          <li>관리자 인증 필터를 LDAP 정확 일치로 단순하게 두되, Role enum (Customer / Platform Admin / Brand Staff) 도입 여지를 막지 않는다.</li>
+          <li>응답 DTO를 권한별로 나누는 패턴(<a class="xref q" href="#p-q2">P-?2</a>)을 Brand staff용으로 확장 가능하게.</li>
+          <li>brand_id가 수정 불가(<a class="xref" href="#p-u1">P-U1</a>, <a class="xref" href="#p-u2">P-U2</a>)이어야 Brand staff 권한 우회를 차단 가능.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card future" id="p-f2">
+      <header><h3><span class="id">P-F2</span>행동 데이터 기반 랭킹 · 추천</h3></header>
+      <p class="flow">좋아요 / 주문 / 노출 등 유저 행동 데이터를 비동기 집계 → 정렬·추천에 활용. <code>likes_desc</code> 정렬이 그 첫 단계.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li><code>like_count</code> 비정규화(<a class="xref q" href="#p-q5">P-?5</a>) — 실시간 정렬 지원과 미래 배치 랭킹 양쪽에 입력.</li>
+          <li>주문 스냅샷에서 product 정보를 보존(<a class="xref" href="#p-d1">P-D1</a>) — product 삭제 후에도 과거 행동 데이터 추적 가능.</li>
+          <li>정렬 옵션을 화이트리스트 enum으로 둠 — 미래 <code>trending</code>, <code>recommended</code> 등 enum 확장이 자연스러움.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card future" id="p-f3">
+      <header><h3><span class="id">P-F3</span>product_history 비동기 적재 인프라</h3></header>
+      <p class="flow">이번 주는 "변경 이력이 product_history에 비동기로 append된다"는 계약만 확정. 실제 비동기 메커니즘은 미래 결정.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>after-only snapshot 구조 — 변경 후 상태만 기록하므로 적재 인프라 교체 시 스키마는 그대로.</li>
+          <li>soft reference(FK 없음) — Product 삭제(soft) 후에도 product_history는 유지.</li>
+          <li>CUD 트랜잭션 commit 후 적재 — Product 본 트랜잭션에 영향 없음. 적재 실패 시 비즈니스 트랜잭션은 성공으로 간주.</li>
+        </ul>
+        <strong>후속 결정 후보:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>Spring <code>@TransactionalEventListener(AFTER_COMMIT)</code> — 단순, 단일 인스턴스 한정.</li>
+          <li>Outbox 패턴 + Kafka / SQS — 적재 보장 + 다른 소비자(검색 인덱싱 등)와 공유.</li>
+          <li>CDC (Debezium 등) — product 테이블 변경을 직접 감지. 트랜잭션 코드 무침투.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card future" id="p-f4">
+      <header><h3><span class="id">P-F4</span>product_history 외부 노출 endpoint</h3></header>
+      <p class="flow">현재는 product_history를 내부 감사 로그로만 사용. 외부 노출은 seller(브랜드 입점 운영자) 자기 상품 변경 이력 추적 같은 use case가 명시될 때 도입.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>append-only / after-only snapshot — 노출 시점에도 invariant 유지.</li>
+          <li><code>actor</code> 컬럼 보유 — 미래 권한 격리(자기 브랜드 product의 이력만 노출)의 축.</li>
+          <li>response DTO 분리 패턴(<a class="xref q" href="#p-q2">P-?2</a>)이 ProductHistory에도 그대로 적용 가능.</li>
+        </ul>
+        <strong>도입 트리거:</strong> Brand staff(<a class="xref q" href="#p-f1">P-F1</a>) self-service가 도입되어 자기 brand 상품의 변경 이력을 직접 확인해야 하는 시점.
+      </div>
+    </div>
+  </section>
+
+  <footer class="page">
+    <code>docs/week2/scenarios/02-product.html</code> · 변경 시 브라우저 새로고침으로 확인 · 시나리오(Section 1) 추가/수정 시 Section 2~5에 반영 확인
+  </footer>
+
+</div>
+<script>
+/* loopers-seq-svg-resize */
+(function () {
+  function init() {
+    document.querySelectorAll('.seq-svg').forEach(processSvg);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function processSvg(svg) {
+    if (svg.dataset.seqResized === '1') return;
+    var actorTexts = Array.from(svg.querySelectorAll('.actor-text'));
+    if (actorTexts.length === 0) return;
+    actorTexts.sort(function (a, b) {
+      return parseFloat(a.getAttribute('x')) - parseFloat(b.getAttribute('x'));
+    });
+    var oldCx = actorTexts.map(function (t) { return parseFloat(t.getAttribute('x')); });
+    var minWidth = 70;
+    var padX = 24;
+    var colGap = 28;
+
+    var widths = actorTexts.map(function (t) {
+      var bb = t.getBBox();
+      return Math.max(minWidth, Math.ceil(bb.width) + padX);
+    });
+
+    var newCx = new Array(oldCx.length);
+    newCx[0] = oldCx[0];
+    for (var i = 1; i < widths.length; i++) {
+      newCx[i] = newCx[i - 1] + widths[i - 1] / 2 + widths[i] / 2 + colGap;
+    }
+
+    function remapX(x) {
+      // 가장 가까운 컬럼에 매우 근접하면 snap
+      var bestIdx = 0, bestDist = Infinity;
+      for (var i = 0; i < oldCx.length; i++) {
+        var d = Math.abs(x - oldCx[i]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      if (bestDist < 3) return newCx[bestIdx];
+      // 두 컬럼 사이라면 선형 보간
+      for (var j = 0; j < oldCx.length - 1; j++) {
+        if (x > oldCx[j] && x < oldCx[j + 1]) {
+          var frac = (x - oldCx[j]) / (oldCx[j + 1] - oldCx[j]);
+          return newCx[j] + frac * (newCx[j + 1] - newCx[j]);
+        }
+      }
+      // 범위 밖 — 가장 가까운 컬럼에서 같은 오프셋
+      return newCx[bestIdx] + (x - oldCx[bestIdx]);
+    }
+
+    // actor rect + text 위치/크기 갱신
+    actorTexts.forEach(function (t, i) {
+      var cx = newCx[i];
+      var w = widths[i];
+      t.setAttribute('x', cx);
+      var rect = t.previousElementSibling;
+      while (rect && !(rect.tagName.toLowerCase() === 'rect' && rect.classList.contains('actor-box'))) {
+        rect = rect.previousElementSibling;
+      }
+      if (rect) {
+        rect.setAttribute('x', cx - w / 2);
+        rect.setAttribute('width', w);
+      }
+    });
+
+    // lifelines
+    svg.querySelectorAll('.lifeline').forEach(function (line) {
+      var nx = remapX(parseFloat(line.getAttribute('x1')));
+      line.setAttribute('x1', nx);
+      line.setAttribute('x2', nx);
+    });
+
+    // msg lines
+    svg.querySelectorAll('.msg-line').forEach(function (line) {
+      line.setAttribute('x1', remapX(parseFloat(line.getAttribute('x1'))));
+      line.setAttribute('x2', remapX(parseFloat(line.getAttribute('x2'))));
+    });
+
+    // msg texts
+    svg.querySelectorAll('.msg-text').forEach(function (t) {
+      t.setAttribute('x', remapX(parseFloat(t.getAttribute('x'))));
+    });
+
+    // viewBox + max-width
+    var lastCx = newCx[newCx.length - 1];
+    var lastW = widths[widths.length - 1];
+    var rightEdge = lastCx + lastW / 2 + 24;
+    var vbAttr = svg.getAttribute('viewBox');
+    if (vbAttr) {
+      var vbParts = vbAttr.split(/\s+/).map(parseFloat);
+      vbParts[2] = rightEdge - vbParts[0];
+      svg.setAttribute('viewBox', vbParts.join(' '));
+    }
+    svg.style.maxWidth = rightEdge + 'px';
+
+    svg.dataset.seqResized = '1';
+  }
+})();
+</script>
+
+</body>
+</html>

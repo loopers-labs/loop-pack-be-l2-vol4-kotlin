@@ -15,6 +15,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
 
+    // bcrypt (no Spring Security)
+    implementation("at.favre.lib:bcrypt:0.10.2")
+
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 

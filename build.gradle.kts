@@ -97,6 +97,9 @@ subprojects {
         useJUnitPlatform()
         systemProperty("user.timezone", "Asia/Seoul")
         systemProperty("spring.profiles.active", "test")
+        // Modern Docker daemons reject Testcontainers' default API version (1.32).
+        // Setting api.version here skips the hardcoded fallback in DockerClientProviderStrategy.
+        systemProperty("api.version", "1.43")
         jvmArgs("-Xshare:off")
     }
 

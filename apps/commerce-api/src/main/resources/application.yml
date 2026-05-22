@@ -28,6 +28,7 @@ springdoc:
   use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
+    persist-authorization: true
 
 ---
 spring:

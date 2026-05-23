@@ -474,7 +474,7 @@ erDiagram
 
 - 시나리오 정의: `docs/week2/{01-brand,02-product,03-likes,04-orders}/{도메인}-final.html` (★ SSOT)
 - 시나리오 종합본: `docs/week2/{도메인}/*.md` (HTML 기반 정제본)
-- 요구사항 종합: `docs/design/01-requirements.md`
+- 요구사항 종합: `docs/week2/01-requirements.md`
 - 어휘/Role/식별자 매핑: `docs/ubiquitous-language.md`
 - 코드 베이스 (account 기존 구조): `modules/account-domain/src/main/kotlin/com/loopers/account/domain/{Account,AccountCredential}.kt`
 - FK 정책 (soft reference) 출처: `docs/conventions.md` + 각 final HTML §4 말미

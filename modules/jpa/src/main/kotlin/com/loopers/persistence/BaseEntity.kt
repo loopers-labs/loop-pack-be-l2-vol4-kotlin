@@ -1,4 +1,4 @@
-package com.loopers.domain
+package com.loopers.persistence
 
 import jakarta.persistence.Column
 import jakarta.persistence.GeneratedValue

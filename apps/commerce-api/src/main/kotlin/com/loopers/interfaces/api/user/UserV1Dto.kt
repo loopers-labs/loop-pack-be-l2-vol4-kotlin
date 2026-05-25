@@ -2,7 +2,8 @@ package com.loopers.interfaces.api.user
 
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.loopers.application.user.ChangePwCommand
-import com.loopers.domain.user.User
+import com.loopers.application.user.SignupCommand
+import com.loopers.application.user.UserInfo
 import java.time.LocalDate
 
 class UserV1Dto {
@@ -13,11 +14,11 @@ class UserV1Dto {
         val email: String,
     ) {
         companion object {
-            fun from(user: User): UserInfoResponse = UserInfoResponse(
-                loginId = user.loginId,
-                name = user.name.dropLast(1) + "*",
-                birth = user.birth,
-                email = user.email,
+            fun from(info: UserInfo): UserInfoResponse = UserInfoResponse(
+                loginId = info.loginId,
+                name = info.name.dropLast(1) + "*",
+                birth = info.birth,
+                email = info.email,
             )
         }
     }
@@ -43,7 +44,7 @@ class UserV1Dto {
         val birth: LocalDate,
         val email: String,
     ) {
-        fun toDomain(): User = User.create(
+        fun toCommand(): SignupCommand = SignupCommand(
             loginId = id,
             rawPassword = pw,
             name = name,

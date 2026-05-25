@@ -48,6 +48,9 @@ class BrandRepositoryAdapter(
         if (brand.id == 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "ID가 없는 브랜드는 삭제할 수 없습니다.")
         }
-        brandJpaRepository.deleteById(brand.id)
+        val entity = brandJpaRepository.findById(brand.id)
+            .orElseThrow { CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다.") }
+        entity.delete()
+        brandJpaRepository.save(entity)
     }
 }

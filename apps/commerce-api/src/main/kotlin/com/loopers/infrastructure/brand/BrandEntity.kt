@@ -5,8 +5,10 @@ import com.loopers.persistence.BaseEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
+import org.hibernate.annotations.SQLRestriction
 
 @Entity
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "brand")
 class BrandEntity(
     @Column(name = "name", nullable = false, unique = true)

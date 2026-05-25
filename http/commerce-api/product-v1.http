@@ -1,0 +1,5 @@
+### 상품 상세 조회 — 정상 (brandName, stockQuantity, likeCount 포함)
+GET {{commerce-api}}/api/v1/products/1
+
+### 상품 상세 조회 — 존재하지 않는 id (404)
+GET {{commerce-api}}/api/v1/products/99999

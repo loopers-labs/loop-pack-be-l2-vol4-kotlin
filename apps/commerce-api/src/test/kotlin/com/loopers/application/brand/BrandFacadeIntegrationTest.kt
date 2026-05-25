@@ -1,8 +1,12 @@
 package com.loopers.application.brand
 
+import com.loopers.application.product.CreateProductCommand
+import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.product.ProductRepositoryPort
+import com.loopers.domain.stock.StockRepositoryPort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -19,6 +23,9 @@ import org.springframework.boot.test.context.SpringBootTest
 class BrandFacadeIntegrationTest @Autowired constructor(
     private val brandFacade: BrandFacade,
     private val brandRepositoryPort: BrandRepositoryPort,
+    private val productFacade: ProductFacade,
+    private val productRepositoryPort: ProductRepositoryPort,
+    private val stockRepositoryPort: StockRepositoryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -117,9 +124,9 @@ class BrandFacadeIntegrationTest @Autowired constructor(
     @DisplayName("deleteBrand 통합 흐름")
     @Nested
     inner class DeleteBrand {
-        @DisplayName("브랜드를 삭제하면, DB에서 hard delete된다.")
+        @DisplayName("브랜드를 삭제하면, soft delete되어 조회되지 않는다.")
         @Test
-        fun hardDeletesBrand() {
+        fun softDeletesBrand() {
             // arrange
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
 
@@ -135,6 +142,46 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         fun throwsNotFound_whenMissing() {
             val result = assertThrows<CoreException> { brandFacade.deleteBrand(9999L) }
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("브랜드를 삭제하면, 그 브랜드의 모든 상품과 재고가 cascade soft delete된다.")
+        @Test
+        fun cascadeDeletesProductsAndStocks() {
+            // arrange
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val productDetails = (0 until 3).map {
+                productFacade.createProduct(
+                    CreateProductCommand(name = "p$it", price = 100L, description = "d", brandId = brand.id, quantity = 5),
+                )
+            }
+
+            // act
+            brandFacade.deleteBrand(brand.id)
+
+            // assert
+            assertThat(brandRepositoryPort.findByIdOrNull(brand.id)).isNull()
+            productDetails.forEach {
+                assertThat(productRepositoryPort.findByIdOrNull(it.id)).isNull()
+                assertThat(stockRepositoryPort.findByProductId(it.id)).isNull()
+            }
+        }
+
+        @DisplayName("브랜드를 삭제해도 다른 브랜드의 상품과 재고는 영향받지 않는다.")
+        @Test
+        fun cascadeDoesNotAffectOtherBrands() {
+            val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
+            val survivor = productFacade.createProduct(
+                CreateProductCommand(name = "survivor", price = 100L, description = "d", brandId = brand2.id, quantity = 5),
+            )
+            productFacade.createProduct(
+                CreateProductCommand(name = "victim", price = 100L, description = "d", brandId = brand1.id, quantity = 5),
+            )
+
+            brandFacade.deleteBrand(brand1.id)
+
+            assertThat(productRepositoryPort.findByIdOrNull(survivor.id)).isNotNull
+            assertThat(stockRepositoryPort.findByProductId(survivor.id)).isNotNull
         }
     }
 

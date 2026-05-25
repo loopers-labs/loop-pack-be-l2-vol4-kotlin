@@ -122,17 +122,18 @@ class BrandRepositoryAdapterIntegrationTest @Autowired constructor(
     @DisplayName("delete를 호출할 때, ")
     @Nested
     inner class Delete {
-        @DisplayName("Brand가 실제로 DB에서 hard delete된다.")
+        @DisplayName("Brand가 soft delete되어 일반 조회로는 보이지 않는다.")
         @Test
-        fun hardDeletesBrand() {
+        fun softDeletesBrand() {
             // arrange
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
 
             // act
             brandRepositoryPort.delete(saved)
 
-            // assert
+            // assert: @SQLRestriction 으로 findById 결과 비어 있음
             assertThat(brandJpaRepository.findById(saved.id)).isEmpty
+            assertThat(brandRepositoryPort.findByIdOrNull(saved.id)).isNull()
         }
     }
 

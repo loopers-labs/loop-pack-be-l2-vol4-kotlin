@@ -1,5 +1,6 @@
 package com.loopers.application.brand
 
+import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 class BrandFacade(
     private val brandRepositoryPort: BrandRepositoryPort,
+    private val productFacade: ProductFacade,
 ) {
     @Transactional(readOnly = true)
     fun getBrand(id: Long): Brand =
@@ -45,6 +47,7 @@ class BrandFacade(
     fun deleteBrand(id: Long) {
         val existing = brandRepositoryPort.findByIdOrNull(id)
             ?: throw CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다.")
+        productFacade.deleteAllByBrandId(id)
         brandRepositoryPort.delete(existing)
     }
 }

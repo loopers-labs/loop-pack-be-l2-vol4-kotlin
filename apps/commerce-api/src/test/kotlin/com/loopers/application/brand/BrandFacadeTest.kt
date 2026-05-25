@@ -1,5 +1,6 @@
 package com.loopers.application.brand
 
+import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
@@ -20,12 +21,14 @@ import org.junit.jupiter.api.assertThrows
 class BrandFacadeTest {
 
     private lateinit var brandRepositoryPort: BrandRepositoryPort
+    private lateinit var productFacade: ProductFacade
     private lateinit var brandFacade: BrandFacade
 
     @BeforeEach
     fun setUp() {
         brandRepositoryPort = mockk()
-        brandFacade = BrandFacade(brandRepositoryPort)
+        productFacade = mockk(relaxed = true)
+        brandFacade = BrandFacade(brandRepositoryPort, productFacade)
     }
 
     @DisplayName("getBrand를 호출할 때, ")
@@ -160,7 +163,7 @@ class BrandFacadeTest {
     @DisplayName("deleteBrand를 호출할 때, ")
     @Nested
     inner class DeleteBrand {
-        @DisplayName("존재하면, delete를 호출한다.")
+        @DisplayName("존재하면, 상품 cascade 삭제 후 브랜드를 delete한다.")
         @Test
         fun deletesBrand_whenExists() {
             // arrange
@@ -172,6 +175,7 @@ class BrandFacadeTest {
             brandFacade.deleteBrand(1L)
 
             // assert
+            verify(exactly = 1) { productFacade.deleteAllByBrandId(1L) }
             verify(exactly = 1) { brandRepositoryPort.delete(brand) }
         }
 

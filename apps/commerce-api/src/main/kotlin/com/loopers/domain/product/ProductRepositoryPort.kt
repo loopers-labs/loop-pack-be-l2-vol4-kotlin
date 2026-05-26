@@ -5,6 +5,7 @@ import com.loopers.domain.common.PageResult
 
 interface ProductRepositoryPort {
     fun findByIdOrNull(id: Long): Product?
+    fun findAllByIds(ids: List<Long>): List<Product>
     fun findAll(pageRequest: PageRequest): PageResult<Product>
     fun findAllByBrandId(brandId: Long, pageRequest: PageRequest): PageResult<Product>
     fun findAllByBrandId(brandId: Long): List<Product>

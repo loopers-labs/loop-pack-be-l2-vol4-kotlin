@@ -17,6 +17,11 @@ class BrandRepositoryAdapter(
     override fun findByIdOrNull(id: Long): Brand? =
         brandJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
+    override fun findAllByIds(ids: List<Long>): List<Brand> {
+        if (ids.isEmpty()) return emptyList()
+        return brandJpaRepository.findAllById(ids).map { it.toDomain() }
+    }
+
     override fun findAll(pageRequest: PageRequest): PageResult<Brand> {
         val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.ASC, "id"))
         val page = brandJpaRepository.findAll(springPageable)

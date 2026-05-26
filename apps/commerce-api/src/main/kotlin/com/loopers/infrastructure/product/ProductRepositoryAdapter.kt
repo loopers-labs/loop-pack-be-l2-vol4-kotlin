@@ -17,6 +17,11 @@ class ProductRepositoryAdapter(
     override fun findByIdOrNull(id: Long): Product? =
         productJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
+    override fun findAllByIds(ids: List<Long>): List<Product> {
+        if (ids.isEmpty()) return emptyList()
+        return productJpaRepository.findAllById(ids).map { it.toDomain() }
+    }
+
     override fun findAll(pageRequest: PageRequest): PageResult<Product> {
         val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.ASC, "id"))
         val page = productJpaRepository.findAll(springPageable)

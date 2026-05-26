@@ -46,6 +46,7 @@ class ProductAdminV1Dto {
         val brandId: Long,
         val brandName: String,
         val stockQuantity: Int,
+        val likeCount: Long,
     ) {
         companion object {
             fun from(summary: ProductSummary): ProductSummaryResponse = ProductSummaryResponse(
@@ -55,6 +56,7 @@ class ProductAdminV1Dto {
                 brandId = summary.brandId,
                 brandName = summary.brandName,
                 stockQuantity = summary.stockQuantity,
+                likeCount = summary.likeCount,
             )
         }
     }

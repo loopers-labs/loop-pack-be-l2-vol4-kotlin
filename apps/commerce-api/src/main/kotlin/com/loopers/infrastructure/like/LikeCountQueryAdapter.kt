@@ -9,4 +9,11 @@ class LikeCountQueryAdapter(
 ) : LikeCountQueryPort {
     override fun countByProductId(productId: Long): Long =
         likeCountJpaRepository.findByProductId(productId)?.count?.toLong() ?: 0L
+
+    override fun countsByProductIds(productIds: List<Long>): Map<Long, Long> {
+        if (productIds.isEmpty()) return emptyMap()
+        val rows = likeCountJpaRepository.findAllByProductIdIn(productIds)
+        val found = rows.associate { it.productId to it.count.toLong() }
+        return productIds.associateWith { found[it] ?: 0L }
+    }
 }

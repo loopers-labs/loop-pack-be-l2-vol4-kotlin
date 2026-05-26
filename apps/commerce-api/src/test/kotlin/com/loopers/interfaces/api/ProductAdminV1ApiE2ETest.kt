@@ -1,12 +1,16 @@
 package com.loopers.interfaces.api
 
+import com.loopers.application.like.LikeFacade
 import com.loopers.application.product.CreateProductCommand
 import com.loopers.application.product.ProductFacade
+import com.loopers.application.user.SignupCommand
+import com.loopers.application.user.UserFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
 import com.loopers.utils.DatabaseCleanUp
+import java.time.LocalDate
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -30,6 +34,8 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
     private val productFacade: ProductFacade,
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
+    private val userFacade: UserFacade,
+    private val likeFacade: LikeFacade,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     companion object {
@@ -311,6 +317,49 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         fun returnsForbidden_whenNoLdap() {
             val response = adminList(ldap = null)
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+
+        @DisplayName("어드민이 상품 목록을 조회하면, 각 상품의 좋아요 수(likeCount)도 응답에 포함된다.")
+        @Test
+        fun includesLikeCountPerProduct() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val popularProductId = productFacade.createProduct(
+                CreateProductCommand(name = "popular", price = 100L, description = "d", brandId = brand.id, quantity = 1),
+            ).id
+            val quietProductId = productFacade.createProduct(
+                CreateProductCommand(name = "quiet", price = 100L, description = "d", brandId = brand.id, quantity = 1),
+            ).id
+            val user1 = userFacade.signup(
+                SignupCommand(
+                    loginId = "u1",
+                    rawPassword = "password1234",
+                    name = "u1",
+                    birth = LocalDate.of(2000, 1, 1),
+                    email = "u1@example.com",
+                ),
+            ).id
+            val user2 = userFacade.signup(
+                SignupCommand(
+                    loginId = "u2",
+                    rawPassword = "password1234",
+                    name = "u2",
+                    birth = LocalDate.of(2000, 1, 1),
+                    email = "u2@example.com",
+                ),
+            ).id
+            likeFacade.like(user1, popularProductId)
+            likeFacade.like(user2, popularProductId)
+
+            val response = adminList()
+
+            val data = response.body?.data as? Map<*, *>
+            val items = data?.get("items") as? List<*>
+            val byProductId = items?.associate { (it as Map<*, *>)["id"] to (it["likeCount"] as Number).toLong() }
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(byProductId?.get(popularProductId.toInt())).isEqualTo(2L) },
+                { assertThat(byProductId?.get(quietProductId.toInt())).isEqualTo(0L) },
+            )
         }
     }
 }

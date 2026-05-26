@@ -41,12 +41,14 @@ class ProductFacade(
         } else {
             productRepositoryPort.findAllByBrandId(brandId, pageRequest)
         }
+        val productIds = products.items.map { it.id }
+        val likeCounts = likeCountQueryPort.countsByProductIds(productIds)
         val summaries = products.items.map { product ->
             val brand = brandRepositoryPort.findByIdOrNull(product.brandId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다.")
             val stock = stockRepositoryPort.findByProductId(product.id)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다.")
-            ProductSummary.of(product, brand, stock)
+            ProductSummary.of(product, brand, stock, likeCounts[product.id] ?: 0L)
         }
         return PageResult(
             items = summaries,

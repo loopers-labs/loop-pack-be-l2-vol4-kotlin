@@ -196,6 +196,27 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             assertThat(result.items).hasSize(2)
             assertThat(result.items.all { it.brandId == brand1.id }).isTrue()
         }
+
+        @DisplayName("getProducts는 각 상품의 좋아요 수(likeCount)를 포함해 반환한다.")
+        @Test
+        fun includesLikeCountPerSummary() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val popularProductId = productFacade.createProduct(
+                CreateProductCommand(name = "popular", price = 100L, description = "d", brandId = brand.id, quantity = 1),
+            ).id
+            val quietProductId = productFacade.createProduct(
+                CreateProductCommand(name = "quiet", price = 100L, description = "d", brandId = brand.id, quantity = 1),
+            ).id
+            likeService.register(userId = 1L, productId = popularProductId)
+            likeService.register(userId = 2L, productId = popularProductId)
+            likeService.register(userId = 3L, productId = popularProductId)
+
+            val result = productFacade.getProducts(null, PageRequest(page = 0, size = 10))
+
+            val byId = result.items.associate { it.id to it.likeCount }
+            assertThat(byId[popularProductId]).isEqualTo(3L)
+            assertThat(byId[quietProductId]).isEqualTo(0L)
+        }
     }
 
     @DisplayName("deleteAllByBrandId(cascade)")

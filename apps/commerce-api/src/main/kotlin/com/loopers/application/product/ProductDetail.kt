@@ -35,15 +35,17 @@ data class ProductSummary(
     val brandId: Long,
     val brandName: String,
     val stockQuantity: Int,
+    val likeCount: Long,
 ) {
     companion object {
-        fun of(product: Product, brand: Brand, stock: Stock): ProductSummary = ProductSummary(
+        fun of(product: Product, brand: Brand, stock: Stock, likeCount: Long): ProductSummary = ProductSummary(
             id = product.id,
             name = product.name,
             price = product.price,
             brandId = product.brandId,
             brandName = brand.name,
             stockQuantity = stock.quantity,
+            likeCount = likeCount,
         )
     }
 }

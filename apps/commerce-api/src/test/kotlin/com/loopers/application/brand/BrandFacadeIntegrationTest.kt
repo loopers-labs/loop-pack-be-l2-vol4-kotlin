@@ -5,6 +5,8 @@ import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.like.LikeService
+import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
 import com.loopers.support.error.CoreException
@@ -26,6 +28,8 @@ class BrandFacadeIntegrationTest @Autowired constructor(
     private val productFacade: ProductFacade,
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
+    private val likeService: LikeService,
+    private val likeCountQueryPort: LikeCountQueryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -163,6 +167,35 @@ class BrandFacadeIntegrationTest @Autowired constructor(
             productDetails.forEach {
                 assertThat(productRepositoryPort.findByIdOrNull(it.id)).isNull()
                 assertThat(stockRepositoryPort.findByProductId(it.id)).isNull()
+            }
+        }
+
+        @DisplayName("브랜드를 삭제하면, 그 브랜드 상품들의 Like와 LikeCount가 cascade hard delete된다.")
+        @Test
+        fun cascadeDeletesLikesAndLikeCounts() {
+            // arrange
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val productDetails = (0 until 2).map {
+                productFacade.createProduct(
+                    CreateProductCommand(name = "p$it", price = 100L, description = "d", brandId = brand.id, quantity = 5),
+                )
+            }
+            productDetails.forEach { detail ->
+                likeService.register(userId = 1L, productId = detail.id)
+                likeService.register(userId = 2L, productId = detail.id)
+            }
+            productDetails.forEach { detail ->
+                assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(2L)
+            }
+
+            // act
+            brandFacade.deleteBrand(brand.id)
+
+            // assert
+            productDetails.forEach { detail ->
+                assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(0L)
+                assertThat(likeService.findAllProductIdsByUserId(1L)).doesNotContain(detail.id)
+                assertThat(likeService.findAllProductIdsByUserId(2L)).doesNotContain(detail.id)
             }
         }
 

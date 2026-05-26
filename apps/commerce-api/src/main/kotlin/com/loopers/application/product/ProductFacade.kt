@@ -3,6 +3,7 @@ package com.loopers.application.product
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
+import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepositoryPort
@@ -19,6 +20,7 @@ class ProductFacade(
     private val stockRepositoryPort: StockRepositoryPort,
     private val brandRepositoryPort: BrandRepositoryPort,
     private val likeCountQueryPort: LikeCountQueryPort,
+    private val likeService: LikeService,
 ) {
     @Transactional(readOnly = true)
     fun getProduct(id: Long): ProductDetail {
@@ -68,6 +70,7 @@ class ProductFacade(
             ),
         )
         val stock = stockRepositoryPort.save(Stock.create(productId = product.id, quantity = command.quantity))
+        likeService.initializeForProduct(product.id)
         return ProductDetail.of(product, brand, stock, likeCount = 0L)
     }
 
@@ -98,6 +101,7 @@ class ProductFacade(
             ?: throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다.")
         productRepositoryPort.delete(product)
         stockRepositoryPort.delete(stock)
+        likeService.deleteAllByProductId(id)
     }
 
     /**
@@ -111,6 +115,7 @@ class ProductFacade(
             val stock = stockRepositoryPort.findByProductId(product.id)
             productRepositoryPort.delete(product)
             stock?.let { stockRepositoryPort.delete(it) }
+            likeService.deleteAllByProductId(product.id)
         }
     }
 }

@@ -2,6 +2,7 @@ package com.loopers.application.product
 
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
+import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepositoryPort
@@ -26,6 +27,7 @@ class ProductFacadeTest {
     private lateinit var stockRepositoryPort: StockRepositoryPort
     private lateinit var brandRepositoryPort: BrandRepositoryPort
     private lateinit var likeCountQueryPort: LikeCountQueryPort
+    private lateinit var likeService: LikeService
     private lateinit var productFacade: ProductFacade
 
     @BeforeEach
@@ -34,7 +36,14 @@ class ProductFacadeTest {
         stockRepositoryPort = mockk()
         brandRepositoryPort = mockk()
         likeCountQueryPort = mockk()
-        productFacade = ProductFacade(productRepositoryPort, stockRepositoryPort, brandRepositoryPort, likeCountQueryPort)
+        likeService = mockk(relaxed = true)
+        productFacade = ProductFacade(
+            productRepositoryPort,
+            stockRepositoryPort,
+            brandRepositoryPort,
+            likeCountQueryPort,
+            likeService,
+        )
     }
 
     @DisplayName("getProduct 호출 시, ")

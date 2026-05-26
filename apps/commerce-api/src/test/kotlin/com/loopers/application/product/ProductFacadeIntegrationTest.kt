@@ -3,6 +3,8 @@ package com.loopers.application.product
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.like.LikeService
+import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
 import com.loopers.support.error.CoreException
@@ -23,6 +25,8 @@ class ProductFacadeIntegrationTest @Autowired constructor(
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
     private val brandRepositoryPort: BrandRepositoryPort,
+    private val likeService: LikeService,
+    private val likeCountQueryPort: LikeCountQueryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -44,6 +48,17 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             assertThat(detail.id).isGreaterThan(0L)
             assertThat(detail.stockQuantity).isEqualTo(50)
             assertThat(stockRepositoryPort.findByProductId(detail.id)?.quantity).isEqualTo(50)
+        }
+
+        @DisplayName("createProduct 시 LikeCount가 0으로 초기화된다.")
+        @Test
+        fun initializesLikeCountToZero() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productFacade.createProduct(
+                CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
+            )
+
+            assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(0L)
         }
 
         @DisplayName("Brand가 없으면 NOT_FOUND 예외가 발생한다.")
@@ -113,12 +128,30 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             assertThat(productRepositoryPort.findByIdOrNull(detail.id)).isNull()
             assertThat(stockRepositoryPort.findByProductId(detail.id)).isNull()
         }
+
+        @DisplayName("deleteProduct 시 Like와 LikeCount도 cascade hard delete된다.")
+        @Test
+        fun cascadesLikeAndLikeCount() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productFacade.createProduct(
+                CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
+            )
+            likeService.register(userId = 1L, productId = detail.id)
+            likeService.register(userId = 2L, productId = detail.id)
+            assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(2L)
+
+            productFacade.deleteProduct(detail.id)
+
+            assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(0L)
+            assertThat(likeService.findAllProductIdsByUserId(1L)).doesNotContain(detail.id)
+            assertThat(likeService.findAllProductIdsByUserId(2L)).doesNotContain(detail.id)
+        }
     }
 
     @DisplayName("getProduct / getProducts 통합 흐름")
     @Nested
     inner class Query {
-        @DisplayName("getProduct는 brandName, stockQuantity, likeCount(stub=0)를 포함한 ProductDetail을 반환한다.")
+        @DisplayName("getProduct는 brandName, stockQuantity, likeCount(초기값 0)를 포함한 ProductDetail을 반환한다.")
         @Test
         fun returnsDetail() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))

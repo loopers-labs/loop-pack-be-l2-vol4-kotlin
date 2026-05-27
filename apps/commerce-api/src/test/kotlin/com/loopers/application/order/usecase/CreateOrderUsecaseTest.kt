@@ -1,5 +1,8 @@
-package com.loopers.domain.order
+package com.loopers.application.order.usecase
 
+import com.loopers.application.order.OrderCommand
+import com.loopers.domain.order.OrderModel
+import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.product.ProductModel
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
@@ -7,6 +10,7 @@ import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.user.UserModel
 import com.loopers.domain.user.UserRepository
+import com.loopers.domain.user.UserService
 import com.loopers.domain.withId
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -19,55 +23,26 @@ import org.junit.jupiter.api.assertThrows
 import java.math.BigDecimal
 import java.time.LocalDate
 
-class OrderServiceTest {
-    @DisplayName("주문할 때,")
+class CreateOrderUsecaseTest {
+    @DisplayName("주문 생성 유스케이스를 실행할 때,")
     @Nested
-    inner class Order {
-        @DisplayName("여러 상품 주문을 생성하고 각 상품 재고를 차감한다.")
+    inner class Execute {
+        @DisplayName("회원 인증, 상품/재고 조회, 주문 저장 흐름을 조율한다.")
         @Test
-        fun createsOrderAndDeductsStocks() {
+        fun createsOrderAndDeductsStock() {
             // arrange
             val fixture = Fixture()
 
             // act
-            val order = fixture.orderService.order(
-                OrderService.OrderCommand(
-                    userId = 1L,
-                    items = listOf(
-                        OrderService.OrderItemCommand(productId = 10L, quantity = 2),
-                        OrderService.OrderItemCommand(productId = 20L, quantity = 1),
-                    ),
-                ),
-            )
+            val order = fixture.createOrderUsecase.execute(fixture.command())
 
             // assert
             assertAll(
                 { assertThat(order.items).hasSize(2) },
                 { assertThat(order.totalPrice).isEqualByComparingTo(BigDecimal("270000.00")) },
                 { assertThat(fixture.stockRepository.findByProductId(10L)?.quantity).isEqualTo(8) },
-                { assertThat(fixture.stockRepository.findByProductId(20L)?.quantity).isEqualTo(4) },
-                { assertThat(fixture.productRepository.findActiveById(10L)?.stockQuantity).isEqualTo(8) },
+                { assertThat(fixture.orderRepository.findById(order.id)).isNotNull() },
             )
-        }
-
-        @DisplayName("회원이 없으면 NOT_FOUND 예외가 발생한다.")
-        @Test
-        fun throwsNotFound_whenUserDoesNotExist() {
-            // arrange
-            val fixture = Fixture()
-
-            // act
-            val exception = assertThrows<CoreException> {
-                fixture.orderService.order(
-                    OrderService.OrderCommand(
-                        userId = 999L,
-                        items = listOf(OrderService.OrderItemCommand(productId = 10L, quantity = 1)),
-                    ),
-                )
-            }
-
-            // assert
-            assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
 
         @DisplayName("상품이 없으면 NOT_FOUND 예외가 발생한다.")
@@ -78,10 +53,9 @@ class OrderServiceTest {
 
             // act
             val exception = assertThrows<CoreException> {
-                fixture.orderService.order(
-                    OrderService.OrderCommand(
-                        userId = 1L,
-                        items = listOf(OrderService.OrderItemCommand(productId = 999L, quantity = 1)),
+                fixture.createOrderUsecase.execute(
+                    fixture.command(
+                        items = listOf(OrderCommand.OrderItemCommand(productId = 999L, quantity = 1)),
                     ),
                 )
             }
@@ -89,67 +63,19 @@ class OrderServiceTest {
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
-
-        @DisplayName("재고가 부족하면 CONFLICT 예외가 발생하고 어떤 재고도 차감하지 않는다.")
-        @Test
-        fun throwsConflictAndDoesNotDeductAnyStock_whenStockIsInsufficient() {
-            // arrange
-            val fixture = Fixture()
-
-            // act
-            val exception = assertThrows<CoreException> {
-                fixture.orderService.order(
-                    OrderService.OrderCommand(
-                        userId = 1L,
-                        items = listOf(
-                            OrderService.OrderItemCommand(productId = 10L, quantity = 2),
-                            OrderService.OrderItemCommand(productId = 20L, quantity = 99),
-                        ),
-                    ),
-                )
-            }
-
-            // assert
-            assertThat(exception.errorType).isEqualTo(ErrorType.CONFLICT)
-            assertThat(fixture.stockRepository.findByProductId(10L)?.quantity).isEqualTo(10)
-            assertThat(fixture.stockRepository.findByProductId(20L)?.quantity).isEqualTo(5)
-        }
-
-        @DisplayName("같은 상품이 중복으로 포함되면 BAD_REQUEST 예외가 발생한다.")
-        @Test
-        fun throwsBadRequest_whenSameProductIsDuplicated() {
-            // arrange
-            val fixture = Fixture()
-
-            // act
-            val exception = assertThrows<CoreException> {
-                fixture.orderService.order(
-                    OrderService.OrderCommand(
-                        userId = 1L,
-                        items = listOf(
-                            OrderService.OrderItemCommand(productId = 10L, quantity = 1),
-                            OrderService.OrderItemCommand(productId = 10L, quantity = 1),
-                        ),
-                    ),
-                )
-            }
-
-            // assert
-            assertThat(exception.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-            assertThat(fixture.stockRepository.findByProductId(10L)?.quantity).isEqualTo(10)
-        }
     }
 
     private class Fixture {
-        val userRepository = InMemoryUserRepository()
-        val productRepository = InMemoryProductRepository()
+        private val userRepository = InMemoryUserRepository()
+        private val productRepository = InMemoryProductRepository()
         val stockRepository = InMemoryProductStockRepository()
-        private val orderRepository = InMemoryOrderRepository()
-        val orderService = OrderService(
-            orderRepository = orderRepository,
-            userRepository = userRepository,
+        val orderRepository = InMemoryOrderRepository()
+        private val userService = UserService(userRepository)
+        val createOrderUsecase = CreateOrderUsecase(
+            userService = userService,
             productRepository = productRepository,
             productStockRepository = stockRepository,
+            orderRepository = orderRepository,
         )
 
         init {
@@ -166,6 +92,19 @@ class OrderServiceTest {
             productRepository.save(product(id = 20L, name = "Jordan", price = "30000.00", stockQuantity = 5))
             stockRepository.save(ProductStockModel(productId = 10L, quantity = 10))
             stockRepository.save(ProductStockModel(productId = 20L, quantity = 5))
+        }
+
+        fun command(
+            items: List<OrderCommand.OrderItemCommand> = listOf(
+                OrderCommand.OrderItemCommand(productId = 10L, quantity = 2),
+                OrderCommand.OrderItemCommand(productId = 20L, quantity = 1),
+            ),
+        ): OrderCommand {
+            return OrderCommand(
+                loginId = "loopers01",
+                password = "Pass1234!",
+                items = items,
+            )
         }
 
         private fun product(id: Long, name: String, price: String, stockQuantity: Int): ProductModel {

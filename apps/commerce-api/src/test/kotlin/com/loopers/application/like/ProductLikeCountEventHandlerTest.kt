@@ -1,15 +1,10 @@
 package com.loopers.application.like
 
-import com.loopers.domain.brand.BrandModel
-import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.like.LikeCreatedEvent
 import com.loopers.domain.like.LikeDeletedEvent
 import com.loopers.domain.product.ProductModel
 import com.loopers.domain.product.ProductRepository
-import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductSort
-import com.loopers.domain.product.ProductStockModel
-import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.withId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -51,17 +46,9 @@ class ProductLikeCountEventHandlerTest {
 
     private class Fixture {
         val productRepository = InMemoryProductRepository()
-        private val stockRepository = InMemoryProductStockRepository()
-        private val brandRepository = InMemoryBrandRepository()
-        private val productService = ProductService(
-            productRepository = productRepository,
-            productStockRepository = stockRepository,
-            brandRepository = brandRepository,
-        )
-        val eventHandler = ProductLikeCountEventHandler(productService)
+        val eventHandler = ProductLikeCountEventHandler(productRepository)
 
         init {
-            brandRepository.save(BrandModel(name = "Nike", description = "Brand").withId(1L))
             productRepository.save(
                 ProductModel(
                     brandId = 1L,
@@ -88,37 +75,6 @@ class ProductLikeCountEventHandlerTest {
 
         override fun findActiveAll(brandId: Long?, sort: ProductSort): List<ProductModel> {
             return products.values.toList()
-        }
-
-        override fun existsActiveById(id: Long): Boolean {
-            return findActiveById(id) != null
-        }
-    }
-
-    private class InMemoryProductStockRepository : ProductStockRepository {
-        override fun save(stock: ProductStockModel): ProductStockModel {
-            return stock
-        }
-
-        override fun findByProductId(productId: Long): ProductStockModel? {
-            return null
-        }
-    }
-
-    private class InMemoryBrandRepository : BrandRepository {
-        private val brands = mutableMapOf<Long, BrandModel>()
-
-        override fun save(brand: BrandModel): BrandModel {
-            brands[brand.id] = brand
-            return brand
-        }
-
-        override fun findById(id: Long): BrandModel? {
-            return brands[id]
-        }
-
-        override fun findActiveById(id: Long): BrandModel? {
-            return brands[id]?.takeUnless { it.isDeleted() }
         }
 
         override fun existsActiveById(id: Long): Boolean {

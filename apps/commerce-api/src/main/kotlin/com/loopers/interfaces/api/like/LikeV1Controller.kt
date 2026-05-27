@@ -1,6 +1,8 @@
 package com.loopers.interfaces.api.like
 
-import com.loopers.application.like.LikeFacade
+import com.loopers.application.like.usecase.LikeProductCommand
+import com.loopers.application.like.usecase.LikeProductUsecase
+import com.loopers.application.like.usecase.UnlikeProductUsecase
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -12,7 +14,8 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/products/{productId}/likes")
 class LikeV1Controller(
-    private val likeFacade: LikeFacade,
+    private val likeProductUsecase: LikeProductUsecase,
+    private val unlikeProductUsecase: UnlikeProductUsecase,
 ) {
     @PostMapping
     fun like(
@@ -20,7 +23,7 @@ class LikeV1Controller(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") password: String,
     ): ApiResponse<Any> {
-        likeFacade.like(LikeFacade.LikeCommand(loginId = loginId, password = password, productId = productId))
+        likeProductUsecase.execute(LikeProductCommand(loginId = loginId, password = password, productId = productId))
         return ApiResponse.success()
     }
 
@@ -30,7 +33,7 @@ class LikeV1Controller(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") password: String,
     ): ApiResponse<Any> {
-        likeFacade.unlike(LikeFacade.LikeCommand(loginId = loginId, password = password, productId = productId))
+        unlikeProductUsecase.execute(LikeProductCommand(loginId = loginId, password = password, productId = productId))
         return ApiResponse.success()
     }
 }

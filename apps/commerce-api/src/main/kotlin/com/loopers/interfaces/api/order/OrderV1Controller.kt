@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.order
 
-import com.loopers.application.order.OrderFacade
+import com.loopers.application.order.usecase.CreateOrderUsecase
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/orders")
 class OrderV1Controller(
-    private val orderFacade: OrderFacade,
+    private val createOrderUsecase: CreateOrderUsecase,
 ) {
     @PostMapping
     fun order(
@@ -19,7 +19,7 @@ class OrderV1Controller(
         @RequestHeader("X-Loopers-LoginPw") password: String,
         @RequestBody request: OrderV1Dto.OrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
-        return orderFacade.order(request.toCommand(loginId = loginId, password = password))
+        return createOrderUsecase.execute(request.toCommand(loginId = loginId, password = password))
             .let { OrderV1Dto.OrderResponse.from(it) }
             .let { ApiResponse.success(it) }
     }

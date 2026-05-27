@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.product
 
-import com.loopers.application.product.ProductFacade
+import com.loopers.application.product.usecase.GetProductDetailUsecase
+import com.loopers.application.product.usecase.GetProductsUsecase
 import com.loopers.domain.product.ProductSort
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.GetMapping
@@ -12,15 +13,16 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/products")
 class ProductV1Controller(
-    private val productFacade: ProductFacade,
+    private val getProductsUsecase: GetProductsUsecase,
+    private val getProductDetailUsecase: GetProductDetailUsecase,
 ) {
     @GetMapping
     fun getProducts(
         @RequestParam(required = false) brandId: Long?,
         @RequestParam(required = false) sort: String?,
     ): ApiResponse<List<ProductV1Dto.ProductResponse>> {
-        return productFacade.getProducts(
-            ProductFacade.ProductQuery(
+        return getProductsUsecase.execute(
+            GetProductsUsecase.Query(
                 brandId = brandId,
                 sort = ProductSort.from(sort),
             ),
@@ -32,7 +34,7 @@ class ProductV1Controller(
     fun getProduct(
         @PathVariable productId: Long,
     ): ApiResponse<ProductV1Dto.ProductResponse> {
-        return productFacade.getProductDetail(productId)
+        return getProductDetailUsecase.execute(productId)
             .let { ProductV1Dto.ProductResponse.from(it) }
             .let { ApiResponse.success(it) }
     }

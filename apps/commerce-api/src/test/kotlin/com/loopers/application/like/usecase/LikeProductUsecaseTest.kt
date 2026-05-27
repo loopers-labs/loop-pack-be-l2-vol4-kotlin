@@ -1,10 +1,15 @@
-package com.loopers.domain.like
+package com.loopers.application.like.usecase
 
+import com.loopers.domain.like.LikeCreatedEvent
+import com.loopers.domain.like.LikeDeletedEvent
+import com.loopers.domain.like.LikeModel
+import com.loopers.domain.like.LikeRepository
 import com.loopers.domain.product.ProductModel
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.user.UserModel
 import com.loopers.domain.user.UserRepository
+import com.loopers.domain.user.UserService
 import com.loopers.domain.withId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -14,18 +19,18 @@ import org.springframework.context.ApplicationEventPublisher
 import java.math.BigDecimal
 import java.time.LocalDate
 
-class LikeServiceTest {
-    @DisplayName("좋아요를 등록할 때,")
+class LikeProductUsecaseTest {
+    @DisplayName("상품 좋아요를 등록할 때,")
     @Nested
     inner class Like {
-        @DisplayName("처음 등록하면 좋아요가 저장되고 좋아요 생성 이벤트를 발행한다.")
+        @DisplayName("처음 등록하면 좋아요를 저장하고 이벤트를 발행한다.")
         @Test
-        fun createsLikeAndPublishesLikeCreatedEvent() {
+        fun savesLikeAndPublishesEvent() {
             // arrange
             val fixture = Fixture()
 
             // act
-            fixture.likeService.like(userId = 1L, productId = 10L)
+            fixture.likeProductUsecase.execute(fixture.command())
 
             // assert
             assertThat(fixture.likeRepository.countByProductId(10L)).isEqualTo(1L)
@@ -37,10 +42,10 @@ class LikeServiceTest {
         fun doesNothing_whenLikeAlreadyExists() {
             // arrange
             val fixture = Fixture()
-            fixture.likeService.like(userId = 1L, productId = 10L)
+            fixture.likeProductUsecase.execute(fixture.command())
 
             // act
-            fixture.likeService.like(userId = 1L, productId = 10L)
+            fixture.likeProductUsecase.execute(fixture.command())
 
             // assert
             assertThat(fixture.likeRepository.countByProductId(10L)).isEqualTo(1L)
@@ -48,18 +53,18 @@ class LikeServiceTest {
         }
     }
 
-    @DisplayName("좋아요를 취소할 때,")
+    @DisplayName("상품 좋아요를 취소할 때,")
     @Nested
     inner class Unlike {
-        @DisplayName("등록된 좋아요가 있으면 삭제하고 좋아요 삭제 이벤트를 발행한다.")
+        @DisplayName("등록된 좋아요가 있으면 삭제하고 이벤트를 발행한다.")
         @Test
-        fun deletesLikeAndPublishesLikeDeletedEvent() {
+        fun deletesLikeAndPublishesEvent() {
             // arrange
             val fixture = Fixture()
-            fixture.likeService.like(userId = 1L, productId = 10L)
+            fixture.likeProductUsecase.execute(fixture.command())
 
             // act
-            fixture.likeService.unlike(userId = 1L, productId = 10L)
+            fixture.unlikeProductUsecase.execute(fixture.command())
 
             // assert
             assertThat(fixture.likeRepository.countByProductId(10L)).isEqualTo(0L)
@@ -76,7 +81,7 @@ class LikeServiceTest {
             val fixture = Fixture()
 
             // act
-            fixture.likeService.unlike(userId = 1L, productId = 10L)
+            fixture.unlikeProductUsecase.execute(fixture.command())
 
             // assert
             assertThat(fixture.likeRepository.countByProductId(10L)).isEqualTo(0L)
@@ -85,14 +90,21 @@ class LikeServiceTest {
     }
 
     private class Fixture {
-        val userRepository = InMemoryUserRepository()
-        val productRepository = InMemoryProductRepository()
+        private val userRepository = InMemoryUserRepository()
+        private val productRepository = InMemoryProductRepository()
         val likeRepository = InMemoryLikeRepository()
         val eventPublisher = RecordingEventPublisher()
-        val likeService = LikeService(
-            likeRepository = likeRepository,
-            userRepository = userRepository,
+        private val userService = UserService(userRepository)
+        val likeProductUsecase = LikeProductUsecase(
+            userService = userService,
             productRepository = productRepository,
+            likeRepository = likeRepository,
+            eventPublisher = eventPublisher,
+        )
+        val unlikeProductUsecase = UnlikeProductUsecase(
+            userService = userService,
+            productRepository = productRepository,
+            likeRepository = likeRepository,
             eventPublisher = eventPublisher,
         )
 
@@ -114,6 +126,14 @@ class LikeServiceTest {
                     price = BigDecimal("120000.00"),
                     stockQuantity = 10,
                 ).withId(10L),
+            )
+        }
+
+        fun command(): LikeProductCommand {
+            return LikeProductCommand(
+                loginId = "loopers01",
+                password = "Pass1234!",
+                productId = 10L,
             )
         }
     }

@@ -76,6 +76,10 @@ class UserServiceTest {
             return user
         }
 
+        override fun findById(id: Long): UserModel? {
+            return users.values.firstOrNull { it.id == id }
+        }
+
         override fun findByLoginId(loginId: String): UserModel? {
             return users[loginId]
         }

@@ -53,6 +53,53 @@ Gradle 멀티 모듈 구조로 구성되어 있으며, HTTP API, Batch, Streamer
 - Refactor 단계는 관련 테스트가 통과한 상태에서만 진행합니다.
 - 요청되지 않았거나 테스트로 표현되지 않은 기능은 임의로 추가하지 않습니다.
 
+## 설계 원칙
+
+### 도메인 & 객체 설계 전략
+
+- 도메인 객체는 비즈니스 규칙과 상태 변경 규칙을 스스로 캡슐화합니다.
+- 도메인 규칙이 여러 서비스 또는 유스케이스에 반복되면 도메인 객체, 값 객체, 도메인 서비스로 이동할 가능성을 먼저 검토합니다.
+- 애플리케이션 계층은 여러 도메인 객체와 Repository Port를 조립해 사용자의 유스케이스를 완성합니다.
+- 애플리케이션 계층은 트랜잭션 경계, 흐름 제어, 도메인 객체 간 협력 조정을 담당하고, 핵심 비즈니스 판단을 직접 소유하지 않습니다.
+- 도메인 객체는 외부 프레임워크, API DTO, 영속성 구현 세부사항에 의존하지 않습니다.
+- 엔티티는 불변 조건을 깨지 않는 생성 메서드와 행위 메서드를 제공하고, 외부에서 임의로 상태를 변경할 수 없도록 합니다.
+- 값 객체는 검증과 동등성 비교가 필요한 개념에 우선 적용합니다.
+- 각 기능을 구현하기 전 책임 배치, 객체 협력 방식, 결합도에 대한 개발자의 의도를 확인하고 진행합니다.
+
+### Usecase 중심 객체 협력 설계
+
+- 하나의 사용자 기능은 하나의 명확한 Usecase로 표현합니다.
+- Usecase는 입력 DTO를 받아 도메인 객체를 조회, 생성, 변경한 뒤 출력 DTO를 반환합니다.
+- Usecase 입력 DTO와 출력 DTO는 API request, response DTO와 분리합니다.
+- Usecase는 구체적인 JPA Repository, Redis Client, 외부 API Client가 아니라 도메인 계층의 Repository Port 인터페이스에 의존합니다.
+- 단순 CRUD처럼 흐름이 작더라도 Controller에서 Repository를 직접 호출하지 않고 Usecase를 경유합니다.
+- 여러 Usecase에서 공유되는 조회 모델은 중복을 제거하되, 도메인 규칙을 표현하지 않는 조회 편의 로직과 핵심 도메인 행위를 혼동하지 않습니다.
+- 유스케이스 테스트는 객체 협력과 결과를 검증하고, 도메인 테스트는 비즈니스 규칙을 직접 검증합니다.
+
+### 아키텍처, 패키지 구성 전략
+
+- 본 프로젝트는 Clean Architecture 원칙을 따르며, 현재 코드베이스의 4개 레이어 패키지 구조를 유지합니다.
+- 의존성 방향은 바깥 레이어에서 안쪽 레이어로만 향합니다: `interfaces -> application -> domain`.
+- `infrastructure`는 `domain`에 정의된 Repository Port 인터페이스를 구현하며, 도메인 로직을 소유하지 않습니다.
+- Repository Port는 기존 구조를 따라 `domain/{domain}` 패키지에 둡니다.
+- DIP를 준수하기 위해 Repository, 외부 시스템 연동, 시간, ID 생성 등 변경 가능한 세부사항은 인터페이스 뒤에 둡니다.
+- API request, response DTO와 application 계층의 command, query, result DTO는 분리합니다.
+- 패키징은 레이어를 먼저 나누고, 하위에 도메인별 패키지를 둡니다.
+
+```text
+com.loopers
+  interfaces/api/{domain}       # presentation layer: Controller, API DTO, API Spec
+  application/{domain}          # application layer: Usecase, Command, Query, Result
+  domain/{domain}               # domain layer: Entity, Value Object, Domain Service, Repository Port
+  infrastructure/{domain}       # infrastructure layer: JPA Entity/Repository, Adapter, Repository 구현체
+```
+
+- 새로운 기능은 가능한 한 `application/{domain}/usecase` 단위로 진입점을 만들고, 기존 `Facade` 패턴과 함께 사용할 경우 책임이 겹치지 않도록 정리합니다.
+- `interfaces` 계층은 인증 정보 추출, 요청 검증, DTO 변환, 응답 코드 매핑에 집중합니다.
+- `application` 계층은 유스케이스별 트랜잭션과 도메인 객체 협력을 조정합니다.
+- `domain` 계층은 비즈니스 규칙, 상태 전이, 도메인 예외, Repository Port를 포함합니다.
+- `infrastructure` 계층은 JPA, Redis, Kafka, 외부 API 같은 기술 세부사항을 캡슐화합니다.
+
 ## 주의사항
 
 ### Never Do

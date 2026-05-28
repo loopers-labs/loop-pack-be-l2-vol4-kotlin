@@ -12,7 +12,8 @@ erDiagram
     MEMBER ||--o{ PRODUCT_LIKE : "likes"
     PRODUCT ||--o{ PRODUCT_LIKE : "liked by"
     BRAND ||--o{ PRODUCT : "owns"
-    PRODUCT ||--|| INVENTORY : "has"
+    PRODUCT ||--|| PRODUCT_STAT : "has stats"
+    PRODUCT ||--|| INVENTORY : "has planned inventory"
     MEMBER ||--o{ ORDERS : "places"
     ORDERS ||--|{ ORDER_ITEM : "contains"
     PRODUCT ||--o{ ORDER_ITEM : "snapshotted from"
@@ -26,6 +27,7 @@ erDiagram
         bigint id PK
         string name
         string description
+        string logo_image_url
         boolean is_deleted
         datetime created_at
         datetime updated_at
@@ -35,8 +37,18 @@ erDiagram
         bigint id PK
         bigint brand_id FK
         string name
-        bigint price_amount
+        bigint price
+        string description
+        string image_url
         boolean is_deleted
+        datetime created_at
+        datetime updated_at
+    }
+
+    PRODUCT_STAT {
+        bigint id PK
+        bigint product_id UK, FK
+        bigint like_count
         datetime created_at
         datetime updated_at
     }
@@ -84,11 +96,12 @@ erDiagram
 | 브랜드-상품 | `product.brand_id`는 반드시 존재하는 `brand.id`를 참조해야 한다. |
 | 관리자 Catalog 관리 | 관리자 브랜드/상품 관리는 별도 테이블 없이 `brand`, `product`를 직접 관리한다. 삭제는 `is_deleted` 기반 soft delete 로 해석한다. |
 | 좋아요 멱등성 | `product_like(member_id, product_id)` 복합 PK로 동일 사용자의 동일 상품 좋아요를 단일 row로 보장한다. |
+| 좋아요 수 조회 | `product_stat.product_id`를 unique 로 두고 상품별 `like_count`를 조회/정렬에 사용한다. |
 | 주문 소유권 | `orders.member_id`는 주문의 소유 사용자를 가리킨다. 조회 시 이 키를 기준으로 권한을 제한한다. |
 | 관리자 주문 조회 | 관리자 조회는 `orders.member_id`로 권한을 제한하지 않지만, 같은 주문/주문상세 스냅샷 데이터를 읽는다. |
 | 주문 상세 무결성 | `order_item.order_id`는 반드시 존재하는 주문을 참조해야 한다. |
 | 주문 스냅샷 | `product_name_snapshot`, `brand_name_snapshot`, `unit_price_*_snapshot`은 주문 당시 값을 고정 저장한다. |
-| 재고 정합성 | `inventory.quantity`는 음수가 되면 안 되며, 주문 트랜잭션 안에서 검증 후 차감돼야 한다. |
+| 재고 정합성 | `inventory.quantity`는 음수가 되면 안 되며, 주문 트랜잭션 안에서 검증 후 차감돼야 한다. 단, 현재 product-brand 구현에서는 Inventory 코드를 제외하고 다음 작업으로 분리했다. |
 
 ## 4. 컬럼 설명
 
@@ -106,6 +119,7 @@ erDiagram
 | `id` | 브랜드 식별자 |
 | `name` | 브랜드명 |
 | `description` | 브랜드 소개 문구 |
+| `logo_image_url` | 브랜드 로고 이미지 URL |
 | `is_deleted` | soft delete 여부 |
 | `created_at` | 브랜드 생성 시각 |
 | `updated_at` | 브랜드 수정 시각 |
@@ -117,12 +131,24 @@ erDiagram
 | `id` | 상품 식별자 |
 | `brand_id` | 소속 브랜드 식별자 |
 | `name` | 상품명 |
-| `price_amount` | 현재 상품 판매 금액 |
+| `price` | 현재 상품 판매 금액 |
+| `description` | 상품 상세 설명 |
+| `image_url` | 상품 대표 이미지 URL |
 | `is_deleted` | soft delete 여부 |
 | `created_at` | 상품 생성 시각 |
 | `updated_at` | 상품 수정 시각 |
 
-### 4.4 INVENTORY
+### 4.4 PRODUCT_STAT
+
+| 컬럼 | 의미 |
+| --- | --- |
+| `id` | 상품 통계 식별자 |
+| `product_id` | 통계가 속한 상품 식별자 |
+| `like_count` | 상품 좋아요 수 |
+| `created_at` | 통계 레코드 생성 시각 |
+| `updated_at` | 통계 수정 시각 |
+
+### 4.5 INVENTORY
 
 | 컬럼 | 의미 |
 | --- | --- |
@@ -131,7 +157,7 @@ erDiagram
 | `created_at` | 재고 레코드 생성 시각 |
 | `updated_at` | 재고 수정 시각 |
 
-### 4.5 PRODUCT_LIKE
+### 4.6 PRODUCT_LIKE
 
 | 컬럼 | 의미 |
 | --- | --- |
@@ -139,7 +165,7 @@ erDiagram
 | `product_id` | 좋아요 대상 상품 식별자 |
 | `created_at` | 좋아요 생성 시각 |
 
-### 4.6 ORDERS
+### 4.7 ORDERS
 
 | 컬럼 | 의미 |
 | --- | --- |
@@ -151,7 +177,7 @@ erDiagram
 | `ordered_at` | 실제 주문 시각 |
 | `created_at` | 주문 레코드 생성 시각 |
 
-### 4.7 ORDER_ITEM
+### 4.8 ORDER_ITEM
 
 | 컬럼 | 의미 |
 | --- | --- |
@@ -170,6 +196,7 @@ erDiagram
 | 테이블 | 권장 제약 |
 | --- | --- |
 | `product_like` | `PRIMARY KEY(member_id, product_id)` |
+| `product_stat` | `UNIQUE(product_id)`, `CHECK(like_count >= 0)` |
 | `orders` | `UNIQUE(order_number)` |
 | `inventory` | `CHECK(quantity >= 0)` |
 | `brand`, `product` | 고객 조회 기본 조건으로 `is_deleted = false` 인덱스 또는 조회 조건을 권장 |
@@ -179,7 +206,8 @@ erDiagram
 - `MEMBER`는 이번 설계 범위 밖이지만, `Like`와 `Order`의 외래키 정합성을 설명하기 위해 최소한으로 표시했다.
 - 관리자 인증 정보는 이번 설계에서 별도 테이블로 모델링하지 않는다. 운영 API 접근 제어는 외부 인증/헤더 정책 전제로 둔다.
 - `BRAND`, `PRODUCT`의 삭제는 hard delete 가 아니라 `is_deleted` 기반 soft delete 로 본다.
-- `INVENTORY`는 `PRODUCT`와 1:1 관계이며, 상품 생성 시 함께 만들어진다고 가정한다.
+- `PRODUCT_STAT`은 상품 좋아요 수 정렬과 응답의 `likeCount`를 위해 둔다. 좋아요 명령 구현 시 증감 정합성을 함께 보장해야 한다.
+- `INVENTORY`는 `PRODUCT`와 1:1 관계로 설계하지만, 현재 product-brand 구현에서는 제외하고 주문/관리자 상품 작업으로 분리했다.
 - `PRODUCT_LIKE`는 별도 surrogate key 없이 `(member_id, product_id)` 복합키를 식별자로 사용한다.
 - `PRODUCT`와 `ORDER_ITEM` 사이 관계는 현재 상품 자체를 다시 읽기 위한 용도라기보다, 어떤 상품에서 스냅샷이 만들어졌는지 추적하기 위한 참조로 본다.
 - 결제 테이블은 현재 넣지 않는다. 실제 결제 정책이 확정되면 `orders`와 별도 `payments` 관계를 추가하는 편이 경계를 유지하기 쉽다.

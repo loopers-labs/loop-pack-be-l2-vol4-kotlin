@@ -1,0 +1,17 @@
+### 브랜드 상세 조회
+GET {{commerce-api}}/api/v1/brands/1
+
+### 상품 목록 조회 - 최신순
+GET {{commerce-api}}/api/v1/products?sort=latest&page=0&size=20
+
+### 상품 목록 조회 - 가격 낮은순
+GET {{commerce-api}}/api/v1/products?sort=price_asc&page=0&size=20
+
+### 상품 목록 조회 - 좋아요 많은순
+GET {{commerce-api}}/api/v1/products?sort=likes_desc&page=0&size=20
+
+### 브랜드 상품 목록 조회
+GET {{commerce-api}}/api/v1/products?brandId=1&sort=latest&page=0&size=20
+
+### 상품 상세 조회
+GET {{commerce-api}}/api/v1/products/1

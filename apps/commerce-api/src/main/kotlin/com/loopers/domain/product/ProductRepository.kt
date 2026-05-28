@@ -1,0 +1,17 @@
+package com.loopers.domain.product
+
+import com.loopers.domain.product.dto.ProductSummary
+import org.springframework.data.domain.Page
+
+interface ProductRepository {
+    fun findById(productId: Long): Product?
+
+    fun findDisplayableSummaries(
+        brandId: Long?,
+        sort: ProductSort,
+        page: Int,
+        size: Int,
+    ): Page<ProductSummary>
+
+    fun save(product: Product): Product
+}

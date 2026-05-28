@@ -1,5 +1,6 @@
 package com.loopers.application.brand
 
+import com.loopers.application.brand.dto.BrandCreateCommand
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
 import com.loopers.support.error.CoreException
@@ -15,5 +16,17 @@ class BrandService(
             ?: throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
 
         return brand
+    }
+
+    fun createBrand(command: BrandCreateCommand): Brand {
+        if (brandRepository.existsByName(command.name)) {
+            throw CoreException(ErrorType.CONFLICT, "Brand name already exists.")
+        }
+
+        return Brand(
+            name = command.name,
+            description = command.description,
+            logoImageUrl = command.logoImageUrl,
+        ).let(brandRepository::save)
     }
 }

@@ -1,5 +1,6 @@
 package com.loopers.infrastructure.productstat
 
+import com.loopers.domain.productstat.ProductStat
 import com.loopers.domain.productstat.ProductStatRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -10,12 +11,12 @@ import org.springframework.stereotype.Component
 class ProductStatRepositoryImpl(
     private val productStatJpaRepository: ProductStatJpaRepository,
 ) : ProductStatRepository {
-    override fun findByProductId(productId: Long): com.loopers.domain.productstat.ProductStat? {
+    override fun findByProductId(productId: Long): ProductStat? {
         return productStatJpaRepository.findByProductId(productId)
             ?.let(ProductStatMapper::toDomain)
     }
 
-    override fun findAllByProductIds(productIds: Collection<Long>): List<com.loopers.domain.productstat.ProductStat> {
+    override fun findAllByProductIds(productIds: Collection<Long>): List<ProductStat> {
         if (productIds.isEmpty()) {
             return emptyList()
         }
@@ -25,8 +26,8 @@ class ProductStatRepositoryImpl(
     }
 
     override fun save(
-        productStat: com.loopers.domain.productstat.ProductStat,
-    ): com.loopers.domain.productstat.ProductStat {
+        productStat: ProductStat,
+    ): ProductStat {
         val entity = if (productStat.id == 0L) {
             ProductStatMapper.toEntity(productStat)
         } else {

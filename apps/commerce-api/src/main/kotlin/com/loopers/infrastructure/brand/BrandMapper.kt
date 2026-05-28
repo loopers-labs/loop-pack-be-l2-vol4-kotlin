@@ -1,8 +1,10 @@
 package com.loopers.infrastructure.brand
 
+import com.loopers.domain.brand.Brand
+
 object BrandMapper {
-    fun toDomain(brand: Brand): com.loopers.domain.brand.Brand {
-        return com.loopers.domain.brand.Brand(
+    fun toDomain(brand: BrandEntity): Brand {
+        return Brand(
             id = brand.id,
             name = brand.name,
             description = brand.description,
@@ -11,8 +13,8 @@ object BrandMapper {
         )
     }
 
-    fun toEntity(brand: com.loopers.domain.brand.Brand): Brand {
-        return Brand(
+    fun toEntity(brand: Brand): BrandEntity {
+        return BrandEntity(
             name = brand.name,
             description = brand.description,
             logoImageUrl = brand.logoImageUrl,

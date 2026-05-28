@@ -1,5 +1,6 @@
 package com.loopers.infrastructure.product
 
+import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Component
 class ProductRepositoryImpl(
     private val productJpaRepository: ProductJpaRepository,
 ) : ProductRepository {
-    override fun findById(productId: Long): com.loopers.domain.product.Product? {
+    override fun findById(productId: Long): Product? {
         return productJpaRepository.findByIdOrNull(productId)
             ?.let(ProductMapper::toDomain)
     }
@@ -33,7 +34,7 @@ class ProductRepositoryImpl(
         )
     }
 
-    override fun save(product: com.loopers.domain.product.Product): com.loopers.domain.product.Product {
+    override fun save(product: Product): Product {
         val entity = if (product.id == 0L) {
             ProductMapper.toEntity(product)
         } else {

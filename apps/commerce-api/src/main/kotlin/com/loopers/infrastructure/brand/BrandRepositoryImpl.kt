@@ -1,8 +1,7 @@
 package com.loopers.infrastructure.brand
 
+import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
@@ -10,21 +9,18 @@ import org.springframework.stereotype.Component
 class BrandRepositoryImpl(
     private val brandJpaRepository: BrandJpaRepository,
 ) : BrandRepository {
-    override fun findById(brandId: Long): com.loopers.domain.brand.Brand? {
+    override fun findById(brandId: Long): Brand? {
         return brandJpaRepository.findByIdOrNull(brandId)
             ?.let(BrandMapper::toDomain)
     }
 
-    override fun save(brand: com.loopers.domain.brand.Brand): com.loopers.domain.brand.Brand {
-        val entity = if (brand.id == 0L) {
-            BrandMapper.toEntity(brand)
-        } else {
-            brandJpaRepository.findByIdOrNull(brand.id)
-                ?.also { it.update(brand) }
-                ?: throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
-        }
+    override fun existsByName(name: String): Boolean {
+        return brandJpaRepository.existsByName(name)
+    }
 
-        return brandJpaRepository.save(entity)
+    override fun save(brand: Brand): Brand {
+        return BrandMapper.toEntity(brand)
+            .let(brandJpaRepository::save)
             .let(BrandMapper::toDomain)
     }
 }

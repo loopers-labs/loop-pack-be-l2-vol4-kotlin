@@ -3,7 +3,7 @@ package com.loopers.infrastructure.member
 import com.loopers.domain.user.User
 
 object MemberMapper {
-    fun toDomain(member: Member): User {
+    fun toDomain(member: MemberEntity): User {
         return User(
             id = member.id,
             loginId = member.loginId,
@@ -14,8 +14,8 @@ object MemberMapper {
         )
     }
 
-    fun toEntity(user: User): Member {
-        return Member(
+    fun toEntity(user: User): MemberEntity {
+        return MemberEntity(
             loginId = user.loginId,
             password = user.password,
             name = user.name,

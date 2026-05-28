@@ -1,13 +1,14 @@
 package com.loopers.infrastructure.product
 
 import com.loopers.domain.BaseEntity
+import com.loopers.domain.product.Product
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
 
 @Entity
 @Table(name = "product")
-class Product(
+class ProductEntity(
     @Column(nullable = false)
     var brandId: Long,
 
@@ -26,7 +27,7 @@ class Product(
     @Column(nullable = false)
     var isDeleted: Boolean = false,
 ) : BaseEntity() {
-    fun update(domain: com.loopers.domain.product.Product) {
+    fun update(domain: Product) {
         brandId = domain.brandId
         name = domain.name
         price = domain.price

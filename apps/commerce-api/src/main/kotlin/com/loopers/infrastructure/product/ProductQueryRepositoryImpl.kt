@@ -2,9 +2,9 @@ package com.loopers.infrastructure.product
 
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
-import com.loopers.infrastructure.brand.QBrand.brand
-import com.loopers.infrastructure.product.QProduct.product
-import com.loopers.infrastructure.productstat.QProductStat.productStat
+import com.loopers.infrastructure.brand.QBrandEntity.brandEntity
+import com.loopers.infrastructure.product.QProductEntity.productEntity
+import com.loopers.infrastructure.productstat.QProductStatEntity.productStatEntity
 import com.querydsl.core.types.OrderSpecifier
 import com.querydsl.core.types.Projections
 import com.querydsl.core.types.dsl.BooleanExpression
@@ -28,21 +28,21 @@ class ProductQueryRepositoryImpl(
             .select(
                 Projections.constructor(
                     ProductSummary::class.java,
-                    product.id,
-                    product.name,
-                    product.price,
-                    product.imageUrl,
-                    brand.id,
-                    brand.name,
-                    productStat.likeCount.coalesce(0L),
+                    productEntity.id,
+                    productEntity.name,
+                    productEntity.price,
+                    productEntity.imageUrl,
+                    brandEntity.id,
+                    brandEntity.name,
+                    productStatEntity.likeCount.coalesce(0L),
                 ),
             )
-            .from(product)
-            .join(brand).on(brand.id.eq(product.brandId))
-            .leftJoin(productStat).on(productStat.productId.eq(product.id))
+            .from(productEntity)
+            .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
+            .leftJoin(productStatEntity).on(productStatEntity.productId.eq(productEntity.id))
             .where(
-                product.isDeleted.isFalse,
-                brand.isDeleted.isFalse,
+                productEntity.isDeleted.isFalse,
+                brandEntity.isDeleted.isFalse,
                 brandIdEq(brandId),
             )
             .orderBy(*orderSpecifiers(sort))
@@ -52,12 +52,12 @@ class ProductQueryRepositoryImpl(
 
         return PageableExecutionUtils.getPage(content, pageable) {
             queryFactory
-                .select(product.count())
-                .from(product)
-                .join(brand).on(brand.id.eq(product.brandId))
+                .select(productEntity.count())
+                .from(productEntity)
+                .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
                 .where(
-                    product.isDeleted.isFalse,
-                    brand.isDeleted.isFalse,
+                    productEntity.isDeleted.isFalse,
+                    brandEntity.isDeleted.isFalse,
                     brandIdEq(brandId),
                 )
                 .fetchOne() ?: 0L
@@ -65,23 +65,23 @@ class ProductQueryRepositoryImpl(
     }
 
     private fun brandIdEq(brandId: Long?): BooleanExpression? {
-        return brandId?.let { product.brandId.eq(it) }
+        return brandId?.let { productEntity.brandId.eq(it) }
     }
 
     private fun orderSpecifiers(sort: ProductSort): Array<OrderSpecifier<*>> {
         return when (sort) {
             ProductSort.LATEST -> arrayOf(
-                product.createdAt.desc(),
-                product.id.desc(),
+                productEntity.createdAt.desc(),
+                productEntity.id.desc(),
             )
             ProductSort.PRICE_ASC -> arrayOf(
-                product.price.asc(),
-                product.id.desc(),
+                productEntity.price.asc(),
+                productEntity.id.desc(),
             )
             ProductSort.LIKES_DESC -> arrayOf(
-                productStat.likeCount.coalesce(0L).desc(),
-                product.createdAt.desc(),
-                product.id.desc(),
+                productStatEntity.likeCount.coalesce(0L).desc(),
+                productEntity.createdAt.desc(),
+                productEntity.id.desc(),
             )
         }
     }

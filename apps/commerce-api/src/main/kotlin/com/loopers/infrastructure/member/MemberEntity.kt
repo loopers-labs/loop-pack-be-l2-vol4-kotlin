@@ -9,7 +9,7 @@ import java.time.LocalDate
 
 @Entity
 @Table(name = "member")
-class Member(
+class MemberEntity(
     @Column(nullable = false, unique = true)
     var loginId: String,
 

@@ -90,6 +90,10 @@ class ProductFacadeTest {
             return brands.find { it.id == brandId }
         }
 
+        override fun existsByName(name: String): Boolean {
+            return brands.any { it.name == name }
+        }
+
         override fun save(brand: Brand): Brand {
             brands.removeIf { it.id == brand.id }
             brands.add(brand)

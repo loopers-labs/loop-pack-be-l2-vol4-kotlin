@@ -1,8 +1,10 @@
 package com.loopers.infrastructure.product
 
+import com.loopers.domain.product.Product
+
 object ProductMapper {
-    fun toDomain(product: Product): com.loopers.domain.product.Product {
-        return com.loopers.domain.product.Product(
+    fun toDomain(product: ProductEntity): Product {
+        return Product(
             id = product.id,
             brandId = product.brandId,
             name = product.name,
@@ -13,8 +15,8 @@ object ProductMapper {
         )
     }
 
-    fun toEntity(product: com.loopers.domain.product.Product): Product {
-        return Product(
+    fun toEntity(product: Product): ProductEntity {
+        return ProductEntity(
             brandId = product.brandId,
             name = product.name,
             price = product.price,

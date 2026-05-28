@@ -2,6 +2,7 @@ package com.loopers.account.application
 
 import com.loopers.account.domain.Account
 import com.loopers.account.domain.AccountCredential
+import com.loopers.account.domain.AccountRole
 import com.loopers.account.domain.CredentialMethod
 import com.loopers.account.domain.PasswordEncryptor
 import com.loopers.account.domain.error.AccountErrorCode
@@ -70,6 +71,7 @@ class AccountService(
         return AccountAuthenticatedInfo(
             accountId = credential.account.id,
             loginId = credential.identifier.value,
+            role = credential.account.role,
         )
     }
 
@@ -131,6 +133,7 @@ data class AccountAuthenticateCommand(
 data class AccountAuthenticatedInfo(
     val accountId: Long,
     val loginId: String,
+    val role: AccountRole,
 )
 
 data class AccountMeInfo(

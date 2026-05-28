@@ -2,6 +2,7 @@ package com.loopers.account.application
 
 import com.loopers.account.domain.Account
 import com.loopers.account.domain.AccountCredential
+import com.loopers.account.domain.AccountRole
 import com.loopers.account.domain.CredentialMethod
 import com.loopers.account.domain.PasswordEncryptor
 import com.loopers.account.domain.error.AccountErrorCode
@@ -196,7 +197,29 @@ class AccountServiceTest {
         assertAll(
             { assertThat(result.accountId).isEqualTo(credential.account.id) },
             { assertThat(result.loginId).isEqualTo(command.loginId) },
+            { assertThat(result.role).isEqualTo(AccountRole.USER) },
         )
+    }
+
+    @DisplayName("admin 권한 account가 인증되면 role=ADMIN이 함께 반환된다.")
+    @Test
+    fun returnsAdminRole_whenAccountIsAdmin() {
+        // given
+        val command = AccountAuthenticateCommand(
+            loginId = LOGIN_ID,
+            password = RAW_PASSWORD,
+        )
+        val credential = createCredential(command.loginId, ENCODED_PASSWORD, AccountRole.ADMIN)
+        whenever(accountCredentialRepository.findBy(eq(CredentialMethod.PASSWORD), any()))
+            .thenReturn(credential)
+        whenever(passwordEncryptor.matches(command.password, credential.secret.value))
+            .thenReturn(true)
+
+        // when
+        val result = service.authenticate(command)
+
+        // then
+        assertThat(result.role).isEqualTo(AccountRole.ADMIN)
     }
 
     @DisplayName("로그인 ID의 credential이 없으면 인증 시 UNAUTHORIZED 예외가 발생한다.")
@@ -443,19 +466,21 @@ class AccountServiceTest {
             newPassword = newPassword,
         )
 
-    private fun createAccount(): Account =
+    private fun createAccount(role: AccountRole = AccountRole.USER): Account =
         Account(
             name = AccountName(ACCOUNT_NAME),
             birthDate = BIRTH_DATE,
             email = Email(EMAIL),
+            role = role,
         )
 
     private fun createCredential(
         loginId: String,
         encodedPassword: String,
+        role: AccountRole = AccountRole.USER,
     ): AccountCredential =
         AccountCredential(
-            account = createAccount(),
+            account = createAccount(role),
             method = CredentialMethod.PASSWORD,
             identifier = CredentialIdentifier(CredentialMethod.PASSWORD, loginId),
             secret = CredentialSecret(encodedPassword),

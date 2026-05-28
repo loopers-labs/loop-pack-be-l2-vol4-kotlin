@@ -4,14 +4,27 @@ import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserCommand
 import com.loopers.domain.user.UserRole
+import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import java.time.LocalDate
 
 class UserV1Dto {
     data class SignUpRequest(
+        @field:NotBlank
         val loginId: String,
+
+        @field:NotBlank
         val password: String,
+
+        @field:NotBlank
         val name: String,
+
+        @field:NotNull
         val birthdate: LocalDate,
+
+        @field:NotBlank
+        @field:Email
         val email: String,
     ) {
         fun toCommand(): UserCommand.Register = UserCommand.Register(
@@ -24,7 +37,10 @@ class UserV1Dto {
     }
 
     data class ChangePasswordRequest(
+        @field:NotBlank
         val oldPassword: String,
+
+        @field:NotBlank
         val newPassword: String,
     )
 

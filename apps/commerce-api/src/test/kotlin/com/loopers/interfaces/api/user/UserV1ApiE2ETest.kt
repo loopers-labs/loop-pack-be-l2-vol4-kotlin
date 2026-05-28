@@ -79,6 +79,26 @@ class UserV1ApiE2ETest @Autowired constructor(
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         }
 
+        @DisplayName("blank name returns a 400 field validation message.")
+        @Test
+        fun returnsBadRequestWithFieldMessage_whenNameBlank() {
+            val body = mapOf(
+                "loginId" to "loopers01",
+                "password" to "abcd1234",
+                "name" to "",
+                "birthdate" to "1990-01-01",
+                "email" to "user@example.com",
+            )
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.MyInfoResponse>>() {}
+
+            val response = testRestTemplate.exchange("/api/v1/users", HttpMethod.POST, HttpEntity(body), responseType)
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(response.body?.meta?.message).contains("name") },
+            )
+        }
+
         @DisplayName("이미 사용 중인 loginId 로 가입하면, 409 응답을 반환한다.")
         @Test
         fun returnsConflict_whenLoginIdTaken() {

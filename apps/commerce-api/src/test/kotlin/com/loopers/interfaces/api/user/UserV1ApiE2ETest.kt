@@ -1,10 +1,10 @@
-package com.loopers.interfaces.api.member
+package com.loopers.interfaces.api.user
 
 import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
-import org.junit.jupiter.api.AfterEach
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -20,7 +20,7 @@ import org.springframework.http.HttpStatus
 import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MemberV1ApiE2ETest @Autowired constructor(
+class UserV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val memberJpaRepository: MemberJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -30,7 +30,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
         databaseCleanUp.truncateAllTables()
     }
 
-    @DisplayName("POST /api/v1/members")
+    @DisplayName("POST /api/v1/users")
     @Nested
     inner class SignUp {
         @DisplayName("회원가입 요청이 유효하면 회원가입에 성공한다")
@@ -42,7 +42,7 @@ class MemberV1ApiE2ETest @Autowired constructor(
                 SIGN_UP_ENDPOINT,
                 HttpMethod.POST,
                 HttpEntity(request),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.SignUpResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
             )
 
             assertAll(
@@ -62,27 +62,27 @@ class MemberV1ApiE2ETest @Autowired constructor(
                 SIGN_UP_ENDPOINT,
                 HttpMethod.POST,
                 HttpEntity(createSignUpRequest(loginId = "loopers123", email = "other@gmail.com")),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.SignUpResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
         }
     }
 
-    @DisplayName("GET /api/v1/members/me")
+    @DisplayName("GET /api/v1/users/me")
     @Nested
-    inner class GetMyInfo {
+    inner class GetMe {
         @DisplayName("로그인 ID 와 비밀번호가 유효하면 마스킹된 회원 정보를 반환한다")
         @Test
-        fun returnsMaskedMemberInfo_whenCredentialsAreValid() {
+        fun returnsMaskedUserInfo_whenCredentialsAreValid() {
             val request = createSignUpRequest(name = "gunyoung")
             testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
 
             val response = testRestTemplate.exchange(
-                GET_MY_INFO_ENDPOINT,
+                GET_ME_ENDPOINT,
                 HttpMethod.GET,
                 HttpEntity(Unit, createAuthHeaders(request.loginId, request.password)),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetMeResponse>>() {},
             )
 
             assertAll(
@@ -98,10 +98,10 @@ class MemberV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsNotFound_whenLoginIdDoesNotExist() {
             val response = testRestTemplate.exchange(
-                GET_MY_INFO_ENDPOINT,
+                GET_ME_ENDPOINT,
                 HttpMethod.GET,
                 HttpEntity(Unit, createAuthHeaders("loopers-123", "Loopers123!")),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetMeResponse>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
@@ -114,17 +114,17 @@ class MemberV1ApiE2ETest @Autowired constructor(
             testRestTemplate.postForEntity(SIGN_UP_ENDPOINT, request, String::class.java)
 
             val response = testRestTemplate.exchange(
-                GET_MY_INFO_ENDPOINT,
+                GET_ME_ENDPOINT,
                 HttpMethod.GET,
                 HttpEntity(Unit, createAuthHeaders(request.loginId, "Wrong123!")),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetMeResponse>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
         }
     }
 
-    @DisplayName("PATCH /api/v1/members/me/password")
+    @DisplayName("PUT /api/v1/users/password")
     @Nested
     inner class UpdatePassword {
         @DisplayName("기존 비밀번호가 일치하고 새 비밀번호가 유효하면 비밀번호 수정에 성공한다")
@@ -135,25 +135,25 @@ class MemberV1ApiE2ETest @Autowired constructor(
 
             val response = testRestTemplate.exchange(
                 UPDATE_PASSWORD_ENDPOINT,
-                HttpMethod.PATCH,
+                HttpMethod.PUT,
                 HttpEntity(
-                    MemberV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
+                    UserV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
                     createAuthHeaders(request.loginId, request.password),
                 ),
                 String::class.java,
             )
 
             val oldPasswordResponse = testRestTemplate.exchange(
-                GET_MY_INFO_ENDPOINT,
+                GET_ME_ENDPOINT,
                 HttpMethod.GET,
                 HttpEntity(Unit, createAuthHeaders(request.loginId, request.password)),
                 String::class.java,
             )
             val newPasswordResponse = testRestTemplate.exchange(
-                GET_MY_INFO_ENDPOINT,
+                GET_ME_ENDPOINT,
                 HttpMethod.GET,
                 HttpEntity(Unit, createAuthHeaders(request.loginId, "NewLoopers1!")),
-                object : ParameterizedTypeReference<ApiResponse<MemberV1Dto.MyInfoResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<UserV1Dto.GetMeResponse>>() {},
             )
 
             assertAll(
@@ -171,9 +171,9 @@ class MemberV1ApiE2ETest @Autowired constructor(
 
             val response = testRestTemplate.exchange(
                 UPDATE_PASSWORD_ENDPOINT,
-                HttpMethod.PATCH,
+                HttpMethod.PUT,
                 HttpEntity(
-                    MemberV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
+                    UserV1Dto.UpdatePasswordRequest(newPassword = "NewLoopers1!"),
                     createAuthHeaders(request.loginId, "Wrong123!"),
                 ),
                 String::class.java,
@@ -190,9 +190,9 @@ class MemberV1ApiE2ETest @Autowired constructor(
 
             val response = testRestTemplate.exchange(
                 UPDATE_PASSWORD_ENDPOINT,
-                HttpMethod.PATCH,
+                HttpMethod.PUT,
                 HttpEntity(
-                    MemberV1Dto.UpdatePasswordRequest(newPassword = "short"),
+                    UserV1Dto.UpdatePasswordRequest(newPassword = "short"),
                     createAuthHeaders(request.loginId, request.password),
                 ),
                 String::class.java,
@@ -209,9 +209,9 @@ class MemberV1ApiE2ETest @Autowired constructor(
 
             val response = testRestTemplate.exchange(
                 UPDATE_PASSWORD_ENDPOINT,
-                HttpMethod.PATCH,
+                HttpMethod.PUT,
                 HttpEntity(
-                    MemberV1Dto.UpdatePasswordRequest(newPassword = request.password),
+                    UserV1Dto.UpdatePasswordRequest(newPassword = request.password),
                     createAuthHeaders(request.loginId, request.password),
                 ),
                 String::class.java,
@@ -227,8 +227,8 @@ class MemberV1ApiE2ETest @Autowired constructor(
         name: String = "gunyoung",
         birthDate: LocalDate = LocalDate.of(1995, 5, 20),
         email: String = "loopers@gmail.com",
-    ): MemberV1Dto.SignUpRequest =
-        MemberV1Dto.SignUpRequest(
+    ): UserV1Dto.SignUpRequest =
+        UserV1Dto.SignUpRequest(
             loginId = loginId,
             password = password,
             name = name,
@@ -246,9 +246,9 @@ class MemberV1ApiE2ETest @Autowired constructor(
         }
 
     companion object {
-        private const val SIGN_UP_ENDPOINT = "/api/v1/members"
-        private const val GET_MY_INFO_ENDPOINT = "/api/v1/members/me"
-        private const val UPDATE_PASSWORD_ENDPOINT = "/api/v1/members/me/password"
+        private const val SIGN_UP_ENDPOINT = "/api/v1/users"
+        private const val GET_ME_ENDPOINT = "/api/v1/users/me"
+        private const val UPDATE_PASSWORD_ENDPOINT = "/api/v1/users/password"
         private const val LOGIN_ID_HEADER = "X-Loopers-LoginId"
         private const val LOGIN_PW_HEADER = "X-Loopers-LoginPw"
     }

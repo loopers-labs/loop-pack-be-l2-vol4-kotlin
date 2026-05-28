@@ -1,41 +1,31 @@
-package com.loopers.domain.member
+package com.loopers.domain.user
 
-import com.loopers.domain.BaseEntity
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.Table
 import java.time.LocalDate
 
-@Entity
-@Table(name = "member")
-class Member(
+class User(
+    val id: Long = 0L,
     loginId: String,
     password: String,
     name: String,
     birthDate: LocalDate,
     email: String,
-) : BaseEntity() {
-    @Column(nullable = false, unique = true)
+) {
     var loginId: String = loginId
-        protected set
+        private set
 
-    @Column(nullable = false)
     var password: String = password
-        protected set
+        private set
 
-    @Column(nullable = false)
     var name: String = name
-        protected set
+        private set
 
-    @Column(nullable = false)
     var birthDate: LocalDate = birthDate
-        protected set
+        private set
 
-    @Column(nullable = false)
     var email: String = email
-        protected set
+        private set
 
     init {
         if (!loginId.matches(LOGIN_ID_REGEX)) {

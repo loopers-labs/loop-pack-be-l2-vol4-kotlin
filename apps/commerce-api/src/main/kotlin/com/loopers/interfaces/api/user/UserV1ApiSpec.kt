@@ -1,25 +1,25 @@
-package com.loopers.interfaces.api.member
+package com.loopers.interfaces.api.user
 
 import com.loopers.interfaces.api.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 
-@Tag(name = "Member V1 API", description = "회원 API 입니다.")
-interface MemberV1ApiSpec {
+@Tag(name = "User V1 API", description = "유저 API 입니다.")
+interface UserV1ApiSpec {
     @Operation(
         summary = "회원가입",
         description = "로그인 ID, 비밀번호, 이름, 생년월일, 이메일로 회원가입합니다.",
     )
-    fun signUp(request: MemberV1Dto.SignUpRequest): ApiResponse<MemberV1Dto.SignUpResponse>
+    fun signUp(request: UserV1Dto.SignUpRequest): ApiResponse<UserV1Dto.SignUpResponse>
 
     @Operation(
         summary = "내 정보 조회",
         description = "로그인 ID와 비밀번호 헤더로 내 정보를 조회합니다.",
     )
-    fun getMyInfo(
+    fun getMe(
         loginId: String,
         password: String,
-    ): ApiResponse<MemberV1Dto.MyInfoResponse>
+    ): ApiResponse<UserV1Dto.GetMeResponse>
 
     @Operation(
         summary = "비밀번호 수정",
@@ -28,6 +28,6 @@ interface MemberV1ApiSpec {
     fun updatePassword(
         loginId: String,
         password: String,
-        request: MemberV1Dto.UpdatePasswordRequest,
+        request: UserV1Dto.UpdatePasswordRequest,
     ): ApiResponse<Any>
 }

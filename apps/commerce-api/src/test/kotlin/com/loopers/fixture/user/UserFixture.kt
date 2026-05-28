@@ -1,18 +1,18 @@
-package com.loopers.fixture.member
+package com.loopers.fixture.user
 
-import com.loopers.domain.member.Member
-import com.loopers.domain.member.MemberSignUpCommand
+import com.loopers.domain.user.User
+import com.loopers.domain.user.UserSignUpCommand
 import java.time.LocalDate
 
-object MemberFixture {
-    fun createMember(
+object UserFixture {
+    fun createUser(
         loginId: String = "loopers123",
         password: String = "encodedPassword",
         name: String = "gunyoung",
         birthDate: LocalDate = LocalDate.of(1995, 5, 20),
         email: String = "loopers@gmail.com",
-    ): Member =
-        Member(
+    ): User =
+        User(
             loginId = loginId,
             password = password,
             name = name,
@@ -20,11 +20,11 @@ object MemberFixture {
             email = email,
         )
 
-    fun createMember(
-        command: MemberSignUpCommand,
+    fun createUser(
+        command: UserSignUpCommand,
         password: String = "encodedPassword",
-    ): Member =
-        createMember(
+    ): User =
+        createUser(
             loginId = command.loginId,
             password = password,
             name = command.name,
@@ -38,8 +38,8 @@ object MemberFixture {
         name: String = "gunyoung",
         birthDate: LocalDate = LocalDate.of(1995, 5, 20),
         email: String = "loopers@gmail.com",
-    ): MemberSignUpCommand =
-        MemberSignUpCommand(
+    ): UserSignUpCommand =
+        UserSignUpCommand(
             loginId = loginId,
             rawPassword = rawPassword,
             name = name,

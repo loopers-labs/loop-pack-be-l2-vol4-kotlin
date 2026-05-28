@@ -1,9 +1,9 @@
-package com.loopers.application.member
+package com.loopers.application.user
 
 import com.loopers.config.jpa.DataSourceConfig
-import com.loopers.domain.member.MemberService
-import com.loopers.domain.member.PasswordEncoder
-import com.loopers.fixture.member.MemberFixture
+import com.loopers.domain.user.PasswordEncoder
+import com.loopers.domain.user.UserAccountService
+import com.loopers.fixture.user.UserFixture
 import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.infrastructure.member.MemberRepositoryImpl
 import com.loopers.support.error.CoreException
@@ -23,14 +23,15 @@ import org.springframework.context.annotation.Import
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(
-    MemberFacade::class,
-    MemberService::class,
+    UserFacade::class,
+    UserService::class,
+    UserAccountService::class,
     MemberRepositoryImpl::class,
     MySqlTestContainersConfig::class,
     DataSourceConfig::class,
 )
-class MemberFacadeIntegrationTest @Autowired constructor(
-    private val memberFacade: MemberFacade,
+class UserFacadeIntegrationTest @Autowired constructor(
+    private val userFacade: UserFacade,
     private val memberJpaRepository: MemberJpaRepository,
 ) {
     @DisplayName("회원가입")
@@ -38,27 +39,27 @@ class MemberFacadeIntegrationTest @Autowired constructor(
     inner class SignUp {
         @DisplayName("회원가입이 성공하면 암호화된 비밀번호로 회원을 저장한다")
         @Test
-        fun savesMemberWithEncodedPassword_whenSignUpCommandIsValid() {
-            val command = MemberFixture.createSignUpCommand()
+        fun savesUserWithEncodedPassword_whenSignUpCommandIsValid() {
+            val command = UserFixture.createSignUpCommand()
 
-            val result = memberFacade.signUp(command)
-            val savedMember = memberJpaRepository.findAll().single()
+            val result = userFacade.signUp(command)
+            val savedUser = memberJpaRepository.findAll().single()
 
             assertAll(
                 { assertThat(result.loginId).isEqualTo(command.loginId) },
-                { assertThat(savedMember.password).isNotEqualTo(command.rawPassword) },
-                { assertThat(PasswordEncoder.matches(command.rawPassword, savedMember.password)).isTrue() },
+                { assertThat(savedUser.password).isNotEqualTo(command.rawPassword) },
+                { assertThat(PasswordEncoder.matches(command.rawPassword, savedUser.password)).isTrue() },
             )
         }
 
         @DisplayName("이미 가입된 로그인 ID 로 회원가입하면 실패한다")
         @Test
         fun throwsConflict_whenLoginIdAlreadyExists() {
-            memberFacade.signUp(MemberFixture.createSignUpCommand(loginId = "loopers123"))
+            userFacade.signUp(UserFixture.createSignUpCommand(loginId = "loopers123"))
 
             val result = assertThrows<CoreException> {
-                memberFacade.signUp(
-                    MemberFixture.createSignUpCommand(
+                userFacade.signUp(
+                    UserFixture.createSignUpCommand(
                         loginId = "loopers123",
                         email = "other@gmail.com",
                     ),

@@ -1,8 +1,8 @@
-package com.loopers.domain.member
+package com.loopers.domain.user
 
+import com.loopers.fixture.user.UserFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import com.loopers.fixture.member.MemberFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -14,20 +14,20 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import java.time.LocalDate
 
-class MemberTest {
-    @DisplayName("Member 생성")
+class UserTest {
+    @DisplayName("User 생성")
     @Nested
-    inner class Creat {
+    inner class Create {
         @DisplayName("요구사항을 모두 충족하면 정상적으로 생성된다.")
         @Test
-        fun createsMember_whenRequiredFieldsAreProvided() {
+        fun createsUser_whenRequiredFieldsAreProvided() {
             val loginId = "loopers123"
             val password = "encodedPassword"
             val name = "gunyoung"
             val birthDate = LocalDate.of(1970, 1, 1)
             val email = "loopers@gmail.com"
 
-            val member = MemberFixture.createMember(
+            val user = UserFixture.createUser(
                 loginId = loginId,
                 password = password,
                 name = name,
@@ -36,12 +36,12 @@ class MemberTest {
             )
 
             assertAll(
-                { assertThat(member.id).isNotNull() },
-                { assertThat(member.loginId).isEqualTo(loginId) },
-                { assertThat(member.password).isEqualTo(password) },
-                { assertThat(member.name).isEqualTo(name) },
-                { assertThat(member.birthDate).isEqualTo(birthDate) },
-                { assertThat(member.email).isEqualTo(email) },
+                { assertThat(user.id).isZero() },
+                { assertThat(user.loginId).isEqualTo(loginId) },
+                { assertThat(user.password).isEqualTo(password) },
+                { assertThat(user.name).isEqualTo(name) },
+                { assertThat(user.birthDate).isEqualTo(birthDate) },
+                { assertThat(user.email).isEqualTo(email) },
             )
         }
 
@@ -50,7 +50,7 @@ class MemberTest {
         @ValueSource(strings = [" ", "loopers-123", "loopers_123", "loopers!"])
         fun throwsBadRequest_whenLoginIdContainsNonAlphanumericCharacters(loginId: String) {
             val result = assertThrows<CoreException> {
-                MemberFixture.createMember(loginId = loginId)
+                UserFixture.createUser(loginId = loginId)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -61,7 +61,7 @@ class MemberTest {
         @ValueSource(strings = [" ", "gunyoung12", "gunyoung$!", "young young"])
         fun throwsBadRequest_whenNameContainsNonLetters(name: String) {
             val result = assertThrows<CoreException> {
-                MemberFixture.createMember(name = name)
+                UserFixture.createUser(name = name)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -72,7 +72,7 @@ class MemberTest {
         @ValueSource(strings = [" ", "loopers", "@gmail.com", "loopers123@fewf", "loopers@fewf."])
         fun throwsBadRequest_whenEmailFormatIsNotValid(invalidEmail: String) {
             val result = assertThrows<CoreException> {
-                MemberFixture.createMember(email = invalidEmail)
+                UserFixture.createUser(email = invalidEmail)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -83,7 +83,7 @@ class MemberTest {
         fun throwsBadRequest_whenBirthDateIsNotValid() {
             val invalidBirthDate = LocalDate.now().plusDays(1)
             val result = assertThrows<CoreException> {
-                MemberFixture.createMember(birthDate = invalidBirthDate)
+                UserFixture.createUser(birthDate = invalidBirthDate)
             }
 
             assertEquals(ErrorType.BAD_REQUEST, result.errorType)
@@ -96,11 +96,11 @@ class MemberTest {
         @DisplayName("새 암호화 비밀번호로 변경한다")
         @Test
         fun updatesPassword_whenEncodedPasswordIsProvided() {
-            val member = MemberFixture.createMember(password = "oldEncodedPassword")
+            val user = UserFixture.createUser(password = "oldEncodedPassword")
 
-            member.updatePassword("newEncodedPassword")
+            user.updatePassword("newEncodedPassword")
 
-            assertThat(member.password).isEqualTo("newEncodedPassword")
+            assertThat(user.password).isEqualTo("newEncodedPassword")
         }
     }
 }

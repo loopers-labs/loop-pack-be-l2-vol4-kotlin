@@ -1,8 +1,8 @@
-package com.loopers.domain.member
+package com.loopers.domain.user
 
 import java.time.LocalDate
 
-data class MemberSignUpCommand(
+data class UserSignUpCommand(
     val loginId: String,
     val rawPassword: String,
     val name: String,

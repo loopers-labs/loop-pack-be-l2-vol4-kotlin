@@ -1,10 +1,10 @@
-package com.loopers.interfaces.api.member
+package com.loopers.interfaces.api.user
 
-import com.loopers.application.member.MemberInfo
-import com.loopers.domain.member.MemberSignUpCommand
+import com.loopers.application.user.UserInfo
+import com.loopers.domain.user.UserSignUpCommand
 import java.time.LocalDate
 
-class MemberV1Dto {
+class UserV1Dto {
     data class SignUpRequest(
         val loginId: String,
         val password: String,
@@ -12,8 +12,8 @@ class MemberV1Dto {
         val birthDate: LocalDate,
         val email: String,
     ) {
-        fun toCommand(): MemberSignUpCommand {
-            return MemberSignUpCommand(
+        fun toCommand(): UserSignUpCommand {
+            return UserSignUpCommand(
                 loginId = loginId,
                 rawPassword = password,
                 name = name,
@@ -30,7 +30,7 @@ class MemberV1Dto {
         val email: String,
     ) {
         companion object {
-            fun from(info: MemberInfo): SignUpResponse {
+            fun from(info: UserInfo): SignUpResponse {
                 return SignUpResponse(
                     loginId = info.loginId,
                     name = info.name,
@@ -41,15 +41,15 @@ class MemberV1Dto {
         }
     }
 
-    data class MyInfoResponse(
+    data class GetMeResponse(
         val loginId: String,
         val name: String,
         val birthDate: LocalDate,
         val email: String,
     ) {
         companion object {
-            fun from(info: MemberInfo): MyInfoResponse {
-                return MyInfoResponse(
+            fun from(info: UserInfo): GetMeResponse {
+                return GetMeResponse(
                     loginId = info.loginId,
                     name = info.name.dropLast(1) + "*",
                     birthDate = info.birthDate,

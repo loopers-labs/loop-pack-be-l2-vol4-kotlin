@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Week 2 · Brand 시나리오 → 추출 모델</title>
+<style>
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --muted: #71717A;
+    --line: #E4E4E7;
+    --line-soft: #F4F4F5;
+
+    --ok: #047857;
+    --warn: #B45309;
+    --err: #B91C1C;
+    --decide: #4F46E5;
+    --future: #0E7490;
+
+    --create: #047857;
+    --read:   #1D4ED8;
+    --update: #B45309;
+    --delete: #B91C1C;
+
+    --ok-soft:    #ECFDF5;
+    --warn-soft:  #FFFBEB;
+    --err-soft:   #FEF2F2;
+    --decide-soft:#EEF2FF;
+    --future-soft:#ECFEFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 36px;
+  }
+  header.page h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.5px; }
+  header.page .meta { color: var(--muted); font-size: 13px; }
+
+  section { margin-bottom: 44px; }
+  section h2 {
+    font-size: 18px; margin: 0 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  section h2 .num {
+    background: var(--line-soft); color: var(--muted);
+    border: 1px solid var(--line);
+    width: 24px; height: 24px;
+    border-radius: 12px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 600;
+  }
+  section h2.hero {
+    font-size: 22px;
+    border-bottom: 1px solid var(--text);
+    padding-bottom: 10px;
+  }
+  section h2.hero .num {
+    background: var(--text); color: #fff; border-color: var(--text);
+  }
+  section h2 small {
+    font-size: 12px; color: var(--muted); font-weight: 400;
+    margin-left: 6px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+  code {
+    background: #F4F4F5; padding: 1px 5px; border-radius: 3px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+  }
+
+  /* ─── 시나리오 명세 (단일 리스트, CRUD 그루핑) ─── */
+  .crud-group {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .crud-header {
+    padding: 10px 14px; font-weight: 600; font-size: 13.5px; letter-spacing: 0.3px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .crud-group.create .crud-header { background: var(--ok-soft);     color: var(--create); }
+  .crud-group.read   .crud-header { background: #EFF6FF;            color: var(--read); }
+  .crud-group.update .crud-header { background: var(--warn-soft);   color: var(--update); }
+  .crud-group.delete .crud-header { background: var(--err-soft);    color: var(--delete); }
+  .crud-header .count {
+    background: rgba(0,0,0,0.06); color: var(--muted);
+    padding: 1px 8px; border-radius: 10px;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .scen-list { list-style: none; padding: 0; margin: 0; }
+  .scen-list li {
+    padding: 11px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 12px; font-size: 14px;
+  }
+  .scen-list li:last-child { border-bottom: none; }
+  .scen-list .sid {
+    font-family: ui-monospace, monospace; font-size: 11.5px;
+    color: var(--muted); min-width: 50px; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; text-align: center;
+  }
+  .scen-list .stext { flex: 1; }
+  .scen-list .stag {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--ok-soft); color: var(--ok); font-weight: 600;
+    border: 1px solid #A7F3D0;
+  }
+  .scen-list .stag.exception {
+    background: var(--warn-soft); color: var(--warn); border-color: #FDE68A;
+  }
+  .scen-list .scode {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--muted); min-width: 70px; text-align: right;
+  }
+
+  /* ─── 라이프사이클 플로우 차트 ─── */
+  .lifecycle-flow {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 24px 16px; margin: 16px 0 8px;
+  }
+  .lc-entry { text-align: center; margin-bottom: 8px; }
+  .lc-entry-box {
+    display: inline-block; background: #F4F4F5; border: 1px dashed var(--muted);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--muted);
+  }
+  .lc-arrow-down {
+    font-size: 18px; color: var(--muted); margin: 4px 0; text-align: center;
+  }
+  .lc-row {
+    display: flex; align-items: stretch; gap: 6px;
+    justify-content: center; flex-wrap: wrap; margin: 10px 0;
+  }
+  .lc-box {
+    flex: 1; min-width: 175px; background: #FFFFFF; border: 2px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; text-align: center; font-size: 12.5px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .lc-box.create { border-color: var(--create); }
+  .lc-box.read   { border-color: var(--read); }
+  .lc-box.update { border-color: var(--update); }
+  .lc-box.delete { border-color: var(--delete); }
+  .lc-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; letter-spacing: 0.5px; }
+  .lc-actor {
+    font-size: 10.5px; background: var(--line-soft); color: var(--muted);
+    padding: 1px 8px; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid var(--line);
+  }
+  .lc-method {
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 10.5px;
+    color: var(--muted); margin-bottom: 4px; word-break: break-all;
+  }
+  .lc-result { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+  .lc-box.create .lc-result { color: var(--create); }
+  .lc-box.read   .lc-result { color: var(--read); }
+  .lc-box.update .lc-result { color: var(--update); }
+  .lc-box.delete .lc-result { color: var(--delete); }
+  .lc-ids {
+    font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: #444; background: #F4F4F5;
+    padding: 2px 6px; border-radius: 3px; margin-bottom: 4px;
+  }
+  .lc-errors { font-size: 10.5px; color: var(--warn); }
+  .lc-arrow-right {
+    display: flex; align-items: center; font-size: 20px; color: var(--muted);
+  }
+  .lc-cascade { text-align: center; margin-top: 6px; }
+  .lc-cascade-box {
+    display: inline-block; background: #FEF2F2; border: 1px dashed var(--err);
+    padding: 6px 14px; border-radius: 4px; font-size: 12.5px; color: var(--err);
+  }
+
+  /* ─── 추출 영역 공통 ─── */
+  .extract-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .extract-card h3 {
+    margin: 0 0 12px; font-size: 14.5px;
+    padding-bottom: 6px; border-bottom: 1px dashed var(--line);
+  }
+
+  table.fields {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.fields th, table.fields td {
+    padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line);
+  }
+  table.fields th {
+    background: #F4F4F5; font-weight: 600; font-size: 12px;
+  }
+  table.fields td.field-name {
+    font-family: ui-monospace, monospace; font-weight: 600; color: var(--text);
+  }
+  table.fields td.field-source {
+    font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted);
+  }
+  table.fields td.field-type {
+    color: var(--muted); font-size: 12px;
+  }
+  .invariants, .relations { margin-top: 12px; font-size: 13px; }
+  .invariants ul, .relations ul { margin: 6px 0; padding-left: 20px; }
+  .invariants li, .relations li { margin-bottom: 4px; }
+  .invariants .source, .relations .source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+
+  /* ─── DB 테이블 ─── */
+  .db-table {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+  }
+  .db-table-header {
+    background: var(--line-soft); color: var(--text);
+    padding: 6px 12px; font-weight: 600; font-size: 13px;
+    font-family: ui-monospace, monospace;
+    border-bottom: 1px solid var(--line);
+  }
+  .db-table table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px;
+    background: #fff;
+  }
+  .db-table th, .db-table td {
+    padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: left;
+  }
+  .db-table th {
+    background: #F4F4F5; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; font-weight: 600;
+  }
+  .db-table td.col-name {
+    font-family: ui-monospace, monospace; font-weight: 600;
+  }
+  .db-table td.col-type {
+    font-family: ui-monospace, monospace; color: var(--muted); font-size: 11.5px;
+  }
+  .db-table td.col-source {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+  }
+  .db-constraints {
+    background: #EEF2FF; border-top: 1px dashed var(--decide);
+    padding: 8px 12px; font-size: 12px;
+  }
+  .db-constraints strong { color: var(--decide); }
+
+  /* ─── ER 박스 다이어그램 ─── */
+  .db-layout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .db-layout { grid-template-columns: 1fr; } }
+  .db-layout-left, .db-layout-right { min-width: 0; }
+  .er-section-label {
+    font-size: 11.5px; color: var(--muted); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+  }
+  .er-entity {
+    border: 1.5px solid var(--text);
+    border-radius: 6px; background: #fff;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .er-entity-name {
+    background: var(--text); color: #fff;
+    padding: 6px 12px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 13px; font-weight: 600;
+  }
+  .er-cols { list-style: none; padding: 0; margin: 0; }
+  .er-cols li {
+    padding: 5px 10px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 30px 1fr auto;
+    gap: 8px; align-items: center;
+  }
+  .er-cols li:last-child { border-bottom: none; }
+  .er-cols li.muted { color: var(--muted); font-style: italic; }
+  .er-cols .key {
+    font-size: 9.5px; padding: 1px 4px; border-radius: 3px;
+    font-weight: 700; text-align: center;
+    font-family: system-ui, sans-serif;
+  }
+  .er-cols .key.pk { background: #FEF3C7; color: #B45309; }
+  .er-cols .key.uk { background: #DBEAFE; color: #1D4ED8; }
+  .er-cols .key.fk { background: #EDE9FE; color: #6D28D9; }
+  .er-cols .key.empty { background: transparent; }
+  .er-cols .name { font-weight: 600; color: var(--text); }
+  .er-cols .type { color: var(--muted); font-size: 11px; text-align: right; }
+  .er-relation {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 4px 0;
+    font-size: 11.5px; color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+  .er-relation .arrow {
+    font-size: 18px; color: var(--text);
+  }
+
+  /* ─── API 시퀀스 (SVG, mermaid-style) ─── */
+  .seq-block {
+    background: #fff; border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .seq-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .seq-title .sid {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    background: #F4F4F5; padding: 2px 6px; border-radius: 3px; color: var(--muted);
+  }
+  .seq-desc { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .seq-svg-wrap { overflow-x: auto; padding: 4px 0; }
+  .seq-svg {
+    display: block;
+    width: 100%; height: auto;
+    margin: 0 auto;
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  }
+  .seq-svg .actor-box        { fill: #F4F4F5; stroke: #E4E4E7; }
+  .seq-svg .actor-box.client { fill: #FAFAFA; stroke: #E4E4E7; }
+  .seq-svg .actor-box.filter { fill: #EEF2FF; stroke: #C7D2FE; }
+  .seq-svg .actor-box.db     { fill: #ECFEFF; stroke: #A5F3FC; }
+  .seq-svg .actor-text        { fill: #18181B; font-size: 12px; font-weight: 600; }
+  .seq-svg .actor-text.muted  { fill: #71717A; }
+  .seq-svg .actor-text.filter { fill: #4F46E5; }
+  .seq-svg .actor-text.db     { fill: #0E7490; }
+
+  .seq-svg .lifeline {
+    stroke: #D4D4D8; stroke-dasharray: 4 4; stroke-width: 1;
+  }
+  .seq-svg .msg-line {
+    stroke: #27272A; stroke-width: 1.3; fill: none;
+  }
+  .seq-svg .msg-line.ret { stroke: #047857; stroke-dasharray: 6 4; }
+  .seq-svg .msg-line.err { stroke: #B91C1C; stroke-dasharray: 6 4; }
+
+  .seq-svg .msg-text {
+    fill: #27272A; font-size: 11.5px;
+    paint-order: stroke;
+    stroke: #fff; stroke-width: 3; stroke-linejoin: round;
+  }
+  .seq-svg .msg-text.ret { fill: #047857; }
+  .seq-svg .msg-text.err { fill: #B91C1C; }
+
+  .seq-svg .step-num-bg, .seq-svg .step-num-text { display: none; }
+
+  .tx-box {
+    fill: rgba(96, 75, 200, 0.06);
+    stroke: #6b46c1;
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+    rx: 4;
+  }
+  .tx-label {
+    font-size: 10px;
+    font-weight: 600;
+    fill: #6b46c1;
+    letter-spacing: 0.4px;
+  }
+
+  /* ─── 결정 / 미래 카드 ─── */
+  .card {
+    background: #F5F3FF; border: 1px solid var(--line);
+    border-left: 4px solid var(--decide); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .card.future {
+    border-left-color: var(--future); background: #ECFEFF;
+  }
+  .card header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px; gap: 12px; flex-wrap: wrap;
+  }
+  .card h3 { margin: 0; font-size: 14.5px; }
+  .card .id {
+    font-family: ui-monospace, "SF Mono", monospace;
+    color: var(--muted); font-size: 11.5px; margin-right: 6px;
+  }
+  .card .flow { margin: 0 0 8px; color: #333; font-size: 13px; }
+  .decide-box {
+    background: #EEF2FF; border: 1px dashed var(--decide);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .decide-box strong { color: var(--decide); }
+  .future-box {
+    background: #F0FDFA; border: 1px dashed var(--future);
+    border-radius: 6px; padding: 10px 12px; margin-top: 6px; font-size: 12.5px;
+  }
+  .future-box strong { color: var(--future); }
+
+  footer.page {
+    margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 12px;
+  }
+
+  /* ─── cross-link 앵커 ─── */
+  a.xref {
+    color: var(--decide); text-decoration: none;
+    border-bottom: 1px dotted #C7D2FE;
+    padding-bottom: 1px;
+    transition: background 0.1s, border-bottom-style 0.1s;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  a.xref:hover {
+    background: var(--decide-soft);
+    border-bottom-style: solid;
+  }
+  a.xref.q { color: var(--future); border-bottom-color: #A5F3FC; }
+  a.xref.q:hover { background: var(--future-soft); }
+  /* anchor 점프 시 sticky header 침범 방지용 여백 */
+  .scen-list li[id], .seq-block[id], .card[id], .crud-group[id] {
+    scroll-margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="page">
+    <h1>Brand · 시나리오 → 추출 모델 <span style="font-size:12px; background:var(--text); color:#fff; padding:2px 8px; border-radius:4px; vertical-align:middle; margin-left:6px; letter-spacing:0.6px; font-weight:600;">FINAL</span></h1>
+    <div class="meta">
+      Week 2 / Domain 1 of 4 · 시나리오부터 출발해서 도메인 / DB / API 시퀀스를 차례로 도출.
+      <br>본 문서는 정제된 최종 산출본입니다. 작업 노트는 <code>01-brand.html</code>.
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 1.  ★ 유저 시나리오 명세 — 모든 작업의 출발점   -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="hero"><span class="num">1</span>유저 시나리오 명세</h2>
+    <p class="lead">
+      이 도메인이 가져야 할 모든 동작을 한 문장씩 정리한다. <strong>이게 1차 입력이고, 아래 모든 섹션은 여기서 도출된다.</strong>
+      누락이 보이면 이 섹션에 한 줄 추가 → 그 변경이 라이프사이클 / 도메인 / DB / 시퀀스 어디에 영향 가는지 점검.
+    </p>
+
+    <div class="crud-group create">
+      <div class="crud-header">CREATE · 관리자 브랜드 등록 <span class="count">4건</span></div>
+      <ul class="scen-list">
+        <li id="s-c1"><span class="sid">S-C1</span><span class="stext">관리자 계정은 브랜드를 생성할 수 있다.<br><small>※ 변경 이력이 brand_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">201</span></li>
+        <li id="s-c2"><span class="sid">S-C2</span><span class="stext">관리자 LDAP 헤더(<code>X-Loopers-Ldap</code>)가 없거나 값이 <code>loopers.admin</code>이 아니면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">401</span></li>
+        <li id="s-c3"><span class="sid">S-C3</span><span class="stext">이미 존재하는 brandName으로 등록을 시도하면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">409</span></li>
+        <li id="s-c4"><span class="sid">S-C4</span><span class="stext">필수 필드가 누락되거나 형식이 잘못되면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group read">
+      <div class="crud-header">READ · 조회 <span class="count">5건</span></div>
+      <ul class="scen-list">
+        <li id="s-r1"><span class="sid">S-R1</span><span class="stext">사용자는 단건 브랜드를 조회할 수 있다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="s-r2"><span class="sid">S-R2</span><span class="stext">관리자는 등록된 브랜드 목록을 페이지네이션으로 조회할 수 있다.</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="s-r3"><span class="sid">S-R3</span><span class="stext">관리자는 단건 브랜드를 조회할 수 있다 (사용자보다 풍부한 응답).</span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="s-r4"><span class="sid">S-R4</span><span class="stext">존재하지 않는 brandId로 조회 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="s-r5"><span class="sid">S-R5</span><span class="stext">brandId 형식이 잘못된 요청이면 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">400</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group update">
+      <div class="crud-header">UPDATE · 관리자 브랜드 수정 <span class="count">3건</span></div>
+      <ul class="scen-list">
+        <li id="s-u1"><span class="sid">S-U1</span><span class="stext">관리자는 브랜드 정보를 수정할 수 있다 (brandId는 불변).<br><small>※ 변경 이력이 brand_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">200</span></li>
+        <li id="s-u2"><span class="sid">S-U2</span><span class="stext">존재하지 않는 브랜드 수정 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+        <li id="s-u3"><span class="sid">S-U3</span><span class="stext">중복된 brandName으로 변경 시도 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">409</span></li>
+      </ul>
+    </div>
+
+    <div class="crud-group delete">
+      <div class="crud-header">DELETE · 관리자 브랜드 삭제 <span class="count">2건</span></div>
+      <ul class="scen-list">
+        <li id="s-d1"><span class="sid">S-D1</span><span class="stext">관리자가 브랜드를 삭제하면 해당 브랜드의 status가 <code>DELETED</code>로 전이되고, 해당 브랜드의 Product도 cascade로 함께 <code>DELETED</code>로 전이된다 (soft delete).<br><small>※ 변경 이력이 brand_history에 비동기로 append됩니다.</small></span><span class="stag">정상</span><span class="scode">204</span></li>
+        <li id="s-d2"><span class="sid">S-D2</span><span class="stext">존재하지 않는 브랜드 삭제 시 예외가 발생한다.</span><span class="stag exception">예외</span><span class="scode">404</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 2.  시나리오 → 라이프사이클 흐름               -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">2</span>시나리오 → 라이프사이클 흐름 <small>위 시나리오들의 시간축 시각화</small></h2>
+    <p class="lead">시나리오들을 데이터의 라이프사이클(들어옴 → 노출 → 변경 → 사라짐)로 정렬. 각 박스 안에 해당 시나리오 ID + 예외 코드.</p>
+
+    <div class="lifecycle-flow">
+      <div class="lc-entry"><div class="lc-entry-box">입점 요청 (외부 채널 · 이메일/폼)</div></div>
+      <div class="lc-arrow-down">↓</div>
+
+      <div class="lc-row">
+        <div class="lc-box create">
+          <div class="lc-title">CREATE</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">POST /api-admin/v1/brands</div>
+          <div class="lc-result">201 CREATED · status=ACTIVE</div>
+          <div class="lc-ids">S-C1 · C2 · C3 · C4</div>
+          <div class="lc-errors">예외: 400 · 401 · 409</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box read">
+          <div class="lc-title">READ</div>
+          <div class="lc-actor">사용자 · 관리자</div>
+          <div class="lc-method">GET /api/v1/brands · /api/v1/brands/{id}</div>
+          <div class="lc-result">200 OK · status=ACTIVE</div>
+          <div class="lc-ids">S-R1 ~ R5</div>
+          <div class="lc-errors">예외: 400 · 404</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box update">
+          <div class="lc-title">UPDATE</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">PUT /api-admin/v1/brands/{id}</div>
+          <div class="lc-result">200 OK · status=ACTIVE</div>
+          <div class="lc-ids">S-U1 · U2 · U3</div>
+          <div class="lc-errors">예외: 400 · 404 · 409</div>
+        </div>
+        <div class="lc-arrow-right">→</div>
+        <div class="lc-box delete">
+          <div class="lc-title">DELETE (soft)</div>
+          <div class="lc-actor">관리자</div>
+          <div class="lc-method">DELETE /api-admin/v1/brands/{id}</div>
+          <div class="lc-result">204 · status: ACTIVE → DELETED</div>
+          <div class="lc-ids">S-D1 · D2</div>
+          <div class="lc-errors">예외: 404</div>
+        </div>
+      </div>
+
+      <div class="lc-cascade">
+        <div class="lc-arrow-down">↓ cascade (Application 레벨, soft delete 전이)</div>
+        <div class="lc-cascade-box">Product 도메인의 삭제 트리거 — 해당 brand의 모든 product도 status=DELETED로 전이</div>
+      </div>
+
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line);">
+        <div class="er-section-label" style="margin-bottom: 10px;">곁가지: 변경 이력 (after-only snapshot)</div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;">
+          <div style="background: #fff; border: 2px solid var(--text); border-radius: 6px; padding: 10px 16px; font-size: 12.5px; min-width: 160px; text-align: center;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Brand</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--muted);">status: ACTIVE / DELETED</div>
+          </div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 18px; letter-spacing: 4px;">- - →</span>
+            <span style="margin-top: 2px;">append on CUD (async)</span>
+          </div>
+          <div style="background: #fff; border: 2px dashed var(--future); border-radius: 6px; padding: 10px 16px; font-size: 12.5px; min-width: 160px; text-align: center; color: var(--future);">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">BrandHistory</div>
+            <div style="font-family: ui-monospace, monospace; font-size: 10.5px;">action: CREATE / UPDATE / DELETE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 3.  시나리오 → 도메인 모델                     -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">3</span>시나리오 → 도메인 모델 <small>Brand 엔티티의 필드 · invariant · 연관</small></h2>
+    <p class="lead">위 시나리오에서 추출된 Brand 도메인의 책임. 각 항목 옆에 출처 시나리오 ID.</p>
+
+    <div class="extract-card">
+      <h3>Brand 엔티티 필드</h3>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처 시나리오</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK)</td><td>시스템 부여 식별자</td><td class="field-source">모든 시나리오</td></tr>
+          <tr><td class="field-name">name</td><td class="field-type">String</td><td>브랜드 이름 (유일성 잠정)</td><td class="field-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-c3">S-C3</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-u3">S-U3</a></td></tr>
+          <tr><td class="field-name">description</td><td class="field-type">String?</td><td>브랜드 소개문</td><td class="field-source">—</td></tr>
+          <tr><td class="field-name">logoUrl</td><td class="field-type">String?</td><td>로고 이미지 URL</td><td class="field-source">—</td></tr>
+          <tr><td class="field-name">status</td><td class="field-type">Status (ACTIVE / DELETED)</td><td>생명주기 상태. soft delete 시 DELETED로 전이</td><td class="field-source"><a class="xref" href="#s-d1">S-D1</a></td></tr>
+          <tr><td class="field-name">createdAt</td><td class="field-type">LocalDateTime</td><td>생성 시각 (BaseEntity, 응답 비노출)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">updatedAt</td><td class="field-type">LocalDateTime</td><td>최종 수정 시각 (BaseEntity, 응답 비노출)</td><td class="field-source"><a class="xref" href="#s-u1">S-U1</a></td></tr>
+          <tr><td class="field-name">createdBy</td><td class="field-type">String</td><td>생성 actor (BaseEntity, 응답 비노출)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">updatedBy</td><td class="field-type">String</td><td>최종 수정 actor (BaseEntity, 응답 비노출)</td><td class="field-source">감사</td></tr>
+        </tbody>
+      </table>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li><code>name</code> 유일성 — 출처 <a class="xref" href="#s-c3">S-C3</a>, <a class="xref" href="#s-u3">S-U3</a></li>
+          <li><code>name</code> 길이 제약 (예: 1~50자) — 출처 <a class="xref" href="#s-c4">S-C4</a></li>
+          <li><code>id</code>는 시스템 부여, 불변 — 출처 <a class="xref" href="#s-u1">S-U1</a> (brandId 수정 불가)</li>
+          <li><code>status</code> 상태 전이는 ACTIVE → DELETED 단방향 (DELETED에서 ACTIVE로 복원하는 시나리오 없음)</li>
+        </ul>
+      </div>
+
+      <div class="relations">
+        <strong>연관 관계</strong>
+        <ul>
+          <li>Brand → Product (1:N) · 삭제 시 application 레벨 cascade (Product도 status=DELETED로 전이) — 출처 <a class="xref" href="#s-d1">S-D1</a></li>
+          <li>Brand → BrandHistory (1:N, soft reference) · CUD 시 BrandHistory append (비동기) — 출처 <a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-d1">S-D1</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="extract-card">
+      <h3>BrandHistory 엔티티 필드 <small style="font-size:11.5px; color: var(--muted); font-weight: 400;">— after-only snapshot (변경 후 상태만 기록)</small></h3>
+      <table class="fields">
+        <thead>
+          <tr><th>필드</th><th>타입</th><th>설명</th><th>출처 시나리오</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="field-name">id</td><td class="field-type">Long (PK)</td><td>시스템 부여 식별자</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">brandId</td><td class="field-type">Long</td><td>대상 Brand의 id (soft reference, FK 아님)</td><td class="field-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-d1">S-D1</a></td></tr>
+          <tr><td class="field-name">name</td><td class="field-type">String</td><td>변경 후 브랜드 이름 (snapshot)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">description</td><td class="field-type">String?</td><td>변경 후 설명 (snapshot)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">action</td><td class="field-type">Action (CREATE / UPDATE / DELETE)</td><td>변경 종류</td><td class="field-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-d1">S-D1</a></td></tr>
+          <tr><td class="field-name">actor</td><td class="field-type">String</td><td>변경을 일으킨 주체 (관리자 식별자)</td><td class="field-source">감사</td></tr>
+          <tr><td class="field-name">recordedAt</td><td class="field-type">LocalDateTime</td><td>이력 적재 시각</td><td class="field-source">감사</td></tr>
+        </tbody>
+      </table>
+
+      <div class="invariants">
+        <strong>도메인 invariant</strong>
+        <ul>
+          <li><code>brandId</code>는 soft reference — Brand 삭제 후에도 BrandHistory는 유지된다 (FK 제약 없음)</li>
+          <li>after-only snapshot — 변경 전 상태는 저장하지 않는다 (필요 시 이전 row를 조회)</li>
+          <li>append-only — UPDATE / DELETE 안 함, 새 row만 추가</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 4.  시나리오 → DB 테이블                       -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">4</span>시나리오 → DB 테이블 <small>영속성 매핑</small></h2>
+    <p class="lead">naming은 Spring Boot 기본 <code>SpringPhysicalNamingStrategy</code> 가정 (camelCase → snake_case). 좌측은 컬럼 명세, 우측은 ER 다이어그램.</p>
+
+    <div class="db-layout">
+      <!-- 좌측: 텍스트 명세 -->
+      <div class="db-layout-left">
+        <div class="er-section-label">컬럼 명세</div>
+
+        <div class="db-table">
+          <div class="db-table-header">brand</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">전부</td></tr>
+              <tr><td class="col-name">name</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL, UK</td><td class="col-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-c4">S-C4</a></td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">VARCHAR(500)</td><td>NULL</td><td class="col-source">—</td></tr>
+              <tr><td class="col-name">logo_url</td><td class="col-type">VARCHAR(500)</td><td>NULL</td><td class="col-source">—</td></tr>
+              <tr><td class="col-name">status</td><td class="col-type">VARCHAR(20)</td><td>NOT NULL · ACTIVE / DELETED</td><td class="col-source"><a class="xref" href="#s-d1">S-D1</a></td></tr>
+              <tr><td class="col-name">created_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">updated_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source"><a class="xref" href="#s-u1">S-U1</a>, BaseEntity</td></tr>
+              <tr><td class="col-name">created_by</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+              <tr><td class="col-name">updated_by</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">BaseEntity</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>제약:</strong> <code>UNIQUE KEY uk_brand_name (name)</code> — 출처 <a class="xref" href="#s-c3">S-C3</a>, <a class="xref" href="#s-u3">S-U3</a>
+          </div>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-header">brand_history</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="col-name">id</td><td class="col-type">BIGINT</td><td>PK, AUTO_INCREMENT</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">brand_id</td><td class="col-type">BIGINT</td><td>NOT NULL · <strong>soft reference (FK 없음)</strong></td><td class="col-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-d1">S-D1</a></td></tr>
+              <tr><td class="col-name">name</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL · 변경 후 snapshot</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">description</td><td class="col-type">VARCHAR(500)</td><td>NULL · 변경 후 snapshot</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">action</td><td class="col-type">VARCHAR(20)</td><td>NOT NULL · CREATE / UPDATE / DELETE</td><td class="col-source"><a class="xref" href="#s-c1">S-C1</a>, <a class="xref" href="#s-u1">S-U1</a>, <a class="xref" href="#s-d1">S-D1</a></td></tr>
+              <tr><td class="col-name">actor</td><td class="col-type">VARCHAR(50)</td><td>NOT NULL</td><td class="col-source">감사</td></tr>
+              <tr><td class="col-name">recorded_at</td><td class="col-type">DATETIME(6)</td><td>NOT NULL</td><td class="col-source">감사</td></tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>append-only:</strong> CUD 시 새 row append (비동기). brand 삭제 후에도 row 유지.
+          </div>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-header">product (참조 정책만)</div>
+          <table>
+            <thead>
+              <tr><th>컬럼</th><th>타입</th><th>제약</th><th>출처</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="col-name">brand_id</td>
+                <td class="col-type">BIGINT</td>
+                <td>NOT NULL · <strong>soft reference (FK 없음)</strong></td>
+                <td class="col-source"><a class="xref" href="#s-d1">S-D1</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="db-constraints">
+            <strong>cascade:</strong> Application 레벨 (<code>BrandService.delete</code> → <code>ProductService.softDeleteByBrand</code>). Brand status가 DELETED로 전이될 때 Product도 status=DELETED로 함께 전이. 주문 스냅샷 등 다른 도메인 영향을 명시적으로 통제.
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측: ER 다이어그램 -->
+      <div class="db-layout-right">
+        <div class="er-section-label">ER 다이어그램</div>
+
+        <div class="er-entity">
+          <div class="er-entity-name">brand</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key uk">UK</span><span class="name">name</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">description</span><span class="type">VARCHAR(500) NULL</span></li>
+            <li><span class="key empty"></span><span class="name">logo_url</span><span class="type">VARCHAR(500) NULL</span></li>
+            <li><span class="key empty"></span><span class="name">status</span><span class="type">VARCHAR(20)</span></li>
+            <li><span class="key empty"></span><span class="name">created_at</span><span class="type">DATETIME(6)</span></li>
+            <li><span class="key empty"></span><span class="name">updated_at</span><span class="type">DATETIME(6)</span></li>
+            <li><span class="key empty"></span><span class="name">created_by</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">updated_by</span><span class="type">VARCHAR(50)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation">
+          <span>1</span>
+          <span class="arrow" style="letter-spacing: 3px;">- - - →</span>
+          <span>N</span>
+          <span style="margin-left:8px;">soft ref · 애플리케이션 cascade</span>
+        </div>
+
+        <div class="er-entity" style="border-style:dashed; opacity:0.85;">
+          <div class="er-entity-name" style="background:#52525B;">product (외부 도메인 — 02-product-final.html 참조)</div>
+          <ul class="er-cols">
+            <li><span class="key empty"></span><span class="name">brand_id</span><span class="type">BIGINT · soft ref</span></li>
+            <li class="muted"><span class="key empty"></span><span class="name">...other columns</span><span class="type">(02-product-final 참조)</span></li>
+          </ul>
+        </div>
+
+        <div class="er-relation" style="margin-top: 10px;">
+          <span>1</span>
+          <span class="arrow" style="letter-spacing: 3px;">- - - →</span>
+          <span>N</span>
+          <span style="margin-left:8px;">soft ref · append on CUD (async)</span>
+        </div>
+
+        <div class="er-entity" style="border-color: var(--future);">
+          <div class="er-entity-name" style="background: var(--future);">brand_history</div>
+          <ul class="er-cols">
+            <li><span class="key pk">PK</span><span class="name">id</span><span class="type">BIGINT</span></li>
+            <li><span class="key empty"></span><span class="name">brand_id</span><span class="type">BIGINT · soft ref</span></li>
+            <li><span class="key empty"></span><span class="name">name</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">description</span><span class="type">VARCHAR(500) NULL</span></li>
+            <li><span class="key empty"></span><span class="name">action</span><span class="type">VARCHAR(20)</span></li>
+            <li><span class="key empty"></span><span class="name">actor</span><span class="type">VARCHAR(50)</span></li>
+            <li><span class="key empty"></span><span class="name">recorded_at</span><span class="type">DATETIME(6)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-constraints" style="margin-top: 14px; border: 1px dashed var(--decide); border-top: 1px dashed var(--decide); border-radius: 6px;">
+      <strong>DB 제약(FK) 없음.</strong> 위 ERD의 모든 관계선(brand ↔ product, brand ↔ brand_history)은 <code>brand_id</code> 같은 <strong>논리 참조(soft reference)</strong>일 뿐 DB 레벨 FK 제약을 두지 않습니다. 무결성·cascade는 애플리케이션 레이어 책임 (예: <code>BrandService.delete</code>가 Product의 soft delete를 명시적으로 호출). 자세한 규칙은 <code>docs/conventions.md</code> 참조.
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 5.  시나리오 → API 시퀀스 (SVG)                -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">5</span>시나리오 → API 시퀀스 <small>액터 가로 컬럼 · 시간 위→아래</small></h2>
+    <p class="lead">대표 시나리오에 대한 호출 흐름. 실선 = 호출, 점선(녹/적) = return / 에러 응답.</p>
+
+    <!-- 화살표 마커 정의 (공통) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#27272A"/>
+        </marker>
+        <marker id="ah-ret" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#047857"/>
+        </marker>
+        <marker id="ah-err" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#B91C1C"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <!-- ────── S-C1 ────── -->
+    <div class="seq-block" id="seq-c1">
+      <div class="seq-title"><a class="xref" href="#s-c1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">S-C1</span></a> 관리자가 브랜드를 생성한다 (정상)</div>
+      <div class="seq-desc">LDAP 헤더 검증 통과 → 도메인 객체 생성 (status=ACTIVE) → DB persist → 201 응답. 별도로 BrandHistory에 비동기 append.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1010 380" style="max-width:1010px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 950) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminBrandController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">BrandService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">BrandRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="895" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="950" y="34" text-anchor="middle" style="fill:#0E7490">BrandHistoryRepository</text>
+
+          <!-- Lifelines -->
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="370"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="370"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="370"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="370"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="370"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="370"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="370"/>
+
+          <!-- 1: Client → AdminLdapAuthenticationFilter, y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">POST /api-admin/v1/brands</text>
+
+          <!-- 2: AdminLdapAuthenticationFilter → AdminBrandController, y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">헤더 검증 통과</text>
+
+          <!-- Transaction box: BrandService 호출 ~ 마지막 DB INSERT -->
+          <rect class="tx-box" x="500" y="155" width="350" height="123" />
+          <text class="tx-label" x="510" y="149">Transaction</text>
+
+          <!-- 3: AdminBrandController → BrandService, y=175 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">create(BrandCreateCommand)</text>
+
+          <!-- 4: BrandService → BrandRepository, y=220 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">save(Brand · status=ACTIVE)</text>
+
+          <!-- 5: BrandRepository → DB, y=265 -->
+          <line class="msg-line" x1="670" y1="265" x2="808" y2="265" marker-end="url(#ah)"/>
+          <text class="msg-text" x="740" y="259" text-anchor="middle">INSERT INTO brand</text>
+
+          <!-- 6: BrandService → BrandHistoryRepository (async, dashed), y=310 -->
+          <line class="msg-line" x1="530" y1="310" x2="948" y2="310" marker-end="url(#ah)" stroke-dasharray="6 4"/>
+          <text class="msg-text" x="740" y="304" text-anchor="middle">[async] append(action=CREATE) · 실패 시 로깅</text>
+
+          <!-- 7: DB → Client (return), y=355 -->
+          <line class="msg-line ret" x1="810" y1="355" x2="112" y2="355" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="349" text-anchor="middle">201 Created · BrandResponse</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── S-C2 ────── -->
+    <div class="seq-block" id="seq-c2">
+      <div class="seq-title"><a class="xref" href="#s-c2" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">S-C2</span></a> LDAP 헤더 누락/오값으로 등록 시도 (예외)</div>
+      <div class="seq-desc">관리자 인증 단계에서 예외가 발생하여 컨트롤러까지 도달하지 못하고 401 응답이 반환된다.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 410 220" style="max-width:410px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminBrandController</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="210"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="210"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="210"/>
+
+          <!-- 1: Client → AdminLdapAuthenticationFilter, y=85 -->
+          <circle class="step-num-bg" cx="25" cy="85" r="11"/>
+          <text class="step-num-text" x="25" y="89" text-anchor="middle">1</text>
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">POST · 헤더 없음/불일치</text>
+
+          <!-- 2: 예외 발생 (self-note on Filter), y=130 -->
+          <circle class="step-num-bg" cx="25" cy="130" r="11"/>
+          <text class="step-num-text" x="25" y="134" text-anchor="middle">2</text>
+          <text class="msg-text err" x="250" y="125" text-anchor="middle">LDAP 헤더 누락 / 오값 → 예외 발생</text>
+
+          <!-- 3: AdminLdapAuthenticationFilter → Client (err), y=175 -->
+          <circle class="step-num-bg" cx="25" cy="175" r="11"/>
+          <text class="step-num-text" x="25" y="179" text-anchor="middle">3</text>
+          <line class="msg-line err" x1="250" y1="175" x2="112" y2="175" marker-end="url(#ah-err)"/>
+          <text class="msg-text err" x="180" y="169" text-anchor="middle">401 UNAUTHORIZED · ApiResponse.fail</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── S-R1 ────── -->
+    <div class="seq-block" id="seq-r1">
+      <div class="seq-title"><a class="xref" href="#s-r1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">S-R1</span></a> 사용자가 단건 브랜드를 조회한다 (정상)</div>
+      <div class="seq-desc">user_required: X · 인증 우회 → 조회 → 200 응답</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 710 290" style="max-width:710px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="250" y="34" text-anchor="middle">BrandController</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">BrandService</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">BrandRepository</text>
+          <rect class="actor-box db" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="670" y="34" text-anchor="middle">Database</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="280"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="280"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="280"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="280"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="280"/>
+
+          <!-- 1: y=85 -->
+          <circle class="step-num-bg" cx="25" cy="85" r="11"/>
+          <text class="step-num-text" x="25" y="89" text-anchor="middle">1</text>
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">GET /api/v1/brands/{id}</text>
+
+          <!-- 2: y=130 -->
+          <circle class="step-num-bg" cx="25" cy="130" r="11"/>
+          <text class="step-num-text" x="25" y="134" text-anchor="middle">2</text>
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">findById(brandId)</text>
+
+          <!-- 3: y=175 -->
+          <circle class="step-num-bg" cx="25" cy="175" r="11"/>
+          <text class="step-num-text" x="25" y="179" text-anchor="middle">3</text>
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">findById(brandId)</text>
+
+          <!-- 4: y=220 -->
+          <circle class="step-num-bg" cx="25" cy="220" r="11"/>
+          <text class="step-num-text" x="25" y="224" text-anchor="middle">4</text>
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">SELECT * FROM brand WHERE id = ?</text>
+
+          <!-- 5: return, y=265 -->
+          <circle class="step-num-bg" cx="25" cy="265" r="11"/>
+          <text class="step-num-text" x="25" y="269" text-anchor="middle">5</text>
+          <line class="msg-line ret" x1="670" y1="265" x2="112" y2="265" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="390" y="259" text-anchor="middle">200 OK · BrandPublicResponse</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── S-U1 ────── -->
+    <div class="seq-block" id="seq-u1">
+      <div class="seq-title"><a class="xref" href="#s-u1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">S-U1</span></a> 관리자가 브랜드 정보를 수정한다 (정상)</div>
+      <div class="seq-desc">LDAP 헤더 검증 통과 → 도메인 객체 수정 (dirty checking) → 200 응답. 별도로 BrandHistory에 비동기 append.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1010 380" style="max-width:1010px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 950) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminBrandController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">BrandService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">BrandRepository</text>
+          <rect class="actor-box db" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="810" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="895" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="950" y="34" text-anchor="middle" style="fill:#0E7490">BrandHistoryRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="370"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="370"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="370"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="370"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="370"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="370"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="370"/>
+
+          <!-- 1: Client → AdminLdapAuthenticationFilter, y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">PUT /api-admin/v1/brands/{id}</text>
+
+          <!-- 2: AdminLdapAuthenticationFilter → AdminBrandController, y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">헤더 검증 통과</text>
+
+          <!-- Transaction box: BrandService 호출 ~ 마지막 DB UPDATE -->
+          <rect class="tx-box" x="500" y="155" width="350" height="123" />
+          <text class="tx-label" x="510" y="149">Transaction</text>
+
+          <!-- 3: AdminBrandController → BrandService, y=175 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">update(brandId, BrandUpdateCommand)</text>
+
+          <!-- 4: BrandService → BrandRepository, y=220 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">findById(brandId)</text>
+
+          <!-- 5: BrandRepository → DB, y=265 -->
+          <line class="msg-line" x1="670" y1="265" x2="808" y2="265" marker-end="url(#ah)"/>
+          <text class="msg-text" x="740" y="259" text-anchor="middle">SELECT / UPDATE brand</text>
+
+          <!-- 6: BrandService → BrandHistoryRepository (async, dashed), y=310 -->
+          <line class="msg-line" x1="530" y1="310" x2="948" y2="310" marker-end="url(#ah)" stroke-dasharray="6 4"/>
+          <text class="msg-text" x="740" y="304" text-anchor="middle">[async] append(action=UPDATE) · 실패 시 로깅</text>
+
+          <!-- 7: DB → Client (return), y=355 -->
+          <line class="msg-line ret" x1="810" y1="355" x2="112" y2="355" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="460" y="349" text-anchor="middle">200 OK · BrandResponse</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ────── S-D1 ────── -->
+    <div class="seq-block" id="seq-d1">
+      <div class="seq-title"><a class="xref" href="#s-d1" style="border-bottom:none;background:transparent;padding:0;"><span class="sid">S-D1</span></a> 관리자가 브랜드를 삭제한다 (soft delete · cascade)</div>
+      <div class="seq-desc">한 트랜잭션 안에서 product를 status=DELETED로 전이 → brand를 status=DELETED로 전이. Application 레벨 cascade. 별도로 BrandHistory에 비동기 append.</div>
+      <div class="seq-svg-wrap">
+        <svg class="seq-svg" viewBox="50 0 1150 470" style="max-width:1150px" xmlns="http://www.w3.org/2000/svg">
+          <!-- Actors (cx: 110, 250, 390, 530, 670, 810, 950, 1090) -->
+          <rect class="actor-box client" x="55"  y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text muted" x="110" y="34" text-anchor="middle">Client</text>
+          <rect class="actor-box filter" x="195" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text filter" x="250" y="34" text-anchor="middle">AdminLdapAuthenticationFilter</text>
+          <rect class="actor-box" x="335" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="390" y="34" text-anchor="middle">AdminBrandController</text>
+          <rect class="actor-box" x="475" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="530" y="34" text-anchor="middle">BrandService</text>
+          <rect class="actor-box" x="615" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="670" y="34" text-anchor="middle">ProductService</text>
+          <rect class="actor-box" x="755" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text" x="810" y="34" text-anchor="middle">BrandRepository</text>
+          <rect class="actor-box db" x="895" y="10" width="110" height="40" rx="6"/>
+          <text class="actor-text db" x="950" y="34" text-anchor="middle">Database</text>
+          <rect class="actor-box" x="1035" y="10" width="110" height="40" rx="6" style="fill:#ECFEFF;stroke:#A5F3FC"/>
+          <text class="actor-text" x="1090" y="34" text-anchor="middle" style="fill:#0E7490">BrandHistoryRepository</text>
+
+          <line class="lifeline" x1="110" y1="50" x2="110" y2="460"/>
+          <line class="lifeline" x1="250" y1="50" x2="250" y2="460"/>
+          <line class="lifeline" x1="390" y1="50" x2="390" y2="460"/>
+          <line class="lifeline" x1="530" y1="50" x2="530" y2="460"/>
+          <line class="lifeline" x1="670" y1="50" x2="670" y2="460"/>
+          <line class="lifeline" x1="810" y1="50" x2="810" y2="460"/>
+          <line class="lifeline" x1="950" y1="50" x2="950" y2="460"/>
+          <line class="lifeline" x1="1090" y1="50" x2="1090" y2="460"/>
+
+          <!-- 1: Client → AdminLdapAuthenticationFilter, y=85 -->
+          <line class="msg-line" x1="110" y1="85" x2="248" y2="85" marker-end="url(#ah)"/>
+          <text class="msg-text" x="180" y="79" text-anchor="middle">DELETE /api-admin/v1/brands/{id}</text>
+
+          <!-- 2: AdminLdapAuthenticationFilter → AdminBrandController, y=130 -->
+          <line class="msg-line" x1="250" y1="130" x2="388" y2="130" marker-end="url(#ah)"/>
+          <text class="msg-text" x="320" y="124" text-anchor="middle">인증 통과</text>
+
+          <!-- Transaction box: BrandService 호출 ~ Database (BrandHistoryRepository는 박스 밖) -->
+          <rect class="tx-box" x="500" y="155" width="490" height="213" />
+          <text class="tx-label" x="510" y="149">Transaction</text>
+
+          <!-- 3: AdminBrandController → BrandService, y=175 -->
+          <line class="msg-line" x1="390" y1="175" x2="528" y2="175" marker-end="url(#ah)"/>
+          <text class="msg-text" x="460" y="169" text-anchor="middle">delete(brandId)</text>
+
+          <!-- 4: BrandService → ProductService, y=220 -->
+          <line class="msg-line" x1="530" y1="220" x2="668" y2="220" marker-end="url(#ah)"/>
+          <text class="msg-text" x="600" y="214" text-anchor="middle">softDeleteByBrand(brandId)</text>
+
+          <!-- 5: ProductService → DB, y=265 -->
+          <line class="msg-line" x1="670" y1="265" x2="948" y2="265" marker-end="url(#ah)"/>
+          <text class="msg-text" x="810" y="259" text-anchor="middle">UPDATE product SET status='DELETED' WHERE brand_id = ?</text>
+
+          <!-- 6: BrandService → BrandRepository, y=310 -->
+          <line class="msg-line" x1="530" y1="310" x2="808" y2="310" marker-end="url(#ah)"/>
+          <text class="msg-text" x="670" y="304" text-anchor="middle">softDelete(brandId)</text>
+
+          <!-- 7: BrandRepository → DB, y=355 -->
+          <line class="msg-line" x1="810" y1="355" x2="948" y2="355" marker-end="url(#ah)"/>
+          <text class="msg-text" x="880" y="349" text-anchor="middle">UPDATE brand SET status='DELETED' WHERE id = ?</text>
+
+          <!-- 8: BrandService → BrandHistoryRepository (async, dashed), y=400 -->
+          <line class="msg-line" x1="530" y1="400" x2="1088" y2="400" marker-end="url(#ah)" stroke-dasharray="6 4"/>
+          <text class="msg-text" x="810" y="394" text-anchor="middle">[async] append(action=DELETE) · 실패 시 로깅</text>
+
+          <!-- 9: DB → Client (return), y=445 -->
+          <line class="msg-line ret" x1="950" y1="445" x2="112" y2="445" marker-end="url(#ah-ret)"/>
+          <text class="msg-text ret" x="530" y="439" text-anchor="middle">204 No Content · 트랜잭션 commit</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════ -->
+  <!--   Section 6.  미래 확장 마킹                              -->
+  <!-- ════════════════════════════════════════════════════════ -->
+  <section>
+    <h2><span class="num">6</span>미래 확장 마킹</h2>
+
+    <div class="card future" id="b-f1">
+      <header><h3><span class="id">B-F1</span>Brand staff self-service · Brand = Tenant</h3></header>
+      <p class="flow">Brand 단위 운영자 계정이 자기 brand의 정보 수정 / 상품 CRUD를 직접 수행. 상세는 <code>docs/big-picture.md</code>의 "추가 비전" 섹션.</p>
+      <div class="future-box">
+        <strong>이번 주 설계가 받아내야 할 것:</strong>
+        <ul style="margin: 6px 0; padding-left: 18px;">
+          <li>brand 정보를 product 내부에 비정규화하지 않음 (brand_id FK로 분리 유지)</li>
+          <li>관리자 인증 필터를 인터페이스 레이어에 두되 추후 Role 기반 분리 가능하게</li>
+          <li>응답 DTO를 권한별로 나누는 패턴을 Brand staff용에도 확장 가능</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card future" id="b-f2">
+      <header><h3><span class="id">B-F2</span>history 비동기 적재 인프라</h3></header>
+      <p class="flow">BrandHistoryRepository가 어떤 메커니즘으로 비동기 적재되는가 — 메시지 큐(Kafka 등) / outbox 패턴 / retry policy.</p>
+      <div class="future-box">
+        <strong>이번 주는 의도만 박고 구현 미설계.</strong> 현재는 BrandHistoryRepository를 인터페이스로 노출하고, 실패 시 로깅한다는 정책만 시퀀스에 표기. 적재 채널 / 보장 수준(at-least-once / exactly-once) / 재시도 정책은 인프라 도입 시점에 결정.
+      </div>
+    </div>
+
+    <div class="card future" id="b-f3">
+      <header><h3><span class="id">B-F3</span>history 외부 노출 endpoint</h3></header>
+      <p class="flow">brand_history를 조회할 수 있는 API — 누가 자기 브랜드의 변경 이력을 볼 수 있는가.</p>
+      <div class="future-box">
+        <strong>seller(Brand staff) 도입 시점에 추가.</strong> B-F1과 연결 — Brand staff가 자기 브랜드의 변경 이력을 self-service로 조회. 현재 관리자 only 컨텍스트에서는 시나리오에 포함하지 않음.
+      </div>
+    </div>
+  </section>
+
+  <footer class="page">
+    <code>docs/week2/scenarios/01-brand.html</code> · 변경 시 브라우저 새로고침으로 확인 · 시나리오(Section 1) 추가/수정 시 Section 2~5에 반영 확인
+  </footer>
+
+</div>
+<script>
+/* loopers-seq-svg-resize */
+(function () {
+  function init() {
+    document.querySelectorAll('.seq-svg').forEach(processSvg);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function processSvg(svg) {
+    if (svg.dataset.seqResized === '1') return;
+    var actorTexts = Array.from(svg.querySelectorAll('.actor-text'));
+    if (actorTexts.length === 0) return;
+    actorTexts.sort(function (a, b) {
+      return parseFloat(a.getAttribute('x')) - parseFloat(b.getAttribute('x'));
+    });
+    var oldCx = actorTexts.map(function (t) { return parseFloat(t.getAttribute('x')); });
+    var minWidth = 70;
+    var padX = 24;
+    var colGap = 28;
+
+    var widths = actorTexts.map(function (t) {
+      var bb = t.getBBox();
+      return Math.max(minWidth, Math.ceil(bb.width) + padX);
+    });
+
+    var newCx = new Array(oldCx.length);
+    newCx[0] = oldCx[0];
+    for (var i = 1; i < widths.length; i++) {
+      newCx[i] = newCx[i - 1] + widths[i - 1] / 2 + widths[i] / 2 + colGap;
+    }
+
+    function remapX(x) {
+      // 가장 가까운 컬럼에 매우 근접하면 snap
+      var bestIdx = 0, bestDist = Infinity;
+      for (var i = 0; i < oldCx.length; i++) {
+        var d = Math.abs(x - oldCx[i]);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      if (bestDist < 3) return newCx[bestIdx];
+      // 두 컬럼 사이라면 선형 보간
+      for (var j = 0; j < oldCx.length - 1; j++) {
+        if (x > oldCx[j] && x < oldCx[j + 1]) {
+          var frac = (x - oldCx[j]) / (oldCx[j + 1] - oldCx[j]);
+          return newCx[j] + frac * (newCx[j + 1] - newCx[j]);
+        }
+      }
+      // 범위 밖 — 가장 가까운 컬럼에서 같은 오프셋
+      return newCx[bestIdx] + (x - oldCx[bestIdx]);
+    }
+
+    // actor rect + text 위치/크기 갱신
+    actorTexts.forEach(function (t, i) {
+      var cx = newCx[i];
+      var w = widths[i];
+      t.setAttribute('x', cx);
+      var rect = t.previousElementSibling;
+      while (rect && !(rect.tagName.toLowerCase() === 'rect' && rect.classList.contains('actor-box'))) {
+        rect = rect.previousElementSibling;
+      }
+      if (rect) {
+        rect.setAttribute('x', cx - w / 2);
+        rect.setAttribute('width', w);
+      }
+    });
+
+    // lifelines
+    svg.querySelectorAll('.lifeline').forEach(function (line) {
+      var nx = remapX(parseFloat(line.getAttribute('x1')));
+      line.setAttribute('x1', nx);
+      line.setAttribute('x2', nx);
+    });
+
+    // msg lines
+    svg.querySelectorAll('.msg-line').forEach(function (line) {
+      line.setAttribute('x1', remapX(parseFloat(line.getAttribute('x1'))));
+      line.setAttribute('x2', remapX(parseFloat(line.getAttribute('x2'))));
+    });
+
+    // msg texts
+    svg.querySelectorAll('.msg-text').forEach(function (t) {
+      t.setAttribute('x', remapX(parseFloat(t.getAttribute('x'))));
+    });
+
+    // viewBox + max-width
+    var lastCx = newCx[newCx.length - 1];
+    var lastW = widths[widths.length - 1];
+    var rightEdge = lastCx + lastW / 2 + 24;
+    var vbAttr = svg.getAttribute('viewBox');
+    if (vbAttr) {
+      var vbParts = vbAttr.split(/\s+/).map(parseFloat);
+      vbParts[2] = rightEdge - vbParts[0];
+      svg.setAttribute('viewBox', vbParts.join(' '));
+    }
+    svg.style.maxWidth = rightEdge + 'px';
+
+    svg.dataset.seqResized = '1';
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -5,6 +5,11 @@ import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.like.LikeService
+import com.loopers.domain.order.Order
+import com.loopers.domain.order.OrderItem
+import com.loopers.domain.order.OrderItems
+import com.loopers.domain.order.OrderRepositoryPort
+import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
@@ -13,6 +18,7 @@ import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
+import java.time.ZonedDateTime
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -31,6 +37,7 @@ class BrandApplicationServiceIntegrationTest @Autowired constructor(
     private val stockRepositoryPort: StockRepositoryPort,
     private val likeService: LikeService,
     private val likeCountQueryPort: LikeCountQueryPort,
+    private val orderRepositoryPort: OrderRepositoryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -194,6 +201,41 @@ class BrandApplicationServiceIntegrationTest @Autowired constructor(
             assertThat(productRepositoryPort.findById(survivor.id)).isNotNull
             assertThat(stockRepositoryPort.findByProductId(survivor.id)).isNotNull
         }
+
+        @DisplayName("브랜드 상품 중 미완료 주문이 있는 상품이 있으면 CONFLICT 예외가 발생한다.")
+        @Test
+        fun throwsConflict_whenAnyBrandProductHasIncompleteOrder() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productApplicationService.createProduct(
+                CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 5),
+            )
+            saveIncompleteOrderFor(detail.id)
+
+            val result = assertThrows<CoreException> { brandApplicationService.deleteBrand(brand.id) }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(brandRepositoryPort.findById(brand.id)).isNotNull
+        }
+    }
+
+    private fun saveIncompleteOrderFor(productId: Long, userId: Long = 1L) {
+        val base = Order.create(
+            userId = userId,
+            items = OrderItems(
+                listOf(
+                    OrderItem(
+                        productId = productId,
+                        quantity = 1,
+                        snapshotProductName = "snapshot",
+                        snapshotPrice = 1_000L,
+                        snapshotBrandName = "SnapBrand",
+                    ),
+                ),
+            ),
+            orderedAt = ZonedDateTime.now(),
+        )
+        val saved = orderRepositoryPort.save(base)
+        orderRepositoryPort.save(saved.updateStatus(OrderStatus.PAYMENT_PENDING))
     }
 
     @DisplayName("getBrands 통합 흐름")

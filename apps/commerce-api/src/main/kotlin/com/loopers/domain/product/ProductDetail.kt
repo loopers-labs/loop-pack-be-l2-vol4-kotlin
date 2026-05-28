@@ -1,7 +1,6 @@
-package com.loopers.application.product
+package com.loopers.domain.product
 
 import com.loopers.domain.brand.Brand
-import com.loopers.domain.product.Product
 import com.loopers.domain.stock.Stock
 
 data class ProductDetail(

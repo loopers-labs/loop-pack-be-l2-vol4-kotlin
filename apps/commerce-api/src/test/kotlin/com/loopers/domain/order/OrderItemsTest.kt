@@ -44,9 +44,9 @@ class OrderItemsTest {
         fun sumsAllSubtotals() {
             val sut = OrderItems(
                 listOf(
-                    item(productId = 1L, quantity = 2, snapshotPrice = 1_000L), // 2,000
-                    item(productId = 2L, quantity = 3, snapshotPrice = 500L), //   1,500
-                    item(productId = 3L, quantity = 1, snapshotPrice = 4_000L), // 4,000
+                    item(productId = 1L, quantity = 2, snapshotPrice = 1_000L),
+                    item(productId = 2L, quantity = 3, snapshotPrice = 500L),
+                    item(productId = 3L, quantity = 1, snapshotPrice = 4_000L),
                 ),
             )
 

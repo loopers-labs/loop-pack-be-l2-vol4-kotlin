@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.product
 
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.product.ProductSort
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.common.PageView
 import com.loopers.support.error.CoreException
@@ -25,11 +26,16 @@ class ProductAdminController(
     fun getProducts(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
         @RequestParam(name = "brandId", required = false) brandId: Long?,
+        @RequestParam(name = "sort", required = false) sort: String?,
         @RequestParam(name = "page", defaultValue = "0") page: Int,
         @RequestParam(name = "size", defaultValue = "20") size: Int,
     ): ApiResponse<PageView<ProductAdminV1Dto.ProductSummaryResponse>> {
         verifyAdmin(ldap)
-        val result = productApplicationService.getProducts(brandId, PageRequest(page = page, size = size))
+        val result = productApplicationService.getProducts(
+            brandId,
+            ProductSort.from(sort),
+            PageRequest(page = page, size = size),
+        )
         return ApiResponse.success(PageView.from(result, ProductAdminV1Dto.ProductSummaryResponse::from))
     }
 

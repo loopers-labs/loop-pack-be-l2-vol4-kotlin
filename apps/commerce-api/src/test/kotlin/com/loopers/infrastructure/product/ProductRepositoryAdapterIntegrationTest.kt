@@ -3,6 +3,7 @@ package com.loopers.infrastructure.product
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepositoryPort
+import com.loopers.domain.product.ProductSort
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -78,20 +79,20 @@ class ProductRepositoryAdapterIntegrationTest @Autowired constructor(
                     Product.create(name = "p$idx", price = 100L, description = "d", brandId = 1L),
                 )
             }
-            val firstPage = productRepositoryPort.findAll(PageRequest(page = 0, size = 3))
+            val firstPage = productRepositoryPort.findAll(null, ProductSort.LATEST, PageRequest(page = 0, size = 3))
             assertThat(firstPage.items).hasSize(3)
             assertThat(firstPage.totalElements).isEqualTo(5L)
             assertThat(firstPage.totalPages).isEqualTo(2)
         }
 
-        @DisplayName("findAllByBrandId(brandId, pageRequest)는 해당 브랜드의 상품만 반환한다.")
+        @DisplayName("findAll(brandId, ...)은 해당 브랜드의 상품만 반환한다.")
         @Test
         fun returnsByBrandId() {
             repeat(3) { productRepositoryPort.save(Product.create(name = "n$it", price = 100L, description = "d", brandId = 1L)) }
             repeat(2) { productRepositoryPort.save(Product.create(name = "a$it", price = 100L, description = "d", brandId = 2L)) }
 
-            val brand1 = productRepositoryPort.findAllByBrandId(1L, PageRequest(page = 0, size = 10))
-            val brand2 = productRepositoryPort.findAllByBrandId(2L, PageRequest(page = 0, size = 10))
+            val brand1 = productRepositoryPort.findAll(1L, ProductSort.LATEST, PageRequest(page = 0, size = 10))
+            val brand2 = productRepositoryPort.findAll(2L, ProductSort.LATEST, PageRequest(page = 0, size = 10))
 
             assertThat(brand1.items).hasSize(3)
             assertThat(brand2.items).hasSize(2)

@@ -4,8 +4,10 @@ import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepositoryPort
+import com.loopers.domain.product.ProductSort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 import org.springframework.data.domain.PageRequest as SpringPageRequest
@@ -22,19 +24,37 @@ class ProductRepositoryAdapter(
         return productJpaRepository.findAllById(ids).map { it.toDomain() }
     }
 
-    override fun findAll(pageRequest: PageRequest): PageResult<Product> {
-        val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.ASC, "id"))
-        val page = productJpaRepository.findAll(springPageable)
-        return PageResult.of(
-            items = page.content.map { it.toDomain() },
-            pageRequest = pageRequest,
-            totalElements = page.totalElements,
-        )
-    }
-
-    override fun findAllByBrandId(brandId: Long, pageRequest: PageRequest): PageResult<Product> {
-        val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.ASC, "id"))
-        val page = productJpaRepository.findAllByBrandId(brandId, springPageable)
+    override fun findAll(brandId: Long?, sort: ProductSort, pageRequest: PageRequest): PageResult<Product> {
+        val page: Page<ProductEntity> = when (sort) {
+            ProductSort.LATEST -> {
+                val pageable = SpringPageRequest.of(
+                    pageRequest.page,
+                    pageRequest.size,
+                    Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")),
+                )
+                if (brandId == null) {
+                    productJpaRepository.findAll(pageable)
+                } else {
+                    productJpaRepository.findAllByBrandId(brandId, pageable)
+                }
+            }
+            ProductSort.PRICE_ASC -> {
+                val pageable = SpringPageRequest.of(
+                    pageRequest.page,
+                    pageRequest.size,
+                    Sort.by(Sort.Direction.ASC, "price").and(Sort.by(Sort.Direction.ASC, "id")),
+                )
+                if (brandId == null) {
+                    productJpaRepository.findAll(pageable)
+                } else {
+                    productJpaRepository.findAllByBrandId(brandId, pageable)
+                }
+            }
+            ProductSort.LIKES_DESC -> {
+                val pageable = SpringPageRequest.of(pageRequest.page, pageRequest.size)
+                productJpaRepository.findAllOrderByLikesDesc(brandId, pageable)
+            }
+        }
         return PageResult.of(
             items = page.content.map { it.toDomain() },
             pageRequest = pageRequest,

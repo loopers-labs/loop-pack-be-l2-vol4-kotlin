@@ -19,10 +19,8 @@ class ProductService(
 
     fun findAllByBrandId(brandId: Long): List<Product> = productRepositoryPort.findAllByBrandId(brandId)
 
-    fun getAll(pageRequest: PageRequest): PageResult<Product> = productRepositoryPort.findAll(pageRequest)
-
-    fun getAllByBrandId(brandId: Long, pageRequest: PageRequest): PageResult<Product> =
-        productRepositoryPort.findAllByBrandId(brandId, pageRequest)
+    fun getAll(brandId: Long?, sort: ProductSort, pageRequest: PageRequest): PageResult<Product> =
+        productRepositoryPort.findAll(brandId, sort, pageRequest)
 
     fun getStockByProductId(productId: Long): Stock =
         stockRepositoryPort.findByProductId(productId)

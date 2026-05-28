@@ -1,9 +1,9 @@
 package com.loopers.interfaces.api.product
 
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductDetail
-import com.loopers.application.product.ProductSummary
 import com.loopers.application.product.UpdateProductCommand
+import com.loopers.domain.product.ProductDetail
+import com.loopers.domain.product.ProductSummary
 
 class ProductAdminV1Dto {
     data class CreateProductRequest(

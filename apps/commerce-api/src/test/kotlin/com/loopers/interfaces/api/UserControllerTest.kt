@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api
 
-import com.loopers.application.user.UserFacade
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.application.user.UserInfo
 import com.loopers.domain.user.User
 import com.loopers.interfaces.api.user.UserController
@@ -28,14 +28,14 @@ class UserControllerTest(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @MockkBean
-    private lateinit var userFacade: UserFacade
+    private lateinit var userApplicationService: UserApplicationServicePort
 
     @DisplayName("회원가입 API를 호출하면, UserFacade.signup이 호출된다.")
     @Test
     fun callsFacadeSignup_whenSignupApiIsCalled() {
         // arrange
         val savedUser = User(id = 1L, name = "홍길동", birth = LocalDate.of(1995, 3, 15), email = "test@example.com")
-        every { userFacade.signup(any()) } returns savedUser
+        every { userApplicationService.signup(any()) } returns savedUser
 
         // act
         mockMvc.post("/api/v1/user/signup") {
@@ -52,7 +52,7 @@ class UserControllerTest(
         }
 
         // assert
-        verify(atLeast = 1) { userFacade.signup(any()) }
+        verify(atLeast = 1) { userApplicationService.signup(any()) }
     }
 
     @DisplayName("유저 정보 조회 API를 호출할 때, ")
@@ -70,7 +70,7 @@ class UserControllerTest(
                 birth = LocalDate.of(1995, 3, 15),
                 email = "test@example.com",
             )
-            every { userFacade.getMyInfo(loginId, password) } returns info
+            every { userApplicationService.getMyInfo(loginId, password) } returns info
 
             // act & assert
             mockMvc.get("/api/v1/user/info") {
@@ -85,7 +85,7 @@ class UserControllerTest(
                 jsonPath("$.meta.result") { value("SUCCESS") }
             }
 
-            verify(exactly = 1) { userFacade.getMyInfo(loginId, password) }
+            verify(exactly = 1) { userApplicationService.getMyInfo(loginId, password) }
         }
 
         @DisplayName("인증에 실패하면, 401 인증 예외가 발생한다.")
@@ -94,7 +94,7 @@ class UserControllerTest(
             // arrange
             val loginId = "wronguser"
             val password = "WrongPass1!"
-            every { userFacade.getMyInfo(loginId, password) } throws CoreException(
+            every { userApplicationService.getMyInfo(loginId, password) } throws CoreException(
                 ErrorType.UNAUTHORIZED,
                 "아이디 또는 비밀번호가 올바르지 않습니다.",
             )
@@ -109,7 +109,7 @@ class UserControllerTest(
                 jsonPath("$.meta.errorCode") { value("Unauthorized") }
             }
 
-            verify(exactly = 1) { userFacade.getMyInfo(loginId, password) }
+            verify(exactly = 1) { userApplicationService.getMyInfo(loginId, password) }
         }
     }
 
@@ -120,7 +120,7 @@ class UserControllerTest(
         @Test
         fun returnsSuccess_whenChangePasswordSucceeds() {
             // arrange
-            every { userFacade.changePassword(any()) } just runs
+            every { userApplicationService.changePassword(any()) } just runs
 
             // act & assert
             mockMvc.put("/api/v1/user/password") {
@@ -138,14 +138,14 @@ class UserControllerTest(
                 jsonPath("$.meta.result") { value("SUCCESS") }
             }
 
-            verify(exactly = 1) { userFacade.changePassword(any()) }
+            verify(exactly = 1) { userApplicationService.changePassword(any()) }
         }
 
         @DisplayName("인증에 실패하면, 401 인증 예외가 발생한다.")
         @Test
         fun returnsUnauthorized_whenAuthenticationFails() {
             // arrange
-            every { userFacade.changePassword(any()) } throws CoreException(
+            every { userApplicationService.changePassword(any()) } throws CoreException(
                 ErrorType.UNAUTHORIZED,
                 "아이디 또는 비밀번호가 올바르지 않습니다.",
             )
@@ -167,14 +167,14 @@ class UserControllerTest(
                 jsonPath("$.meta.errorCode") { value("Unauthorized") }
             }
 
-            verify(exactly = 1) { userFacade.changePassword(any()) }
+            verify(exactly = 1) { userApplicationService.changePassword(any()) }
         }
 
         @DisplayName("잘못된 요청이면, 400 에러가 발생한다.")
         @Test
         fun returnsBadRequest_whenRequestIsInvalid() {
             // arrange
-            every { userFacade.changePassword(any()) } throws CoreException(
+            every { userApplicationService.changePassword(any()) } throws CoreException(
                 ErrorType.BAD_REQUEST,
                 "비밀번호는 8~16자여야 합니다.",
             )
@@ -196,7 +196,7 @@ class UserControllerTest(
                 jsonPath("$.meta.errorCode") { value("Bad Request") }
             }
 
-            verify(exactly = 1) { userFacade.changePassword(any()) }
+            verify(exactly = 1) { userApplicationService.changePassword(any()) }
         }
     }
 }

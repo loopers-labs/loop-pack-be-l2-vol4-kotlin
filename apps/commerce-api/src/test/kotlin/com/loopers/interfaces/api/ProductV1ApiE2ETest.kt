@@ -1,8 +1,8 @@
 package com.loopers.interfaces.api
 
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
@@ -25,7 +25,7 @@ import org.springframework.http.MediaType
 class ProductV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandRepositoryPort: BrandRepositoryPort,
-    private val productFacade: ProductFacade,
+    private val productApplicationService: ProductAdminApplicationServicePort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     companion object {
@@ -57,7 +57,7 @@ class ProductV1ApiE2ETest @Autowired constructor(
         fun returnsProductDetail_whenExists() {
             // arrange
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "Just do it"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "에어맥스", price = 100000L, description = "d", brandId = brand.id, quantity = 30),
             )
 
@@ -89,10 +89,10 @@ class ProductV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsNotFound_whenDeleted() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 5),
             )
-            productFacade.deleteProduct(detail.id)
+            productApplicationService.deleteProduct(detail.id)
 
             val response = getProduct(detail.id)
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)

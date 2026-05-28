@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component
 class UserRepositoryAdapter(
     private val userJpaRepository: UserJpaRepository,
 ) : UserRepositoryPort {
-    override fun findByIdOrNull(id: Long): User? =
+    override fun findById(id: Long): User? =
         userJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
     override fun save(user: User): User {

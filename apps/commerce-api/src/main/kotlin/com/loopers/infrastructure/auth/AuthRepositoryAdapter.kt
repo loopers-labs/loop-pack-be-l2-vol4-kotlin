@@ -10,11 +10,16 @@ import org.springframework.stereotype.Component
 class AuthRepositoryAdapter(
     private val authJpaRepository: AuthJpaRepository,
 ) : AuthRepositoryPort {
-    override fun findByLoginIdOrNull(loginId: String): Auth? =
+    override fun findByLoginId(loginId: String): Auth? =
         authJpaRepository.findByLoginId(loginId)?.toDomain()
 
-    override fun findByUserIdOrNull(userId: Long): Auth? =
+    override fun findByUserId(userId: Long): Auth? =
         authJpaRepository.findByUserId(userId)?.toDomain()
+
+    override fun findAllByUserIdIn(userIds: Collection<Long>): List<Auth> {
+        if (userIds.isEmpty()) return emptyList()
+        return authJpaRepository.findAllByUserIdIn(userIds).map { it.toDomain() }
+    }
 
     override fun existsByLoginId(loginId: String): Boolean =
         authJpaRepository.existsByLoginId(loginId)

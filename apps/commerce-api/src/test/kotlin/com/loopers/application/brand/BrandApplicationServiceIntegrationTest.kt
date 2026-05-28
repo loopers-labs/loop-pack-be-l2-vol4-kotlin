@@ -1,7 +1,6 @@
 package com.loopers.application.brand
 
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
@@ -9,6 +8,8 @@ import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
+import com.loopers.interfaces.api.brand.BrandAdminApplicationServicePort
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -22,10 +23,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class BrandFacadeIntegrationTest @Autowired constructor(
-    private val brandFacade: BrandFacade,
+class BrandApplicationServiceIntegrationTest @Autowired constructor(
+    private val brandApplicationService: BrandAdminApplicationServicePort,
     private val brandRepositoryPort: BrandRepositoryPort,
-    private val productFacade: ProductFacade,
+    private val productApplicationService: ProductAdminApplicationServicePort,
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
     private val likeService: LikeService,
@@ -43,26 +44,21 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("새 브랜드를 등록하면, DB에 저장되고 id가 부여된다.")
         @Test
         fun savesBrand_whenValid() {
-            // act
-            val brand = brandFacade.createBrand(CreateBrandCommand(name = "Nike", description = "Just do it"))
+            val brand = brandApplicationService.createBrand(CreateBrandCommand(name = "Nike", description = "Just do it"))
 
-            // assert
             assertThat(brand.id).isGreaterThan(0L)
-            assertThat(brandRepositoryPort.findByIdOrNull(brand.id)?.name).isEqualTo("Nike")
+            assertThat(brandRepositoryPort.findById(brand.id)?.name).isEqualTo("Nike")
         }
 
         @DisplayName("중복된 name으로 등록하면, CONFLICT 예외가 발생한다.")
         @Test
         fun throwsConflict_whenDuplicateName() {
-            // arrange
-            brandFacade.createBrand(CreateBrandCommand(name = "Nike", description = "x"))
+            brandApplicationService.createBrand(CreateBrandCommand(name = "Nike", description = "x"))
 
-            // act
             val result = assertThrows<CoreException> {
-                brandFacade.createBrand(CreateBrandCommand(name = "Nike", description = "y"))
+                brandApplicationService.createBrand(CreateBrandCommand(name = "Nike", description = "y"))
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
@@ -73,28 +69,22 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("브랜드를 수정하면, name/description이 갱신된다.")
         @Test
         fun updatesBrand_whenValid() {
-            // arrange
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "old"))
 
-            // act
-            val updated = brandFacade.updateBrand(UpdateBrandCommand(id = saved.id, name = "Nike2", description = "new"))
+            val updated = brandApplicationService.updateBrand(UpdateBrandCommand(id = saved.id, name = "Nike2", description = "new"))
 
-            // assert
             assertThat(updated.name).isEqualTo("Nike2")
             assertThat(updated.description).isEqualTo("new")
-            assertThat(brandRepositoryPort.findByIdOrNull(saved.id)?.name).isEqualTo("Nike2")
+            assertThat(brandRepositoryPort.findById(saved.id)?.name).isEqualTo("Nike2")
         }
 
         @DisplayName("자기 자신의 name으로 수정하면, 충돌 없이 성공한다.")
         @Test
         fun updatesBrand_whenSameName() {
-            // arrange
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "old"))
 
-            // act
-            val updated = brandFacade.updateBrand(UpdateBrandCommand(id = saved.id, name = "Nike", description = "new"))
+            val updated = brandApplicationService.updateBrand(UpdateBrandCommand(id = saved.id, name = "Nike", description = "new"))
 
-            // assert
             assertThat(updated.name).isEqualTo("Nike")
             assertThat(updated.description).isEqualTo("new")
         }
@@ -102,16 +92,13 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("다른 브랜드의 name과 충돌하면, CONFLICT 예외가 발생한다.")
         @Test
         fun throwsConflict_whenDuplicate() {
-            // arrange
             brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val target = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
 
-            // act
             val result = assertThrows<CoreException> {
-                brandFacade.updateBrand(UpdateBrandCommand(id = target.id, name = "Nike", description = "z"))
+                brandApplicationService.updateBrand(UpdateBrandCommand(id = target.id, name = "Nike", description = "z"))
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
 
@@ -119,7 +106,7 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @Test
         fun throwsNotFound_whenMissing() {
             val result = assertThrows<CoreException> {
-                brandFacade.updateBrand(UpdateBrandCommand(id = 9999L, name = "x", description = "y"))
+                brandApplicationService.updateBrand(UpdateBrandCommand(id = 9999L, name = "x", description = "y"))
             }
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
@@ -131,41 +118,35 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("브랜드를 삭제하면, soft delete되어 조회되지 않는다.")
         @Test
         fun softDeletesBrand() {
-            // arrange
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
 
-            // act
-            brandFacade.deleteBrand(saved.id)
+            brandApplicationService.deleteBrand(saved.id)
 
-            // assert
-            assertThat(brandRepositoryPort.findByIdOrNull(saved.id)).isNull()
+            assertThat(brandRepositoryPort.findById(saved.id)).isNull()
         }
 
         @DisplayName("존재하지 않는 id로 삭제하면, NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenMissing() {
-            val result = assertThrows<CoreException> { brandFacade.deleteBrand(9999L) }
+            val result = assertThrows<CoreException> { brandApplicationService.deleteBrand(9999L) }
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
 
         @DisplayName("브랜드를 삭제하면, 그 브랜드의 모든 상품과 재고가 cascade soft delete된다.")
         @Test
         fun cascadeDeletesProductsAndStocks() {
-            // arrange
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val productDetails = (0 until 3).map {
-                productFacade.createProduct(
+                productApplicationService.createProduct(
                     CreateProductCommand(name = "p$it", price = 100L, description = "d", brandId = brand.id, quantity = 5),
                 )
             }
 
-            // act
-            brandFacade.deleteBrand(brand.id)
+            brandApplicationService.deleteBrand(brand.id)
 
-            // assert
-            assertThat(brandRepositoryPort.findByIdOrNull(brand.id)).isNull()
+            assertThat(brandRepositoryPort.findById(brand.id)).isNull()
             productDetails.forEach {
-                assertThat(productRepositoryPort.findByIdOrNull(it.id)).isNull()
+                assertThat(productRepositoryPort.findById(it.id)).isNull()
                 assertThat(stockRepositoryPort.findByProductId(it.id)).isNull()
             }
         }
@@ -173,10 +154,9 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("브랜드를 삭제하면, 그 브랜드 상품들의 Like와 LikeCount가 cascade hard delete된다.")
         @Test
         fun cascadeDeletesLikesAndLikeCounts() {
-            // arrange
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val productDetails = (0 until 2).map {
-                productFacade.createProduct(
+                productApplicationService.createProduct(
                     CreateProductCommand(name = "p$it", price = 100L, description = "d", brandId = brand.id, quantity = 5),
                 )
             }
@@ -188,10 +168,8 @@ class BrandFacadeIntegrationTest @Autowired constructor(
                 assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(2L)
             }
 
-            // act
-            brandFacade.deleteBrand(brand.id)
+            brandApplicationService.deleteBrand(brand.id)
 
-            // assert
             productDetails.forEach { detail ->
                 assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(0L)
                 assertThat(likeService.findAllProductIdsByUserId(1L)).doesNotContain(detail.id)
@@ -204,16 +182,16 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         fun cascadeDoesNotAffectOtherBrands() {
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            val survivor = productFacade.createProduct(
+            val survivor = productApplicationService.createProduct(
                 CreateProductCommand(name = "survivor", price = 100L, description = "d", brandId = brand2.id, quantity = 5),
             )
-            productFacade.createProduct(
+            productApplicationService.createProduct(
                 CreateProductCommand(name = "victim", price = 100L, description = "d", brandId = brand1.id, quantity = 5),
             )
 
-            brandFacade.deleteBrand(brand1.id)
+            brandApplicationService.deleteBrand(brand1.id)
 
-            assertThat(productRepositoryPort.findByIdOrNull(survivor.id)).isNotNull
+            assertThat(productRepositoryPort.findById(survivor.id)).isNotNull
             assertThat(stockRepositoryPort.findByProductId(survivor.id)).isNotNull
         }
     }
@@ -224,13 +202,10 @@ class BrandFacadeIntegrationTest @Autowired constructor(
         @DisplayName("페이지 단위로 브랜드 목록을 반환한다.")
         @Test
         fun returnsPagedBrands() {
-            // arrange
-            repeat(3) { brandFacade.createBrand(CreateBrandCommand(name = "brand-$it", description = "d-$it")) }
+            repeat(3) { brandApplicationService.createBrand(CreateBrandCommand(name = "brand-$it", description = "d-$it")) }
 
-            // act
-            val result = brandFacade.getBrands(PageRequest(page = 0, size = 10))
+            val result = brandApplicationService.getBrands(PageRequest(page = 0, size = 10))
 
-            // assert
             assertThat(result.items).hasSize(3)
             assertThat(result.totalElements).isEqualTo(3L)
         }

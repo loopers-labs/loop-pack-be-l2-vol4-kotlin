@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component
 class BrandRepositoryAdapter(
     private val brandJpaRepository: BrandJpaRepository,
 ) : BrandRepositoryPort {
-    override fun findByIdOrNull(id: Long): Brand? =
+    override fun findById(id: Long): Brand? =
         brandJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
     override fun findAllByIds(ids: List<Long>): List<Brand> {

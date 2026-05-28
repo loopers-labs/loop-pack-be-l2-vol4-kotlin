@@ -69,7 +69,7 @@ class BrandRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("findByIdOrNull을 호출할 때, ")
+    @DisplayName("findById을 호출할 때, ")
     @Nested
     inner class FindById {
         @DisplayName("존재하는 id로 조회하면, Brand를 반환한다.")
@@ -79,7 +79,7 @@ class BrandRepositoryAdapterIntegrationTest @Autowired constructor(
             val saved = brandRepositoryPort.save(Brand.create(name = "Nike", description = "Just do it"))
 
             // act
-            val found = brandRepositoryPort.findByIdOrNull(saved.id)
+            val found = brandRepositoryPort.findById(saved.id)
 
             // assert
             assertThat(found).isNotNull
@@ -89,7 +89,7 @@ class BrandRepositoryAdapterIntegrationTest @Autowired constructor(
         @DisplayName("존재하지 않는 id로 조회하면, null을 반환한다.")
         @Test
         fun returnsNull_whenMissing() {
-            assertThat(brandRepositoryPort.findByIdOrNull(9999L)).isNull()
+            assertThat(brandRepositoryPort.findById(9999L)).isNull()
         }
     }
 
@@ -133,7 +133,7 @@ class BrandRepositoryAdapterIntegrationTest @Autowired constructor(
 
             // assert: @SQLRestriction 으로 findById 결과 비어 있음
             assertThat(brandJpaRepository.findById(saved.id)).isEmpty
-            assertThat(brandRepositoryPort.findByIdOrNull(saved.id)).isNull()
+            assertThat(brandRepositoryPort.findById(saved.id)).isNull()
         }
     }
 

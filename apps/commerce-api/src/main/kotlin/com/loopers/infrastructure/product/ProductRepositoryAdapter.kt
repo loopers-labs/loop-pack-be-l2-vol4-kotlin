@@ -14,7 +14,7 @@ import org.springframework.data.domain.PageRequest as SpringPageRequest
 class ProductRepositoryAdapter(
     private val productJpaRepository: ProductJpaRepository,
 ) : ProductRepositoryPort {
-    override fun findByIdOrNull(id: Long): Product? =
+    override fun findById(id: Long): Product? =
         productJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
     override fun findAllByIds(ids: List<Long>): List<Product> {

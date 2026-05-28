@@ -1,11 +1,11 @@
 package com.loopers.interfaces.api
 
-import com.loopers.application.like.LikeFacade
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductFacade
 import com.loopers.application.user.SignupCommand
-import com.loopers.application.user.UserFacade
 import com.loopers.domain.brand.Brand
+import com.loopers.interfaces.api.like.LikeApplicationServicePort
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
@@ -31,11 +31,11 @@ import org.springframework.http.MediaType
 class ProductAdminV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandRepositoryPort: BrandRepositoryPort,
-    private val productFacade: ProductFacade,
+    private val productApplicationService: ProductAdminApplicationServicePort,
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
-    private val userFacade: UserFacade,
-    private val likeFacade: LikeFacade,
+    private val userApplicationService: UserApplicationServicePort,
+    private val likeApplicationService: LikeApplicationServicePort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     companion object {
@@ -161,7 +161,7 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsDetail() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
 
@@ -190,7 +190,7 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun updatesProductAndStock() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "old", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
             val body = mapOf(
@@ -216,7 +216,7 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         fun returnsBadRequest_whenBrandIdChanged() {
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand1.id, quantity = 10),
             )
             val body = mapOf(
@@ -247,14 +247,14 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun deletesProductAndStock() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
 
             val response = adminDelete(detail.id)
 
             assertThat(response.statusCode.is2xxSuccessful).isTrue()
-            assertThat(productRepositoryPort.findByIdOrNull(detail.id)).isNull()
+            assertThat(productRepositoryPort.findById(detail.id)).isNull()
             assertThat(stockRepositoryPort.findByProductId(detail.id)).isNull()
         }
 
@@ -274,8 +274,8 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         fun returnsAllProducts() {
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            productFacade.createProduct(CreateProductCommand(name = "n", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
-            productFacade.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
+            productApplicationService.createProduct(CreateProductCommand(name = "n", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
+            productApplicationService.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
 
             val response = adminList()
 
@@ -289,8 +289,8 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         fun returnsFilteredProducts() {
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            repeat(2) { productFacade.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1)) }
-            productFacade.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
+            repeat(2) { productApplicationService.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1)) }
+            productApplicationService.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
 
             val response = adminList(brandId = brand1.id)
 
@@ -323,13 +323,13 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun includesLikeCountPerProduct() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val popularProductId = productFacade.createProduct(
+            val popularProductId = productApplicationService.createProduct(
                 CreateProductCommand(name = "popular", price = 100L, description = "d", brandId = brand.id, quantity = 1),
             ).id
-            val quietProductId = productFacade.createProduct(
+            val quietProductId = productApplicationService.createProduct(
                 CreateProductCommand(name = "quiet", price = 100L, description = "d", brandId = brand.id, quantity = 1),
             ).id
-            val user1 = userFacade.signup(
+            val user1 = userApplicationService.signup(
                 SignupCommand(
                     loginId = "u1",
                     rawPassword = "password1234",
@@ -338,7 +338,7 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
                     email = "u1@example.com",
                 ),
             ).id
-            val user2 = userFacade.signup(
+            val user2 = userApplicationService.signup(
                 SignupCommand(
                     loginId = "u2",
                     rawPassword = "password1234",
@@ -347,8 +347,8 @@ class ProductAdminV1ApiE2ETest @Autowired constructor(
                     email = "u2@example.com",
                 ),
             ).id
-            likeFacade.like(user1, popularProductId)
-            likeFacade.like(user2, popularProductId)
+            likeApplicationService.like(user1, popularProductId)
+            likeApplicationService.like(user2, popularProductId)
 
             val response = adminList()
 

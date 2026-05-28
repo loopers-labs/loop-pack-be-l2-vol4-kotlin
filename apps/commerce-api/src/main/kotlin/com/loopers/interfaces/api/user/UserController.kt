@@ -1,6 +1,5 @@
 package com.loopers.interfaces.api.user
 
-import com.loopers.application.user.UserFacade
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -13,13 +12,13 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/user")
 class UserController(
-    private val userFacade: UserFacade,
+    private val userApplicationService: UserApplicationServicePort,
 ) {
     @PostMapping("/signup")
     fun signup(
         @RequestBody request: UserV1Dto.SignupRequest,
     ): ApiResponse<Any> {
-        userFacade.signup(request.toCommand())
+        userApplicationService.signup(request.toCommand())
         return ApiResponse.success()
     }
 
@@ -28,7 +27,7 @@ class UserController(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") loginPw: String,
     ): ApiResponse<UserV1Dto.UserInfoResponse> {
-        val info = userFacade.getMyInfo(loginId, loginPw)
+        val info = userApplicationService.getMyInfo(loginId, loginPw)
         return ApiResponse.success(UserV1Dto.UserInfoResponse.from(info))
     }
 
@@ -38,7 +37,7 @@ class UserController(
         @RequestHeader("X-Loopers-LoginPw") loginPw: String,
         @RequestBody request: UserV1Dto.ChangePasswordRequest,
     ): ApiResponse<Any> {
-        userFacade.changePassword(request.toCommand(loginId, loginPw))
+        userApplicationService.changePassword(request.toCommand(loginId, loginPw))
         return ApiResponse.success()
     }
 }

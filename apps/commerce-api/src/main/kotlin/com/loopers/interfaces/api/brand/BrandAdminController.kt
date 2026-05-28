@@ -1,8 +1,8 @@
 package com.loopers.interfaces.api.brand
 
-import com.loopers.application.brand.BrandFacade
 import com.loopers.domain.common.PageRequest
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.common.PageView
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -19,37 +19,37 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api-admin/v1/brands")
 class BrandAdminController(
-    private val brandFacade: BrandFacade,
+    private val brandApplicationService: BrandAdminApplicationServicePort,
 ) {
     @GetMapping
     fun getBrands(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
         @RequestParam(name = "page", defaultValue = "0") page: Int,
         @RequestParam(name = "size", defaultValue = "20") size: Int,
-    ): ApiResponse<BrandAdminV1Dto.BrandsResponse> {
+    ): ApiResponse<PageView<BrandAdminV1Dto.BrandResponse>> {
         verifyAdmin(ldap)
-        val result = brandFacade.getBrands(PageRequest(page = page, size = size))
-        return ApiResponse.success(BrandAdminV1Dto.BrandsResponse.from(result))
+        val result = brandApplicationService.getBrands(PageRequest(page = page, size = size))
+        return ApiResponse.success(PageView.from(result, BrandAdminV1Dto.BrandResponse::from))
     }
 
     @GetMapping("/{id}")
     fun getBrand(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
         @PathVariable id: Long,
-    ): ApiResponse<BrandV1Dto.BrandResponse> {
+    ): ApiResponse<BrandAdminV1Dto.BrandResponse> {
         verifyAdmin(ldap)
-        val brand = brandFacade.getBrand(id)
-        return ApiResponse.success(BrandV1Dto.BrandResponse.from(brand))
+        val brand = brandApplicationService.getBrand(id)
+        return ApiResponse.success(BrandAdminV1Dto.BrandResponse.from(brand))
     }
 
     @PostMapping
     fun createBrand(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
         @RequestBody request: BrandAdminV1Dto.CreateBrandRequest,
-    ): ApiResponse<BrandV1Dto.BrandResponse> {
+    ): ApiResponse<BrandAdminV1Dto.BrandResponse> {
         verifyAdmin(ldap)
-        val brand = brandFacade.createBrand(request.toCommand())
-        return ApiResponse.success(BrandV1Dto.BrandResponse.from(brand))
+        val brand = brandApplicationService.createBrand(request.toCommand())
+        return ApiResponse.success(BrandAdminV1Dto.BrandResponse.from(brand))
     }
 
     @PutMapping("/{id}")
@@ -57,10 +57,10 @@ class BrandAdminController(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
         @PathVariable id: Long,
         @RequestBody request: BrandAdminV1Dto.UpdateBrandRequest,
-    ): ApiResponse<BrandV1Dto.BrandResponse> {
+    ): ApiResponse<BrandAdminV1Dto.BrandResponse> {
         verifyAdmin(ldap)
-        val brand = brandFacade.updateBrand(request.toCommand(id))
-        return ApiResponse.success(BrandV1Dto.BrandResponse.from(brand))
+        val brand = brandApplicationService.updateBrand(request.toCommand(id))
+        return ApiResponse.success(BrandAdminV1Dto.BrandResponse.from(brand))
     }
 
     @DeleteMapping("/{id}")
@@ -69,7 +69,7 @@ class BrandAdminController(
         @PathVariable id: Long,
     ): ApiResponse<Any> {
         verifyAdmin(ldap)
-        brandFacade.deleteBrand(id)
+        brandApplicationService.deleteBrand(id)
         return ApiResponse.success()
     }
 

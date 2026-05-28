@@ -74,7 +74,7 @@ class AuthRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("findByLoginIdOrNull을 호출할 때, ")
+    @DisplayName("findByLoginId을 호출할 때, ")
     @Nested
     inner class FindByLoginIdOrNull {
         @DisplayName("해당 loginId의 Auth가 있으면, 도메인 객체를 반환한다.")
@@ -84,7 +84,7 @@ class AuthRepositoryAdapterIntegrationTest @Autowired constructor(
             val saved = authRepositoryPort.save(newAuth(userId = 1L, loginId = "testuser"))
 
             // act
-            val found = authRepositoryPort.findByLoginIdOrNull("testuser")
+            val found = authRepositoryPort.findByLoginId("testuser")
 
             // assert
             assertThat(found).isNotNull
@@ -97,14 +97,14 @@ class AuthRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsNull_whenNotExists() {
             // act
-            val found = authRepositoryPort.findByLoginIdOrNull("unknown")
+            val found = authRepositoryPort.findByLoginId("unknown")
 
             // assert
             assertThat(found).isNull()
         }
     }
 
-    @DisplayName("findByUserIdOrNull을 호출할 때, ")
+    @DisplayName("findByUserId을 호출할 때, ")
     @Nested
     inner class FindByUserIdOrNull {
         @DisplayName("해당 userId의 Auth가 있으면, 도메인 객체를 반환한다.")
@@ -114,7 +114,7 @@ class AuthRepositoryAdapterIntegrationTest @Autowired constructor(
             val saved = authRepositoryPort.save(newAuth(userId = 42L, loginId = "testuser"))
 
             // act
-            val found = authRepositoryPort.findByUserIdOrNull(42L)
+            val found = authRepositoryPort.findByUserId(42L)
 
             // assert
             assertThat(found).isNotNull
@@ -126,7 +126,7 @@ class AuthRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsNull_whenNotExists() {
             // act
-            val found = authRepositoryPort.findByUserIdOrNull(999L)
+            val found = authRepositoryPort.findByUserId(999L)
 
             // assert
             assertThat(found).isNull()

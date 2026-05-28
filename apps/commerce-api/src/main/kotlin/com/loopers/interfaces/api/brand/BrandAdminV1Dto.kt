@@ -2,7 +2,7 @@ package com.loopers.interfaces.api.brand
 
 import com.loopers.application.brand.CreateBrandCommand
 import com.loopers.application.brand.UpdateBrandCommand
-import com.loopers.domain.common.PageResult
+import com.loopers.domain.brand.Brand
 
 class BrandAdminV1Dto {
     data class CreateBrandRequest(
@@ -19,20 +19,16 @@ class BrandAdminV1Dto {
         fun toCommand(id: Long): UpdateBrandCommand = UpdateBrandCommand(id = id, name = name, description = description)
     }
 
-    data class BrandsResponse(
-        val items: List<BrandV1Dto.BrandResponse>,
-        val page: Int,
-        val size: Int,
-        val totalElements: Long,
-        val totalPages: Int,
+    data class BrandResponse(
+        val id: Long,
+        val name: String,
+        val description: String,
     ) {
         companion object {
-            fun from(result: PageResult<com.loopers.domain.brand.Brand>): BrandsResponse = BrandsResponse(
-                items = result.items.map { BrandV1Dto.BrandResponse.from(it) },
-                page = result.page,
-                size = result.size,
-                totalElements = result.totalElements,
-                totalPages = result.totalPages,
+            fun from(brand: Brand): BrandResponse = BrandResponse(
+                id = brand.id,
+                name = brand.name,
+                description = brand.description,
             )
         }
     }

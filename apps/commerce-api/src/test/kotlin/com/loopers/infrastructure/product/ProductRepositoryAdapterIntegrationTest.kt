@@ -63,7 +63,7 @@ class ProductRepositoryAdapterIntegrationTest @Autowired constructor(
             productRepositoryPort.delete(saved)
 
             assertThat(productJpaRepository.findById(saved.id)).isEmpty
-            assertThat(productRepositoryPort.findByIdOrNull(saved.id)).isNull()
+            assertThat(productRepositoryPort.findById(saved.id)).isNull()
         }
     }
 

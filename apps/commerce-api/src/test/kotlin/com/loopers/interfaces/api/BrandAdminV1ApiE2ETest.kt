@@ -327,7 +327,7 @@ class BrandAdminV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
                 { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.SUCCESS) },
             )
-            assertThat(brandRepositoryPort.findByIdOrNull(saved.id)).isNull()
+            assertThat(brandRepositoryPort.findById(saved.id)).isNull()
         }
 
         @DisplayName("존재하지 않는 브랜드 id로 삭제하면, 404 NOT_FOUND 응답을 받는다.")

@@ -1,10 +1,10 @@
 package com.loopers.interfaces.api
 
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductFacade
 import com.loopers.application.user.SignupCommand
-import com.loopers.application.user.UserFacade
 import com.loopers.domain.brand.Brand
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.utils.DatabaseCleanUp
@@ -29,8 +29,8 @@ import java.time.LocalDate
 class LikeV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandRepositoryPort: BrandRepositoryPort,
-    private val productFacade: ProductFacade,
-    private val userFacade: UserFacade,
+    private val productApplicationService: ProductAdminApplicationServicePort,
+    private val userApplicationService: UserApplicationServicePort,
     private val likeCountQueryPort: LikeCountQueryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -43,7 +43,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
     private fun userLikesEndpoint(userId: Long) = "/api/v1/users/$userId/likes"
 
     private fun signup(loginId: String = "tester01", pw: String = "password1234"): Long =
-        userFacade.signup(
+        userApplicationService.signup(
             SignupCommand(
                 loginId = loginId,
                 rawPassword = pw,
@@ -55,7 +55,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
 
     private fun saveProduct(): Long {
         val brand = brandRepositoryPort.save(Brand.create(name = "Nike-${System.nanoTime()}", description = "x"))
-        return productFacade.createProduct(
+        return productApplicationService.createProduct(
             CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
         ).id
     }

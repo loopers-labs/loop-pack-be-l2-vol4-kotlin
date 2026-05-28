@@ -4,7 +4,7 @@ import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 
 interface BrandRepositoryPort {
-    fun findByIdOrNull(id: Long): Brand?
+    fun findById(id: Long): Brand?
     fun findAllByIds(ids: List<Long>): List<Brand>
     fun findAll(pageRequest: PageRequest): PageResult<Brand>
     fun existsByName(name: String): Boolean

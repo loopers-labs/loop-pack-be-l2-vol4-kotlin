@@ -1,6 +1,7 @@
 package com.loopers.application.user
 
 import com.loopers.domain.auth.AuthRepositoryPort
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -15,8 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 
 @SpringBootTest
-class UserFacadeIntegrationTest @Autowired constructor(
-    private val userFacade: UserFacade,
+class UserApplicationServiceIntegrationTest @Autowired constructor(
+    private val userApplicationService: UserApplicationServicePort,
     private val authRepositoryPort: AuthRepositoryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -44,12 +45,10 @@ class UserFacadeIntegrationTest @Autowired constructor(
         @DisplayName("정상 가입 시, User와 Auth가 모두 저장된다.")
         @Test
         fun savesUserAndAuth_whenValid() {
-            // act
-            val user = userFacade.signup(signupCommand())
+            val user = userApplicationService.signup(signupCommand())
 
-            // assert
             assertThat(user.id).isGreaterThan(0L)
-            val auth = authRepositoryPort.findByLoginIdOrNull("testuser01")
+            val auth = authRepositoryPort.findByLoginId("testuser01")
             assertThat(auth).isNotNull
             assertThat(auth?.userId).isEqualTo(user.id)
         }
@@ -57,15 +56,12 @@ class UserFacadeIntegrationTest @Autowired constructor(
         @DisplayName("동일 loginId로 다시 가입하면, BAD_REQUEST 예외가 발생한다.")
         @Test
         fun throwsBadRequest_whenDuplicateLoginId() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01"))
 
-            // act
             val result = assertThrows<CoreException> {
-                userFacade.signup(signupCommand(loginId = "testuser01"))
+                userApplicationService.signup(signupCommand(loginId = "testuser01"))
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
     }
@@ -76,13 +72,10 @@ class UserFacadeIntegrationTest @Autowired constructor(
         @DisplayName("올바른 자격증명이 주어지면, 사용자 정보를 반환한다.")
         @Test
         fun returnsInfo_whenCredentialsAreValid() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
 
-            // act
-            val info = userFacade.getMyInfo("testuser01", "Password1!")
+            val info = userApplicationService.getMyInfo("testuser01", "Password1!")
 
-            // assert
             assertThat(info.loginId).isEqualTo("testuser01")
             assertThat(info.name).isEqualTo("홍길동")
             assertThat(info.email).isEqualTo("test@example.com")
@@ -91,15 +84,12 @@ class UserFacadeIntegrationTest @Autowired constructor(
         @DisplayName("자격증명이 틀리면, UNAUTHORIZED 예외가 발생한다.")
         @Test
         fun throwsUnauthorized_whenCredentialsWrong() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
 
-            // act
             val result = assertThrows<CoreException> {
-                userFacade.getMyInfo("testuser01", "WrongPass1!")
+                userApplicationService.getMyInfo("testuser01", "WrongPass1!")
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
     }
@@ -110,43 +100,34 @@ class UserFacadeIntegrationTest @Autowired constructor(
         @DisplayName("자격증명·이전 비밀번호·새 비밀번호가 모두 유효하면, 비밀번호가 변경된다.")
         @Test
         fun changesPassword_whenAllValid() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
             val command = ChangePwCommand("testuser01", "Password1!", "Password1!", "NewPass1!!")
 
-            // act
-            userFacade.changePassword(command)
+            userApplicationService.changePassword(command)
 
-            // assert: 새 비밀번호로 로그인 가능
-            val info = userFacade.getMyInfo("testuser01", "NewPass1!!")
+            val info = userApplicationService.getMyInfo("testuser01", "NewPass1!!")
             assertThat(info.loginId).isEqualTo("testuser01")
         }
 
         @DisplayName("자격증명(loginPw)이 틀리면, UNAUTHORIZED 예외가 발생한다.")
         @Test
         fun throwsUnauthorized_whenLoginPwWrong() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
             val command = ChangePwCommand("testuser01", "WrongPass1!", "Password1!", "NewPass1!!")
 
-            // act
-            val result = assertThrows<CoreException> { userFacade.changePassword(command) }
+            val result = assertThrows<CoreException> { userApplicationService.changePassword(command) }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
 
         @DisplayName("이전 비밀번호가 틀리면, UNAUTHORIZED 예외가 발생한다.")
         @Test
         fun throwsUnauthorized_whenPrevPwWrong() {
-            // arrange
-            userFacade.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
+            userApplicationService.signup(signupCommand(loginId = "testuser01", rawPassword = "Password1!"))
             val command = ChangePwCommand("testuser01", "Password1!", "WrongPrev1!", "NewPass1!!")
 
-            // act
-            val result = assertThrows<CoreException> { userFacade.changePassword(command) }
+            val result = assertThrows<CoreException> { userApplicationService.changePassword(command) }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
     }

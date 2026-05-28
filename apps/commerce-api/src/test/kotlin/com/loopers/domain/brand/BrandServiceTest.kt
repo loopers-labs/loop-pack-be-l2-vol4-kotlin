@@ -1,8 +1,5 @@
-package com.loopers.application.brand
+package com.loopers.domain.brand
 
-import com.loopers.application.product.ProductFacade
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.support.error.CoreException
@@ -18,66 +15,55 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-class BrandFacadeTest {
+class BrandServiceTest {
 
     private lateinit var brandRepositoryPort: BrandRepositoryPort
-    private lateinit var productFacade: ProductFacade
-    private lateinit var brandFacade: BrandFacade
+    private lateinit var brandService: BrandService
 
     @BeforeEach
     fun setUp() {
         brandRepositoryPort = mockk()
-        productFacade = mockk(relaxed = true)
-        brandFacade = BrandFacade(brandRepositoryPort, productFacade)
+        brandService = BrandService(brandRepositoryPort)
     }
 
-    @DisplayName("getBrand를 호출할 때, ")
+    @DisplayName("getById를 호출할 때, ")
     @Nested
-    inner class GetBrand {
+    inner class GetById {
         @DisplayName("Brand가 존재하면, 도메인 객체를 반환한다.")
         @Test
         fun returnsBrand_whenExists() {
-            // arrange
             val brand = Brand(id = 1L, name = "Nike", description = "Just do it")
-            every { brandRepositoryPort.findByIdOrNull(1L) } returns brand
+            every { brandRepositoryPort.findById(1L) } returns brand
 
-            // act
-            val result = brandFacade.getBrand(1L)
+            val result = brandService.getById(1L)
 
-            // assert
             assertThat(result).isEqualTo(brand)
         }
 
         @DisplayName("Brand가 없으면, NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenMissing() {
-            // arrange
-            every { brandRepositoryPort.findByIdOrNull(any()) } returns null
+            every { brandRepositoryPort.findById(any()) } returns null
 
-            // act
-            val result = assertThrows<CoreException> { brandFacade.getBrand(9999L) }
+            val result = assertThrows<CoreException> { brandService.getById(9999L) }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
     }
 
-    @DisplayName("createBrand를 호출할 때, ")
+    @DisplayName("create를 호출할 때, ")
     @Nested
-    inner class CreateBrand {
+    inner class Create {
         @DisplayName("name이 중복되지 않으면, save한 결과를 반환한다.")
         @Test
         fun savesBrand_whenNameUnique() {
-            // arrange
             every { brandRepositoryPort.existsByName("Nike") } returns false
             val saved = Brand(id = 1L, name = "Nike", description = "Just do it")
             val capturedBrand = slot<Brand>()
             every { brandRepositoryPort.save(capture(capturedBrand)) } returns saved
 
-            // act
-            val result = brandFacade.createBrand(CreateBrandCommand(name = "Nike", description = "Just do it"))
+            val result = brandService.create(name = "Nike", description = "Just do it")
 
-            // assert
             assertThat(result).isEqualTo(saved)
             assertThat(capturedBrand.captured.name).isEqualTo("Nike")
             assertThat(capturedBrand.captured.id).isEqualTo(0L)
@@ -87,38 +73,32 @@ class BrandFacadeTest {
         @DisplayName("name이 이미 존재하면, CONFLICT 예외가 발생한다.")
         @Test
         fun throwsConflict_whenNameDuplicate() {
-            // arrange
             every { brandRepositoryPort.existsByName("Nike") } returns true
 
-            // act
             val result = assertThrows<CoreException> {
-                brandFacade.createBrand(CreateBrandCommand(name = "Nike", description = "Just do it"))
+                brandService.create(name = "Nike", description = "Just do it")
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
             verify(exactly = 0) { brandRepositoryPort.save(any()) }
         }
     }
 
-    @DisplayName("updateBrand를 호출할 때, ")
+    @DisplayName("update를 호출할 때, ")
     @Nested
-    inner class UpdateBrand {
+    inner class Update {
         @DisplayName("존재하고 name이 중복되지 않으면, save를 호출하여 결과를 반환한다.")
         @Test
         fun updatesBrand_whenValid() {
-            // arrange
             val existing = Brand(id = 1L, name = "Nike", description = "old")
-            every { brandRepositoryPort.findByIdOrNull(1L) } returns existing
+            every { brandRepositoryPort.findById(1L) } returns existing
             every { brandRepositoryPort.existsByNameAndIdNot("Nike2", 1L) } returns false
             val updated = Brand(id = 1L, name = "Nike2", description = "new")
             val captured = slot<Brand>()
             every { brandRepositoryPort.save(capture(captured)) } returns updated
 
-            // act
-            val result = brandFacade.updateBrand(UpdateBrandCommand(id = 1L, name = "Nike2", description = "new"))
+            val result = brandService.update(id = 1L, name = "Nike2", description = "new")
 
-            // assert
             assertThat(result).isEqualTo(updated)
             assertThat(captured.captured.id).isEqualTo(1L)
             assertThat(captured.captured.name).isEqualTo("Nike2")
@@ -128,15 +108,12 @@ class BrandFacadeTest {
         @DisplayName("존재하지 않으면, NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenMissing() {
-            // arrange
-            every { brandRepositoryPort.findByIdOrNull(any()) } returns null
+            every { brandRepositoryPort.findById(any()) } returns null
 
-            // act
             val result = assertThrows<CoreException> {
-                brandFacade.updateBrand(UpdateBrandCommand(id = 9999L, name = "x", description = "y"))
+                brandService.update(id = 9999L, name = "x", description = "y")
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
             verify(exactly = 0) { brandRepositoryPort.save(any()) }
         }
@@ -144,71 +121,58 @@ class BrandFacadeTest {
         @DisplayName("다른 브랜드와 name이 충돌하면, CONFLICT 예외가 발생한다.")
         @Test
         fun throwsConflict_whenDuplicateName() {
-            // arrange
             val existing = Brand(id = 1L, name = "Nike", description = "old")
-            every { brandRepositoryPort.findByIdOrNull(1L) } returns existing
+            every { brandRepositoryPort.findById(1L) } returns existing
             every { brandRepositoryPort.existsByNameAndIdNot("Adidas", 1L) } returns true
 
-            // act
             val result = assertThrows<CoreException> {
-                brandFacade.updateBrand(UpdateBrandCommand(id = 1L, name = "Adidas", description = "x"))
+                brandService.update(id = 1L, name = "Adidas", description = "x")
             }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
             verify(exactly = 0) { brandRepositoryPort.save(any()) }
         }
     }
 
-    @DisplayName("deleteBrand를 호출할 때, ")
+    @DisplayName("delete를 호출할 때, ")
     @Nested
-    inner class DeleteBrand {
-        @DisplayName("존재하면, 상품 cascade 삭제 후 브랜드를 delete한다.")
+    inner class Delete {
+        @DisplayName("존재하면, 브랜드를 delete한다.")
         @Test
         fun deletesBrand_whenExists() {
-            // arrange
             val brand = Brand(id = 1L, name = "Nike", description = "x")
-            every { brandRepositoryPort.findByIdOrNull(1L) } returns brand
+            every { brandRepositoryPort.findById(1L) } returns brand
             every { brandRepositoryPort.delete(brand) } returns Unit
 
-            // act
-            brandFacade.deleteBrand(1L)
+            brandService.delete(1L)
 
-            // assert
-            verify(exactly = 1) { productFacade.deleteAllByBrandId(1L) }
             verify(exactly = 1) { brandRepositoryPort.delete(brand) }
         }
 
         @DisplayName("존재하지 않으면, NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenMissing() {
-            // arrange
-            every { brandRepositoryPort.findByIdOrNull(any()) } returns null
+            every { brandRepositoryPort.findById(any()) } returns null
 
-            // act
-            val result = assertThrows<CoreException> { brandFacade.deleteBrand(9999L) }
+            val result = assertThrows<CoreException> { brandService.delete(9999L) }
 
-            // assert
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
             verify(exactly = 0) { brandRepositoryPort.delete(any()) }
         }
     }
 
-    @DisplayName("getBrands를 호출할 때, ")
+    @DisplayName("getAll을 호출할 때, ")
     @Nested
-    inner class GetBrands {
+    inner class GetAll {
         @DisplayName("Port의 findAll 결과를 그대로 반환한다.")
         @Test
         fun returnsPageResult() {
-            // arrange
             val pageReq = PageRequest(page = 0, size = 10)
             val expected = PageResult(items = emptyList<Brand>(), page = 0, size = 10, totalElements = 0L, totalPages = 0)
             every { brandRepositoryPort.findAll(pageReq) } returns expected
 
-            // act
-            val result = brandFacade.getBrands(pageReq)
+            val result = brandService.getAll(pageReq)
 
-            // assert
             assertThat(result).isEqualTo(expected)
         }
     }

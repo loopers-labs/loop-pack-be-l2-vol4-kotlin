@@ -7,6 +7,7 @@ import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.stock.StockRepositoryPort
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -20,8 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class ProductFacadeIntegrationTest @Autowired constructor(
-    private val productFacade: ProductFacade,
+class ProductApplicationServiceIntegrationTest @Autowired constructor(
+    private val productApplicationService: ProductAdminApplicationServicePort,
     private val productRepositoryPort: ProductRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
     private val brandRepositoryPort: BrandRepositoryPort,
@@ -41,7 +42,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun createsProductAndStock() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "에어맥스", price = 100000L, description = "d", brandId = brand.id, quantity = 50),
             )
 
@@ -54,7 +55,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun initializesLikeCountToZero() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
 
@@ -65,7 +66,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun throwsNotFound_whenBrandMissing() {
             val result = assertThrows<CoreException> {
-                productFacade.createProduct(
+                productApplicationService.createProduct(
                     CreateProductCommand(name = "x", price = 100L, description = "d", brandId = 9999L, quantity = 10),
                 )
             }
@@ -80,11 +81,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun updatesProductAndStock() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "old", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
 
-            val updated = productFacade.updateProduct(
+            val updated = productApplicationService.updateProduct(
                 UpdateProductCommand(id = detail.id, name = "new", price = 200L, description = "newD", brandId = brand.id, quantity = 99),
             )
 
@@ -99,12 +100,12 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         fun throwsBadRequest_whenBrandIdChanged() {
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand1.id, quantity = 10),
             )
 
             val result = assertThrows<CoreException> {
-                productFacade.updateProduct(
+                productApplicationService.updateProduct(
                     UpdateProductCommand(id = detail.id, name = "p", price = 100L, description = "d", brandId = brand2.id, quantity = 10),
                 )
             }
@@ -119,13 +120,13 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun softDeletesProductAndStock() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
 
-            productFacade.deleteProduct(detail.id)
+            productApplicationService.deleteProduct(detail.id)
 
-            assertThat(productRepositoryPort.findByIdOrNull(detail.id)).isNull()
+            assertThat(productRepositoryPort.findById(detail.id)).isNull()
             assertThat(stockRepositoryPort.findByProductId(detail.id)).isNull()
         }
 
@@ -133,14 +134,14 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun cascadesLikeAndLikeCount() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val detail = productFacade.createProduct(
+            val detail = productApplicationService.createProduct(
                 CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 10),
             )
             likeService.register(userId = 1L, productId = detail.id)
             likeService.register(userId = 2L, productId = detail.id)
             assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(2L)
 
-            productFacade.deleteProduct(detail.id)
+            productApplicationService.deleteProduct(detail.id)
 
             assertThat(likeCountQueryPort.countByProductId(detail.id)).isEqualTo(0L)
             assertThat(likeService.findAllProductIdsByUserId(1L)).doesNotContain(detail.id)
@@ -155,11 +156,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun returnsDetail() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val created = productFacade.createProduct(
+            val created = productApplicationService.createProduct(
                 CreateProductCommand(name = "에어맥스", price = 100L, description = "d", brandId = brand.id, quantity = 20),
             )
 
-            val detail = productFacade.getProduct(created.id)
+            val detail = productApplicationService.getProduct(created.id)
 
             assertThat(detail.brandName).isEqualTo("Nike")
             assertThat(detail.stockQuantity).isEqualTo(20)
@@ -172,11 +173,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
             repeat(2) {
-                productFacade.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
+                productApplicationService.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
             }
-            productFacade.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
+            productApplicationService.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
 
-            val result = productFacade.getProducts(null, PageRequest(page = 0, size = 10))
+            val result = productApplicationService.getProducts(null, PageRequest(page = 0, size = 10))
 
             assertThat(result.items).hasSize(3)
         }
@@ -187,11 +188,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
             repeat(2) {
-                productFacade.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
+                productApplicationService.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 1))
             }
-            productFacade.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
+            productApplicationService.createProduct(CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 1))
 
-            val result = productFacade.getProducts(brand1.id, PageRequest(page = 0, size = 10))
+            val result = productApplicationService.getProducts(brand1.id, PageRequest(page = 0, size = 10))
 
             assertThat(result.items).hasSize(2)
             assertThat(result.items.all { it.brandId == brand1.id }).isTrue()
@@ -201,45 +202,21 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         @Test
         fun includesLikeCountPerSummary() {
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val popularProductId = productFacade.createProduct(
+            val popularProductId = productApplicationService.createProduct(
                 CreateProductCommand(name = "popular", price = 100L, description = "d", brandId = brand.id, quantity = 1),
             ).id
-            val quietProductId = productFacade.createProduct(
+            val quietProductId = productApplicationService.createProduct(
                 CreateProductCommand(name = "quiet", price = 100L, description = "d", brandId = brand.id, quantity = 1),
             ).id
             likeService.register(userId = 1L, productId = popularProductId)
             likeService.register(userId = 2L, productId = popularProductId)
             likeService.register(userId = 3L, productId = popularProductId)
 
-            val result = productFacade.getProducts(null, PageRequest(page = 0, size = 10))
+            val result = productApplicationService.getProducts(null, PageRequest(page = 0, size = 10))
 
             val byId = result.items.associate { it.id to it.likeCount }
             assertThat(byId[popularProductId]).isEqualTo(3L)
             assertThat(byId[quietProductId]).isEqualTo(0L)
-        }
-    }
-
-    @DisplayName("deleteAllByBrandId(cascade)")
-    @Nested
-    inner class CascadeDelete {
-        @DisplayName("주어진 브랜드의 모든 상품과 재고가 soft delete된다.")
-        @Test
-        fun cascadeDeletes() {
-            val brand1 = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
-            val brand2 = brandRepositoryPort.save(Brand.create(name = "Adidas", description = "y"))
-            val nikeProducts = (0 until 3).map {
-                productFacade.createProduct(CreateProductCommand(name = "n$it", price = 100L, description = "d", brandId = brand1.id, quantity = 5))
-            }
-            val adidasProduct = productFacade.createProduct(
-                CreateProductCommand(name = "a", price = 100L, description = "d", brandId = brand2.id, quantity = 5),
-            )
-
-            // 트랜잭션 안에서 호출되어야 하므로 BrandFacade를 거쳐 cascade 동작을 검증한다.
-            // 여기서는 직접 호출이 어려우므로(MANDATORY), 통합 검증은 BrandFacadeIntegrationTest에서 수행한다.
-
-            // 따라서 본 테스트는 상품 존재만 확인.
-            assertThat(nikeProducts).hasSize(3)
-            assertThat(adidasProduct.id).isGreaterThan(0L)
         }
     }
 }

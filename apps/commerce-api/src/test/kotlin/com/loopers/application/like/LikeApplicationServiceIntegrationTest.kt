@@ -1,7 +1,6 @@
 package com.loopers.application.like
 
 import com.loopers.application.product.CreateProductCommand
-import com.loopers.application.product.ProductFacade
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
@@ -9,6 +8,8 @@ import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.LikeCountQueryPort
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserRepositoryPort
+import com.loopers.interfaces.api.like.LikeApplicationServicePort
+import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -23,9 +24,9 @@ import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 
 @SpringBootTest
-class LikeFacadeIntegrationTest @Autowired constructor(
-    private val likeFacade: LikeFacade,
-    private val productFacade: ProductFacade,
+class LikeApplicationServiceIntegrationTest @Autowired constructor(
+    private val likeApplicationService: LikeApplicationServicePort,
+    private val productApplicationService: ProductAdminApplicationServicePort,
     private val brandRepositoryPort: BrandRepositoryPort,
     private val userRepositoryPort: UserRepositoryPort,
     private val likeService: LikeService,
@@ -42,7 +43,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
 
     private fun saveProduct(brandName: String = "Nike", productName: String = "p"): Long {
         val brand = brandRepositoryPort.save(Brand.create(name = brandName, description = "x"))
-        return productFacade.createProduct(
+        return productApplicationService.createProduct(
             CreateProductCommand(name = productName, price = 100L, description = "d", brandId = brand.id, quantity = 10),
         ).id
     }
@@ -56,7 +57,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
             val productId = saveProduct()
 
-            likeFacade.like(user.id, productId)
+            likeApplicationService.like(user.id, productId)
 
             assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(1L)
         }
@@ -67,9 +68,9 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
             val productId = saveProduct()
 
-            likeFacade.like(user.id, productId)
-            likeFacade.like(user.id, productId)
-            likeFacade.like(user.id, productId)
+            likeApplicationService.like(user.id, productId)
+            likeApplicationService.like(user.id, productId)
+            likeApplicationService.like(user.id, productId)
 
             assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(1L)
         }
@@ -80,7 +81,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
 
             val result = assertThrows<CoreException> {
-                likeFacade.like(user.id, 9999L)
+                likeApplicationService.like(user.id, 9999L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -95,9 +96,9 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         fun decreasesLikeCount() {
             val user = saveUser()
             val productId = saveProduct()
-            likeFacade.like(user.id, productId)
+            likeApplicationService.like(user.id, productId)
 
-            likeFacade.unlike(user.id, productId)
+            likeApplicationService.unlike(user.id, productId)
 
             assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(0L)
         }
@@ -108,8 +109,8 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
             val productId = saveProduct()
 
-            likeFacade.unlike(user.id, productId)
-            likeFacade.unlike(user.id, productId)
+            likeApplicationService.unlike(user.id, productId)
+            likeApplicationService.unlike(user.id, productId)
 
             assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(0L)
         }
@@ -120,7 +121,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
 
             val result = assertThrows<CoreException> {
-                likeFacade.unlike(user.id, 9999L)
+                likeApplicationService.unlike(user.id, 9999L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -136,13 +137,13 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val user = saveUser()
             val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
             val productIds = (0 until 3).map {
-                productFacade.createProduct(
+                productApplicationService.createProduct(
                     CreateProductCommand(name = "p$it", price = (100L + it), description = "d", brandId = brand.id, quantity = 1),
                 ).id
             }
-            productIds.forEach { likeFacade.like(user.id, it) }
+            productIds.forEach { likeApplicationService.like(user.id, it) }
 
-            val result = likeFacade.getLikedProducts(
+            val result = likeApplicationService.getLikedProducts(
                 targetUserId = user.id,
                 requesterUserId = user.id,
                 pageRequest = PageRequest(page = 0, size = 10),
@@ -159,7 +160,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         fun returnsEmptyPage() {
             val user = saveUser()
 
-            val result = likeFacade.getLikedProducts(
+            val result = likeApplicationService.getLikedProducts(
                 targetUserId = user.id,
                 requesterUserId = user.id,
                 pageRequest = PageRequest(page = 0, size = 10),
@@ -173,7 +174,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         @Test
         fun throwsNotFound_whenUserMissing() {
             val result = assertThrows<CoreException> {
-                likeFacade.getLikedProducts(
+                likeApplicationService.getLikedProducts(
                     targetUserId = 9999L,
                     requesterUserId = 9999L,
                     pageRequest = PageRequest(page = 0, size = 10),
@@ -190,7 +191,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val stranger = saveUser(name = "stranger")
 
             val result = assertThrows<CoreException> {
-                likeFacade.getLikedProducts(
+                likeApplicationService.getLikedProducts(
                     targetUserId = owner.id,
                     requesterUserId = stranger.id,
                     pageRequest = PageRequest(page = 0, size = 10),
@@ -207,16 +208,15 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         val user = saveUser()
         val productId = saveProduct()
 
-        likeFacade.like(user.id, productId)
+        likeApplicationService.like(user.id, productId)
         assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(1L)
 
-        likeFacade.unlike(user.id, productId)
+        likeApplicationService.unlike(user.id, productId)
         assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(0L)
 
-        likeFacade.like(user.id, productId)
+        likeApplicationService.like(user.id, productId)
         assertThat(likeCountQueryPort.countByProductId(productId)).isEqualTo(1L)
 
-        // unused helper avoid warning
         assertThat(likeService.findAllProductIdsByUserId(user.id)).contains(productId)
     }
 }

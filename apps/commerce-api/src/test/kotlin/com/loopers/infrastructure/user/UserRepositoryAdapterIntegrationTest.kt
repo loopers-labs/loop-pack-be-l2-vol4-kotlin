@@ -62,7 +62,7 @@ class UserRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("findByIdOrNull을 호출할 때, ")
+    @DisplayName("findById을 호출할 때, ")
     @Nested
     inner class FindByIdOrNull {
         @DisplayName("해당 id의 User가 있으면, 도메인 객체를 반환한다.")
@@ -74,7 +74,7 @@ class UserRepositoryAdapterIntegrationTest @Autowired constructor(
             )
 
             // act
-            val found = userRepositoryPort.findByIdOrNull(saved.id)
+            val found = userRepositoryPort.findById(saved.id)
 
             // assert
             assertThat(found).isNotNull
@@ -86,7 +86,7 @@ class UserRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsNull_whenNotExists() {
             // act
-            val found = userRepositoryPort.findByIdOrNull(9999L)
+            val found = userRepositoryPort.findById(9999L)
 
             // assert
             assertThat(found).isNull()

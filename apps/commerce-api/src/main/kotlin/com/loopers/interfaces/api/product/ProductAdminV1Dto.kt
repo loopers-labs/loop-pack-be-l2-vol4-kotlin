@@ -1,9 +1,9 @@
 package com.loopers.interfaces.api.product
 
 import com.loopers.application.product.CreateProductCommand
+import com.loopers.application.product.ProductDetail
 import com.loopers.application.product.ProductSummary
 import com.loopers.application.product.UpdateProductCommand
-import com.loopers.domain.common.PageResult
 
 class ProductAdminV1Dto {
     data class CreateProductRequest(
@@ -39,6 +39,30 @@ class ProductAdminV1Dto {
         )
     }
 
+    data class ProductResponse(
+        val id: Long,
+        val name: String,
+        val price: Long,
+        val description: String,
+        val brandId: Long,
+        val brandName: String,
+        val stockQuantity: Int,
+        val likeCount: Long,
+    ) {
+        companion object {
+            fun from(detail: ProductDetail): ProductResponse = ProductResponse(
+                id = detail.id,
+                name = detail.name,
+                price = detail.price,
+                description = detail.description,
+                brandId = detail.brandId,
+                brandName = detail.brandName,
+                stockQuantity = detail.stockQuantity,
+                likeCount = detail.likeCount,
+            )
+        }
+    }
+
     data class ProductSummaryResponse(
         val id: Long,
         val name: String,
@@ -57,24 +81,6 @@ class ProductAdminV1Dto {
                 brandName = summary.brandName,
                 stockQuantity = summary.stockQuantity,
                 likeCount = summary.likeCount,
-            )
-        }
-    }
-
-    data class ProductsResponse(
-        val items: List<ProductSummaryResponse>,
-        val page: Int,
-        val size: Int,
-        val totalElements: Long,
-        val totalPages: Int,
-    ) {
-        companion object {
-            fun from(result: PageResult<ProductSummary>): ProductsResponse = ProductsResponse(
-                items = result.items.map { ProductSummaryResponse.from(it) },
-                page = result.page,
-                size = result.size,
-                totalElements = result.totalElements,
-                totalPages = result.totalPages,
             )
         }
     }

@@ -1,7 +1,6 @@
 package com.loopers.interfaces.api.like
 
 import com.loopers.application.like.LikedProductSummary
-import com.loopers.domain.common.PageResult
 
 class LikeV1Dto {
     data class LikedProductResponse(
@@ -17,25 +16,6 @@ class LikeV1Dto {
                     name = summary.name,
                     price = summary.price,
                     brandName = summary.brandName,
-                )
-        }
-    }
-
-    data class LikedProductsResponse(
-        val items: List<LikedProductResponse>,
-        val page: Int,
-        val size: Int,
-        val totalElements: Long,
-        val totalPages: Int,
-    ) {
-        companion object {
-            fun from(result: PageResult<LikedProductSummary>): LikedProductsResponse =
-                LikedProductsResponse(
-                    items = result.items.map { LikedProductResponse.from(it) },
-                    page = result.page,
-                    size = result.size,
-                    totalElements = result.totalElements,
-                    totalPages = result.totalPages,
                 )
         }
     }

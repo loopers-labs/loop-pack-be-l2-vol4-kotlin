@@ -4,11 +4,17 @@ plugins {
 
 dependencies {
     // add-ons
+    implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
+    implementation(project(":modules:account-application"))
+    implementation(project(":modules:account-persistence"))
+    implementation(project(":modules:account-security"))
+    implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
     implementation(project(":supports:monitoring"))
+    implementation(project(":supports:web"))
 
     // web
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -18,7 +24,5 @@ dependencies {
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 
-    // test-fixtures
-    testImplementation(testFixtures(project(":modules:jpa")))
-    testImplementation(testFixtures(project(":modules:redis")))
+    testRuntimeOnly("com.h2database:h2")
 }

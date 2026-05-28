@@ -2,42 +2,37 @@ package com.loopers.account.security
 
 import com.loopers.account.application.AccountAuthenticateCommand
 import com.loopers.account.application.AccountService
+import com.loopers.account.domain.AccountRole
 import com.loopers.support.error.UnauthorizedException
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.springframework.http.HttpMethod
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.web.filter.OncePerRequestFilter
 
-class AccountHeaderAuthenticationFilter(
+class AdminLdapAuthenticationFilter(
     private val accountService: AccountService,
     private val authenticationEntryPoint: AuthenticationEntryPoint,
 ) : OncePerRequestFilter() {
-    override fun shouldNotFilter(request: HttpServletRequest): Boolean {
-        val path = requestPath(request)
-        return (request.method == HttpMethod.POST.name() && path == USERS_PATH) ||
-            path.startsWith(ACTUATOR_PATH_PREFIX) ||
-            path.startsWith(SWAGGER_UI_PATH_PREFIX) ||
-            path.startsWith(API_DOCS_PATH_PREFIX) ||
-            path.startsWith(ADMIN_PATH_PREFIX)
-    }
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        !requestPath(request).startsWith(ADMIN_PATH_PREFIX)
 
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain,
     ) {
-        val loginId = request.getHeader(AccountAuthenticationHeaders.LOGIN_ID)
-        val password = request.getHeader(AccountAuthenticationHeaders.PASSWORD)
-
-        if (loginId == null && password == null) {
-            filterChain.doFilter(request, response)
+        val ldap = request.getHeader(AdminAuthenticationHeaders.LDAP)
+        if (ldap != AdminAuthenticationHeaders.ADMIN_VALUE) {
+            commenceUnauthorized(request, response, UnauthorizedException())
             return
         }
 
+        val loginId = request.getHeader(AccountAuthenticationHeaders.LOGIN_ID)
+        val password = request.getHeader(AccountAuthenticationHeaders.PASSWORD)
         if (loginId.isNullOrBlank() || password.isNullOrBlank()) {
             commenceUnauthorized(request, response, UnauthorizedException())
             return
@@ -50,17 +45,22 @@ class AccountHeaderAuthenticationFilter(
                     password = password,
                 ),
             )
-        }.onSuccess { authenticatedAccount ->
-            val principal = AccountPrincipal(
-                accountId = authenticatedAccount.accountId,
-                loginId = authenticatedAccount.loginId,
+        }.onSuccess { info ->
+            if (info.role != AccountRole.ADMIN) {
+                commenceUnauthorized(request, response, UnauthorizedException())
+                return
+            }
+            val principal = AdminPrincipal(
+                accountId = info.accountId,
+                loginId = info.loginId,
             )
             request.setAttribute(AccountAuthenticationAttributes.ACCOUNT_ID, principal.accountId)
             request.setAttribute(AccountAuthenticationAttributes.LOGIN_ID, principal.loginId)
+            request.setAttribute(AdminAuthenticationAttributes.ADMIN, true)
             SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(
                 principal,
                 null,
-                emptyList(),
+                listOf(SimpleGrantedAuthority(ROLE_ADMIN_AUTHORITY)),
             )
             filterChain.doFilter(request, response)
         }.onFailure { exception ->
@@ -89,25 +89,21 @@ class AccountHeaderAuthenticationFilter(
         request.servletPath.ifBlank { request.requestURI }
 
     private companion object {
-        private const val USERS_PATH = "/api/v1/users"
-        private const val ACTUATOR_PATH_PREFIX = "/actuator"
-        private const val SWAGGER_UI_PATH_PREFIX = "/swagger-ui"
-        private const val API_DOCS_PATH_PREFIX = "/v3/api-docs"
         private const val ADMIN_PATH_PREFIX = "/api-admin/v1/"
+        private const val ROLE_ADMIN_AUTHORITY = "ROLE_ADMIN"
     }
 }
 
-object AccountAuthenticationHeaders {
-    const val LOGIN_ID = "X-Loopers-LoginId"
-    const val PASSWORD = "X-Loopers-LoginPw"
+object AdminAuthenticationHeaders {
+    const val LDAP = "X-Loopers-Ldap"
+    const val ADMIN_VALUE = "loopers.admin"
 }
 
-object AccountAuthenticationAttributes {
-    const val ACCOUNT_ID = "accountId"
-    const val LOGIN_ID = "loginId"
+object AdminAuthenticationAttributes {
+    const val ADMIN = "admin"
 }
 
-data class AccountPrincipal(
+data class AdminPrincipal(
     val accountId: Long,
     val loginId: String,
 )

@@ -17,6 +17,69 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
 class AdminCatalogFacadeTest {
+    @DisplayName("관리자 브랜드 상세 조회")
+    @Nested
+    inner class GetBrand {
+        @DisplayName("등록된 브랜드 상세 정보를 조회한다")
+        @Test
+        fun returnsBrand() {
+            val brandRepository = FakeBrandRepository()
+            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val brand = brandRepository.save(
+                Brand(
+                    id = 1L,
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                ),
+            )
+
+            val result = adminCatalogFacade.getBrand(brand.id)
+
+            assertAll(
+                { assertThat(result.brandId).isEqualTo(brand.id) },
+                { assertThat(result.name).isEqualTo(brand.name) },
+                { assertThat(result.description).isEqualTo(brand.description) },
+                { assertThat(result.logoImageUrl).isEqualTo(brand.logoImageUrl) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드는 조회할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandDoesNotExist() {
+            val brandRepository = FakeBrandRepository()
+            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+
+            val result = assertThrows<CoreException> {
+                adminCatalogFacade.getBrand(1L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드는 조회할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val brandRepository = FakeBrandRepository()
+            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            brandRepository.save(
+                Brand(
+                    id = 1L,
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                    isDeleted = true,
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                adminCatalogFacade.getBrand(1L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     @DisplayName("관리자 브랜드 목록 조회")
     @Nested
     inner class GetBrands {

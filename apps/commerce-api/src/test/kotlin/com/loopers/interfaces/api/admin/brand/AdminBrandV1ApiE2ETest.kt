@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.admin.brand
 
+import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
@@ -116,6 +117,64 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api-admin/v1/brands/{brandId}")
+    @Nested
+    inner class GetBrand {
+        @DisplayName("등록된 브랜드 상세 정보를 조회한다")
+        @Test
+        fun returnsBrand() {
+            val brandId = createBrand(name = "loopers")
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/$brandId",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.brandId).isEqualTo(brandId) },
+                { assertThat(response.body?.data?.name).isEqualTo("loopers") },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드 상세 조회 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/999",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드 상세 조회 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = brandJpaRepository.save(
+                BrandEntity(
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                    isDeleted = true,
+                ),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/${brand.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createBrandRequest(
         name: String = "loopers",
         description: String = "loopers brand",
@@ -134,13 +193,15 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
-    private fun createBrand(name: String) {
-        testRestTemplate.exchange(
+    private fun createBrand(name: String): Long {
+        val response = testRestTemplate.exchange(
             BRANDS_ENDPOINT,
             HttpMethod.POST,
             HttpEntity(createBrandRequest(name = name), createAdminHeaders()),
             object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
         )
+
+        return response.body?.data?.brandId ?: throw IllegalStateException("Brand creation failed.")
     }
 
     private companion object {

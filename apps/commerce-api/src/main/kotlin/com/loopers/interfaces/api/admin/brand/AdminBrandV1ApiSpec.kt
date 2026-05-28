@@ -18,6 +18,15 @@ interface AdminBrandV1ApiSpec {
     ): ApiResponse<PageResponse<AdminBrandV1Dto.BrandResponse>>
 
     @Operation(
+        summary = "관리자 브랜드 상세 조회",
+        description = "관리자가 등록된 브랜드 상세 정보를 조회합니다.",
+    )
+    fun getBrand(
+        adminId: String,
+        brandId: Long,
+    ): ApiResponse<AdminBrandV1Dto.BrandResponse>
+
+    @Operation(
         summary = "관리자 브랜드 등록",
         description = "관리자가 브랜드를 등록합니다.",
     )

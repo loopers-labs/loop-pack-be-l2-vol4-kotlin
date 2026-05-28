@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Week 3 · DDD 개념 가이드 — Layered Architecture / Entity / VO / Service</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --muted: #71717A;
+    --line: #E4E4E7;
+    --line-soft: #F4F4F5;
+
+    --ok: #047857;
+    --warn: #B45309;
+    --err: #B91C1C;
+    --decide: #4F46E5;
+    --future: #0E7490;
+
+    --ok-soft:    #ECFDF5;
+    --warn-soft:  #FFFBEB;
+    --err-soft:   #FEF2F2;
+    --decide-soft:#EEF2FF;
+    --future-soft:#ECFEFF;
+
+    --presentation: #B45309;
+    --application:  #4F46E5;
+    --domain:       #047857;
+    --infrastructure: #0E7490;
+
+    --presentation-soft: #FFFBEB;
+    --application-soft:  #EEF2FF;
+    --domain-soft:       #ECFDF5;
+    --infrastructure-soft: #ECFEFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+    margin-bottom: 36px;
+  }
+  header.page h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.5px; }
+  header.page .meta { color: var(--muted); font-size: 13.5px; }
+
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 40px;
+  }
+  nav.toc h2 {
+    font-size: 13px; color: var(--muted); margin: 0 0 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { padding: 3px 0; font-size: 14px; }
+  nav.toc a { color: var(--text); text-decoration: none; border-bottom: 1px dotted var(--muted); }
+  nav.toc a:hover { color: var(--decide); border-bottom-color: var(--decide); }
+
+  section { margin-bottom: 56px; }
+  section > h2 {
+    font-size: 22px; margin: 0 0 18px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--text);
+    display: flex; align-items: center; gap: 12px;
+  }
+  section > h2 .num {
+    background: var(--text); color: #fff;
+    width: 30px; height: 30px;
+    border-radius: 15px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700;
+  }
+  section h3 {
+    font-size: 17px; margin: 28px 0 12px; padding-left: 10px;
+    border-left: 3px solid var(--decide);
+  }
+  section h4 {
+    font-size: 15px; margin: 18px 0 8px; color: var(--text);
+  }
+  p { margin: 8px 0 14px; }
+  code {
+    background: #F4F4F5; padding: 1px 6px; border-radius: 3px;
+    font-size: 13px; font-family: ui-monospace, "SF Mono", monospace;
+  }
+  pre {
+    background: #18181B; color: #F4F4F5;
+    padding: 14px 18px; border-radius: 6px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+    overflow-x: auto; line-height: 1.55;
+  }
+  pre .comment { color: #71717A; }
+  pre .keyword { color: #C084FC; }
+  pre .string { color: #86EFAC; }
+
+  /* 비유 박스 */
+  .analogy {
+    background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+    border: 2px solid #FDE68A;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0 22px;
+  }
+  .analogy .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--warn); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .analogy .title {
+    font-size: 18px; font-weight: 700; margin-bottom: 8px;
+  }
+  .analogy .body { font-size: 14.5px; color: #44403C; }
+  .analogy .body strong { color: var(--warn); }
+
+  /* 정의 박스 */
+  .definition {
+    background: var(--decide-soft);
+    border-left: 4px solid var(--decide);
+    padding: 14px 18px;
+    margin: 14px 0;
+    border-radius: 4px;
+  }
+  .definition .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--decide); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .definition .body { font-size: 14.5px; }
+
+  /* 본 프로젝트 매핑 박스 */
+  .project-map {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 16px 0;
+  }
+  .project-map .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--ok); text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .project-map .label::before {
+    content: ""; display: inline-block;
+    width: 8px; height: 8px; border-radius: 4px;
+    background: var(--ok);
+  }
+  .project-map ul { margin: 6px 0; padding-left: 22px; }
+  .project-map li { padding: 2px 0; }
+
+  /* 장단점 */
+  .pros-cons {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin: 14px 0;
+  }
+  .pros, .cons {
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; background: #fff;
+  }
+  .pros { border-color: #A7F3D0; background: var(--ok-soft); }
+  .cons { border-color: #FDE68A; background: var(--warn-soft); }
+  .pros h4, .cons h4 { margin-top: 0; }
+  .pros h4 { color: var(--ok); }
+  .cons h4 { color: var(--warn); }
+  .pros ul, .cons ul { margin: 4px 0; padding-left: 20px; font-size: 13.5px; }
+  .pros li, .cons li { padding: 2px 0; }
+
+  /* 레퍼런스 */
+  .refs {
+    background: var(--future-soft);
+    border-left: 4px solid var(--future);
+    padding: 12px 18px;
+    border-radius: 4px;
+    margin: 14px 0;
+  }
+  .refs .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--future); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .refs ul { margin: 4px 0; padding-left: 22px; font-size: 13.5px; }
+  .refs li { padding: 2px 0; }
+  .refs a { color: var(--future); }
+
+  /* 4계층 시각화 */
+  .layers {
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 20px 0;
+  }
+  .layer {
+    border-radius: 10px;
+    padding: 16px 20px;
+    border: 2px solid;
+    background: #fff;
+    position: relative;
+  }
+  .layer .layer-name {
+    font-size: 16px; font-weight: 700; margin-bottom: 4px;
+  }
+  .layer .layer-role {
+    font-size: 13px; color: var(--muted);
+  }
+  .layer.presentation {
+    border-color: var(--presentation); background: var(--presentation-soft);
+  }
+  .layer.presentation .layer-name { color: var(--presentation); }
+  .layer.application {
+    border-color: var(--application); background: var(--application-soft);
+  }
+  .layer.application .layer-name { color: var(--application); }
+  .layer.domain {
+    border-color: var(--domain); background: var(--domain-soft);
+    border-width: 3px;
+  }
+  .layer.domain .layer-name { color: var(--domain); }
+  .layer.infrastructure {
+    border-color: var(--infrastructure); background: var(--infrastructure-soft);
+  }
+  .layer.infrastructure .layer-name { color: var(--infrastructure); }
+  .layer-arrow {
+    text-align: center; color: var(--muted); font-size: 18px; margin: -2px 0;
+  }
+
+  /* layer 상세 카드 */
+  .layer-card {
+    background: #fff; border-radius: 10px; padding: 0; margin: 16px 0;
+    border: 1px solid var(--line); overflow: hidden;
+  }
+  .layer-card .header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .layer-card.presentation .header { background: var(--presentation-soft); border-bottom-color: #FDE68A; }
+  .layer-card.application .header  { background: var(--application-soft); border-bottom-color: #C7D2FE; }
+  .layer-card.domain .header       { background: var(--domain-soft); border-bottom-color: #A7F3D0; }
+  .layer-card.infrastructure .header { background: var(--infrastructure-soft); border-bottom-color: #A5F3FC; }
+  .layer-card .header .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    padding: 3px 10px; border-radius: 10px; color: #fff;
+  }
+  .layer-card.presentation .badge { background: var(--presentation); }
+  .layer-card.application .badge  { background: var(--application); }
+  .layer-card.domain .badge       { background: var(--domain); }
+  .layer-card.infrastructure .badge { background: var(--infrastructure); }
+  .layer-card .header h3 {
+    margin: 0; padding: 0; border: none; font-size: 17px;
+  }
+  .layer-card .body { padding: 16px 20px; }
+  .layer-card .body .role {
+    font-size: 14px; margin-bottom: 14px;
+  }
+  .layer-card .in-out {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-top: 12px;
+  }
+  .in-out .box {
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 12px 14px; font-size: 13px;
+  }
+  .in-out .box.in  { background: var(--ok-soft); border-color: #A7F3D0; }
+  .in-out .box.out { background: var(--err-soft); border-color: #FECACA; }
+  .in-out .box h4 {
+    margin: 0 0 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .in-out .box.in h4  { color: var(--ok); }
+  .in-out .box.out h4 { color: var(--err); }
+  .in-out ul { margin: 4px 0; padding-left: 18px; }
+  .in-out li { padding: 1px 0; }
+
+  /* 비교 표 */
+  table.compare {
+    width: 100%; border-collapse: collapse;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+    margin: 14px 0; font-size: 13.5px;
+  }
+  table.compare th, table.compare td {
+    padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.compare th {
+    background: var(--line-soft); font-weight: 600; font-size: 12.5px;
+  }
+  table.compare tr:last-child td { border-bottom: none; }
+  table.compare td.col-key { font-weight: 600; background: #FAFAFA; width: 22%; }
+
+  /* 매트릭스 표 */
+  table.matrix {
+    width: 100%; border-collapse: collapse;
+    margin: 14px 0; font-size: 13px;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  }
+  table.matrix th, table.matrix td {
+    padding: 10px 12px; text-align: left; border: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.matrix th {
+    background: var(--line-soft); font-weight: 600; font-size: 12.5px;
+  }
+  table.matrix td.empty {
+    background: #FAFAFA; color: var(--muted); font-style: italic; font-size: 12px;
+  }
+  table.matrix td.domain-col { font-weight: 700; background: #FAFAFA; }
+
+  /* 코드 안의 강조 라벨 */
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    padding: 1px 8px; border-radius: 10px;
+    margin: 0 2px;
+  }
+  .tag.entity { background: #FEF3C7; color: var(--warn); border: 1px solid #FDE68A; }
+  .tag.vo     { background: var(--decide-soft); color: var(--decide); border: 1px solid #C7D2FE; }
+  .tag.ds     { background: var(--ok-soft); color: var(--ok); border: 1px solid #A7F3D0; }
+  .tag.as     { background: var(--err-soft); color: var(--err); border: 1px solid #FECACA; }
+  .tag.repo   { background: #F4F4F5; color: var(--muted); border: 1px solid var(--line); }
+  .tag.agg    { background: #FCE7F3; color: #BE185D; border: 1px solid #FBCFE8; }
+
+  /* mermaid 컨테이너 */
+  .diagram {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 18px; margin: 16px 0; text-align: center;
+  }
+  .diagram .mermaid {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .diagram .mermaid svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  /* sequence diagram은 가로폭이 더 필요 */
+  .diagram.wide .mermaid {
+    max-width: 900px;
+  }
+
+  /* 강조 인용 */
+  blockquote {
+    margin: 14px 0;
+    padding: 10px 18px;
+    background: var(--line-soft);
+    border-left: 4px solid var(--muted);
+    color: #44403C;
+    font-size: 14px;
+    border-radius: 0 6px 6px 0;
+  }
+  blockquote cite {
+    display: block; margin-top: 6px;
+    font-size: 12px; color: var(--muted); font-style: normal;
+  }
+
+  /* small */
+  small { color: var(--muted); font-size: 12px; }
+
+  /* 책임 매핑 — domain object 분포 */
+  .obj-row {
+    display: grid; grid-template-columns: 140px 1fr; gap: 10px;
+    align-items: center; margin: 6px 0;
+  }
+  .obj-row .key { font-weight: 600; font-size: 13px; }
+  .obj-row .val { font-size: 13px; }
+
+  /* 키워드 매핑 카드 */
+  .meaning-card {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 18px; margin: 10px 0;
+  }
+  .meaning-card .title {
+    font-size: 15px; font-weight: 700; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .meaning-card .title .chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--line-soft); color: var(--muted);
+    font-weight: 600;
+  }
+
+  @media (max-width: 720px) {
+    .pros-cons, .in-out { grid-template-columns: 1fr; }
+    body { padding: 24px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="page">
+  <h1>Week 3 · DDD 개념 가이드</h1>
+  <div class="meta">
+    Layered Architecture · Entity · Value Object · Domain Service vs Application Service<br>
+    초등학생도 이해할 수 있게 + 본 프로젝트(Brand / Product / Inventory / Like / Order)에 매핑 + 공식 문서·빅테크 레퍼런스
+  </div>
+</header>
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#s0">왜 이 글을 만들었나</a></li>
+    <li><a href="#s1">DDD Layered Architecture — 전통 3-tier와 무엇이 다른가</a></li>
+    <li><a href="#s2">Entity vs Value Object — 왜 따로 두는가</a></li>
+    <li><a href="#s3">Domain Service vs Application Service — 두 Service는 왜 다른가</a></li>
+    <li><a href="#s4">Entity vs Domain — 헷갈리는 두 단어 정리</a></li>
+    <li><a href="#s5">본 프로젝트 매트릭스 — 5도메인 × 6패턴</a></li>
+    <li><a href="#s6">레퍼런스 — 공식 문서 + 빅테크 블로그</a></li>
+  </ol>
+</nav>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s0">
+  <h2><span class="num">0</span>왜 이 글을 만들었나</h2>
+
+  <p>
+    3주차 과제는 Brand / Product / Inventory / Like / Order 다섯 도메인을
+    <strong>DDD</strong> 방식으로 구현합니다. 그런데 코드를 짜기 전에
+    개념이 분명하지 않으면 같은 단어를 서로 다른 의미로 쓰게 되고
+    (예: "Brand 도메인의 Brand 엔티티"라는 표현에서 <em>도메인</em>과
+    <em>엔티티</em>가 무엇인지), 결과적으로 패키지 구조도 어긋나기 시작합니다.
+  </p>
+
+  <p>
+    이 문서가 다루는 네 가지 개념은 다음과 같습니다.
+  </p>
+
+  <ul>
+    <li><strong>Layered Architecture</strong> — 코드를 4개의 층으로 어떻게 나누는가, 그리고 전통적인 3계층과 무엇이 다른가</li>
+    <li><strong>Entity vs Value Object</strong> — 왜 같은 도메인 안에서도 두 가지를 따로 두는가, 그 이점은 무엇인가</li>
+    <li><strong>Domain Service vs Application Service</strong> — 같은 이름의 "Service" 두 개가 무엇이 다른가</li>
+    <li><strong>Entity vs Domain</strong> — 헷갈리는 이 두 단어가 정확히 무엇을 가리키는가</li>
+  </ul>
+
+  <p>
+    각 개념은 <strong>비유 → 정의 → 본 프로젝트 코드 매핑 → 장단점 →
+    실무 패턴 (공식 docs / 빅테크 블로그)</strong> 순서로 다룹니다.
+    개념만 외우는 게 아니라 "본 프로젝트 어디에 어떻게 박힌다"가 명확해야
+    Phase 1 ~ 4 구현이 흔들리지 않습니다.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s1">
+  <h2><span class="num">1</span>DDD Layered Architecture — 전통 3-tier와 무엇이 다른가</h2>
+
+  <h3>1.1 음식점 비유</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <div class="title">레스토랑은 4개의 공간으로 나뉩니다</div>
+    <div class="body">
+      손님이 들어오는 <strong>홀(presentation)</strong>이 있고,
+      주문을 받아 주방에 전달하고 결제까지 챙기는 <strong>매니저(application)</strong>가 있습니다.
+      실제로 음식을 만드는 <strong>요리사(domain)</strong>는 가장 안쪽 주방에 있고,
+      식자재와 가스·수도는 외부 공급망 — <strong>식자재 창고(infrastructure)</strong>가
+      관리합니다.<br><br>
+      손님은 요리사를 직접 만나지 않습니다. 요리사도 식자재를 직접 사 오지 않습니다.
+      각자의 책임이 분명해야 가게가 굴러갑니다. <strong>DDD Layered Architecture</strong>는
+      코드를 이렇게 4개의 층으로 나누는 방식입니다.
+    </div>
+  </div>
+
+  <h3>1.2 전통적 Layered Architecture — "3-tier"의 한계</h3>
+
+  <p>
+    전통적인 엔터프라이즈 애플리케이션은 보통 3개의 층(tier)으로 나뉘었습니다.
+  </p>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        P["Presentation Tier<br/>(JSP / 컨트롤러 / UI)"]
+        B["Business Tier<br/>(Service / DAO 호출)"]
+        D[("Data Tier<br/>(DB / ORM)")]
+        P --> B
+        B --> D
+
+        style P fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style B fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style D fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+    </div>
+  </div>
+
+  <p>
+    이 구조의 의존 방향은 <strong>위에서 아래로</strong>입니다.
+    Presentation이 Business에 의존하고, Business가 Data에 의존합니다.
+    이 자체는 자연스러워 보이지만, 실제로는 다음과 같은 문제를 만듭니다.
+  </p>
+
+  <ul>
+    <li><strong>DB 중심 설계</strong>: Business 로직이 Data Tier(DB 스키마)에 의존하므로 비즈니스 모델이 "테이블이 곧 모델"이 되어버립니다. 객체에 행위가 없고 데이터만 담는 <em>Anemic Domain Model</em>이 양산됩니다.</li>
+    <li><strong>변경 전파</strong>: DB 컬럼 하나 바뀌면 Service → Controller → DTO까지 줄줄이 영향을 받습니다.</li>
+    <li><strong>도메인 지식의 분산</strong>: "주문 총액은 어떻게 계산하나" 같은 핵심 로직이 Service 여러 곳에 흩어집니다. 어디가 진실인지 찾기 어려워집니다.</li>
+    <li><strong>테스트 곤란</strong>: 비즈니스 로직을 단위 테스트하려 해도 DB가 옆에 붙어 있어 Spring/JPA 전체를 띄워야 합니다.</li>
+  </ul>
+
+  <h3>1.3 DDD Layered Architecture — Domain이 중심이다</h3>
+
+  <p>
+    Eric Evans는 2003년 책 <em>Domain-Driven Design</em>(Ch.4 "Isolating the Domain")에서
+    위 3-tier의 한계를 짚으며 4개의 layer를 제안했습니다.
+    핵심은 단순히 한 층이 더 늘었다는 것이 아니라 <strong>의존 방향이
+    바뀐다</strong>는 점입니다.
+  </p>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        P["Presentation Layer<br/>(Controller / View / API)"]
+        A["Application Layer<br/>(Use Case 조립 · 트랜잭션 · 인증)"]
+        D["<b>Domain Layer</b><br/>(Entity · VO · Domain Service · Repository<br/>인터페이스)"]
+        I["Infrastructure Layer<br/>(JPA · Redis · 외부 API · 메시지큐)"]
+
+        P --> A
+        A --> D
+        I -.구현.-> D
+
+        style P fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style A fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style D fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style I fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+    </div>
+  </div>
+
+  <div class="definition">
+    <div class="label">핵심 차이</div>
+    <div class="body">
+      전통 3-tier에서는 <code>Business → Data</code>로 의존이 흘렀습니다.
+      DDD에서는 <code>Infrastructure → Domain</code>입니다 (점선이 가리키는 방향).
+      Domain이 가장 안쪽에 있고, Infrastructure가 Domain이 정의한 인터페이스(예:
+      <code>BrandRepository</code>)를 <strong>구현(implements)</strong>합니다.
+      이를 <strong>Dependency Inversion Principle (DIP)</strong>이라 부릅니다.
+    </div>
+  </div>
+
+  <p>
+    이 작은 화살표 방향의 차이가 만드는 결과는 큽니다.
+  </p>
+
+  <ul>
+    <li>Domain은 <strong>Spring · JPA · Redis 같은 프레임워크를 모릅니다</strong>. 순수 Kotlin/Java만으로 작성됩니다.</li>
+    <li>Domain 테스트는 DB나 Spring 컨텍스트 없이 단위 테스트로 검증 가능합니다.</li>
+    <li>Repository 구현이 JPA에서 MyBatis로 바뀌어도 Domain 코드는 한 줄도 안 바뀝니다.</li>
+    <li>비즈니스 로직이 <em>Anemic</em>해지지 않습니다 — Entity에 행위(method)가 살고, Service는 협업만 담당합니다.</li>
+  </ul>
+
+  <h3>1.4 4개 Layer 각각의 책임</h3>
+
+  <div class="layers">
+    <div class="layer presentation">
+      <div class="layer-name">Presentation Layer</div>
+      <div class="layer-role">외부 요청을 받아 내부로 전달하고, 결과를 외부 형식으로 변환해 응답하는 가장 바깥쪽 입출구</div>
+    </div>
+    <div class="layer-arrow">▼ 의존</div>
+    <div class="layer application">
+      <div class="layer-name">Application Layer</div>
+      <div class="layer-role">Use Case를 조립한다. 여러 도메인 객체를 어떻게 부를지 결정하고, 트랜잭션 경계와 인증을 다룬다. 비즈니스 규칙 자체는 가지지 않는다.</div>
+    </div>
+    <div class="layer-arrow">▼ 의존</div>
+    <div class="layer domain">
+      <div class="layer-name">Domain Layer  ← 가장 중심</div>
+      <div class="layer-role">비즈니스 규칙·불변식·도메인 객체가 모두 사는 곳. 프레임워크 의존성 0. 추상(Repository 인터페이스 등)을 정의한다.</div>
+    </div>
+    <div class="layer-arrow">▲ 구현 (Infrastructure가 Domain의 추상을 구현)</div>
+    <div class="layer infrastructure">
+      <div class="layer-name">Infrastructure Layer</div>
+      <div class="layer-role">기술적 디테일 — JPA · Redis · 외부 API · 메시지 큐. Domain이 정의한 인터페이스를 구현해 끼워 넣는다.</div>
+    </div>
+  </div>
+
+  <h3>1.5 각 Layer의 개념 상세 — 무엇이 들어가고 무엇이 안 들어가는가</h3>
+
+  <!-- Presentation -->
+  <div class="layer-card presentation">
+    <div class="header">
+      <span class="badge">PRESENTATION</span>
+      <h3>Presentation Layer (본 프로젝트는 <code>interfaces</code>)</h3>
+    </div>
+    <div class="body">
+      <div class="role">
+        <strong>책임</strong> — 외부 세계(브라우저 · 다른 시스템)와 애플리케이션 사이의 통역사입니다.
+        HTTP 요청을 받아 내부 호출로 바꾸고, 내부 결과를 JSON / HTML로 바꿔 응답합니다.
+        외부 형식이 바뀌어도(REST → GraphQL, JSON → Protobuf) 다른 layer는 영향받지 않게 합니다.
+      </div>
+      <div class="in-out">
+        <div class="box in">
+          <h4>들어가는 것</h4>
+          <ul>
+            <li>Controller (HTTP 매핑)</li>
+            <li>Request / Response DTO</li>
+            <li>API Spec (OpenAPI)</li>
+            <li>인증 필터 / 인터셉터</li>
+            <li>요청 검증 (@Valid)</li>
+          </ul>
+        </div>
+        <div class="box out">
+          <h4>들어가지 말아야 할 것</h4>
+          <ul>
+            <li>비즈니스 규칙 (예: 가격 ≥ 0)</li>
+            <li>트랜잭션 관리 (@Transactional)</li>
+            <li>JPA 호출</li>
+            <li>외부 API 직접 호출</li>
+            <li>도메인 객체를 그대로 JSON 직렬화 (DTO 변환 필요)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="project-map">
+        <div class="label">본 프로젝트 매핑</div>
+        <code>apps/commerce-api/src/main/kotlin/com/loopers/interfaces/api/{도메인}/</code>
+        <ul>
+          <li><code>BrandV1Controller.kt</code>, <code>AdminBrandV1Controller.kt</code> — HTTP 매핑</li>
+          <li><code>BrandV1Dto.kt</code> — Request/Response 객체</li>
+          <li><code>BrandV1ApiSpec.kt</code> — OpenAPI 스펙 인터페이스</li>
+          <li><code>ApiControllerAdvice.kt</code> — 도메인 예외를 HTTP 상태로 변환 (이미 존재)</li>
+        </ul>
+        <small>
+          본 프로젝트는 <code>presentation</code> 대신 <code>interfaces</code>라는 이름을 씁니다.
+          이는 Hexagonal Architecture (Ports &amp; Adapters)의 영향으로,
+          외부와 맞닿는 모든 어댑터(HTTP · CLI · gRPC 등)를 한 곳에 모은다는 의미입니다.
+          이름만 다를 뿐 책임은 Presentation Layer와 같습니다.
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application -->
+  <div class="layer-card application">
+    <div class="header">
+      <span class="badge">APPLICATION</span>
+      <h3>Application Layer</h3>
+    </div>
+    <div class="body">
+      <div class="role">
+        <strong>책임</strong> — Use Case를 <em>조립</em>합니다. "주문하기"라는 행위가 들어오면
+        Product를 조회하고, Inventory를 차감하고, Order를 저장하는 흐름을 한 트랜잭션 안에
+        엮습니다. 비즈니스 규칙 자체는 가지지 않습니다 — 그건 Domain의 책임.
+        오케스트라의 지휘자라고 보면 됩니다.
+      </div>
+      <div class="in-out">
+        <div class="box in">
+          <h4>들어가는 것</h4>
+          <ul>
+            <li>Application Service (Facade) — Use Case 진입점</li>
+            <li><code>@Transactional</code> 트랜잭션 경계</li>
+            <li>Command / Query 객체 (도메인 입력 모델)</li>
+            <li>인증된 사용자 컨텍스트 소비</li>
+            <li>여러 Domain 객체 / Domain Service 협업</li>
+          </ul>
+        </div>
+        <div class="box out">
+          <h4>들어가지 말아야 할 것</h4>
+          <ul>
+            <li>비즈니스 규칙·불변식 (Domain의 책임)</li>
+            <li>HTTP 관련 코드 (Presentation의 책임)</li>
+            <li>SQL · JPA 메서드 호출 (Infrastructure의 책임)</li>
+            <li>"if 상품이 활성 상태면" 같은 정책 판단 (Entity 메서드로)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="project-map">
+        <div class="label">본 프로젝트 매핑</div>
+        <code>apps/commerce-api/src/main/kotlin/com/loopers/application/{도메인}/</code>
+        <ul>
+          <li><code>BrandService.kt</code> — Use Case, <code>@Transactional</code></li>
+          <li><code>BrandFacade.kt</code> — DTO 매핑 + 인증 컨텍스트 소비</li>
+          <li><code>OrderService.kt</code> — 주문 Use Case를 한 트랜잭션으로 묶음</li>
+          <li>Command/Info 객체는 같은 파일에 동거 (CLAUDE.md §4)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Domain -->
+  <div class="layer-card domain">
+    <div class="header">
+      <span class="badge">DOMAIN</span>
+      <h3>Domain Layer ★ 가장 중심</h3>
+    </div>
+    <div class="body">
+      <div class="role">
+        <strong>책임</strong> — 비즈니스의 핵심 지식이 농축되는 곳입니다.
+        "브랜드 이름은 1~50자다", "재고는 0 미만이 될 수 없다", "주문 총액은
+        단가 × 수량의 합이다" — 이런 규칙들이 살아있는 Entity와 VO 안에 모여 있어야
+        합니다. <strong>프레임워크 의존성 0</strong>이 원칙입니다.
+        (Spring/JPA가 사라져도 Domain 코드는 그대로 컴파일됩니다.)
+      </div>
+      <div class="in-out">
+        <div class="box in">
+          <h4>들어가는 것</h4>
+          <ul>
+            <li>Entity (식별성 있는 도메인 객체)</li>
+            <li>Value Object (속성 동일성 + 불변)</li>
+            <li>Aggregate Root (일관성 경계)</li>
+            <li>Domain Service (여러 객체 협업, stateless)</li>
+            <li>Repository <strong>인터페이스</strong> (구현은 Infrastructure)</li>
+            <li>ErrorCode enum (owning 도메인)</li>
+            <li>도메인 이벤트 (자리만)</li>
+          </ul>
+        </div>
+        <div class="box out">
+          <h4>들어가지 말아야 할 것</h4>
+          <ul>
+            <li>JPA <code>@Repository</code> 구현체</li>
+            <li>Redis / Kafka / HTTP 클라이언트</li>
+            <li>Spring <code>@Service</code> (단, 본 프로젝트는 Domain Service에 한해 허용 — Pragmatism)</li>
+            <li>Request/Response DTO (Presentation의 책임)</li>
+            <li><code>@Transactional</code> (Application의 책임)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="project-map">
+        <div class="label">본 프로젝트 매핑</div>
+        <code>apps/commerce-api/src/main/kotlin/com/loopers/domain/{도메인}/</code>
+        <ul>
+          <li><code>Brand.kt</code> — Entity</li>
+          <li><code>BrandName.kt</code>, <code>Price.kt</code>, <code>Money.kt</code>, <code>Quantity.kt</code>, <code>LikeCount.kt</code> — Value Object</li>
+          <li><code>BrandRepository.kt</code> — <strong>인터페이스만</strong></li>
+          <li><code>ProductCatalogService.kt</code>, <code>OrderPlacementService.kt</code> — Domain Service</li>
+          <li><code>BrandErrorCode.kt</code> — owning 도메인 에러 코드</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Infrastructure -->
+  <div class="layer-card infrastructure">
+    <div class="header">
+      <span class="badge">INFRASTRUCTURE</span>
+      <h3>Infrastructure Layer</h3>
+    </div>
+    <div class="body">
+      <div class="role">
+        <strong>책임</strong> — 기술적인 디테일을 모두 떠안습니다. Domain이 "BrandRepository로
+        저장한다"고 약속만 하면, Infrastructure가 그 약속을 JPA로 구현해 끼워 넣습니다.
+        구현이 JPA에서 MyBatis로, MySQL에서 PostgreSQL로 바뀌어도
+        Infrastructure 안에서만 갈아끼우면 됩니다.
+      </div>
+      <div class="in-out">
+        <div class="box in">
+          <h4>들어가는 것</h4>
+          <ul>
+            <li>Repository 구현체 (<code>BrandRepositoryImpl</code>)</li>
+            <li>Spring Data JPA 인터페이스 (<code>BrandJpaRepository</code>)</li>
+            <li>외부 시스템 어댑터 (PG · 알림 · 검색)</li>
+            <li>Redis 캐시 어댑터</li>
+            <li>메시지 큐 Producer / Consumer</li>
+            <li>기술 환경 설정 (Datasource · Properties)</li>
+          </ul>
+        </div>
+        <div class="box out">
+          <h4>들어가지 말아야 할 것</h4>
+          <ul>
+            <li>비즈니스 규칙 판단 (예: 재고 부족인지 결정)</li>
+            <li>도메인 객체의 가공·변환 (그건 Domain Service / Application의 책임)</li>
+            <li>HTTP 응답 형식 결정 (Presentation의 책임)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="project-map">
+        <div class="label">본 프로젝트 매핑</div>
+        <code>apps/commerce-api/src/main/kotlin/com/loopers/infrastructure/{도메인}/</code>
+        <ul>
+          <li><code>BrandJpaRepository.kt</code> — Spring Data JPA 인터페이스</li>
+          <li><code>BrandRepositoryImpl.kt</code> — Domain의 <code>BrandRepository</code> 구현</li>
+          <li>JPA 설정(<code>JpaConfig</code>)은 <code>modules/jpa</code> 모듈에 공통화</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>1.6 의존 방향 한 줄 요약</h3>
+
+  <p>
+    화살표 방향이 핵심입니다. <strong>위에서 아래로</strong>가 아니라,
+    <strong>바깥에서 중심으로</strong> 향합니다.
+  </p>
+
+  <pre><span class="comment">// 의존 방향</span>
+Presentation → Application → Domain ← Infrastructure
+<span class="comment">                                      ↑
+                              여기 화살표 방향이 핵심
+                              (DIP — Infrastructure가 Domain의 추상을 구현)</span></pre>
+
+  <p>
+    본 프로젝트의 <code>BrandRepository</code>를 예로 들면 다음과 같이 박힙니다.
+  </p>
+
+  <pre><span class="comment">// domain/brand/BrandRepository.kt — 인터페이스</span>
+<span class="keyword">interface</span> BrandRepository {
+    <span class="keyword">fun</span> save(brand: Brand): Brand
+    <span class="keyword">fun</span> findById(id: Long): Brand?
+    <span class="keyword">fun</span> existsByName(name: BrandName): Boolean
+}
+
+<span class="comment">// infrastructure/brand/BrandRepositoryImpl.kt — 구현</span>
+@Repository
+<span class="keyword">class</span> BrandRepositoryImpl(
+    <span class="keyword">private val</span> jpa: BrandJpaRepository
+) : BrandRepository {
+    <span class="keyword">override fun</span> save(brand: Brand): Brand = jpa.save(brand)
+    <span class="comment">// ...</span>
+}</pre>
+
+  <p>
+    <code>BrandService</code>는 <code>BrandRepository</code> <em>인터페이스</em>에만
+    의존합니다. JPA 구현이 무엇인지는 모릅니다. 이 한 가지가 Domain Layer를
+    프레임워크로부터 독립시키는 핵심입니다.
+  </p>
+
+  <h3>1.7 Repository 인터페이스를 Domain에 두는 이유 (본 프로젝트 결정)</h3>
+
+  <p>
+    DDD에서 Repository 인터페이스는 "Domain Model의 일부"로 간주됩니다
+    (Eric Evans, <em>DDD</em> Ch.6). 본 프로젝트는 이 원칙을 따라
+    <code>BrandRepository</code> 인터페이스를 <code>com.loopers.domain.brand</code> 아래에 둡니다.
+    구현은 <code>com.loopers.infrastructure.brand</code>에 둡니다.
+  </p>
+
+  <p>
+    참고로 account 모듈은 다른 방식(Repository 인터페이스를 persistence 모듈에)을
+    쓰는데, 이는 학습 목적상 <em>의도적으로 다르게</em> 두어 두 패턴을 모두 경험해
+    보기 위한 결정입니다. 자세한 배경은 <code>docs/week3/00-plan.md §3.7</code>을 참조하세요.
+  </p>
+
+  <h3>1.8 전통 3-tier vs DDD Layered Architecture — 한 표로</h3>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>전통 3-tier</th><th>DDD Layered</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-key">계층 수</td><td>Presentation · Business · Data (3개)</td><td>Presentation · Application · Domain · Infrastructure (4개)</td></tr>
+      <tr><td class="col-key">의존 방향</td><td>위 → 아래 (모두 한 방향)</td><td>바깥 → 중심. Infrastructure가 Domain을 구현 (DIP)</td></tr>
+      <tr><td class="col-key">Domain 위치</td><td>Business Tier에 흩어짐</td><td>가장 안쪽 중심 — 모두가 의존</td></tr>
+      <tr><td class="col-key">Service 종류</td><td>한 가지 (Service)</td><td>Domain Service / Application Service 분리</td></tr>
+      <tr><td class="col-key">비즈니스 로직 위치</td><td>Service 안의 절차적 코드</td><td>Entity / VO / Domain Service에 농축 (Rich Domain Model)</td></tr>
+      <tr><td class="col-key">DB 의존도</td><td>강함 — 모델이 곧 테이블</td><td>약함 — Domain은 DB를 모름</td></tr>
+      <tr><td class="col-key">테스트</td><td>Spring 컨텍스트 필요</td><td>Domain은 순수 단위 테스트 가능</td></tr>
+      <tr><td class="col-key">교체 비용</td><td>JPA → MyBatis 교체 시 비즈니스 코드 전체 수정</td><td>Infrastructure만 갈아끼움</td></tr>
+    </tbody>
+  </table>
+
+  <h3>1.9 장단점</h3>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>장점</h4>
+      <ul>
+        <li>비즈니스 로직이 한 곳(Domain)에 모여 변경에 강해진다</li>
+        <li>Domain은 프레임워크 없이 테스트 가능 — 빠르고 안정적</li>
+        <li>인프라(DB, 큐, 캐시) 교체가 국지적으로 끝난다</li>
+        <li>도메인 어휘(ubiquitous language)가 코드에 살아남는다 — 비개발자도 읽을 수 있다</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>단점</h4>
+      <ul>
+        <li>초기 학습 곡선이 있다 — 단순 CRUD에는 과한 구조</li>
+        <li>같은 데이터를 Entity / DTO / JPA Entity로 여러 번 변환하게 됨</li>
+        <li>Domain Service / Application Service 구분 기준이 흐릿할 때가 있음</li>
+        <li>팀 전체가 약속을 공유하지 않으면 layer 침범이 쉽게 일어난다 (Domain에서 Spring import 등)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>1.10 실무 활용 패턴</h3>
+
+  <ul>
+    <li><strong>핵사고날(Hexagonal) / 어니언(Onion) / 클린 아키텍처(Clean Architecture)</strong>은 모두 DDD Layered Architecture를 출발점으로 한 변형입니다. 동심원이냐 6각형이냐의 차이일 뿐 "Domain이 중심, Infrastructure가 어댑터"라는 본질은 같습니다.</li>
+    <li><strong>Spring Boot 프로젝트에서의 현실</strong>: Domain Layer 안의 객체에 JPA 어노테이션(<code>@Entity</code>, <code>@Column</code>)을 붙이는 것은 엄밀한 DDD 관점에서는 프레임워크 침범입니다. 그러나 두 객체(도메인용 / JPA용)를 따로 유지하는 비용이 크므로 실무에서는 절충해 같이 쓰는 경우가 많습니다 (본 프로젝트도 이 절충안).</li>
+    <li><strong>모듈 분리</strong>: 도메인이 커지면 Gradle / Maven 모듈로 layer를 강제 분리해 컴파일러가 침범을 차단하게 합니다. 본 프로젝트의 <code>modules/account-*</code>가 그 예시입니다. <code>commerce-api</code>는 본 주차에는 단일 모듈이지만 패키지로 계층을 분리합니다 (YAGNI).</li>
+  </ul>
+
+  <div class="refs">
+    <div class="label">레퍼런스</div>
+    <ul>
+      <li>Eric Evans, <em>Domain-Driven Design: Tackling Complexity in the Heart of Software</em> (2003) — Ch.4 "Isolating the Domain"</li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/ddd-oriented-microservice" target="_blank">Designing a DDD-oriented microservice</a></li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design" target="_blank">Infrastructure persistence layer / Repository pattern</a></li>
+      <li>Alistair Cockburn, <a href="https://alistair.cockburn.us/hexagonal-architecture/" target="_blank">Hexagonal Architecture (2005)</a></li>
+      <li>Robert C. Martin, <a href="https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html" target="_blank">The Clean Architecture</a></li>
+      <li>우아한형제들 기술블로그 — <a href="https://techblog.woowahan.com/2664/" target="_blank">DDD 잘 써먹기 위한 가이드 (2021)</a></li>
+      <li>우아한형제들 기술블로그 — <a href="https://techblog.woowahan.com/7110/" target="_blank">우리 팀의 코드 리뷰 문화 / 도메인 모델링</a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s2">
+  <h2><span class="num">2</span>Entity vs Value Object — 왜 따로 두는가</h2>
+
+  <h3>2.1 비유 — 학생과 색깔</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <div class="title">학생은 학번으로 구분하지만, 색깔은 그 자체가 본질입니다</div>
+    <div class="body">
+      교실에 김민지라는 학생이 두 명 있어도 학번이 다르면 서로 다른 학생입니다.
+      이름이 바뀌어도, 키가 자라도, 머리를 잘라도 <strong>학번만 같으면 같은 학생</strong>입니다.
+      이런 객체를 <strong>Entity</strong>라고 합니다.<br><br>
+      반대로 "빨강"이라는 색깔은 어떨까요? 미술실의 빨강과 운동장 페인트의 빨강이
+      RGB 값이 같다면 <strong>같은 빨강입니다</strong>. 색깔에는 식별자가 없고,
+      <strong>값 그 자체가 본질</strong>입니다. 이런 객체를 <strong>Value Object (VO)</strong>라고 합니다.<br><br>
+      도메인을 모델링할 때 "이 객체는 학생 같은 거야, 색깔 같은 거야?"를
+      구분하는 것이 첫 단추입니다.
+    </div>
+  </div>
+
+  <h3>2.2 정의</h3>
+
+  <div class="definition">
+    <div class="label">Entity</div>
+    <div class="body">
+      <strong>식별자(id)로 동일성이 결정되는 도메인 객체</strong>. 시간이 지나며
+      속성이 변해도 id가 같으면 같은 객체로 본다. 라이프사이클(생성 → 수정 → 삭제)을 가진다.
+    </div>
+  </div>
+
+  <div class="definition">
+    <div class="label">Value Object (VO)</div>
+    <div class="body">
+      <strong>속성들의 조합으로 동일성이 결정되는 도메인 객체</strong>. 식별자가 없다.
+      한 번 만들어지면 바뀌지 않는다(불변, immutable). 같은 값이면 같은 객체로 본다.
+    </div>
+  </div>
+
+  <h3>2.3 코드로 보는 차이</h3>
+
+  <pre><span class="comment">// Entity — id로 동일성 판단</span>
+<span class="keyword">class</span> Brand(
+    <span class="keyword">val</span> id: Long,
+    <span class="keyword">var</span> name: BrandName,         <span class="comment">// 시간이 지나 바뀔 수 있음</span>
+    <span class="keyword">var</span> description: String?
+) {
+    <span class="keyword">override fun</span> equals(other: Any?) = other <span class="keyword">is</span> Brand && other.id == this.id
+}
+
+<span class="comment">// Value Object — 값 자체로 동일성 판단, 한 번 만들면 못 바꿈</span>
+@Embeddable
+<span class="keyword">data class</span> BrandName(<span class="keyword">val</span> value: String) {
+    <span class="keyword">init</span> {
+        <span class="keyword">require</span>(value.isNotBlank()) { <span class="string">"브랜드 이름은 비어있을 수 없습니다"</span> }
+        <span class="keyword">require</span>(value.length <span class="keyword">in</span> 1..50) { <span class="string">"브랜드 이름은 1~50자입니다"</span> }
+    }
+}</pre>
+
+  <p>
+    핵심 차이 두 가지:
+  </p>
+
+  <ul>
+    <li><strong>Entity는 변할 수 있지만 같다</strong>: <code>Brand(id=1, name="Nike")</code>가 <code>name="Nike Inc."</code>로 바뀌어도 id가 1이면 여전히 같은 Brand.</li>
+    <li><strong>VO는 변할 수 없다</strong>: <code>BrandName("Nike")</code>를 "Nike Inc."로 만들고 싶으면 <strong>새 BrandName 객체를 만들어 갈아끼웁니다</strong>. 기존 객체를 수정하지 않습니다.</li>
+  </ul>
+
+  <h3>2.4 왜 VO를 따로 두는가 — 4가지 이점</h3>
+
+  <h4>이점 1 — 자기 검증 (Self-Validation)</h4>
+  <p>
+    <code>BrandName</code> 객체가 존재한다는 것 자체가 "유효한 브랜드 이름"임을 보장합니다.
+    어디서 받아왔든, 어떻게 만들었든 <code>init</code> 블록을 통과한 객체만 존재할 수
+    있기 때문입니다. 매번 "이 String이 유효한지" 검증할 필요가 없습니다.
+  </p>
+
+  <pre><span class="comment">// VO 없이</span>
+<span class="keyword">fun</span> createBrand(name: String) {
+    <span class="keyword">if</span> (name.isBlank()) <span class="keyword">throw</span> ...
+    <span class="keyword">if</span> (name.length > 50) <span class="keyword">throw</span> ...
+    <span class="comment">// ↑ Brand 만드는 모든 곳에서 이 검증을 반복해야 함</span>
+}
+
+<span class="comment">// VO 사용</span>
+<span class="keyword">fun</span> createBrand(name: BrandName) {
+    <span class="comment">// 이 함수 시작 시점에 name은 이미 유효함이 보장됨</span>
+}</pre>
+
+  <h4>이점 2 — 도메인 의미를 코드로 표현 (Make Implicit Explicit)</h4>
+  <p>
+    <code>price: Long</code>이라고 쓰면 그게 원 단위인지 달러인지, 음수가 가능한지
+    알 수 없습니다. <code>price: Price</code>라고 쓰면 "이건 가격이다, 음수가 될 수 없다"가
+    타입에 박힙니다. 코드를 읽는 사람이 도메인을 더 빨리 이해합니다.
+  </p>
+
+  <h4>이점 3 — 같은 타입 헷갈림 방지 (Primitive Obsession 회피)</h4>
+  <p>
+    <code>fun transfer(from: Long, to: Long, amount: Long)</code>이라는 함수가 있을 때,
+    인자 순서를 헷갈리기 쉽습니다. <code>fun transfer(from: AccountId, to: AccountId, amount: Money)</code>라면
+    컴파일러가 잘못된 호출을 막아줍니다. 같은 <code>Long</code>이지만
+    의미가 다른 값을 구분합니다.
+  </p>
+
+  <h4>이점 4 — 불변성으로 인한 안정성</h4>
+  <p>
+    여러 쓰레드 / 여러 객체가 같은 VO를 공유해도 누군가 값을 바꿔서 다른 곳에 영향을
+    주는 일이 없습니다. <strong>전달해도 안전합니다</strong>. 캐싱·해싱·비교가 단순해집니다.
+  </p>
+
+  <h3>2.5 본 프로젝트 매핑</h3>
+
+  <div class="project-map">
+    <div class="label">Entity</div>
+    <ul>
+      <li><code>Brand</code> — 브랜드 (id로 식별, 이름·설명 변경 가능)</li>
+      <li><code>Product</code> — 상품 (id로 식별)</li>
+      <li><code>Inventory</code> — 재고 (id로 식별, productId 1:1)</li>
+      <li><code>ProductLike</code> — 좋아요 (id로 식별, UK (userId, productId))</li>
+      <li><code>Order</code>, <code>OrderItem</code> — 주문 / 주문 항목</li>
+    </ul>
+  </div>
+
+  <div class="project-map">
+    <div class="label">Value Object (모두 <code>@Embeddable</code>, <code>data class</code>, <code>init</code>에서 검증)</div>
+    <ul>
+      <li><code>BrandName</code> — 길이 1~50, blank 금지</li>
+      <li><code>Price</code> — value ≥ 0</li>
+      <li><code>Money</code> — 주문 총액 (단위 통일)</li>
+      <li><code>Quantity</code> — value ≥ 0, <code>decrease(n)</code> 부족 시 <code>STOCK_INSUFFICIENT</code> throw</li>
+      <li><code>LikeCount</code> — value ≥ 0, <code>increment()</code> / <code>decrement()</code> (0 이하 no-op)</li>
+    </ul>
+    <small>
+      길이 상한 같은 숫자는 <code>@Column(length = 50)</code>과 <code>init</code> 양쪽에
+      <strong>직접 숫자</strong>로 둡니다 (CLAUDE.md §4 — 상수화 금지, 한 클래스 안에만 쓰이므로).
+    </small>
+  </div>
+
+  <h3>2.6 헷갈리는 경계 케이스</h3>
+
+  <table class="compare">
+    <thead>
+      <tr><th>객체</th><th>Entity인가 VO인가</th><th>이유</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>이메일 주소</td><td>대부분 VO</td><td>이메일 자체가 식별자 역할. 동일 문자열 = 동일 이메일</td></tr>
+      <tr><td>주소 (서울시 종로구 ...)</td><td>VO</td><td>"같은 주소"는 글자가 같으면 같음. 라이프사이클 없음</td></tr>
+      <tr><td>OrderItem (주문 항목)</td><td><strong>Entity</strong> (본 프로젝트)</td><td>같은 주문에 같은 상품이 여러 라인 가능, 식별자 필요</td></tr>
+      <tr><td>돈 (₩10,000)</td><td>VO</td><td>10,000원은 어디서 와도 10,000원</td></tr>
+      <tr><td>사용자</td><td>Entity</td><td>같은 이름·생일이어도 다른 사람일 수 있음 — id 필요</td></tr>
+    </tbody>
+  </table>
+
+  <h3>2.7 장단점</h3>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>VO 도입의 장점</h4>
+      <ul>
+        <li>검증이 한 곳에 모임 — DRY</li>
+        <li>도메인 의미가 타입에 박힘 — 가독성</li>
+        <li>불변이라 동시성 안전</li>
+        <li>같은 타입 헷갈림 방지 (Primitive Obsession)</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>단점 / 비용</h4>
+      <ul>
+        <li>객체 수가 늘어남 — 작은 도메인에는 과함</li>
+        <li>JPA <code>@Embeddable</code> 매핑 학습 필요</li>
+        <li>변환(VO ↔ String)이 곳곳에 필요</li>
+        <li>VO 내부 필드명이 DB 컬럼 prefix가 되는 등 영속성 디테일 누수 가능</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>2.8 실무 활용 패턴</h3>
+
+  <ul>
+    <li><strong>Martin Fowler의 ValueObject 정의 (2003 ~ 2024)</strong>: 두 객체가 같은 값을 가지면 같다고 보는 모든 객체. 불변성은 강력히 권장. 그가 가장 많이 드는 예시는 <code>Money</code> 클래스.</li>
+    <li><strong>Microsoft .NET DDD 권장</strong>: VO는 EF Core의 <code>Owned Entity</code>로 매핑한다 (Spring/JPA의 <code>@Embeddable</code> 대응). 검증은 생성자에서 강제.</li>
+    <li><strong>우아한형제들</strong>: "원시값 포장(Primitive Wrapping)" 표현을 자주 씁니다. 가격·전화번호·주소 등을 VO로 감싸 도메인 의미를 살리는 것이 코드 리뷰의 단골 피드백.</li>
+    <li><strong>Kotlin의 도움</strong>: <code>data class</code>가 equals/hashCode를 자동 생성해 VO 구현이 매우 가볍습니다. <code>copy()</code>로 일부 필드만 바꾼 새 인스턴스를 손쉽게 만들 수 있습니다.</li>
+  </ul>
+
+  <div class="refs">
+    <div class="label">레퍼런스</div>
+    <ul>
+      <li>Martin Fowler bliki — <a href="https://martinfowler.com/bliki/ValueObject.html" target="_blank">ValueObject</a></li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/implement-value-objects" target="_blank">Implement value objects</a></li>
+      <li>Eric Evans, <em>DDD</em> Ch.5 — "A Model Expressed in Software"</li>
+      <li>Vaughn Vernon, <em>Implementing DDD</em> Ch.6 — "Value Objects"</li>
+      <li>Kent Beck, <em>Test-Driven Development by Example</em> — Money 예제 (전형적 VO TDD)</li>
+      <li>우아한형제들 — <a href="https://techblog.woowahan.com/2531/" target="_blank">원시값 포장 / 도메인 모델링 사례</a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s3">
+  <h2><span class="num">3</span>Domain Service vs Application Service — 두 Service는 왜 다른가</h2>
+
+  <h3>3.1 비유 — 요리사와 매니저</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <div class="title">둘 다 음식점 직원이지만, 일이 완전히 다릅니다</div>
+    <div class="body">
+      <strong>요리사(Domain Service)</strong>는 음식을 만드는 사람입니다. 재료 손질, 굽기,
+      플레이팅 — 이게 음식점의 본질적인 가치를 만들어내는 일입니다. 손님이 누구인지,
+      어떤 카드로 결제하는지는 모릅니다.<br><br>
+      <strong>매니저(Application Service)</strong>는 손님의 주문을 받고, 요리사에게 전달하고,
+      음식이 나오면 손님에게 가져다 드리고, 결제까지 챙기는 사람입니다. 직접 요리하지는
+      않습니다. <strong>조립(orchestration)</strong>이 일입니다.<br><br>
+      둘 다 "Service"라 부르지만 책임이 다릅니다. <strong>Domain Service는 도메인의
+      본질적인 행위, Application Service는 그것들을 엮는 흐름</strong>입니다.
+    </div>
+  </div>
+
+  <h3>3.2 정의</h3>
+
+  <div class="definition">
+    <div class="label">Domain Service</div>
+    <div class="body">
+      어떤 도메인 행위가 <strong>특정 Entity 하나에 자연스럽게 속하지 않을 때</strong> 그것을
+      담는 곳. 여러 도메인 객체 / Aggregate가 협업해야 할 때 사용한다.
+      <strong>stateless</strong> (자기 상태를 가지지 않음). Domain Layer에 속한다.
+      비즈니스 규칙·정책이 들어 있어야 한다.
+    </div>
+  </div>
+
+  <div class="definition">
+    <div class="label">Application Service</div>
+    <div class="body">
+      Use Case의 진입점. 여러 도메인 객체 / Domain Service를 호출해 <strong>한 트랜잭션
+      안에서 흐름을 조립</strong>한다. 트랜잭션 경계 · 인증 · DTO 변환 · 외부 어댑터 호출 같은
+      "흐름 관리"만 다룬다. <strong>비즈니스 규칙은 가지지 않는다</strong>. Application Layer에 속한다.
+    </div>
+  </div>
+
+  <h3>3.3 한 표로 비교</h3>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>Domain Service</th><th>Application Service</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-key">위치</td><td><code>domain/</code></td><td><code>application/</code></td></tr>
+      <tr><td class="col-key">책임</td><td>도메인 행위 · 정책 · 여러 객체 협업</td><td>Use Case 조립 · 트랜잭션 · 인증 · DTO 변환</td></tr>
+      <tr><td class="col-key">상태</td><td>Stateless (멤버는 final 의존성만)</td><td>Stateless</td></tr>
+      <tr><td class="col-key">트랜잭션</td><td>가지지 않음 (호출자가 관리)</td><td><code>@Transactional</code> 경계 자체를 가짐</td></tr>
+      <tr><td class="col-key">비즈니스 규칙</td><td>여기 산다 (예: 재고 부족 판단)</td><td>없다 (있다면 Domain으로 옮길 신호)</td></tr>
+      <tr><td class="col-key">외부 의존</td><td>Domain Repository 인터페이스 / 다른 Domain Service만</td><td>Domain Service / Repository / 외부 어댑터 모두</td></tr>
+      <tr><td class="col-key">테스트</td><td>순수 단위 테스트 (Repository mock)</td><td>주로 단위 테스트 (Spring 없이도) — 통합은 별도</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.4 본 프로젝트 — 둘이 어떻게 협업하나</h3>
+
+  <p>
+    가장 명확한 예시는 <strong>주문 생성</strong> 흐름입니다.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      sequenceDiagram
+        participant Controller as OrderController<br/>(presentation)
+        participant Facade as OrderFacade<br/>(application)
+        participant AppService as OrderService<br/>(application)
+        participant DomainService as OrderPlacementService<br/>(domain service)
+        participant Repos as Product/Inventory<br/>Repository
+        participant OrderRepo as OrderRepository
+
+        Controller->>Facade: place(request)
+        Facade->>AppService: place(userId, command)
+        Note over AppService: @Transactional 시작
+        AppService->>DomainService: place(userId, items)
+        DomainService->>Repos: 상품 조회 + 재고 차감
+        Repos-->>DomainService: 결과 (또는 STOCK_INSUFFICIENT)
+        DomainService-->>AppService: Order (snapshot 완료)
+        AppService->>OrderRepo: save(order)
+        OrderRepo-->>AppService: persisted
+        AppService-->>Facade: OrderInfo
+        Facade-->>Controller: OrderResponse
+    </div>
+  </div>
+
+  <p>
+    역할을 다시 한 번 정리하면:
+  </p>
+
+  <ul>
+    <li><strong><code>OrderPlacementService</code> (Domain Service)</strong> — 주문 생성의 <em>도메인 로직</em>:
+      상품 조회 → 스냅샷 만들기 → 재고 차감 → Order 객체 만들기. 이 협업이 "주문이 무엇인지"를 결정합니다.</li>
+    <li><strong><code>OrderService</code> (Application Service)</strong> — Use Case 흐름:
+      <code>@Transactional</code>로 트랜잭션 시작, items 비었으면 400, Domain Service 호출, save, 응답.</li>
+    <li><strong><code>OrderFacade</code> (Application Service의 또 다른 진입점)</strong> — Request → Command 매핑, 인증 컨텍스트 소비, Response 변환.</li>
+  </ul>
+
+  <pre><span class="comment">// Domain Service — 본질적 로직</span>
+@Service
+<span class="keyword">class</span> OrderPlacementService(
+    <span class="keyword">private val</span> productRepository: ProductRepository,
+    <span class="keyword">private val</span> inventoryService: InventoryService,
+) {
+    <span class="keyword">fun</span> place(userId: Long, items: List&lt;OrderItemCommand&gt;): Order {
+        <span class="comment">// 1. product 조회 + 누락 검증</span>
+        <span class="keyword">val</span> products = productRepository.findAllByIdIn(items.map { it.productId })
+        <span class="keyword">if</span> (products.size != items.size) {
+            <span class="keyword">throw</span> NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+        }
+
+        <span class="comment">// 2. snapshot 만들기</span>
+        <span class="keyword">val</span> snapshots = buildSnapshots(products, items)
+
+        <span class="comment">// 3. 재고 차감 (부족 시 ConflictException throw → 트랜잭션 롤백)</span>
+        inventoryService.decreaseAll(items)
+
+        <span class="comment">// 4. Order aggregate 생성 (invariant 검증 포함)</span>
+        <span class="keyword">return</span> Order.create(userId, snapshots)
+    }
+}
+
+<span class="comment">// Application Service — 흐름 조립</span>
+@Service
+<span class="keyword">class</span> OrderService(
+    <span class="keyword">private val</span> orderPlacementService: OrderPlacementService,
+    <span class="keyword">private val</span> orderRepository: OrderRepository,
+) {
+    @Transactional
+    <span class="keyword">fun</span> place(userId: Long, command: OrderCommand): OrderInfo {
+        <span class="keyword">if</span> (command.items.isEmpty()) {
+            <span class="keyword">throw</span> BadRequestException(OrderErrorCode.EMPTY_ITEMS)
+        }
+        <span class="keyword">val</span> order = orderPlacementService.place(userId, command.items)
+        <span class="keyword">val</span> saved = orderRepository.save(order)
+        <span class="keyword">return</span> OrderInfo.from(saved)
+    }
+}</pre>
+
+  <h3>3.5 모든 도메인에 Domain Service가 필요한가? — 아니다 (YAGNI)</h3>
+
+  <p>
+    Brand는 단순 CRUD입니다. 생성·조회·수정·삭제만 있고 여러 객체 협업이 없습니다.
+    이런 경우 Domain Service를 만드는 것은 <strong>과한 설계</strong>입니다.
+    Application Service가 Repository를 직접 호출하면 충분합니다.
+  </p>
+
+  <div class="definition">
+    <div class="label">언제 Domain Service를 만드는가</div>
+    <div class="body">
+      <strong>두 개 이상의 도메인 객체가 협업해야 하고</strong>, 그 행위가 어느 한 객체에
+      자연스럽게 속하지 않을 때. 한 Entity의 메서드로 표현 가능하다면 그곳에 두는 게
+      먼저입니다 — Anemic Domain Model을 만들지 않기 위해.
+    </div>
+  </div>
+
+  <h3>3.6 본 프로젝트 Domain Service 2개</h3>
+
+  <div class="project-map">
+    <div class="label">Domain Service (본 주차)</div>
+    <ul>
+      <li><strong><code>ProductCatalogService</code></strong> — Product + Brand + Inventory를 합성해 상품 카탈로그 응답을 만듭니다. 어느 한 객체로 표현 불가.</li>
+      <li><strong><code>OrderPlacementService</code></strong> — 주문 생성 시 상품 조회 + 스냅샷 + 재고 차감 + Order 생성을 협업. 여러 도메인이 얽힘.</li>
+    </ul>
+  </div>
+
+  <div class="project-map">
+    <div class="label">Application Service (Facade)</div>
+    <ul>
+      <li><code>BrandFacade</code>, <code>ProductFacade</code>, <code>LikeFacade</code>, <code>OrderFacade</code> — Use Case 진입점</li>
+      <li><code>BrandService</code>, <code>ProductService</code>, <code>LikeService</code>, <code>OrderService</code>, <code>InventoryService</code> — 트랜잭션 경계와 흐름</li>
+    </ul>
+    <small>Facade와 Service를 둘 다 두는 이유: Facade는 DTO/인증 등 외부 형식과 닿고, Service는 도메인 객체 단위 협업. 본 주차는 둘 다 application/ 아래에 둡니다.</small>
+  </div>
+
+  <h3>3.7 흔히 하는 실수 — Anemic Domain Model</h3>
+
+  <p>
+    DDD를 처음 적용할 때 가장 흔한 함정입니다. Entity는 데이터만 들고 있고
+    (getter/setter만), 모든 로직이 Service에 절차적으로 쌓이는 패턴입니다.
+    Martin Fowler가 2003년에 <a href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank">"Anemic Domain Model"</a>이라는
+    이름으로 비판한 안티 패턴입니다.
+  </p>
+
+  <pre><span class="comment">// 안티 패턴 — Anemic</span>
+<span class="keyword">class</span> Product(<span class="keyword">var</span> likeCount: Long) <span class="comment">// 데이터만</span>
+
+<span class="keyword">class</span> LikeService {
+    <span class="keyword">fun</span> like(productId: Long) {
+        <span class="keyword">val</span> product = productRepository.findById(productId)
+        product.likeCount = product.likeCount + 1  <span class="comment">// 로직이 Service에</span>
+        productRepository.save(product)
+    }
+}
+
+<span class="comment">// 권장 — Rich Domain Model</span>
+<span class="keyword">class</span> Product(<span class="keyword">var</span> likeCount: LikeCount) {
+    <span class="keyword">fun</span> like() {
+        likeCount = likeCount.increment()  <span class="comment">// 로직이 Entity에</span>
+    }
+}
+
+<span class="keyword">class</span> LikeService {
+    <span class="keyword">fun</span> like(productId: Long) {
+        <span class="keyword">val</span> product = productRepository.findById(productId)
+        product.like()  <span class="comment">// 흐름만 조립</span>
+        productRepository.save(product)
+    }
+}</pre>
+
+  <p>
+    구분 기준: <strong>"단일 Entity의 상태 변경이라면 Entity 메서드로"</strong>가 첫 번째 원칙.
+    Service로 빼는 것은 단일 Entity로 표현 불가할 때만.
+  </p>
+
+  <h3>3.8 장단점</h3>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>장점</h4>
+      <ul>
+        <li>비즈니스 로직이 Domain에 농축 — 변경 영향 좁음</li>
+        <li>Application Service가 가벼워 가독성 좋음</li>
+        <li>Domain Service는 Spring 없이 단위 테스트</li>
+        <li>같은 Domain Service를 여러 Use Case에서 재사용</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>단점</h4>
+      <ul>
+        <li>Domain Service / Application Service 경계가 모호할 때가 있음</li>
+        <li>단순 CRUD에 강제로 Domain Service를 만들면 오히려 과함</li>
+        <li>Facade / Service / Domain Service 3종이 늘어나면 추적 비용 증가</li>
+        <li>"이 로직이 어디에 사는가"를 팀이 합의하지 않으면 일관성 깨짐</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>3.9 실무 활용 패턴</h3>
+
+  <ul>
+    <li><strong>Eric Evans (원전)</strong>: Service는 stateless여야 하고, 도메인 어휘로 이름 지어야 한다. <code>OrderPlacementService</code>는 좋은 이름, <code>OrderHelper</code>는 나쁜 이름.</li>
+    <li><strong>Microsoft .NET DDD</strong>: Application Service는 thin해야 한다. 비즈니스 로직이 들어가는 순간 Anemic의 신호.</li>
+    <li><strong>Vaughn Vernon, IDDD Ch.7</strong>: Domain Service의 인터페이스는 Domain layer에, 구현은 Domain layer 또는 Infrastructure layer (외부 시스템에 의존한다면). 본 프로젝트는 외부 시스템 의존이 없으므로 Domain layer에 구현체까지.</li>
+    <li><strong>네이밍 컨벤션 (본 프로젝트)</strong>: Domain Service는 동사형(<code>OrderPlacementService</code>, <code>ProductCatalogService</code>) — 행위를 강조. Application Service는 도메인 명사 + Service / Facade (<code>OrderService</code>, <code>OrderFacade</code>) — Use Case 진입점.</li>
+  </ul>
+
+  <div class="refs">
+    <div class="label">레퍼런스</div>
+    <ul>
+      <li>Eric Evans, <em>DDD</em> Ch.5 — "Services"</li>
+      <li>Vaughn Vernon, <em>Implementing DDD</em> Ch.7 — "Services"</li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/microservice-application-layer-web-api-design" target="_blank">Application Layer Web API design</a></li>
+      <li>Martin Fowler — <a href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank">AnemicDomainModel</a></li>
+      <li>우아한형제들 — <a href="https://techblog.woowahan.com/2647/" target="_blank">서비스 레이어의 책임 / Facade 패턴 활용</a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s4">
+  <h2><span class="num">4</span>Entity vs Domain — 헷갈리는 두 단어 정리</h2>
+
+  <h3>4.1 비유 — 동물원과 사자</h3>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <div class="title">동물원 안에 사자가 있습니다</div>
+    <div class="body">
+      <strong>동물원</strong>은 큰 공간이자 영역입니다. 사자도 있고, 호랑이도 있고,
+      관리인도 있고, 우리(cage)도 있습니다. 이 큰 영역이 <strong>Domain</strong>입니다.<br><br>
+      <strong>사자</strong>는 동물원 안에 사는 한 마리의 동물입니다. 학번처럼 식별표가 붙어 있고,
+      태어나서 자라고 늙고 죽습니다. 이런 식별성 있는 객체가 <strong>Entity</strong>입니다.<br><br>
+      "동물원에는 사자가 있다" — <strong>Domain 안에 Entity가 있다</strong>.
+      이 한 줄이 두 단어의 관계입니다.
+    </div>
+  </div>
+
+  <h3>4.2 "Domain"이라는 단어의 3가지 의미</h3>
+
+  <p>
+    혼란의 진짜 원인은 <strong>"Domain"이 맥락마다 다른 의미로 쓰인다</strong>는 점입니다.
+    같은 글 안에서도 세 가지 의미로 등장합니다.
+  </p>
+
+  <div class="meaning-card">
+    <div class="title">의미 1<span class="chip">DDD 비즈니스 영역</span></div>
+    <p style="margin:0">
+      <strong>비즈니스의 한 영역 자체</strong>. "전자상거래 도메인", "결제 도메인", "물류 도메인".
+      코드와 무관한, 비즈니스 세계의 한 영역을 가리킵니다. 본 프로젝트에서
+      "Brand 도메인 / Product 도메인 / Order 도메인" 같은 표현이 여기 해당합니다.
+    </p>
+  </div>
+
+  <div class="meaning-card">
+    <div class="title">의미 2<span class="chip">Layered Architecture 의 한 층</span></div>
+    <p style="margin:0">
+      <strong>코드의 한 계층(layer)</strong>. "도메인 레이어", "<code>com.loopers.domain.brand</code>".
+      Section 1에서 다룬 Presentation / Application / Domain / Infrastructure 중 가장 중심에 있는 그 층입니다.
+    </p>
+  </div>
+
+  <div class="meaning-card">
+    <div class="title">의미 3<span class="chip">도메인 객체 총칭</span></div>
+    <p style="margin:0">
+      <strong>도메인 레이어에 사는 객체 전체</strong>. Entity + VO + Aggregate + Domain Service +
+      Repository 인터페이스 + ErrorCode 등을 통칭. "도메인 객체(domain object)"라는 표현이
+      여기 해당합니다.
+    </p>
+  </div>
+
+  <h3>4.3 "Entity"라는 단어의 함정 — JPA Entity와의 혼동</h3>
+
+  <p>
+    Spring/JPA를 쓰는 환경에서 "Entity"라고 하면 두 가지 의미가 겹칩니다.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>DDD Entity</th><th>JPA Entity (<code>@Entity</code>)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-key">정의</td><td>식별성 있는 도메인 객체</td><td>DB 테이블과 매핑되는 클래스</td></tr>
+      <tr><td class="col-key">레이어</td><td>Domain Layer</td><td>일반적으로 Infrastructure (또는 Domain에 어노테이션을 같이 박는 절충)</td></tr>
+      <tr><td class="col-key">필수 조건</td><td>id로 동일성, 라이프사이클</td><td><code>@Entity</code>, <code>@Id</code>, <code>@Table</code> 같은 JPA 어노테이션</td></tr>
+      <tr><td class="col-key">반드시 일치?</td><td colspan="2">아니다. DDD Entity가 JPA Entity가 아닐 수도, 그 반대도 가능</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    엄밀한 DDD 관점에서는 두 가지를 분리하는 것이 이상적입니다 (Domain 객체에 JPA 의존이
+    묻으면 안 되니까). 그러나 두 객체를 따로 두면 매핑 코드가 크게 늘어나므로
+    실무에서는 <strong>같은 클래스에 두 역할을 겸하게 하는 절충</strong>이 흔합니다.
+    본 프로젝트도 이 절충을 따라 <code>Brand</code> 클래스 하나가 DDD Entity + JPA Entity를
+    겸합니다.
+  </p>
+
+  <h3>4.4 한 문장 매핑</h3>
+
+  <p>
+    어휘 정리:
+  </p>
+
+  <div class="meaning-card">
+    <div class="title">"Brand 도메인의 Brand 엔티티"</div>
+    <p style="margin:0">
+      = "Brand 비즈니스 영역(의미 1) 안에 있는, 도메인 레이어(의미 2)의 식별성 있는 객체"
+    </p>
+  </div>
+
+  <div class="meaning-card">
+    <div class="title">"도메인 로직은 도메인 레이어에 둔다"</div>
+    <p style="margin:0">
+      = "비즈니스 규칙(의미 1의 로직)은 코드의 도메인 계층(의미 2)에 둔다".
+      앞의 도메인과 뒤의 도메인이 같은 단어지만 다른 의미입니다.
+    </p>
+  </div>
+
+  <div class="meaning-card">
+    <div class="title">"이 클래스는 도메인 객체야"</div>
+    <p style="margin:0">
+      = "도메인 레이어(의미 2)에 사는 객체(의미 3) — Entity / VO / Aggregate / Domain Service 중 하나".
+    </p>
+  </div>
+
+  <h3>4.5 본 프로젝트에서의 사용 예시</h3>
+
+  <div class="project-map">
+    <div class="label">의미 1 (비즈니스 영역) 사례</div>
+    <ul>
+      <li>"본 주차에 다룰 도메인은 5개입니다 — Brand, Product, Inventory, Like, Order"</li>
+      <li>"<code>docs/week2/01-brand/</code>는 Brand 도메인의 시나리오 명세입니다"</li>
+    </ul>
+  </div>
+
+  <div class="project-map">
+    <div class="label">의미 2 (레이어) 사례</div>
+    <ul>
+      <li>"<code>BrandRepository</code> 인터페이스는 도메인 레이어에 둡니다"</li>
+      <li>"<code>com.loopers.domain.brand.Brand</code>"</li>
+    </ul>
+  </div>
+
+  <div class="project-map">
+    <div class="label">의미 3 (객체 총칭) 사례</div>
+    <ul>
+      <li>"<code>BrandName</code>은 도메인 객체 중 VO입니다"</li>
+      <li>"이 도메인 객체에는 행위를 더 추가하지 않습니다 (단순 데이터 보유)"</li>
+    </ul>
+  </div>
+
+  <h3>4.6 추가 어휘 정리 — Bounded Context</h3>
+
+  <p>
+    "Brand 도메인"이라고 부를 때 정확히는 <strong>Bounded Context</strong>(경계 지어진 맥락)를
+    가리킵니다. DDD에서 큰 비즈니스를 작은 영역으로 쪼개 각자 독립된 모델을 가지게 하는
+    것을 Bounded Context라고 부릅니다. 본 주차의 5개 도메인은 사실상 5개의
+    Bounded Context이고, 그 사이는 <strong>id로만 참조</strong>합니다 (FK 안 씀, 같은 객체를 공유
+    안 함). 자세한 결정 배경은 직전 의견 형성에서 결정한 "Brand → Product 단방향" 결정 참조.
+  </p>
+
+  <div class="refs">
+    <div class="label">레퍼런스</div>
+    <ul>
+      <li>Eric Evans, <em>DDD</em> Ch.2 (Ubiquitous Language), Ch.14 (Maintaining Model Integrity / Bounded Context)</li>
+      <li>Martin Fowler — <a href="https://martinfowler.com/bliki/BoundedContext.html" target="_blank">BoundedContext</a></li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/identify-microservice-domain-model-boundaries" target="_blank">Identifying domain-model boundaries</a></li>
+      <li>본 프로젝트 — <code>docs/ubiquitous-language.md</code> (어휘 사전)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s5">
+  <h2><span class="num">5</span>본 프로젝트 매트릭스 — 5도메인 × 6패턴</h2>
+
+  <p>
+    5개 도메인(Brand · Product · Inventory · Like · Order)이 6개 DDD 패턴
+    (Entity · VO · Aggregate Root · Domain Service · Application Service · Repository)에
+    어떻게 매핑되는지 한 표로 정리합니다. <strong>빈 칸은 "쓰지 않는다"가 아니라 "지금 필요하지
+    않다(YAGNI)"</strong>를 의미합니다.
+  </p>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th style="width:90px;">도메인</th>
+        <th>Entity</th>
+        <th>Value Object</th>
+        <th>Aggregate Root</th>
+        <th>Domain Service</th>
+        <th>Application Service</th>
+        <th>Repository</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="domain-col">Brand</td>
+        <td><span class="tag entity">Brand</span></td>
+        <td><span class="tag vo">BrandName</span></td>
+        <td class="empty">단일 Entity Aggregate</td>
+        <td class="empty">단순 CRUD라 불필요</td>
+        <td><span class="tag as">BrandService</span><br><span class="tag as">BrandFacade</span></td>
+        <td><span class="tag repo">BrandRepository</span></td>
+      </tr>
+      <tr>
+        <td class="domain-col">Product</td>
+        <td><span class="tag entity">Product</span></td>
+        <td><span class="tag vo">Price</span><br><span class="tag vo">LikeCount</span></td>
+        <td class="empty">단일 Entity Aggregate</td>
+        <td><span class="tag ds">ProductCatalogService</span><br><small>(Product + Brand + Inventory 합성)</small></td>
+        <td><span class="tag as">ProductService</span><br><span class="tag as">ProductFacade</span></td>
+        <td><span class="tag repo">ProductRepository</span></td>
+      </tr>
+      <tr>
+        <td class="domain-col">Inventory</td>
+        <td><span class="tag entity">Inventory</span></td>
+        <td><span class="tag vo">Quantity</span></td>
+        <td class="empty">단일 Entity Aggregate</td>
+        <td class="empty">단순 (decreaseAll은 Application)</td>
+        <td><span class="tag as">InventoryService</span></td>
+        <td><span class="tag repo">InventoryRepository</span></td>
+      </tr>
+      <tr>
+        <td class="domain-col">Like</td>
+        <td><span class="tag entity">ProductLike</span></td>
+        <td class="empty">현 시점 VO 없음</td>
+        <td class="empty">단일 Entity Aggregate</td>
+        <td class="empty">단일 entity 협업이라 불필요</td>
+        <td><span class="tag as">LikeService</span><br><span class="tag as">LikeFacade</span></td>
+        <td><span class="tag repo">ProductLikeRepository</span></td>
+      </tr>
+      <tr>
+        <td class="domain-col">Order</td>
+        <td><span class="tag entity">Order</span><br><span class="tag entity">OrderItem</span></td>
+        <td><span class="tag vo">Money</span></td>
+        <td><span class="tag agg">Order</span><br><small>(Order ←→ OrderItem)</small></td>
+        <td><span class="tag ds">OrderPlacementService</span><br><small>(Product/Inventory 협업 + snapshot)</small></td>
+        <td><span class="tag as">OrderService</span><br><span class="tag as">OrderFacade</span></td>
+        <td><span class="tag repo">OrderRepository</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>5.1 매트릭스에서 보이는 패턴</h3>
+
+  <ul>
+    <li><strong>모든 도메인에 Entity와 Application Service는 있다</strong> — 이게 기본.</li>
+    <li><strong>VO는 invariant가 강한 필드에만 등장한다</strong> — Like는 단순 토글이라 VO가 필요 없음. Brand는 이름만 VO.</li>
+    <li><strong>Aggregate Root는 Order에만 있다</strong> — 나머지는 single-entity aggregate. Order만 OrderItem과 일관성 경계를 함께 가진다.</li>
+    <li><strong>Domain Service는 두 군데만</strong> — Product 합성 + Order 생성. 단순 CRUD에는 Domain Service 강제 신설 금지(YAGNI).</li>
+    <li><strong>Repository는 모든 도메인에 1개씩</strong> — domain 인터페이스 + infrastructure 구현 패턴.</li>
+  </ul>
+
+  <h3>5.2 도메인 간 의존 방향</h3>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart LR
+        Order["Order 도메인"]
+        Like["Like 도메인"]
+        Product["Product 도메인"]
+        Inventory["Inventory 도메인"]
+        Brand["Brand 도메인"]
+
+        Order -->|id 참조 + snapshot| Product
+        Order -->|차감| Inventory
+        Like -->|id 참조 + likeCount 증감| Product
+        Product -->|id 참조 + 존재 검증| Brand
+        Inventory -->|id 참조 1:1| Product
+
+        style Brand fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style Product fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Inventory fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Like fill:#FEF3C7,stroke:#B45309,stroke-width:2px
+        style Order fill:#FEE2E2,stroke:#B91C1C,stroke-width:2px
+    </div>
+  </div>
+
+  <p>
+    Brand가 가장 안정적(아무도 의존하지 않음), Order가 가장 불안정(여러 도메인을 참조).
+    이는 <strong>Stable Dependencies Principle</strong>과 일치합니다 — 변경 빈도가 낮은 쪽이 의존받습니다.
+    직전 의견 형성에서 결정한 "Product → Brand 단방향" 원칙이 이 그림에 그대로 박혀 있습니다.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s6">
+  <h2><span class="num">6</span>레퍼런스 — 공식 문서 + 빅테크 블로그</h2>
+
+  <p>
+    이 문서는 사용자 학습 우선순위 <strong>공식 docs &gt; 빅테크 엔지니어링 블로그 &gt;
+    개인 블로그</strong>를 따라 출처를 선별했습니다. 본 주차 plan §3.4~§3.9의 권장 자료와 같은
+    리스트를 사용합니다.
+  </p>
+
+  <h3>6.1 1차 — 원전 / 공식 문서</h3>
+  <ul>
+    <li>Eric Evans, <em>Domain-Driven Design: Tackling Complexity in the Heart of Software</em> (Addison-Wesley, 2003) — 모든 DDD 어휘의 출발점</li>
+    <li>Eric Evans, <a href="https://www.domainlanguage.com/ddd/reference/" target="_blank">DDD Reference (무료 PDF)</a> — 핵심 패턴 요약본</li>
+    <li>Vaughn Vernon, <em>Implementing Domain-Driven Design</em> (Addison-Wesley, 2013) — 실무 적용 가이드 / Aggregate 4 rules</li>
+    <li>Microsoft .NET DDD 시리즈 — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/" target="_blank">전체 인덱스</a>
+      <ul>
+        <li><a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/ddd-oriented-microservice" target="_blank">Designing a DDD-oriented microservice</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/microservice-domain-model" target="_blank">Design a microservice domain model</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/implement-value-objects" target="_blank">Implement value objects</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design" target="_blank">Infrastructure persistence layer / Repository</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>6.2 2차 — Martin Fowler bliki</h3>
+  <ul>
+    <li><a href="https://martinfowler.com/bliki/ValueObject.html" target="_blank">ValueObject</a></li>
+    <li><a href="https://martinfowler.com/bliki/AnemicDomainModel.html" target="_blank">AnemicDomainModel</a> — 반드시 피해야 할 안티 패턴</li>
+    <li><a href="https://martinfowler.com/bliki/DDD_Aggregate.html" target="_blank">DDD_Aggregate</a></li>
+    <li><a href="https://martinfowler.com/bliki/BoundedContext.html" target="_blank">BoundedContext</a></li>
+    <li><a href="https://martinfowler.com/eaaCatalog/repository.html" target="_blank">Repository (P of EAA)</a></li>
+  </ul>
+
+  <h3>6.3 3차 — 빅테크 한국 블로그</h3>
+  <ul>
+    <li>우아한형제들 기술블로그 — <a href="https://techblog.woowahan.com/2664/" target="_blank">우아한 객체지향 / DDD 잘 써먹기</a></li>
+    <li>우아한형제들 — <a href="https://techblog.woowahan.com/2531/" target="_blank">원시값 포장 (Primitive Wrapping)</a></li>
+    <li>우아한형제들 — <a href="https://techblog.woowahan.com/2647/" target="_blank">서비스 레이어의 책임 / Facade</a></li>
+    <li>네이버 D2 — <a href="https://d2.naver.com/helloworld/9603518" target="_blank">DDD를 적용한 우리 회사 시스템 사례</a></li>
+    <li>카카오 기술블로그 — <a href="https://tech.kakao.com/2022/12/26/event-storming-ddd/" target="_blank">Event Storming + DDD</a></li>
+    <li>토스 슬래시 — <a href="https://www.youtube.com/@tossslash" target="_blank">결제·송금 도메인 모델링 사례 (영상)</a></li>
+  </ul>
+
+  <h3>6.4 4차 — 빅테크 영문 / 오픈소스</h3>
+  <ul>
+    <li>Microsoft eShopOnContainers — <a href="https://github.com/dotnet-architecture/eShopOnContainers" target="_blank">GitHub</a> — DDD + Layered + Microservice의 정석 참고 구현</li>
+    <li>Alistair Cockburn — <a href="https://alistair.cockburn.us/hexagonal-architecture/" target="_blank">Hexagonal Architecture (2005)</a></li>
+    <li>Robert C. Martin — <a href="https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html" target="_blank">The Clean Architecture</a></li>
+    <li>Jeffrey Palermo — <a href="https://jeffreypalermo.com/2008/07/the-onion-architecture-part-1/" target="_blank">The Onion Architecture</a></li>
+  </ul>
+
+  <h3>6.5 본 프로젝트 내부 문서</h3>
+  <ul>
+    <li><code>docs/week3/00-plan.md</code> — Week 3 도메인 구현 + DDD 학습 플랜 (§3.4~§3.9 학습 로드맵)</li>
+    <li><code>docs/week3/01-checklist.md</code> — Phase별 실행 체크리스트</li>
+    <li><code>docs/ubiquitous-language.md</code> — 본 프로젝트 어휘 사전</li>
+    <li><code>docs/conventions.md</code> — 영속성·모델링 공통 규칙</li>
+    <li><code>CLAUDE.md</code> §2 (Error Handling), §3 (Design Principles), §4 (Code Organization)</li>
+  </ul>
+</section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      fontFamily: 'system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif',
+      fontSize: '14px',
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#18181B',
+      primaryBorderColor: '#71717A',
+      lineColor: '#71717A',
+    },
+    flowchart: {
+      htmlLabels: true,
+      curve: 'basis',
+      useMaxWidth: false,
+    },
+    sequence: {
+      actorMargin: 60,
+      boxMargin: 10,
+      useMaxWidth: false,
+    }
+  });
+</script>
+</body>
+</html>

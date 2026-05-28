@@ -34,6 +34,7 @@ class UserServiceTest {
             assertAll(
                 { assertThat(saved.id).isNotZero() },
                 { assertThat(saved.loginId).isEqualTo("loopers01") },
+                { assertThat(saved.role).isEqualTo(UserRole.CONSUMER) },
                 { assertThat(repository.findByLoginId("loopers01")).isNotNull() },
             )
         }

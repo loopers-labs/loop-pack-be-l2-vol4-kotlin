@@ -5,6 +5,8 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.time.LocalDate
 
@@ -25,6 +27,10 @@ class User(
 
     @Column(name = "email", nullable = false, length = 100)
     val email: String,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    val role: UserRole,
 ) : BaseEntity() {
     init {
         if (!loginId.matches(LOGIN_ID_PATTERN)) {

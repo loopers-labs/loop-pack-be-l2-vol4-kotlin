@@ -24,6 +24,7 @@ class UserService(
             name = command.name,
             birthdate = command.birthdate,
             email = command.email,
+            role = UserRole.CONSUMER,
         )
         return userRepository.save(user)
     }

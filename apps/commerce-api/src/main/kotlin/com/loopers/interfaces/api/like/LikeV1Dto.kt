@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.like
 
-import com.loopers.application.like.LikedProductSummary
+import com.loopers.domain.like.LikedProductSummary
 
 class LikeV1Dto {
     data class LikedProductResponse(

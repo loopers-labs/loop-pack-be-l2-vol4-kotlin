@@ -1,8 +1,8 @@
 package com.loopers.interfaces.api.like
 
-import com.loopers.application.like.LikedProductSummary
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
+import com.loopers.domain.like.LikedProductSummary
 
 interface LikeApplicationServicePort {
     fun like(userId: Long, productId: Long)

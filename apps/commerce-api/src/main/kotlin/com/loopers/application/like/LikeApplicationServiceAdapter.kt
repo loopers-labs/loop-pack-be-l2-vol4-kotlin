@@ -4,6 +4,7 @@ import com.loopers.domain.brand.BrandService
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.like.LikeService
+import com.loopers.domain.like.LikedProductSummary
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.like.LikeApplicationServicePort
@@ -59,12 +60,7 @@ class LikeApplicationServiceAdapter(
         val summaries = likesPage.items.mapNotNull { like ->
             val product = productsById[like.productId] ?: return@mapNotNull null
             val brand = brandsById[product.brandId] ?: return@mapNotNull null
-            LikedProductSummary(
-                productId = product.id,
-                name = product.name,
-                price = product.price,
-                brandName = brand.name,
-            )
+            LikedProductSummary.of(product, brand)
         }
         return PageResult.of(
             items = summaries,

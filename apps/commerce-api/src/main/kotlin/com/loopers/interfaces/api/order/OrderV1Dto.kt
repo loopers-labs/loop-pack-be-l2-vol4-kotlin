@@ -2,9 +2,9 @@ package com.loopers.interfaces.api.order
 
 import com.loopers.application.order.CreateOrderCommand
 import com.loopers.application.order.CreateOrderItemCommand
-import com.loopers.application.order.OrderDetail
-import com.loopers.application.order.OrderItemView
-import com.loopers.application.order.OrderSummary
+import com.loopers.domain.order.OrderDetail
+import com.loopers.domain.order.OrderItemView
+import com.loopers.domain.order.OrderSummary
 import java.time.ZonedDateTime
 
 class OrderV1Dto {

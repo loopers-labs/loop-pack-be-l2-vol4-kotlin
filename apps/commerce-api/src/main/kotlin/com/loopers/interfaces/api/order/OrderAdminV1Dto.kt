@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.order
 
-import com.loopers.application.order.AdminOrderDetail
-import com.loopers.application.order.AdminOrderSummary
+import com.loopers.domain.order.AdminOrderDetail
+import com.loopers.domain.order.AdminOrderSummary
 import java.time.ZonedDateTime
 
 class OrderAdminV1Dto {

@@ -2,6 +2,7 @@ package com.loopers.application.user
 
 import com.loopers.domain.auth.AuthService
 import com.loopers.domain.user.User
+import com.loopers.domain.user.UserInfo
 import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.user.UserApplicationServicePort
 import org.springframework.stereotype.Service
@@ -28,7 +29,7 @@ class UserApplicationServiceAdapter(
     override fun getMyInfo(loginId: String, rawPassword: String): UserInfo {
         val userId = authService.login(loginId, rawPassword)
         val user = userService.getById(userId)
-        return UserInfo(loginId = loginId, name = user.name, birth = user.birth, email = user.email)
+        return UserInfo.of(user, loginId)
     }
 
     @Transactional

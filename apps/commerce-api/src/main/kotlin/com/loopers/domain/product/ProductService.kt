@@ -26,6 +26,9 @@ class ProductService(
         stockRepositoryPort.findByProductId(productId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다.")
 
+    fun findAllStocksByProductIds(productIds: List<Long>): List<Stock> =
+        stockRepositoryPort.findAllByProductIdIn(productIds)
+
     fun create(name: String, price: Long, description: String, brandId: Long, quantity: Int): Pair<Product, Stock> {
         val product = productRepositoryPort.save(
             Product.create(name = name, price = price, description = description, brandId = brandId),

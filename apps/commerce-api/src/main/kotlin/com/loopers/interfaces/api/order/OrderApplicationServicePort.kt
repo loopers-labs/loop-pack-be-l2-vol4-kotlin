@@ -1,10 +1,10 @@
 package com.loopers.interfaces.api.order
 
 import com.loopers.application.order.CreateOrderCommand
-import com.loopers.application.order.OrderDetail
-import com.loopers.application.order.OrderSummary
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
+import com.loopers.domain.order.OrderDetail
+import com.loopers.domain.order.OrderSummary
 import java.time.ZonedDateTime
 
 interface OrderApplicationServicePort {

@@ -1,8 +1,5 @@
-package com.loopers.application.order
+package com.loopers.domain.order
 
-import com.loopers.domain.order.Order
-import com.loopers.domain.order.OrderItem
-import com.loopers.domain.order.OrderStatus
 import java.time.ZonedDateTime
 
 data class OrderItemView(

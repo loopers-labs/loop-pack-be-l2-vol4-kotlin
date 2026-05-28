@@ -1,8 +1,8 @@
 package com.loopers.interfaces.api
 
-import com.loopers.interfaces.api.user.UserApplicationServicePort
-import com.loopers.application.user.UserInfo
 import com.loopers.domain.user.User
+import com.loopers.domain.user.UserInfo
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.interfaces.api.user.UserController
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType

@@ -5,8 +5,9 @@ import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.like.LikeService
 import com.loopers.domain.order.OrderService
+import com.loopers.domain.product.LikeCountQueryPort
+import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductDetail
-import com.loopers.domain.product.ProductDetailComposer
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.ProductSummary
@@ -22,20 +23,20 @@ class ProductApplicationServiceAdapter(
     private val productService: ProductService,
     private val brandService: BrandService,
     private val likeService: LikeService,
-    private val productDetailComposer: ProductDetailComposer,
+    private val likeCountQueryPort: LikeCountQueryPort,
     private val orderService: OrderService,
 ) : ProductApplicationServicePort,
     ProductAdminApplicationServicePort {
     @Transactional(readOnly = true)
     override fun getProduct(id: Long): ProductDetail {
         val product = productService.getById(id)
-        return productDetailComposer.compose(product)
+        return composeDetail(product)
     }
 
     @Transactional(readOnly = true)
     override fun getProducts(brandId: Long?, sort: ProductSort, pageRequest: PageRequest): PageResult<ProductSummary> {
         val products = productService.getAll(brandId, sort, pageRequest)
-        val summaries = productDetailComposer.composeAll(products.items)
+        val summaries = composeSummaries(products.items)
         return PageResult(
             items = summaries,
             page = products.page,
@@ -69,7 +70,7 @@ class ProductApplicationServiceAdapter(
             brandId = command.brandId,
             quantity = command.quantity,
         )
-        return productDetailComposer.compose(updatedProduct)
+        return composeDetail(updatedProduct)
     }
 
     @Transactional
@@ -79,5 +80,28 @@ class ProductApplicationServiceAdapter(
         }
         productService.delete(id)
         likeService.deleteAllByProductId(id)
+    }
+
+    private fun composeDetail(product: Product): ProductDetail {
+        val brand = brandService.getById(product.brandId)
+        val stock = productService.getStockByProductId(product.id)
+        val likeCount = likeCountQueryPort.countByProductId(product.id)
+        return ProductDetail.of(product, brand, stock, likeCount)
+    }
+
+    private fun composeSummaries(products: List<Product>): List<ProductSummary> {
+        if (products.isEmpty()) return emptyList()
+        val productIds = products.map { it.id }
+        val brandIds = products.map { it.brandId }.distinct()
+        val brandsById = brandService.findAllByIds(brandIds).associateBy { it.id }
+        val stocksByProductId = productService.findAllStocksByProductIds(productIds).associateBy { it.productId }
+        val likeCounts = likeCountQueryPort.countsByProductIds(productIds)
+        return products.map { product ->
+            val brand = brandsById[product.brandId]
+                ?: throw CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다.")
+            val stock = stocksByProductId[product.id]
+                ?: throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다.")
+            ProductSummary.of(product, brand, stock, likeCounts[product.id] ?: 0L)
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.loopers.support.auth
 
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.UserService
+import com.loopers.domain.user.UserRole
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.servlet.http.HttpServletRequest
@@ -17,9 +18,13 @@ class AuthenticationInterceptor(
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         if (handler !is HandlerMethod) return true
 
+        val requiresAdmin =
+            handler.method.isAnnotationPresent(Admin::class.java) ||
+                handler.beanType.isAnnotationPresent(Admin::class.java)
         val requiresLogin =
             handler.method.isAnnotationPresent(LoginRequired::class.java) ||
-                handler.beanType.isAnnotationPresent(LoginRequired::class.java)
+                handler.beanType.isAnnotationPresent(LoginRequired::class.java) ||
+                requiresAdmin
         if (!requiresLogin) return true
 
         val loginId = request.getHeader(LOGIN_ID_HEADER)
@@ -30,6 +35,9 @@ class AuthenticationInterceptor(
 
         val user = userService.authenticate(loginId, RawPassword(loginPw))
         request.setAttribute(CURRENT_USER_KEY, user)
+        if (requiresAdmin && user.role != UserRole.ADMIN) {
+            throw CoreException(ErrorType.FORBIDDEN, "Admin role is required.")
+        }
         return true
     }
 

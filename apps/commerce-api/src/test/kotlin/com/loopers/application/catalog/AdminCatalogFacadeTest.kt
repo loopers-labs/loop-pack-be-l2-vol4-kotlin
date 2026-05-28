@@ -12,8 +12,44 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
 
 class AdminCatalogFacadeTest {
+    @DisplayName("관리자 브랜드 목록 조회")
+    @Nested
+    inner class GetBrands {
+        @DisplayName("등록된 브랜드 목록을 페이지로 조회한다")
+        @Test
+        fun returnsBrandPage() {
+            val brandRepository = FakeBrandRepository()
+            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            adminCatalogFacade.createBrand(
+                BrandCreateCommand(
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                ),
+            )
+            adminCatalogFacade.createBrand(
+                BrandCreateCommand(
+                    name = "street",
+                    description = "street brand",
+                    logoImageUrl = "https://image.loopers/street.png",
+                ),
+            )
+
+            val result = adminCatalogFacade.getBrands(page = 0, size = 20)
+
+            assertAll(
+                { assertThat(result.content).hasSize(2) },
+                { assertThat(result.totalElements).isEqualTo(2L) },
+                { assertThat(result.content.map { it.name }).containsExactly("street", "loopers") },
+            )
+        }
+    }
+
     @DisplayName("관리자 브랜드 등록")
     @Nested
     inner class CreateBrand {
@@ -84,6 +120,20 @@ class AdminCatalogFacadeTest {
 
         override fun findById(brandId: Long): Brand? {
             return brands.find { it.id == brandId }
+        }
+
+        override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+            val content = brands
+                .filter { !it.isDeleted }
+                .sortedByDescending { it.id }
+                .drop(page * size)
+                .take(size)
+
+            return PageImpl(
+                content,
+                PageRequest.of(page, size),
+                brands.count { !it.isDeleted }.toLong(),
+            )
         }
 
         override fun existsByName(name: String): Boolean {

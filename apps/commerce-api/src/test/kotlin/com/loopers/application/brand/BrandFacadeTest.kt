@@ -10,6 +10,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
 
 class BrandFacadeTest {
     @DisplayName("브랜드 조회")
@@ -47,6 +50,19 @@ class BrandFacadeTest {
 
         override fun findById(brandId: Long): Brand? {
             return brands.find { it.id == brandId }
+        }
+
+        override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+            val content = brands
+                .filter { !it.isDeleted }
+                .drop(page * size)
+                .take(size)
+
+            return PageImpl(
+                content,
+                PageRequest.of(page, size),
+                brands.count { !it.isDeleted }.toLong(),
+            )
         }
 
         override fun existsByName(name: String): Boolean {

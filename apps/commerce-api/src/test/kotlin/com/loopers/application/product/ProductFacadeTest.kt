@@ -90,6 +90,19 @@ class ProductFacadeTest {
             return brands.find { it.id == brandId }
         }
 
+        override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+            val content = brands
+                .filter { !it.isDeleted }
+                .drop(page * size)
+                .take(size)
+
+            return PageImpl(
+                content,
+                PageRequest.of(page, size),
+                brands.count { !it.isDeleted }.toLong(),
+            )
+        }
+
         override fun existsByName(name: String): Boolean {
             return brands.any { it.name == name }
         }

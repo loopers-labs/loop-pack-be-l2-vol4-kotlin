@@ -2,6 +2,9 @@ package com.loopers.infrastructure.brand
 
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
@@ -12,6 +15,19 @@ class BrandRepositoryImpl(
     override fun findById(brandId: Long): Brand? {
         return brandJpaRepository.findByIdOrNull(brandId)
             ?.let(BrandMapper::toDomain)
+    }
+
+    override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+        val pageable = PageRequest.of(
+            page,
+            size,
+            Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.desc("id"),
+            ),
+        )
+        return brandJpaRepository.findAllByIsDeletedFalse(pageable)
+            .map(BrandMapper::toDomain)
     }
 
     override fun existsByName(name: String): Boolean {

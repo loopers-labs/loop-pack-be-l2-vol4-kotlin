@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.admin.brand
 
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -90,6 +91,31 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api-admin/v1/brands")
+    @Nested
+    inner class GetBrands {
+        @DisplayName("등록된 브랜드 목록을 페이지로 조회한다")
+        @Test
+        fun returnsBrandPage() {
+            createBrand(name = "loopers")
+            createBrand(name = "street")
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<AdminBrandV1Dto.BrandResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.data).hasSize(2) },
+                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(2L) },
+                { assertThat(response.body?.data?.data?.map { it.name }).containsExactly("street", "loopers") },
+            )
+        }
+    }
+
     private fun createBrandRequest(
         name: String = "loopers",
         description: String = "loopers brand",
@@ -108,7 +134,17 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    private fun createBrand(name: String) {
+        testRestTemplate.exchange(
+            BRANDS_ENDPOINT,
+            HttpMethod.POST,
+            HttpEntity(createBrandRequest(name = name), createAdminHeaders()),
+            object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+        )
+    }
+
     private companion object {
-        private const val CREATE_BRAND_ENDPOINT = "/api-admin/v1/brands"
+        private const val BRANDS_ENDPOINT = "/api-admin/v1/brands"
+        private const val CREATE_BRAND_ENDPOINT = BRANDS_ENDPOINT
     }
 }

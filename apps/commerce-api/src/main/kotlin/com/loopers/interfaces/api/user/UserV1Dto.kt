@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.user
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserCommand
+import com.loopers.domain.user.UserRole
 import java.time.LocalDate
 
 class UserV1Dto {
@@ -32,6 +33,7 @@ class UserV1Dto {
         val name: String,
         val birthdate: LocalDate,
         val email: String,
+        val role: UserRole,
     ) {
         companion object {
             fun from(user: User): MyInfoResponse = MyInfoResponse(
@@ -39,6 +41,7 @@ class UserV1Dto {
                 name = maskName(user.name),
                 birthdate = user.birthdate,
                 email = user.email,
+                role = user.role,
             )
 
             private fun maskName(name: String): String = if (name.length <= 1) name else name.dropLast(1) + "*"

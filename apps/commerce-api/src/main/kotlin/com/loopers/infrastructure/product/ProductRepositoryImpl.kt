@@ -26,6 +26,9 @@ class ProductRepositoryImpl(
     override fun findActiveById(id: Long): Product? =
         productJpaRepository.findByIdAndStatusNot(id, ProductStatus.DELETED)
 
+    override fun findAllActiveByIdIn(ids: List<Long>): List<Product> =
+        productJpaRepository.findByIdInAndStatusNot(ids, ProductStatus.DELETED)
+
     override fun findActiveByBrandId(brandId: Long): List<Product> =
         productJpaRepository.findByBrandIdAndStatusNot(brandId, ProductStatus.DELETED)
 

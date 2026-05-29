@@ -4,6 +4,8 @@ import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandErrorCode
 import com.loopers.domain.brand.BrandName
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.inventory.Inventory
+import com.loopers.domain.inventory.InventoryRepository
 import com.loopers.domain.product.PriceCursor
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductErrorCode
@@ -30,42 +32,49 @@ import org.mockito.kotlin.whenever
 class ProductServiceTest {
     private val productRepository: ProductRepository = mock()
     private val brandRepository: BrandRepository = mock()
-    private val productService = ProductService(productRepository, brandRepository)
+    private val inventoryRepository: InventoryRepository = mock()
+    private val productService = ProductService(productRepository, brandRepository, inventoryRepository)
 
     private fun product() = Product(brandId = 1L, name = ProductName("에어맥스"), price = Money(100_000))
 
-    @DisplayName("브랜드가 존재하면, 상품을 저장하고 정보를 반환한다.")
+    @DisplayName("브랜드가 존재하면, 상품을 저장하고 초기 재고를 함께 생성한 뒤 정보를 반환한다.")
     @Test
-    fun savesProduct_whenBrandExists() {
+    fun savesProductAndInventory_whenBrandExists() {
         whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키")))
         whenever(productRepository.save(any())).thenAnswer { it.arguments[0] as Product }
 
-        val info = productService.register(ProductCreateCommand(brandId = 1L, name = "에어맥스", price = 100_000))
+        val info = productService.register(
+            ProductCreateCommand(brandId = 1L, name = "에어맥스", price = 100_000, stock = 50),
+        )
 
-        val captor = argumentCaptor<Product>()
-        verify(productRepository).save(captor.capture())
+        val productCaptor = argumentCaptor<Product>()
+        val inventoryCaptor = argumentCaptor<Inventory>()
+        verify(productRepository).save(productCaptor.capture())
+        verify(inventoryRepository).save(inventoryCaptor.capture())
         assertAll(
-            { assertThat(captor.firstValue.name.value).isEqualTo("에어맥스") },
-            { assertThat(captor.firstValue.price).isEqualTo(Money(100_000)) },
-            { assertThat(captor.firstValue.brandId).isEqualTo(1L) },
+            { assertThat(productCaptor.firstValue.name.value).isEqualTo("에어맥스") },
+            { assertThat(productCaptor.firstValue.price).isEqualTo(Money(100_000)) },
+            { assertThat(productCaptor.firstValue.brandId).isEqualTo(1L) },
+            { assertThat(inventoryCaptor.firstValue.quantity).isEqualTo(50) },
             { assertThat(info.name).isEqualTo("에어맥스") },
             { assertThat(info.price).isEqualTo(100_000) },
             { assertThat(info.brandId).isEqualTo(1L) },
         )
     }
 
-    @DisplayName("브랜드가 존재하지 않으면, NOT_FOUND 예외가 발생하고 저장하지 않는다.")
+    @DisplayName("브랜드가 존재하지 않으면, NOT_FOUND 예외가 발생하고 상품·재고 모두 저장하지 않는다.")
     @Test
     fun throwsNotFound_whenBrandDoesNotExist() {
         whenever(brandRepository.findActiveById(99L)).thenReturn(null)
 
         val result = assertThrows<NotFoundException> {
-            productService.register(ProductCreateCommand(brandId = 99L, name = "에어맥스", price = 100_000))
+            productService.register(ProductCreateCommand(brandId = 99L, name = "에어맥스", price = 100_000, stock = 50))
         }
 
         assertAll(
             { assertThat(result.errorCode).isEqualTo(BrandErrorCode.BRAND_NOT_FOUND) },
             { verify(productRepository, Mockito.never()).save(any()) },
+            { verify(inventoryRepository, Mockito.never()).save(any()) },
         )
     }
 
@@ -97,30 +106,40 @@ class ProductServiceTest {
         assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
     }
 
-    @DisplayName("상품을 삭제하면, DELETED 상태로 전이된다(soft delete).")
+    @DisplayName("상품을 삭제하면, DELETED 상태로 전이되고 해당 상품의 재고가 archive 된다.")
     @Test
-    fun softDeletesProduct() {
+    fun softDeletesProductAndArchivesInventory() {
         val product = product()
+        val inventory = Inventory.createFor(product.id, 50)
         whenever(productRepository.findActiveById(10L)).thenReturn(product)
+        whenever(inventoryRepository.findAllByProductIdIn(listOf(product.id))).thenReturn(listOf(inventory))
 
         productService.delete(10L)
 
-        assertThat(product.status).isEqualTo(ProductStatus.DELETED)
+        assertAll(
+            { assertThat(product.status).isEqualTo(ProductStatus.DELETED) },
+            { assertThat(inventory.deletedAt).isNotNull() },
+        )
+        verify(inventoryRepository).save(inventory)
     }
 
-    @DisplayName("브랜드 cascade 삭제는, 해당 브랜드의 활성 상품을 모두 DELETED로 전이한다.")
+    @DisplayName("브랜드 cascade 삭제는, 해당 브랜드의 활성 상품을 모두 DELETED로 전이하고 재고를 archive 한다.")
     @Test
-    fun softDeleteByBrand_transitionsAllActiveProducts() {
+    fun softDeleteByBrand_transitionsAllActiveProductsAndArchivesInventory() {
         val first = product()
         val second = product()
+        val inventory = Inventory.createFor(first.id, 50)
         whenever(productRepository.findActiveByBrandId(1L)).thenReturn(listOf(first, second))
+        whenever(inventoryRepository.findAllByProductIdIn(listOf(first.id, second.id))).thenReturn(listOf(inventory))
 
         productService.softDeleteByBrand(1L)
 
         assertAll(
             { assertThat(first.status).isEqualTo(ProductStatus.DELETED) },
             { assertThat(second.status).isEqualTo(ProductStatus.DELETED) },
+            { assertThat(inventory.deletedAt).isNotNull() },
         )
+        verify(inventoryRepository).save(inventory)
     }
 
     @DisplayName("목록 조회는 정렬·브랜드 필터·커서·크기를 리포지토리에 위임하고 nextCursor를 전달한다.")

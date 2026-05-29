@@ -2,6 +2,8 @@ package com.loopers.application.product
 
 import com.loopers.domain.brand.BrandErrorCode
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.inventory.Inventory
+import com.loopers.domain.inventory.InventoryRepository
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductErrorCode
 import com.loopers.domain.product.ProductName
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 class ProductService(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
+    private val inventoryRepository: InventoryRepository,
 ) {
     @Transactional
     fun register(command: ProductCreateCommand): ProductInfo {
@@ -31,6 +34,7 @@ class ProductService(
                 price = Money(command.price),
             ),
         )
+        inventoryRepository.save(Inventory.createFor(product.id, command.stock))
         return ProductInfo.from(product)
     }
 
@@ -47,6 +51,7 @@ class ProductService(
         val product = productRepository.findActiveById(id)
             ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
         product.transitionTo(ProductStatus.DELETED)
+        archiveInventories(listOf(product.id))
     }
 
     /**
@@ -55,8 +60,19 @@ class ProductService(
      */
     @Transactional
     fun softDeleteByBrand(brandId: Long) {
-        productRepository.findActiveByBrandId(brandId)
-            .forEach { it.transitionTo(ProductStatus.DELETED) }
+        val products = productRepository.findActiveByBrandId(brandId)
+        products.forEach { it.transitionTo(ProductStatus.DELETED) }
+        archiveInventories(products.map { it.id })
+    }
+
+    private fun archiveInventories(productIds: List<Long>) {
+        if (productIds.isEmpty()) {
+            return
+        }
+        inventoryRepository.findAllByProductIdIn(productIds).forEach {
+            it.delete()
+            inventoryRepository.save(it)
+        }
     }
 
     @Transactional(readOnly = true)
@@ -79,6 +95,7 @@ data class ProductCreateCommand(
     val brandId: Long,
     val name: String,
     val price: Long,
+    val stock: Long,
 )
 
 data class ProductUpdateCommand(

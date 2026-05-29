@@ -2,6 +2,7 @@ package com.loopers.application.admin.product
 
 import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
+import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.domain.brand.Brand
@@ -26,6 +27,75 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
 class AdminProductFacadeTest {
+    @DisplayName("관리자 상품 등록")
+    @Nested
+    inner class CreateProduct {
+        @DisplayName("기존 브랜드에 상품을 등록한다")
+        @Test
+        fun createsProduct() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+
+            val result = fixture.adminProductFacade.createProduct(
+                ProductCreateCommand(
+                    brandId = 1L,
+                    name = "loopers hoodie",
+                    price = 10_000L,
+                    description = "loopers product",
+                    imageUrl = "https://image.loopers/product.png",
+                ),
+            )
+
+            assertAll(
+                { assertThat(result.productId).isEqualTo(1L) },
+                { assertThat(result.productName).isEqualTo("loopers hoodie") },
+                { assertThat(result.brand.brandId).isEqualTo(1L) },
+                { assertThat(result.likeCount).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드에는 상품을 등록할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandDoesNotExist() {
+            val fixture = AdminProductFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.createProduct(
+                    ProductCreateCommand(
+                        brandId = 1L,
+                        name = "loopers hoodie",
+                        price = 10_000L,
+                        description = "loopers product",
+                        imageUrl = "https://image.loopers/product.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드에는 상품을 등록할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers", isDeleted = true))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.createProduct(
+                    ProductCreateCommand(
+                        brandId = 1L,
+                        name = "loopers hoodie",
+                        price = 10_000L,
+                        description = "loopers product",
+                        imageUrl = "https://image.loopers/product.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     @DisplayName("관리자 상품 상세 조회")
     @Nested
     inner class GetProduct {
@@ -178,6 +248,7 @@ class AdminProductFacadeTest {
 
     private class FakeProductRepository : ProductRepository {
         private val products = mutableListOf<Product>()
+        private var sequence = 1L
 
         override fun findById(productId: Long): Product? {
             return products.find { it.id == productId }
@@ -223,9 +294,22 @@ class AdminProductFacadeTest {
         }
 
         override fun save(product: Product): Product {
-            products.removeIf { it.id == product.id }
-            products.add(product)
-            return product
+            val saved = if (product.id == 0L) {
+                Product(
+                    id = sequence++,
+                    brandId = product.brandId,
+                    name = product.name,
+                    price = product.price,
+                    description = product.description,
+                    imageUrl = product.imageUrl,
+                    isDeleted = product.isDeleted,
+                )
+            } else {
+                product
+            }
+            products.removeIf { it.id == saved.id }
+            products.add(saved)
+            return saved
         }
 
         override fun updateAll(products: Collection<Product>): List<Product> {

@@ -57,3 +57,16 @@ X-Loopers-Ldap: admin
 ### 관리자 상품 상세 조회
 GET {{commerce-api}}/api-admin/v1/products/1
 X-Loopers-Ldap: admin
+
+### 관리자 상품 등록
+POST {{commerce-api}}/api-admin/v1/products
+X-Loopers-Ldap: admin
+Content-Type: application/json
+
+{
+  "brandId": 1,
+  "name": "loopers hoodie",
+  "price": 10000,
+  "description": "loopers product",
+  "imageUrl": "https://image.loopers/product.png"
+}

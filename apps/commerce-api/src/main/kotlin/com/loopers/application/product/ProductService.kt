@@ -1,5 +1,6 @@
 package com.loopers.application.product
 
+import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepository
@@ -35,6 +36,17 @@ class ProductService(
             page = command.page,
             size = command.size,
         )
+    }
+
+    @Transactional
+    fun createProduct(command: ProductCreateCommand): Product {
+        return Product(
+            brandId = command.brandId,
+            name = command.name,
+            price = command.price,
+            description = command.description,
+            imageUrl = command.imageUrl,
+        ).let(productRepository::save)
     }
 
     @Transactional

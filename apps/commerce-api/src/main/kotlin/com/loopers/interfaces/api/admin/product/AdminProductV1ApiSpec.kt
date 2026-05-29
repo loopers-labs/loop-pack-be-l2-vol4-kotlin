@@ -27,4 +27,13 @@ interface AdminProductV1ApiSpec {
         adminId: String,
         productId: Long,
     ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
+
+    @Operation(
+        summary = "관리자 상품 등록",
+        description = "관리자가 기존 브랜드에 상품을 등록합니다.",
+    )
+    fun createProduct(
+        adminId: String,
+        request: AdminProductV1Dto.CreateProductRequest,
+    ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
 }

@@ -7,6 +7,8 @@ import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -44,6 +46,16 @@ class AdminProductV1Controller(
         @PathVariable productId: Long,
     ): ApiResponse<AdminProductV1Dto.ProductDetailResponse> {
         return adminProductFacade.getProduct(productId)
+            .let(AdminProductV1Dto.ProductDetailResponse::from)
+            .let { ApiResponse.success(it) }
+    }
+
+    @PostMapping
+    override fun createProduct(
+        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestBody request: AdminProductV1Dto.CreateProductRequest,
+    ): ApiResponse<AdminProductV1Dto.ProductDetailResponse> {
+        return adminProductFacade.createProduct(request.toCommand())
             .let(AdminProductV1Dto.ProductDetailResponse::from)
             .let { ApiResponse.success(it) }
     }

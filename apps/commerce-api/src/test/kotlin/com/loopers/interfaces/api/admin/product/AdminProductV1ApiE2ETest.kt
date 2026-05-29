@@ -23,6 +23,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdminProductV1ApiE2ETest @Autowired constructor(
@@ -96,6 +97,82 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+    }
+
+    @DisplayName("POST /api-admin/v1/products")
+    @Nested
+    inner class CreateProduct {
+        @DisplayName("기존 브랜드에 상품을 등록한다")
+        @Test
+        fun createsProduct() {
+            val brand = createBrand(name = "loopers")
+            val request = AdminProductV1Dto.CreateProductRequest(
+                brandId = brand.id,
+                name = "loopers hoodie",
+                price = 10_000L,
+                description = "loopers product",
+                imageUrl = "https://image.loopers/product.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                PRODUCTS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.productId).isPositive() },
+                { assertThat(response.body?.data?.productName).isEqualTo("loopers hoodie") },
+                { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
+                { assertThat(response.body?.data?.likeCount).isEqualTo(0L) },
+                { assertThat(productJpaRepository.findAll()).hasSize(1) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드에는 상품을 등록할 수 없다")
+        @Test
+        fun returnsNotFound_whenBrandDoesNotExist() {
+            val request = AdminProductV1Dto.CreateProductRequest(
+                brandId = 999L,
+                name = "loopers hoodie",
+                price = 10_000L,
+                description = "loopers product",
+                imageUrl = "https://image.loopers/product.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                PRODUCTS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드에는 상품을 등록할 수 없다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = createBrand(name = "loopers", isDeleted = true)
+            val request = AdminProductV1Dto.CreateProductRequest(
+                brandId = brand.id,
+                name = "loopers hoodie",
+                price = 10_000L,
+                description = "loopers product",
+                imageUrl = "https://image.loopers/product.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                PRODUCTS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
         }
     }
 
@@ -206,6 +283,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
     private fun createAdminHeaders(): HttpHeaders {
         return HttpHeaders().apply {
             set("X-Loopers-Ldap", "admin")
+            contentType = MediaType.APPLICATION_JSON
         }
     }
 

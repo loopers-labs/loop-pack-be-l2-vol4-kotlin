@@ -2,6 +2,7 @@ package com.loopers.application.admin.product
 
 import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
+import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.productstat.ProductStatService
@@ -25,6 +26,19 @@ class AdminProductFacade(
         val product = productService.getDisplayableProduct(productId)
         val brand = brandService.getDisplayableBrand(product.brandId)
         val productStat = productStatService.getProductStat(product.id)
+        val productCatalog = productCatalogService.display(
+            product = product,
+            brand = brand,
+            productStat = productStat,
+        )
+
+        return ProductDetailInfo.from(productCatalog)
+    }
+
+    fun createProduct(command: ProductCreateCommand): ProductDetailInfo {
+        val brand = brandService.getDisplayableBrand(command.brandId)
+        val product = productService.createProduct(command)
+        val productStat = productStatService.emptyStat(product.id)
         val productCatalog = productCatalogService.display(
             product = product,
             brand = brand,

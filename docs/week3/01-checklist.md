@@ -9,7 +9,7 @@
 
 | Phase | 범위 | 상태 |
 |---|---|---|
-| Phase 0 | Setup (DatabaseCleanup, 헤더 필터 2종, SecurityConfig) | [ ] |
+| Phase 0 | Setup (DatabaseCleanup + account-security 인증 재사용 검증) | [x] |
 | Phase 1 | Brand | [ ] |
 | Phase 2 | Product + Inventory | [ ] |
 | Phase 3 | Like | [ ] |
@@ -36,20 +36,17 @@
 - [ ] `docs/ubiquitous-language.md` §1 행위자 호칭(사용자/로그인 사용자/관리자) + §9 약어 금지 표 재확인
 
 ### 코드
-- [ ] `apps/commerce-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt` — `apps/account-api`의 동일 파일 복사 (`@Component @Profile("test")`)
-- [ ] `apps/commerce-api/src/main/kotlin/com/loopers/interfaces/web/auth/UserHeaderAuthenticationFilter.kt` — `X-Loopers-LoginId` 존재 검증 + Long 파싱 → `RequestAttribute("userId")` 주입 (없으면 `UnauthorizedException`)
-- [ ] `apps/commerce-api/src/main/kotlin/com/loopers/interfaces/web/auth/AdminLdapAuthenticationFilter.kt` — `X-Loopers-Ldap == "loopers.admin"` 검증, `/api-admin/v1/**` 매칭
-- [ ] `apps/commerce-api/src/main/kotlin/com/loopers/config/SecurityConfig.kt` — 두 필터 등록 + URL 매핑 (없으면 신설)
+- [x] `apps/commerce-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt` — `apps/account-api`의 동일 파일 복사 (`@Component @Profile("test")`)
+- [x] 인증 필터 / SecurityConfig 신설 **불필요** — `account-security`의 `AccountHeaderAuthenticationFilter`(사용자) / `AdminLdapAuthenticationFilter`(관리자) + `AccountSecurityConfig`가 commerce-api component scan으로 자동 적용 (R4 stub 폐기, commerce-api가 `account-application/persistence/security` 의존). 인증된 `accountId`가 `RequestAttribute("accountId")`로 주입됨. commerce-api에 별도 필터/SecurityConfig 만들면 SecurityFilterChain 빈 중복
 
 ### 테스트
-- [ ] `UserHeaderAuthenticationFilterTest` — 헤더 없음 → 401 / 정상 → attribute 주입 검증
-- [ ] `AdminLdapAuthenticationFilterTest` — LDAP 미일치 → 403 / 일치 → 통과
-- [ ] `DatabaseCleanup` smoke — `@BeforeEach`로 호출, 메타모델 기반 테이블 추출 동작 확인
+- [x] 두 인증 필터 단위 테스트 — `account-security` 모듈에 이미 존재 (`AdminLdapAuthenticationFilterTest` 등). commerce-api 신규 불필요
+- [x] `DatabaseCleanup` smoke — `@BeforeEach`로 호출, 메타모델 기반 테이블 추출 동작 확인 (`DatabaseCleanupIntegrationTest`)
 
 ### 검증 & commit
-- [ ] `./gradlew :apps:commerce-api:test --tests '*AuthenticationFilter*'` 통과
-- [ ] `./gradlew :apps:commerce-api:ktlintCheck` 통과
-- [ ] commit: `feat(commerce-api): X-Loopers-LoginId / Ldap 헤더 인증 필터 + DatabaseCleanup 추가`
+- [x] `./gradlew :apps:commerce-api:test` 통과 (context load + DatabaseCleanup smoke)
+- [x] `./gradlew :apps:commerce-api:ktlintCheck` 통과
+- [ ] commit: `chore(commerce-api): test DatabaseCleanup 추가 (account-security 인증 재사용)`
 
 ### 미러링 금지 (Phase 0 함정)
 - [ ] `ExampleV1Controller`의 `ApiResponse.success(it)` 직접 반환 패턴 복사 금지 (R5)
@@ -183,7 +180,7 @@
 - [ ] `application/like/LikeFacade.kt`
 - [ ] `interfaces/api/like/LikeV1Dto.kt` / `LikeV1ApiSpec.kt`
 - [ ] `interfaces/api/like/LikeV1Controller.kt`
-  - [ ] `findMine(@PathVariable userId)` — `RequestAttribute("userId")` 와 비교, 불일치 → `ForbiddenException` (L-?5, 403)
+  - [ ] `findMine(@PathVariable userId)` — `RequestAttribute("accountId")`(인증된 사용자)와 비교, 불일치 → `ForbiddenException` (L-?5, 403). 외부 path `userId` == 내부 `accountId`
 
 ### 테스트
 - [ ] `ProductTest.likeIncrementsCount` / `unlikeDecrementsCount` / `unlikeAtZeroIsNoOp`

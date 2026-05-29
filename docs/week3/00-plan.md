@@ -87,7 +87,7 @@
 
 ### §3.8 Ubiquitous Language — Phase 0 확인
 - 본 프로젝트에서는 `docs/ubiquitous-language.md` (이미 작성됨)를 사전으로 활용. 새 코드에서:
-  - 외부 `userId` ↔ 내부 `accountId` 매핑은 컨트롤러에서만 (본 주차 commerce-api에는 account store 없음 → R4 stub 정책).
+  - 인증은 `account-security` 모듈 재사용 (commerce-api가 `account-application` / `account-persistence` / `account-security` 의존). 인증된 `accountId`가 `RequestAttribute("accountId")`로 주입되며, 이것이 commerce 도메인의 사용자 식별자다 — 별도 stub/매핑 없음(외부 userId == 내부 accountId). R4 stub 정책 폐기.
   - 약어 금지(§9): 풀네임만.
   - 시나리오 ID(S-C1, P-R4 등)를 `@DisplayName`에 그대로 인용 → 평가 trace.
 - 자료:
@@ -112,12 +112,11 @@
 **작업:**
 - 본 플랜 문서를 `docs/week3/00-plan.md`로 이동 + 초기 commit.
 - `apps/commerce-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt` — `apps/account-api`의 동일 파일 복사 + `@Profile("test")`.
-- `apps/commerce-api/src/main/kotlin/com/loopers/interfaces/web/auth/UserHeaderAuthenticationFilter.kt` — `X-Loopers-LoginId` 헤더 존재 검증 + 그 값을 Long으로 파싱해 `RequestAttribute("userId")`로 주입(stub 정책, R4).
-- `AdminLdapAuthenticationFilter.kt` — `X-Loopers-Ldap == "loopers.admin"` 검증, 외부 `/api-admin/v1/**` 매칭.
-- 필터 등록 + 매핑 경로 `SecurityConfig` (없으면 신설).
-- ExampleModel/Service/Facade/Controller는 **유지** (기동 sanity용, `ExampleV1ApiE2ETest` 살아있음). 미러링 금지(특히 `ApiResponse.success(it)` 직접 반환 + `ErrorType`은 deprecated, R5).
+- 인증 필터는 신설하지 않는다 — `account-security`의 `AccountHeaderAuthenticationFilter`(사용자) / `AdminLdapAuthenticationFilter`(관리자)를 재사용한다. 두 필터는 `accountService.authenticate`로 실인증 후 `RequestAttribute("accountId")`를 주입한다 (R4: stub 폐기 — commerce-api가 `account-application` / `account-persistence` / `account-security` 의존).
+- `AccountSecurityConfig`(`@Configuration`, `com.loopers.account.security`)가 commerce-api component scan으로 자동 적용되어 SecurityFilterChain을 구성한다 → commerce-api에 별도 `SecurityConfig`를 신설하지 않는다 (SecurityFilterChain 빈 중복 회피).
+- ExampleModel/Service/Facade/Controller는 이미 제거됨 (commit `0f86ceb`). 미러링 금지 원칙(`ApiResponse.success(it)` 직접 반환 + `ErrorType` deprecated, R5)은 그대로 유효.
 
-**테스트:** 두 필터 단위 테스트, DatabaseCleanup smoke.
+**테스트:** 두 인증 필터 단위 테스트는 `account-security` 모듈에 이미 존재 (commerce-api 신규 불필요). commerce-api는 `DatabaseCleanup` smoke만 추가.
 
 **docs 동기화:** 없음 (이 phase에서는 코드만).
 
@@ -209,7 +208,7 @@ interfaces/api/like/LikeV1Controller.kt, LikeV1Dto.kt, LikeV1ApiSpec.kt
 - `ProductLike` UK = (`user_id`, `product_id`). BaseEntity의 `createdAt`만 의미 있고 `updatedAt` / `deletedAt`은 dead column (immutable + hard delete). 수용.
 - 멱등: `like()` — UK 위반 catch → 200 swallow. `unlike()` — delete 결과 0 row → 204 idempotent (L-?1 / L-?2).
 - `Product.like()` / `Product.unlike()` 도메인 메서드로 `like_count` 증감 (LikeService가 같은 트랜잭션에서 호출).
-- 본인 검증: `LikeController.findMine(@PathVariable userId)` 에서 `RequestAttribute("userId")`와 비교, 불일치 → `ForbiddenException` (L-?5, 403).
+- 본인 검증: `LikeController.findMine(@PathVariable userId)` 에서 `RequestAttribute("accountId")`(인증된 사용자)와 비교, 불일치 → `ForbiddenException` (L-?5, 403). 외부 path의 `userId`는 내부 `accountId`와 동일 식별자.
 
 **테스트:** `ProductTest.likeIncrementsCount` / `unlikeDecrementsCount` / `unlikeAtZeroIsNoOp`, `LikeServiceTest`(like/unlike 멱등 + 404 + Product mock으로 like_count 증감 검증), `ProductLikeRepositoryIntegrationTest`(UK 위반), `LikeV1ControllerE2ETest`(L-C1/L-C3/L-C4/L-D1/L-D3/L-R3).
 
@@ -294,7 +293,7 @@ interfaces/api/order/OrderV1Controller.kt, AdminOrderV1Controller.kt, OrderV1Dto
   - commerce-api 새 도메인: 인터페이스 = `com.loopers.domain.{도메인}` / 구현체 = `com.loopers.infrastructure.{도메인}` / Spring Data JPA 인터페이스도 `com.loopers.infrastructure.{도메인}` 아래 (JpaConfig `basePackages=["com.loopers.infrastructure"]` 제약).
 - **Cascade 정책** — 도메인 간 DB FK 없음 (soft reference, `docs/conventions.md` §1). cascade는 application 명시 호출 (`BrandService.delete` → `ProductService.softDeleteByBrand` → `InventoryService.archiveByProductIds`).
 - **Snapshot 정책** — Order는 product/brand 정보를 OrderItem에 복사. product soft-delete 영향 없음.
-- **인증/식별자 경계** — 외부 path/JSON은 `userId`, 내부는 `accountId`(또는 본 commerce-api 본 주차는 stub user id). 매핑은 컨트롤러에서만.
+- **인증/식별자 경계** — commerce-api는 `account-security`를 재사용해 실인증한다. 인증된 `accountId`가 `RequestAttribute("accountId")`로 주입되고 이것이 사용자 식별자다 (stub 없음, 외부 userId == 내부 accountId). 컨트롤러는 이 attribute를 읽어 본인 검증(Like 403 / Order 404)에 사용한다.
 - **API 응답 래핑** — 컨트롤러는 도메인 DTO 또는 no body 반환. `ResponseBodyAdvice`가 `ApiResponse` 래핑. `ApiResponse.success(it)` 직접 반환 (Example*) deprecated, 미러링 금지.
 - **에러 핸들링** — §2 일관. `ErrorType` deprecated. 새 도메인은 `CoreException` 서브클래스 + `{DOMAIN}:$name` ErrorCode enum.
 
@@ -358,7 +357,7 @@ interfaces/api/order/OrderV1Controller.kt, AdminOrderV1Controller.kt, OrderV1Dto
 | R1 | 재고 동시성 (O-?3, P-?4) | 본 주차 비범위. `InventoryService.decreaseAll`에 TODO 주석. |
 | R2 | History 적재 인프라 (B-F2/P-F3/L-F1) | 본 주차 비범위. docs 시퀀스의 비동기 화살표 코드 미반영. |
 | R3 | BaseEntity 4컬럼 vs 코드 3컬럼 + `status` enum 중복 | 코드 우선. Phase 1에서 status 제거 결정 + Phase 5에서 docs 전체 정정. |
-| R4 | commerce-api에 account store 없음 — userId 의미 | `X-Loopers-LoginId` 헤더를 Long으로 파싱해 userId stub. 실제 account 도메인 연동은 본 주차 범위 외. CLAUDE.md §14에 명시. |
+| R4 | commerce-api 사용자 식별자 | **stub 폐기.** commerce-api가 `account-application` / `account-persistence` / `account-security`에 의존해 `account-security` 필터로 실인증. 인증된 `accountId`가 `RequestAttribute("accountId")`로 주입되어 사용자 식별자가 된다 (외부 userId == 내부 accountId). `AccountSecurityConfig`가 component scan으로 자동 적용 — commerce-api 신규 필터/SecurityConfig 불필요. |
 | R5 | `ExampleV1Controller`의 `ApiResponse.success(...)` 직접 반환 | Deprecated, 미러링 금지. Example*는 sanity용으로 유지. |
 | R6 | `orders` 테이블명 (MySQL 예약어) | `@Table(name = "orders")` 강제. |
 | R7 | Brand → Product → Inventory 3단 cascade | 트랜잭션 1개. `BrandService.delete` → `ProductService.softDeleteByBrand` → 내부에서 `InventoryService.archiveByProductIds`. |

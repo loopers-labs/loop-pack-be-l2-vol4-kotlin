@@ -6,4 +6,6 @@ interface InventoryRepository {
     fun findByProductId(productId: Long): Inventory?
 
     fun findAllByProductIdIn(productIds: List<Long>): List<Inventory>
+
+    fun findAllByProductIdInForUpdate(productIds: List<Long>): List<Inventory>
 }

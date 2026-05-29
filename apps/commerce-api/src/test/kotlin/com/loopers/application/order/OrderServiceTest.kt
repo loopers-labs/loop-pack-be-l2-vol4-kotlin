@@ -42,7 +42,7 @@ class OrderServiceTest {
         val product = product()
         val inventory = Inventory.createFor(product.id, 100)
         whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
-        whenever(inventoryRepository.findAllByProductIdIn(listOf(product.id))).thenReturn(listOf(inventory))
+        whenever(inventoryRepository.findAllByProductIdInForUpdate(listOf(product.id))).thenReturn(listOf(inventory))
         whenever(orderRepository.save(any())).thenAnswer { it.arguments[0] as Order }
 
         val info = orderService.place(
@@ -91,7 +91,7 @@ class OrderServiceTest {
         val product = product()
         val inventory = Inventory.createFor(product.id, 1)
         whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
-        whenever(inventoryRepository.findAllByProductIdIn(listOf(product.id))).thenReturn(listOf(inventory))
+        whenever(inventoryRepository.findAllByProductIdInForUpdate(listOf(product.id))).thenReturn(listOf(inventory))
 
         val result = assertThrows<ConflictException> {
             orderService.place(
@@ -108,7 +108,7 @@ class OrderServiceTest {
     fun throwsNotFound_whenInventoryMissing() {
         val product = product()
         whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
-        whenever(inventoryRepository.findAllByProductIdIn(listOf(product.id))).thenReturn(emptyList())
+        whenever(inventoryRepository.findAllByProductIdInForUpdate(listOf(product.id))).thenReturn(emptyList())
 
         val result = assertThrows<NotFoundException> {
             orderService.place(

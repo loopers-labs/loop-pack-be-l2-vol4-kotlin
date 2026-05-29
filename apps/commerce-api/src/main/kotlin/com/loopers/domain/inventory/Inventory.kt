@@ -26,7 +26,6 @@ class Inventory(
         }
     }
 
-    // TODO(O-?3): 동시 주문 경합 시 오버셀 방지(락·원자 UPDATE) 미구현 — 단일 트랜잭션 동기 차감만.
     fun decrease(amount: Long) {
         if (amount <= 0) {
             throw BadRequestException(InventoryErrorCode.INVALID_QUANTITY)

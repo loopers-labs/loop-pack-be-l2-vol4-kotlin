@@ -29,7 +29,7 @@ class OrderService(
         }
         val productIds = command.items.map { it.productId }
         val products = productRepository.findAllActiveByIdIn(productIds).associateBy { it.id }
-        val inventories = inventoryRepository.findAllByProductIdIn(productIds).associateBy { it.productId }
+        val inventories = inventoryRepository.findAllByProductIdInForUpdate(productIds).associateBy { it.productId }
 
         val snapshots = command.items.map { line ->
             val product = products[line.productId]

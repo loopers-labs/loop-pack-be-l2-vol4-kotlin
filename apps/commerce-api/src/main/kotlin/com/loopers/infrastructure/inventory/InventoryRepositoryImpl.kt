@@ -16,4 +16,7 @@ class InventoryRepositoryImpl(
 
     override fun findAllByProductIdIn(productIds: List<Long>): List<Inventory> =
         inventoryJpaRepository.findByProductIdInAndDeletedAtIsNull(productIds)
+
+    override fun findAllByProductIdInForUpdate(productIds: List<Long>): List<Inventory> =
+        inventoryJpaRepository.findAllForUpdateByProductIdIn(productIds)
 }

@@ -1,6 +1,7 @@
 package com.loopers.domain.product
 
 import com.loopers.fixture.product.ProductBrandFixture
+import com.loopers.domain.inventory.Inventory
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
@@ -29,7 +30,26 @@ class ProductCatalogServiceTest {
                 { assertThat(result.product).isEqualTo(product) },
                 { assertThat(result.brand).isEqualTo(brand) },
                 { assertThat(result.productStat).isEqualTo(productStat) },
+                { assertThat(result.inventory).isNull() },
             )
+        }
+
+        @DisplayName("재고가 함께 전달되면 상품 상세 구성 요소에 포함한다")
+        @Test
+        fun returnsProductCatalogWithInventory() {
+            val product = ProductBrandFixture.createProduct(id = 1L, brandId = 10L)
+            val brand = ProductBrandFixture.createBrand(id = 10L)
+            val productStat = ProductBrandFixture.createProductStat(productId = 1L, likeCount = 7L)
+            val inventory = Inventory(productId = 1L, quantity = 5L)
+
+            val result = productCatalogService.display(
+                product = product,
+                brand = brand,
+                productStat = productStat,
+                inventory = inventory,
+            )
+
+            assertThat(result.inventory).isEqualTo(inventory)
         }
 
         @DisplayName("삭제된 상품은 고객 상품 상세로 구성할 수 없다")

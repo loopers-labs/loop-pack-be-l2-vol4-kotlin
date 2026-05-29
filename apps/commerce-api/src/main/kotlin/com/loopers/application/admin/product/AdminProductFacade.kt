@@ -35,9 +35,10 @@ class AdminProductFacade(
             product = product,
             brand = brand,
             productStat = productStat,
+            inventory = inventory,
         )
 
-        return ProductDetailInfo.from(productCatalog, quantity = inventory.quantity)
+        return ProductDetailInfo.from(productCatalog)
     }
 
     @Transactional
@@ -50,9 +51,10 @@ class AdminProductFacade(
             product = product,
             brand = brand,
             productStat = productStat,
+            inventory = inventory,
         )
 
-        return ProductDetailInfo.from(productCatalog, quantity = inventory.quantity)
+        return ProductDetailInfo.from(productCatalog)
     }
 
     fun updateProduct(productId: Long, command: ProductUpdateCommand): ProductDetailInfo {
@@ -65,9 +67,10 @@ class AdminProductFacade(
             product = updatedProduct,
             brand = brand,
             productStat = productStat,
+            inventory = inventory,
         )
 
-        return ProductDetailInfo.from(productCatalog, quantity = inventory.quantity)
+        return ProductDetailInfo.from(productCatalog)
     }
 
     fun deleteProduct(productId: Long) {

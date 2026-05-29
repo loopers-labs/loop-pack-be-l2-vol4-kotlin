@@ -1,6 +1,7 @@
 package com.loopers.domain.product
 
 import com.loopers.domain.brand.Brand
+import com.loopers.domain.inventory.Inventory
 import com.loopers.domain.product.dto.ProductCatalog
 import com.loopers.domain.productstat.ProductStat
 import org.springframework.stereotype.Component
@@ -11,6 +12,7 @@ class ProductCatalogService {
         product: Product,
         brand: Brand,
         productStat: ProductStat,
+        inventory: Inventory? = null,
     ): ProductCatalog {
         product.ensureDisplayable()
         brand.ensureDisplayable()
@@ -19,6 +21,7 @@ class ProductCatalogService {
             product = product,
             brand = brand,
             productStat = productStat,
+            inventory = inventory,
         )
     }
 }

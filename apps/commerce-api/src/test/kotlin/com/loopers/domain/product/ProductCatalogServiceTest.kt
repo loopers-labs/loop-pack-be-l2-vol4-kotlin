@@ -30,7 +30,6 @@ class ProductCatalogServiceTest {
                 { assertThat(result.product).isEqualTo(product) },
                 { assertThat(result.brand).isEqualTo(brand) },
                 { assertThat(result.productStat).isEqualTo(productStat) },
-                { assertThat(result.inventory).isNull() },
             )
         }
 
@@ -42,7 +41,7 @@ class ProductCatalogServiceTest {
             val productStat = ProductBrandFixture.createProductStat(productId = 1L, likeCount = 7L)
             val inventory = Inventory(productId = 1L, quantity = 5L)
 
-            val result = productCatalogService.display(
+            val result = productCatalogService.displayForAdmin(
                 product = product,
                 brand = brand,
                 productStat = productStat,

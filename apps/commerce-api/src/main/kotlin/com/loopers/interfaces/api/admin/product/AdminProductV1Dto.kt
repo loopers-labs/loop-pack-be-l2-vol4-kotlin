@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.admin.product
 
+import com.loopers.application.admin.product.dto.AdminProductDetailInfo
 import com.loopers.application.product.dto.ProductCreateCommand
-import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.interfaces.api.brand.BrandV1Dto
@@ -78,7 +78,7 @@ class AdminProductV1Dto {
         val quantity: Long,
     ) {
         companion object {
-            fun from(info: ProductDetailInfo): ProductDetailResponse {
+            fun from(info: AdminProductDetailInfo): ProductDetailResponse {
                 return ProductDetailResponse(
                     productId = info.productId,
                     productName = info.productName,
@@ -87,7 +87,7 @@ class AdminProductV1Dto {
                     imageUrl = info.imageUrl,
                     brand = BrandV1Dto.BrandResponse.from(info.brand),
                     likeCount = info.likeCount,
-                    quantity = requireNotNull(info.quantity) { "Inventory quantity is required." },
+                    quantity = info.quantity,
                 )
             }
         }

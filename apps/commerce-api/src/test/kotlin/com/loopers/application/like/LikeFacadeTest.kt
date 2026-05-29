@@ -82,6 +82,65 @@ class LikeFacadeTest {
         }
     }
 
+    @DisplayName("상품 좋아요 취소")
+    @Nested
+    inner class UnlikeProduct {
+        @DisplayName("좋아요 상태면 좋아요를 삭제하고 좋아요 수를 감소시킨다")
+        @Test
+        fun unlikesProduct() {
+            val fixture = LikeFacadeFixture()
+            fixture.productRepository.save(createProduct(id = 10L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
+
+            fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+
+            val productStat = fixture.productStatRepository.findByProductId(10L)
+            assertAll(
+                { assertThat(fixture.likeRepository.exists(memberId = 1L, productId = 10L)).isFalse() },
+                { assertThat(productStat?.likeCount).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("이미 좋아요하지 않은 상태면 성공하되 좋아요 수를 감소시키지 않는다")
+        @Test
+        fun ignoresAbsentLike() {
+            val fixture = LikeFacadeFixture()
+            fixture.productRepository.save(createProduct(id = 10L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+
+            fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+
+            val productStat = fixture.productStatRepository.findByProductId(10L)
+            assertThat(productStat?.likeCount).isEqualTo(1L)
+        }
+
+        @DisplayName("존재하지 않는 상품은 좋아요 취소할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductDoesNotExist() {
+            val fixture = LikeFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 좋아요 취소할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductIsDeleted() {
+            val fixture = LikeFacadeFixture()
+            fixture.productRepository.save(createProduct(id = 10L, isDeleted = true))
+
+            val result = assertThrows<CoreException> {
+                fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     private class LikeFacadeFixture {
         val likeRepository = FakeLikeRepository()
         val productRepository = FakeProductRepository()
@@ -104,6 +163,10 @@ class LikeFacadeTest {
 
             likes.add(like)
             return true
+        }
+
+        override fun deleteIfExists(memberId: Long, productId: Long): Boolean {
+            return likes.removeIf { it.memberId == memberId && it.productId == productId }
         }
 
         fun exists(memberId: Long, productId: Long): Boolean {

@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.like
 
 import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
+import com.loopers.infrastructure.like.ProductLikeEntity
 import com.loopers.infrastructure.like.ProductLikeJpaRepository
 import com.loopers.infrastructure.product.ProductEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
@@ -112,6 +113,84 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.POST,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
+    @DisplayName("DELETE /api/v1/products/{productId}/likes")
+    @Nested
+    inner class UnlikeProduct {
+        @DisplayName("상품을 좋아요하지 않은 상태로 만든다")
+        @Test
+        fun unlikesProduct() {
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = product.id))
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            val productStat = productStatJpaRepository.findByProductId(product.id)
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(productStat?.likeCount).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("이미 좋아요하지 않은 상태여도 성공하고 좋아요 수는 감소하지 않는다")
+        @Test
+        fun ignoresAbsentLike() {
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            val productStat = productStatJpaRepository.findByProductId(product.id)
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(productStat?.likeCount).isEqualTo(1L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 좋아요 취소할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/999/likes",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 좋아요 취소할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductIsDeleted() {
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, isDeleted = true)
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                HttpMethod.DELETE,
                 HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )

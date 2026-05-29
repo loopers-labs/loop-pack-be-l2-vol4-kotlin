@@ -24,4 +24,16 @@ class LikeFacade(
             productStatService.save(productStat)
         }
     }
+
+    @Transactional
+    fun unlike(memberId: Long, productId: Long) {
+        val product = productService.getDisplayableProduct(productId)
+        val deleted = likeService.unlike(memberId = memberId, productId = product.id)
+
+        if (deleted) {
+            val productStat = productStatService.getProductStat(product.id)
+            productLikeService.unlike(productStat)
+            productStatService.save(productStat)
+        }
+    }
 }

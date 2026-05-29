@@ -20,6 +20,10 @@ GET {{commerce-api}}/api/v1/products/1
 POST {{commerce-api}}/api/v1/products/1/likes
 X-Loopers-User-Id: 1
 
+### 상품 좋아요 취소
+DELETE {{commerce-api}}/api/v1/products/1/likes
+X-Loopers-User-Id: 1
+
 ### 관리자 브랜드 등록
 POST {{commerce-api}}/api-admin/v1/brands
 X-Loopers-Ldap: admin

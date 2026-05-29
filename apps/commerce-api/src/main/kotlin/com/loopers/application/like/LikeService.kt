@@ -16,4 +16,8 @@ class LikeService(
             ),
         )
     }
+
+    fun unlike(memberId: Long, productId: Long): Boolean {
+        return likeRepository.deleteIfExists(memberId = memberId, productId = productId)
+    }
 }

@@ -8,4 +8,8 @@ class ProductLikeService {
     fun like(productStat: ProductStat) {
         productStat.increaseLikeCount()
     }
+
+    fun unlike(productStat: ProductStat) {
+        productStat.decreaseLikeCount()
+    }
 }

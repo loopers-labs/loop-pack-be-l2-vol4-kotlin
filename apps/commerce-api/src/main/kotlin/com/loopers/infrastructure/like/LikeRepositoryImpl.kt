@@ -21,4 +21,12 @@ class LikeRepositoryImpl(
             false
         }
     }
+
+    override fun deleteIfExists(memberId: Long, productId: Long): Boolean {
+        val entity = productLikeJpaRepository.findByMemberIdAndProductId(memberId, productId)
+            ?: return false
+
+        productLikeJpaRepository.delete(entity)
+        return true
+    }
 }

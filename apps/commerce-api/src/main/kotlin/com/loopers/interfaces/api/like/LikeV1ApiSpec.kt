@@ -14,4 +14,13 @@ interface LikeV1ApiSpec {
         memberId: Long,
         productId: Long,
     ): ApiResponse<Any>
+
+    @Operation(
+        summary = "상품 좋아요 취소",
+        description = "상품을 좋아요하지 않은 상태로 만듭니다. 이미 좋아요하지 않은 상태여도 성공합니다.",
+    )
+    fun unlike(
+        memberId: Long,
+        productId: Long,
+    ): ApiResponse<Any>
 }

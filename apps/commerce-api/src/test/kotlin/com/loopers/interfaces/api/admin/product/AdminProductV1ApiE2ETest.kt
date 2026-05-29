@@ -99,12 +99,89 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         }
     }
 
-    private fun createBrand(name: String): BrandEntity {
+    @DisplayName("GET /api-admin/v1/products/{productId}")
+    @Nested
+    inner class GetProduct {
+        @DisplayName("등록된 상품 상세 정보를 조회한다")
+        @Test
+        fun returnsProductDetail() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.productId).isEqualTo(product.id) },
+                { assertThat(response.body?.data?.productName).isEqualTo(product.name) },
+                { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
+                { assertThat(response.body?.data?.brand?.name).isEqualTo(brand.name) },
+                { assertThat(response.body?.data?.likeCount).isEqualTo(3L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/999",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductIsDeleted() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie", isDeleted = true)
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = createBrand(name = "loopers", isDeleted = true)
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
+    private fun createBrand(
+        name: String,
+        isDeleted: Boolean = false,
+    ): BrandEntity {
         return brandJpaRepository.save(
             BrandEntity(
                 name = name,
                 description = "$name brand",
                 logoImageUrl = "https://image.loopers/$name.png",
+                isDeleted = isDeleted,
             ),
         )
     }
@@ -112,6 +189,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
     private fun createProduct(
         brandId: Long,
         name: String,
+        isDeleted: Boolean = false,
     ): ProductEntity {
         return productJpaRepository.save(
             ProductEntity(
@@ -120,6 +198,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 price = 10_000L,
                 description = "$name product",
                 imageUrl = "https://image.loopers/$name.png",
+                isDeleted = isDeleted,
             ),
         )
     }

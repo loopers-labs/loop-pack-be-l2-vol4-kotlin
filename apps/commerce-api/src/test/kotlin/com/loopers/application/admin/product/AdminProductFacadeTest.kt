@@ -1,33 +1,103 @@
 package com.loopers.application.admin.product
 
+import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
 import com.loopers.application.product.dto.ProductListCommand
+import com.loopers.application.productstat.ProductStatService
+import com.loopers.domain.brand.Brand
+import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.Product
+import com.loopers.domain.product.ProductCatalogService
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.domain.productstat.ProductStat
+import com.loopers.domain.productstat.ProductStatRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertThrows
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
 class AdminProductFacadeTest {
+    @DisplayName("관리자 상품 상세 조회")
+    @Nested
+    inner class GetProduct {
+        @DisplayName("등록된 상품 상세 정보를 조회한다")
+        @Test
+        fun returnsProductDetail() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 3L))
+
+            val result = fixture.adminProductFacade.getProduct(10L)
+
+            assertAll(
+                { assertThat(result.productId).isEqualTo(10L) },
+                { assertThat(result.brand.name).isEqualTo("loopers") },
+                { assertThat(result.likeCount).isEqualTo(3L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 조회할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductDoesNotExist() {
+            val fixture = AdminProductFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.getProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 조회할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L, isDeleted = true))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.getProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 조회할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers", isDeleted = true))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.getProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     @DisplayName("관리자 상품 목록 조회")
     @Nested
     inner class GetProducts {
         @DisplayName("등록된 상품 목록을 페이지로 조회한다")
         @Test
         fun returnsProductPage() {
-            val productRepository = FakeProductRepository()
-            val adminProductFacade = AdminProductFacade(ProductService(productRepository))
-            productRepository.save(createProduct(id = 10L, brandId = 1L))
-            productRepository.save(createProduct(id = 20L, brandId = 2L))
+            val fixture = AdminProductFacadeFixture()
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.productRepository.save(createProduct(id = 20L, brandId = 2L))
 
-            val result = adminProductFacade.getProducts(
+            val result = fixture.adminProductFacade.getProducts(
                 ProductListCommand(
                     brandId = null,
                     sort = ProductSort.LATEST,
@@ -46,12 +116,11 @@ class AdminProductFacadeTest {
         @DisplayName("브랜드 ID가 주어지면 해당 브랜드 상품만 조회한다")
         @Test
         fun returnsProductPageFilteredByBrandId() {
-            val productRepository = FakeProductRepository()
-            val adminProductFacade = AdminProductFacade(ProductService(productRepository))
-            productRepository.save(createProduct(id = 10L, brandId = 1L))
-            productRepository.save(createProduct(id = 20L, brandId = 2L))
+            val fixture = AdminProductFacadeFixture()
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.productRepository.save(createProduct(id = 20L, brandId = 2L))
 
-            val result = adminProductFacade.getProducts(
+            val result = fixture.adminProductFacade.getProducts(
                 ProductListCommand(
                     brandId = 1L,
                     sort = ProductSort.LATEST,
@@ -64,6 +133,46 @@ class AdminProductFacadeTest {
                 { assertThat(result.content).hasSize(1) },
                 { assertThat(result.content[0].brandId).isEqualTo(1L) },
             )
+        }
+    }
+
+    private class AdminProductFacadeFixture {
+        val brandRepository = FakeBrandRepository()
+        val productRepository = FakeProductRepository()
+        val productStatRepository = FakeProductStatRepository()
+        val adminProductFacade = AdminProductFacade(
+            productService = ProductService(productRepository),
+            brandService = BrandService(brandRepository),
+            productStatService = ProductStatService(productStatRepository),
+            productCatalogService = ProductCatalogService(),
+        )
+    }
+
+    private class FakeBrandRepository : BrandRepository {
+        private val brands = mutableListOf<Brand>()
+
+        override fun findById(brandId: Long): Brand? {
+            return brands.find { it.id == brandId }
+        }
+
+        override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+            return PageImpl(emptyList(), PageRequest.of(page, size), 0)
+        }
+
+        override fun existsByName(name: String): Boolean {
+            return brands.any { it.name == name }
+        }
+
+        override fun save(brand: Brand): Brand {
+            brands.removeIf { it.id == brand.id }
+            brands.add(brand)
+            return brand
+        }
+
+        override fun update(brand: Brand): Brand {
+            brands.removeIf { it.id == brand.id }
+            brands.add(brand)
+            return brand
         }
     }
 
@@ -125,9 +234,42 @@ class AdminProductFacadeTest {
         }
     }
 
+    private class FakeProductStatRepository : ProductStatRepository {
+        private val productStats = mutableListOf<ProductStat>()
+
+        override fun findByProductId(productId: Long): ProductStat? {
+            return productStats.find { it.productId == productId }
+        }
+
+        override fun findAllByProductIds(productIds: Collection<Long>): List<ProductStat> {
+            return productStats.filter { it.productId in productIds }
+        }
+
+        override fun save(productStat: ProductStat): ProductStat {
+            productStats.removeIf { it.productId == productStat.productId }
+            productStats.add(productStat)
+            return productStat
+        }
+    }
+
+    private fun createBrand(
+        id: Long,
+        name: String,
+        isDeleted: Boolean = false,
+    ): Brand {
+        return Brand(
+            id = id,
+            name = name,
+            description = "$name brand",
+            logoImageUrl = "https://image.loopers/$name.png",
+            isDeleted = isDeleted,
+        )
+    }
+
     private fun createProduct(
         id: Long,
         brandId: Long,
+        isDeleted: Boolean = false,
     ): Product {
         return Product(
             id = id,
@@ -136,6 +278,7 @@ class AdminProductFacadeTest {
             price = 10_000L,
             description = "loopers product",
             imageUrl = "https://image.loopers/product.png",
+            isDeleted = isDeleted,
         )
     }
 }

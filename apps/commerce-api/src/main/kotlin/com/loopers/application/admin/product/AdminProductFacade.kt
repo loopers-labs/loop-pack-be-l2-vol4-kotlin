@@ -1,7 +1,11 @@
 package com.loopers.application.admin.product
 
+import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
+import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductListCommand
+import com.loopers.application.productstat.ProductStatService
+import com.loopers.domain.product.ProductCatalogService
 import com.loopers.domain.product.dto.ProductSummary
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
@@ -9,8 +13,24 @@ import org.springframework.stereotype.Component
 @Component
 class AdminProductFacade(
     private val productService: ProductService,
+    private val brandService: BrandService,
+    private val productStatService: ProductStatService,
+    private val productCatalogService: ProductCatalogService,
 ) {
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
         return productService.getProducts(command)
+    }
+
+    fun getProduct(productId: Long): ProductDetailInfo {
+        val product = productService.getDisplayableProduct(productId)
+        val brand = brandService.getDisplayableBrand(product.brandId)
+        val productStat = productStatService.getProductStat(product.id)
+        val productCatalog = productCatalogService.display(
+            product = product,
+            brand = brand,
+            productStat = productStat,
+        )
+
+        return ProductDetailInfo.from(productCatalog)
     }
 }

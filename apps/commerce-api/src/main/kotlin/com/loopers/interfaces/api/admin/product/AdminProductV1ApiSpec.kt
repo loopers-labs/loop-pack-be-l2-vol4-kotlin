@@ -18,4 +18,13 @@ interface AdminProductV1ApiSpec {
         page: Int,
         size: Int,
     ): ApiResponse<PageResponse<AdminProductV1Dto.ProductSummaryResponse>>
+
+    @Operation(
+        summary = "관리자 상품 상세 조회",
+        description = "관리자가 등록된 상품 상세 정보를 조회합니다.",
+    )
+    fun getProduct(
+        adminId: String,
+        productId: Long,
+    ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
 }

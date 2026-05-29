@@ -1,6 +1,8 @@
 package com.loopers.interfaces.api.admin.product
 
+import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.interfaces.api.brand.BrandV1Dto
 
 class AdminProductV1Dto {
     data class ProductSummaryResponse(
@@ -22,6 +24,30 @@ class AdminProductV1Dto {
                     brandId = summary.brandId,
                     brandName = summary.brandName,
                     likeCount = summary.likeCount,
+                )
+            }
+        }
+    }
+
+    data class ProductDetailResponse(
+        val productId: Long,
+        val productName: String,
+        val price: Long,
+        val description: String,
+        val imageUrl: String,
+        val brand: BrandV1Dto.BrandResponse,
+        val likeCount: Long,
+    ) {
+        companion object {
+            fun from(info: ProductDetailInfo): ProductDetailResponse {
+                return ProductDetailResponse(
+                    productId = info.productId,
+                    productName = info.productName,
+                    price = info.price,
+                    description = info.description,
+                    imageUrl = info.imageUrl,
+                    brand = BrandV1Dto.BrandResponse.from(info.brand),
+                    likeCount = info.likeCount,
                 )
             }
         }

@@ -21,6 +21,13 @@ class ProductService(
         return product
     }
 
+    fun getDisplayableProduct(productId: Long): Product {
+        val product = getProduct(productId)
+        product.ensureDisplayable()
+
+        return product
+    }
+
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
         return productRepository.findDisplayableSummaries(
             brandId = command.brandId,

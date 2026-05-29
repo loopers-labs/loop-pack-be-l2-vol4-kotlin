@@ -1,5 +1,6 @@
 package com.loopers.application.brand
 
+import com.loopers.application.product.ProductService
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -12,12 +13,11 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 class BrandFacade(
     private val brandService: BrandService,
-    // TODO(Product 머지 후): private val productService: ProductService 주입
+    private val productService: ProductService,
 ) {
     @Transactional
     fun delete(id: Long) {
         brandService.delete(id)
-        // TODO(Product 머지 후): productService.softDeleteByBrand(id) — 브랜드 삭제 cascade soft delete (04 플랜 기능 7).
-        // 옆 Product 세션에서 ProductService 주입 + 이 줄만 구현하면 됨.
+        productService.softDeleteByBrand(id)
     }
 }

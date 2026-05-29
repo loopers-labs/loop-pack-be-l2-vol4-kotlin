@@ -44,6 +44,10 @@ class Brand(
         this.logoImageUrl = logoImageUrl
     }
 
+    fun delete() {
+        isDeleted = true
+    }
+
     private fun validate(
         name: String,
         description: String,

@@ -20,6 +20,11 @@ class ProductRepositoryImpl(
             ?.let(ProductMapper::toDomain)
     }
 
+    override fun findAllByBrandId(brandId: Long): List<Product> {
+        return productJpaRepository.findAllByBrandId(brandId)
+            .map(ProductMapper::toDomain)
+    }
+
     override fun findDisplayableSummaries(
         brandId: Long?,
         sort: ProductSort,
@@ -45,5 +50,20 @@ class ProductRepositoryImpl(
 
         return productJpaRepository.save(entity)
             .let(ProductMapper::toDomain)
+    }
+
+    override fun updateAll(products: Collection<Product>): List<Product> {
+        if (products.isEmpty()) {
+            return emptyList()
+        }
+
+        val productById = products.associateBy { it.id }
+        val entities = productJpaRepository.findAllById(productById.keys)
+            .onEach { entity ->
+                productById[entity.id]?.let(entity::update)
+            }
+
+        return productJpaRepository.saveAll(entities)
+            .map(ProductMapper::toDomain)
     }
 }

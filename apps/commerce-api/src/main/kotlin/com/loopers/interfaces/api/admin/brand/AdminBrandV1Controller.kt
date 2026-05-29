@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.admin.brand
 import com.loopers.application.admin.brand.AdminBrandFacade
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -59,5 +60,14 @@ class AdminBrandV1Controller(
         return adminBrandFacade.updateBrand(brandId = brandId, command = request.toCommand())
             .let(AdminBrandV1Dto.BrandResponse::from)
             .let { ApiResponse.success(it) }
+    }
+
+    @DeleteMapping("/{brandId}")
+    override fun deleteBrand(
+        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @PathVariable brandId: Long,
+    ): ApiResponse<Any> {
+        adminBrandFacade.deleteBrand(brandId)
+        return ApiResponse.success()
     }
 }

@@ -127,6 +127,10 @@ class ProductFacadeTest {
             return products.find { it.id == productId }
         }
 
+        override fun findAllByBrandId(brandId: Long): List<Product> {
+            return products.filter { it.brandId == brandId }
+        }
+
         override fun findDisplayableSummaries(
             brandId: Long?,
             sort: ProductSort,
@@ -161,6 +165,11 @@ class ProductFacadeTest {
             products.removeIf { it.id == product.id }
             products.add(product)
             return product
+        }
+
+        override fun updateAll(products: Collection<Product>): List<Product> {
+            products.forEach(::save)
+            return products.toList()
         }
     }
 

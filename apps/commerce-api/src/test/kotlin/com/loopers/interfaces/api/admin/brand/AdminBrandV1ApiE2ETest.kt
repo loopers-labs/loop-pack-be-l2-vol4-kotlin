@@ -2,6 +2,8 @@ package com.loopers.interfaces.api.admin.brand
 
 import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
+import com.loopers.infrastructure.product.ProductEntity
+import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import com.loopers.utils.DatabaseCleanUp
@@ -19,11 +21,13 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.data.repository.findByIdOrNull
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdminBrandV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandJpaRepository: BrandJpaRepository,
+    private val productJpaRepository: ProductJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -256,6 +260,68 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("DELETE /api-admin/v1/brands/{brandId}")
+    @Nested
+    inner class DeleteBrand {
+        @DisplayName("브랜드 삭제 요청이 유효하면 브랜드와 해당 브랜드 상품을 삭제한다")
+        @Test
+        fun deletesBrandAndProducts() {
+            val brandId = createBrand(name = "loopers")
+            val otherBrandId = createBrand(name = "street")
+            val product = createProduct(brandId = brandId)
+            val otherProduct = createProduct(brandId = otherBrandId)
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/$brandId",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(brandJpaRepository.findByIdOrNull(brandId)?.isDeleted).isTrue() },
+                { assertThat(productJpaRepository.findByIdOrNull(product.id)?.isDeleted).isTrue() },
+                { assertThat(productJpaRepository.findByIdOrNull(otherProduct.id)?.isDeleted).isFalse() },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드 삭제 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/999",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드 삭제 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = brandJpaRepository.save(
+                BrandEntity(
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                    isDeleted = true,
+                ),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/${brand.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createBrandRequest(
         name: String = "loopers",
         description: String = "loopers brand",
@@ -295,6 +361,18 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         )
 
         return response.body?.data?.brandId ?: throw IllegalStateException("Brand creation failed.")
+    }
+
+    private fun createProduct(brandId: Long): ProductEntity {
+        return productJpaRepository.save(
+            ProductEntity(
+                brandId = brandId,
+                name = "loopers hoodie $brandId",
+                price = 10_000L,
+                description = "loopers product",
+                imageUrl = "https://image.loopers/product.png",
+            ),
+        )
     }
 
     private companion object {

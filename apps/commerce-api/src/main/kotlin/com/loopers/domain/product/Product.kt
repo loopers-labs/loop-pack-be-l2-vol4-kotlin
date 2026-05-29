@@ -50,4 +50,8 @@ class Product(
             throw CoreException(ErrorType.NOT_FOUND, "Product not found.")
         }
     }
+
+    fun delete() {
+        isDeleted = true
+    }
 }

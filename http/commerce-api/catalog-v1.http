@@ -45,3 +45,7 @@ Content-Type: application/json
   "description": "updated brand",
   "logoImageUrl": "https://image.loopers/updated.png"
 }
+
+### 관리자 브랜드 삭제
+DELETE {{commerce-api}}/api-admin/v1/brands/1
+X-Loopers-Ldap: admin

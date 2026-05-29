@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page
 interface ProductRepository {
     fun findById(productId: Long): Product?
 
+    fun findAllByBrandId(brandId: Long): List<Product>
+
     fun findDisplayableSummaries(
         brandId: Long?,
         sort: ProductSort,
@@ -14,4 +16,6 @@ interface ProductRepository {
     ): Page<ProductSummary>
 
     fun save(product: Product): Product
+
+    fun updateAll(products: Collection<Product>): List<Product>
 }

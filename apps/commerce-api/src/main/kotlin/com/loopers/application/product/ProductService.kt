@@ -8,6 +8,7 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class ProductService(
@@ -27,5 +28,14 @@ class ProductService(
             page = command.page,
             size = command.size,
         )
+    }
+
+    @Transactional
+    fun deleteProductsByBrandId(brandId: Long): List<Product> {
+        val products = productRepository.findAllByBrandId(brandId)
+            .filter { !it.isDeleted }
+            .onEach(Product::delete)
+
+        return productRepository.updateAll(products)
     }
 }

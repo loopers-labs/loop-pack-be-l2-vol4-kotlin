@@ -64,4 +64,12 @@ class BrandService(
 
         return brandRepository.update(brand)
     }
+
+    @Transactional
+    fun deleteBrand(brandId: Long): Brand {
+        val brand = getDisplayableBrand(brandId)
+        brand.delete()
+
+        return brandRepository.update(brand)
+    }
 }

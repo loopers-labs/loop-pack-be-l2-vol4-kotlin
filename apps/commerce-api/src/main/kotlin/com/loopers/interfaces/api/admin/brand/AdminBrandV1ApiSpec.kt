@@ -44,4 +44,13 @@ interface AdminBrandV1ApiSpec {
         brandId: Long,
         request: AdminBrandV1Dto.UpdateBrandRequest,
     ): ApiResponse<AdminBrandV1Dto.BrandResponse>
+
+    @Operation(
+        summary = "관리자 브랜드 삭제",
+        description = "관리자가 브랜드를 삭제합니다. 해당 브랜드의 상품도 함께 삭제됩니다.",
+    )
+    fun deleteBrand(
+        adminId: String,
+        brandId: Long,
+    ): ApiResponse<Any>
 }

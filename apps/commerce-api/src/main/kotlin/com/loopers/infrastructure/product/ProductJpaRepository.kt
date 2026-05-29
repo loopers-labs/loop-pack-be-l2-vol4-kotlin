@@ -4,4 +4,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface ProductJpaRepository :
     JpaRepository<ProductEntity, Long>,
-    ProductQueryRepository
+    ProductQueryRepository {
+    fun findAllByBrandId(brandId: Long): List<ProductEntity>
+}

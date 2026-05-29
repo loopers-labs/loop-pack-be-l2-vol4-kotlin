@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ProductJpaRepository : JpaRepository<Product, Long> {
     fun findByIdAndStatusNot(id: Long, status: ProductStatus): Product?
 
+    fun findByIdInAndStatusNot(ids: List<Long>, status: ProductStatus): List<Product>
+
     fun findByBrandIdAndStatusNot(brandId: Long, status: ProductStatus): List<Product>
 
     fun findByStatusNot(

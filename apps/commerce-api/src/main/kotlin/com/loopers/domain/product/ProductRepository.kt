@@ -8,6 +8,8 @@ interface ProductRepository {
 
     fun findActiveById(id: Long): Product?
 
+    fun findAllActiveByIdIn(ids: List<Long>): List<Product>
+
     fun findActiveByBrandId(brandId: Long): List<Product>
 
     fun findAll(sort: ProductSort, brandId: Long?, cursor: Cursor?, size: Int): CursorPage<Product>

@@ -1,5 +1,10 @@
 # Week-3 진행 체크리스트
 
+> ⚠️ **범위 정정 (최신, 우선):** 본 과제 실제 운영 플랜은 [`04-domain-feature-plan.md`](./04-domain-feature-plan.md)입니다.
+> **API / Controller / E2E / Admin 엔드포인트 / 웹 DTO(`*V1Dto`·`*ApiSpec`) / 인증 필터 / HTTP status 는 본 과제 범위 밖** —
+> 본 문서의 `interfaces/api/*` · `*Controller*` · `*E2ETest*` · `/api/...` · LDAP 403/401 항목은 **무시**합니다.
+> VO는 **`BrandName` · `ProductName` · `Money` 3개**뿐 (`LikeCount`·`Quantity`·`Price`는 VO 아님 — 엔티티 필드).
+>
 > SSOT: [`00-plan.md`](./00-plan.md). 본 문서는 그 plan을 **실행 순서**대로 펼친 체크리스트입니다.
 > 각 항목 끝나면 `[ ]` → `[x]`. 진행 중인 항목은 `[~]`로 표시.
 
@@ -62,7 +67,7 @@
 - [ ] [Microsoft .NET DDD — Implement value objects](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/implement-value-objects) 1회독
 - [ ] [Microsoft .NET DDD — Design a microservice domain model](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/microservice-domain-model) 1회독
 - [ ] [Martin Fowler — ValueObject](https://martinfowler.com/bliki/ValueObject.html) 1회독
-- [ ] 한 줄 매핑 정리: 본 프로젝트의 Entity 5종 vs VO 6종 (BrandName/Price/Money/Quantity/LikeCount + α)
+- [ ] 한 줄 매핑 정리: Entity vs **VO 3종(`BrandName` / `ProductName` / `Money`)**. `LikeCount`·`Quantity`는 VO 아님(엔티티 필드 + 도메인 메서드)
 
 ### 도메인 코드
 - [ ] `domain/brand/Brand.kt` — Entity, `BaseEntity` 상속. 생성자/factory, `markDeleted()` 도메인 메서드(단 BaseEntity.delete() 사용)
@@ -113,9 +118,10 @@
 - [ ] 한 줄 매핑 정리: 본 프로젝트의 Domain Service 2종 (`ProductCatalogService`, `OrderPlacementService`) vs Application Service 4종 (Facade 4개)
 
 ### Product — 도메인 코드
-- [ ] `domain/product/Product.kt` — Entity, `like()` / `unlike()` 도메인 메서드 (LikeCount 증감)
-- [ ] `domain/product/Price.kt` — `@Embeddable` VO, value ≥ 0
-- [ ] `domain/product/LikeCount.kt` — `@Embeddable` VO, value ≥ 0, `increment()` / `decrement()`(0 이하 no-op)
+- [ ] `domain/product/Product.kt` — Entity. `likeCount: Long` 필드 + `like()` / `unlike()`(0 floor no-op). `name: ProductName`, `price: Money`
+- [ ] `domain/product/ProductName.kt` — `@Embeddable` VO, 1~100자·blank 금지
+- [ ] `domain/shared/Money.kt` — `@Embeddable` VO, value ≥ 0 (Product 가격·Order 금액 공용 shared kernel)
+- [ ] **금지**: `Price` VO / `LikeCount` VO (가격은 `Money`, 좋아요수는 `Long` 필드)
 - [ ] `domain/product/ProductSort.kt` — enum (LATEST / PRICE_ASC / LIKES_DESC), 화이트리스트
 - [ ] `domain/product/ProductErrorCode.kt` — `PRODUCT_NOT_FOUND` / `INVALID_PRODUCT_NAME` / `INVALID_PRICE` / `INVALID_PRODUCT_SORT`, prefix `PRODUCT:`
 - [ ] `domain/product/ProductRepository.kt` — 순수 Kotlin 인터페이스
@@ -131,8 +137,7 @@
 - [ ] `interfaces/api/product/AdminProductV1Controller.kt`
 
 ### Inventory — 코드
-- [ ] `domain/inventory/Inventory.kt` — Entity
-- [ ] `domain/inventory/Quantity.kt` — `@Embeddable` VO, value ≥ 0, `decrease(n)` 부족 시 `ConflictException(STOCK_INSUFFICIENT)`, `increase(n)`
+- [ ] `domain/inventory/Inventory.kt` — Entity. `quantity: Long` 필드(≥ 0) + `decrease(n)`(부족 시 `ConflictException(STOCK_INSUFFICIENT)`) / `increase(n)`. **금지**: `Quantity` VO (가변 카운터 → 필드)
 - [ ] `domain/inventory/InventoryErrorCode.kt` — `INVENTORY_NOT_FOUND` / `STOCK_INSUFFICIENT` / `INVALID_QUANTITY`
 - [ ] `domain/inventory/InventoryRepository.kt`
 - [ ] `infrastructure/inventory/InventoryJpaRepository.kt` + `InventoryRepositoryImpl.kt`
@@ -147,7 +152,7 @@
 - [ ] ProductService가 Brand 미존재 시 → `NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)` import 사용 (중복 정의 금지)
 
 ### 테스트
-- [ ] `ProductTest` / `InventoryTest` / `QuantityTest.decreaseBelowZeroThrows`
+- [ ] `ProductTest`(like/unlike 0 floor) / `ProductNameTest` / `MoneyTest` / `InventoryTest.decreaseBelowZeroThrows`(엔티티 메서드)
 - [ ] `ProductServiceTest` (Repository mock)
 - [ ] `ProductCatalogServiceTest` (Brand/Inventory mock 합성)
 - [ ] `InventoryServiceTest.decreaseAll_일부_부족이면_전체_throw`

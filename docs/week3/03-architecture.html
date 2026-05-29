@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Week 3 · Loopers Commerce API 아키텍처</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --muted: #71717A;
+    --line: #E4E4E7;
+    --line-soft: #F4F4F5;
+
+    --ok: #047857;
+    --warn: #B45309;
+    --err: #B91C1C;
+    --decide: #4F46E5;
+    --future: #0E7490;
+
+    --ok-soft:    #ECFDF5;
+    --warn-soft:  #FFFBEB;
+    --err-soft:   #FEF2F2;
+    --decide-soft:#EEF2FF;
+    --future-soft:#ECFEFF;
+
+    --presentation: #B45309;
+    --application:  #4F46E5;
+    --domain:       #047857;
+    --infrastructure: #0E7490;
+
+    --presentation-soft: #FFFBEB;
+    --application-soft:  #EEF2FF;
+    --domain-soft:       #ECFDF5;
+    --infrastructure-soft: #ECFEFF;
+
+    --brand:     #047857;
+    --product:   #4F46E5;
+    --inventory: #0E7490;
+    --like:      #B45309;
+    --order:     #B91C1C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 80px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header.page {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px;
+    margin-bottom: 36px;
+  }
+  header.page h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.5px; }
+  header.page .meta { color: var(--muted); font-size: 13.5px; }
+
+  nav.toc {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 40px;
+  }
+  nav.toc h2 {
+    font-size: 13px; color: var(--muted); margin: 0 0 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  nav.toc ol { margin: 0; padding-left: 22px; }
+  nav.toc li { padding: 3px 0; font-size: 14px; }
+  nav.toc a { color: var(--text); text-decoration: none; border-bottom: 1px dotted var(--muted); }
+  nav.toc a:hover { color: var(--decide); border-bottom-color: var(--decide); }
+
+  section { margin-bottom: 56px; }
+  section > h2 {
+    font-size: 22px; margin: 0 0 18px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--text);
+    display: flex; align-items: center; gap: 12px;
+  }
+  section > h2 .num {
+    background: var(--text); color: #fff;
+    width: 30px; height: 30px;
+    border-radius: 15px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 700;
+  }
+  section h3 {
+    font-size: 17px; margin: 28px 0 12px; padding-left: 10px;
+    border-left: 3px solid var(--decide);
+  }
+  p { margin: 8px 0 14px; }
+  code {
+    background: #F4F4F5; padding: 1px 6px; border-radius: 3px;
+    font-size: 13px; font-family: ui-monospace, "SF Mono", monospace;
+  }
+  pre {
+    background: #18181B; color: #F4F4F5;
+    padding: 14px 18px; border-radius: 6px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+    overflow-x: auto; line-height: 1.55;
+  }
+
+  .diagram {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 18px; margin: 16px 0; text-align: center;
+  }
+  .diagram .mermaid {
+    display: block; max-width: 900px; margin: 0 auto;
+  }
+  .diagram .mermaid svg {
+    max-width: 100% !important; height: auto !important;
+  }
+  .diagram.wide .mermaid { max-width: 1000px; }
+  .diagram .caption {
+    font-size: 12.5px; color: var(--muted);
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line);
+  }
+
+  .info {
+    background: var(--decide-soft);
+    border-left: 4px solid var(--decide);
+    padding: 12px 18px;
+    margin: 14px 0;
+    border-radius: 4px;
+  }
+  .info .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--decide); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  table.summary {
+    width: 100%; border-collapse: collapse;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden; margin: 14px 0; font-size: 13.5px;
+  }
+  table.summary th, table.summary td {
+    padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.summary th {
+    background: var(--line-soft); font-weight: 600; font-size: 12.5px;
+  }
+  table.summary tr:last-child td { border-bottom: none; }
+  table.summary td.key { background: #FAFAFA; font-weight: 600; width: 22%; }
+
+  .domain-card {
+    background: #fff; border: 2px solid var(--line); border-radius: 8px;
+    padding: 14px 18px; margin: 10px 0;
+  }
+  .domain-card.brand     { border-color: var(--brand); }
+  .domain-card.product   { border-color: var(--product); }
+  .domain-card.inventory { border-color: var(--inventory); }
+  .domain-card.like      { border-color: var(--like); }
+  .domain-card.order     { border-color: var(--order); }
+  .domain-card .name {
+    font-size: 15px; font-weight: 700; margin-bottom: 6px;
+  }
+  .domain-card.brand     .name { color: var(--brand); }
+  .domain-card.product   .name { color: var(--product); }
+  .domain-card.inventory .name { color: var(--inventory); }
+  .domain-card.like      .name { color: var(--like); }
+  .domain-card.order     .name { color: var(--order); }
+  .domain-card .desc { font-size: 13.5px; color: #44403C; }
+
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    padding: 1px 8px; border-radius: 10px;
+    margin: 0 2px;
+  }
+  .tag.entity { background: #FEF3C7; color: var(--warn); border: 1px solid #FDE68A; }
+  .tag.vo     { background: var(--decide-soft); color: var(--decide); border: 1px solid #C7D2FE; }
+  .tag.ds     { background: var(--ok-soft); color: var(--ok); border: 1px solid #A7F3D0; }
+  .tag.as     { background: var(--err-soft); color: var(--err); border: 1px solid #FECACA; }
+  .tag.repo   { background: #F4F4F5; color: var(--muted); border: 1px solid var(--line); }
+  .tag.agg    { background: #FCE7F3; color: #BE185D; border: 1px solid #FBCFE8; }
+
+  .file-tree {
+    background: #18181B; color: #F4F4F5;
+    padding: 16px 22px; border-radius: 6px;
+    font-size: 12.5px; font-family: ui-monospace, "SF Mono", monospace;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 2;
+  }
+  .file-tree .dir { color: #93C5FD; }
+  .file-tree .domain { color: #6EE7B7; }
+  .file-tree .vo { color: #C4B5FD; }
+  .file-tree .infra { color: #67E8F9; }
+  .file-tree .app { color: #FCD34D; }
+  .file-tree .iface { color: #FCA5A5; }
+  .file-tree .comment { color: #71717A; }
+  .file-tree .star { color: #F472B6; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin: 14px 0; padding: 12px 16px;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 12.5px;
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid; }
+
+  small { color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 720px) {
+    body { padding: 24px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="page">
+  <h1>Week 3 · Loopers Commerce API 아키텍처</h1>
+  <div class="meta">
+    5개 도메인 · DDD Layered Architecture · 단일 앱(<code>apps/commerce-api</code>) 패키지 분리<br>
+    Brand · Product · Inventory · Like · Order
+  </div>
+</header>
+
+<div style="margin:16px 0;padding:16px 20px;border:2px solid #B45309;background:#FFFBEB;border-radius:8px;color:#1c1917;line-height:1.6">
+  <strong style="color:#B45309">⚠️ 정정 (최신 결정 · 본 배너가 본문보다 우선)</strong>
+  <p style="margin:8px 0 4px">아래 본문의 일부 표·다이어그램은 초기 설계 시점 기준이라 다음과 충돌할 수 있습니다. 충돌 시 <strong>이 배너 + <code>docs/week3/04-domain-feature-plan.md</code></strong>가 정답입니다.</p>
+  <ul style="margin:6px 0 0;padding-left:20px">
+    <li><strong>과제 범위</strong>: domain + 경량 application + repository(인터페이스+구현) + 단위테스트. <strong>API · Controller · E2E · Admin 엔드포인트 · 웹 DTO(<code>*V1Dto</code>) · 인증 필터 · HTTP status 매핑은 범위 밖</strong> (본문 §3 패키지 트리의 <code>interfaces/</code>·<code>config/SecurityConfig</code>·필터, §5~7의 Controller/Facade/시퀀스 Filter는 학습용 일반 예시로만 본다).</li>
+    <li><strong>Value Object 3개뿐</strong>: <code>BrandName</code> · <code>ProductName</code> · <code>Money</code>. <strong><code>LikeCount</code>·<code>Quantity</code>는 VO 아님</strong> → 엔티티 필드 + 도메인 메서드(<code>Product.likeCount: Long</code> + <code>like()/unlike()</code>, <code>Inventory.quantity: Long</code> + <code>decrease()/increase()</code>). <strong><code>Price</code> VO 없음</strong> → <code>Money</code>(shared kernel <code>com.loopers.domain.shared</code>)로 통합, Product 가격·Order 금액 공용.</li>
+    <li><strong>Facade 없음(본 과제)</strong>: §9 "Facade 도입 기준: Order만" 및 본문 <code>*Facade</code> 표기는 무효 — 여러 application service를 조합하는 케이스가 없다. 도메인 조합은 <strong>Domain Service</strong>(<code>ProductCatalogService</code>, <code>OrderPlacementService</code>) + 경량 <strong>Application Service</strong>. (Facade는 결제·쿠폰 등 독립 use case가 여러 개 붙는 미래에만.)</li>
+    <li><strong>인증/식별자</strong>: §9 "인증" 행 및 §7 시퀀스의 필터·<code>RequestAttribute("userId")</code>·stub 정책 무효. 사용자 식별자는 service 메서드 <strong>파라미터(<code>requesterId: Long</code>)</strong>로 전달. 본인 검증: Like=<code>ForbiddenException</code>, Order=<code>NotFoundException</code>.</li>
+  </ul>
+</div>
+
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#s1">시스템 한눈에 보기</a></li>
+    <li><a href="#s2">Gradle 모듈 구조</a></li>
+    <li><a href="#s3">단일 앱 내부 4 Layer 구조</a></li>
+    <li><a href="#s4">5개 도메인 의존 그래프</a></li>
+    <li><a href="#s5">한 도메인 내부 파일 구조 (Brand 예시)</a></li>
+    <li><a href="#s6">인증 + 요청 흐름</a></li>
+    <li><a href="#s7">Order Use Case 시퀀스 (가장 복잡한 케이스)</a></li>
+    <li><a href="#s8">Aggregate vs Soft Reference</a></li>
+    <li><a href="#s9">핵심 결정 사항 요약</a></li>
+  </ol>
+</nav>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s1">
+  <h2><span class="num">1</span>시스템 한눈에 보기</h2>
+
+  <p>
+    한 화면에서 보는 본 주차 시스템의 큰 그림. 사용자/관리자가 HTTP로 진입해
+    필터에서 인증을 받고, 단일 앱(<code>commerce-api</code>) 안에서 4 layer를 거쳐 MySQL에 영속됩니다.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart LR
+        User["사용자<br/>X-Loopers-LoginId"]
+        Admin["관리자<br/>X-Loopers-Ldap"]
+
+        subgraph App["apps/commerce-api (단일 앱)"]
+          direction TB
+          Filter["인증 필터<br/>UserHeader / AdminLdap"]
+          subgraph Layers["4 Layer 패키지 분리"]
+              direction TB
+              I["interfaces/"]
+              A["application/"]
+              D["domain/"]
+              In["infrastructure/"]
+              I --> A
+              A --> D
+              In -.구현.-> D
+          end
+          Filter --> I
+        end
+
+        DB[("MySQL<br/>brand · product · inventory<br/>product_like · orders · order_item")]
+
+        User -->|"/api/v1/**"| Filter
+        Admin -->|"/api-admin/v1/**"| Filter
+        In --> DB
+
+        style App fill:#FAFAFA,stroke:#71717A,stroke-width:1px
+        style Layers fill:#fff,stroke:#E4E4E7,stroke-width:1px
+        style I fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style A fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style D fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style In fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Filter fill:#F4F4F5,stroke:#71717A,stroke-width:1px
+        style User fill:#fff,stroke:#71717A
+        style Admin fill:#fff,stroke:#71717A
+        style DB fill:#fff,stroke:#71717A,stroke-width:2px
+    </div>
+    <div class="caption">사용자는 <code>/api/v1/**</code>, 관리자는 <code>/api-admin/v1/**</code> 경로로 진입. 단일 앱 안에서 4 layer는 패키지로만 분리(모듈 X).</div>
+  </div>
+
+  <table class="summary">
+    <tbody>
+      <tr><td class="key">앱</td><td><code>apps/commerce-api</code> 단일 앱 (account는 멀티모듈 별도)</td></tr>
+      <tr><td class="key">패키지 분리</td><td><code>com.loopers.{interfaces|application|domain|infrastructure}.{도메인}</code></td></tr>
+      <tr><td class="key">도메인 5개</td><td>Brand · Product · Inventory · Like · Order</td></tr>
+      <tr><td class="key">인증</td><td><strong>본 과제 범위 밖</strong> — 식별자는 service 파라미터(<code>requesterId: Long</code>)로 추상화 (필터/HTTP 미구현)</td></tr>
+      <tr><td class="key">DB</td><td>MySQL 단일 (도메인 간 FK 없음 — soft reference)</td></tr>
+      <tr><td class="key">트랜잭션 경계</td><td>Application Service의 <code>@Transactional</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s2">
+  <h2><span class="num">2</span>Gradle 모듈 구조</h2>
+
+  <p>
+    전체 저장소의 Gradle 모듈 의존 관계. 본 주차 작업은 <code>apps/commerce-api</code>에 집중되고,
+    공유 인프라(<code>modules/*</code>)와 add-on(<code>supports/*</code>)을 받아 씁니다.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart TB
+        subgraph apps["apps/"]
+          ca["commerce-api<br/>★ 본 주차 작업"]
+          ba["commerce-batch"]
+          str["commerce-streamer"]
+          acct["account-api<br/>(레퍼런스)"]
+        end
+
+        subgraph modules["modules/ (공유 인프라)"]
+          jpa["jpa<br/>JpaConfig"]
+          pcore["persistence-core<br/>BaseEntity"]
+          redis["redis"]
+          kafka["kafka"]
+          acctMod["account-{domain,<br/>application,<br/>persistence,security}"]
+        end
+
+        subgraph supports["supports/ (add-ons)"]
+          err["error<br/>CoreException"]
+          web["web<br/>ApiResponse, Advice"]
+          logging["logging"]
+        end
+
+        ca --> jpa
+        ca --> pcore
+        ca --> err
+        ca --> web
+        ba --> jpa
+        ba --> pcore
+        str --> kafka
+        acct --> acctMod
+        jpa --> pcore
+
+        style ca fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style acct fill:#FAFAFA,stroke:#71717A
+        style ba fill:#FAFAFA,stroke:#71717A
+        style str fill:#FAFAFA,stroke:#71717A
+        style jpa fill:#ECFEFF,stroke:#0E7490
+        style pcore fill:#ECFEFF,stroke:#0E7490
+        style redis fill:#ECFEFF,stroke:#0E7490
+        style kafka fill:#ECFEFF,stroke:#0E7490
+        style acctMod fill:#FAFAFA,stroke:#71717A
+        style err fill:#FFFBEB,stroke:#B45309
+        style web fill:#FFFBEB,stroke:#B45309
+        style logging fill:#FFFBEB,stroke:#B45309
+    </div>
+    <div class="caption">commerce-api는 단일 모듈로 두고 패키지 분리. account는 이미 멀티모듈로 분리되어 있으나 본 주차는 손대지 않음 (YAGNI).</div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s3">
+  <h2><span class="num">3</span>단일 앱 내부 4 Layer 구조</h2>
+
+  <p>
+    <code>apps/commerce-api</code> 안의 패키지 트리. 5개 도메인 × 4개 layer = 20개 디렉터리 골격.
+    Inventory는 외부 노출이 없어 일부 layer가 비어 있습니다.
+  </p>
+
+  <div class="file-tree"><span class="dir">apps/commerce-api/src/main/kotlin/com/loopers/</span>
+├── <span class="dir">CommerceApiApplication.kt</span>
+├── <span class="dir">config/</span>
+│   └── SecurityConfig.kt                <span class="comment"># 필터 등록</span>
+│
+├── <span class="iface">interfaces/</span>                          <span class="comment"># Presentation Layer</span>
+│   ├── web/auth/
+│   │   ├── UserHeaderAuthenticationFilter.kt
+│   │   └── AdminLdapAuthenticationFilter.kt
+│   └── api/
+│       ├── brand/    BrandV1Controller, AdminBrandV1Controller, Dto, ApiSpec
+│       ├── product/  ProductV1Controller, AdminProductV1Controller, Dto, ApiSpec
+│       ├── like/     LikeV1Controller, Dto, ApiSpec
+│       └── order/    OrderV1Controller, AdminOrderV1Controller, Dto, ApiSpec
+│
+├── <span class="app">application/</span>                          <span class="comment"># Application Layer</span>
+│   ├── brand/        BrandService                <span class="comment"># 단순 CRUD — Facade 불요</span>
+│   ├── product/      ProductService              <span class="comment"># 단순 CRUD + 목록 — Facade 불요</span>
+│   ├── inventory/    InventoryService            <span class="comment"># 외부 노출 X</span>
+│   ├── like/         LikeService                 <span class="comment"># 인증 컨텍스트 단순 — Facade 불요</span>
+│   └── order/        OrderService, <span class="star">OrderFacade</span>   <span class="comment"># DS 협업 + 인증 컨텍스트 → Facade 둠</span>
+│
+├── <span class="domain">domain/</span>                               <span class="comment"># Domain Layer ★ 중심</span>
+│   ├── brand/        Brand, BrandName, BrandRepository, BrandErrorCode
+│   ├── product/      Product, Price, LikeCount, ProductSort,
+│   │                 ProductRepository, ProductErrorCode,
+│   │                 <span class="star">ProductCatalogService</span>    <span class="comment"># ★ Domain Service</span>
+│   ├── inventory/    Inventory, Quantity, InventoryRepository, InventoryErrorCode
+│   ├── like/         ProductLike, ProductLikeRepository, LikeErrorCode
+│   └── order/        Order, OrderItem, Money, OrderStatus,
+│                     OrderRepository, OrderErrorCode,
+│                     <span class="star">OrderPlacementService</span>    <span class="comment"># ★ Domain Service</span>
+│
+└── <span class="infra">infrastructure/</span>                       <span class="comment"># Infrastructure Layer</span>
+    ├── brand/        BrandJpaRepository, BrandRepositoryImpl
+    ├── product/      ProductJpaRepository, ProductRepositoryImpl
+    ├── inventory/    InventoryJpaRepository, InventoryRepositoryImpl
+    ├── like/         ProductLikeJpaRepository, ProductLikeRepositoryImpl
+    └── order/        OrderJpaRepository, OrderRepositoryImpl
+</div>
+
+  <div class="info">
+    <div class="label">의존 방향</div>
+    <code>interfaces → application → domain ← infrastructure</code><br>
+    domain은 어디에도 의존하지 않습니다. infrastructure가 domain의 Repository 인터페이스를 구현 (DIP).
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s4">
+  <h2><span class="num">4</span>5개 도메인 의존 그래프</h2>
+
+  <p>
+    도메인 사이는 DB FK가 아닌 <strong>soft reference (id만)</strong>로 연결됩니다.
+    의존 방향은 단방향이 원칙 — 안정적인 쪽(Brand)이 의존받고, 변동성 큰 쪽(Order)이 의존합니다.
+    예외는 Brand 삭제 cascade 하나(Application 레벨에서 명시 호출, plan 옵션 A).
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart LR
+        Brand["Brand<br/>관리자 CRUD<br/>사용자 단건 조회"]
+        Product["Product<br/>관리자 CRUD<br/>사용자 목록/단건"]
+        Inventory["Inventory<br/>재고 관리<br/>(외부 노출 X)"]
+        Like["Like<br/>로그인 사용자<br/>토글 + 본인 목록"]
+        Order["Order<br/>로그인 사용자 생성<br/>본인/관리자 조회"]
+
+        Product -->|"brand_id 참조<br/>+ 존재 검증"| Brand
+        Inventory -->|"product_id 참조<br/>1:1"| Product
+        Like -->|"product_id 참조<br/>+ like_count 증감"| Product
+        Order -->|"product_id 참조<br/>+ snapshot"| Product
+        Order -->|"재고 차감"| Inventory
+        Brand -.cascade<br/>(application).-> Product
+
+        style Brand fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style Product fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Inventory fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Like fill:#FEF3C7,stroke:#B45309,stroke-width:2px
+        style Order fill:#FEE2E2,stroke:#B91C1C,stroke-width:2px
+    </div>
+    <div class="caption">실선 = 일반 참조 (id). 점선 = Application Service에서 명시적 cascade 호출. DB FK는 일체 없음.</div>
+  </div>
+
+  <div class="legend">
+    <div class="item"><div class="swatch" style="background:var(--brand);border-color:var(--brand)"></div>Brand — 가장 안정 (변경 빈도 낮음)</div>
+    <div class="item"><div class="swatch" style="background:var(--product);border-color:var(--product)"></div>Product</div>
+    <div class="item"><div class="swatch" style="background:var(--inventory);border-color:var(--inventory)"></div>Inventory</div>
+    <div class="item"><div class="swatch" style="background:var(--like);border-color:var(--like)"></div>Like</div>
+    <div class="item"><div class="swatch" style="background:var(--order);border-color:var(--order)"></div>Order — 가장 변동성 큼</div>
+  </div>
+
+  <div class="domain-card brand">
+    <div class="name">Brand</div>
+    <div class="desc">
+      <span class="tag entity">Brand</span><span class="tag vo">BrandName</span><span class="tag as">BrandService</span><span class="tag repo">BrandRepository</span><br>
+      관리자만 CUD. 사용자는 단건 조회. <code>name</code> 유일성 강제 (409). soft delete.
+    </div>
+  </div>
+  <div class="domain-card product">
+    <div class="name">Product</div>
+    <div class="desc">
+      <span class="tag entity">Product</span><span class="tag vo">Price</span><span class="tag vo">LikeCount</span><span class="tag ds">ProductCatalogService</span><span class="tag as">ProductService</span><span class="tag repo">ProductRepository</span><br>
+      관리자 CUD + 사용자 목록/단건(정렬·필터). <code>like_count</code> 비정규화. 재고는 별도 도메인.
+    </div>
+  </div>
+  <div class="domain-card inventory">
+    <div class="name">Inventory</div>
+    <div class="desc">
+      <span class="tag entity">Inventory</span><span class="tag vo">Quantity</span><span class="tag as">InventoryService</span><span class="tag repo">InventoryRepository</span><br>
+      Product와 1:1. 외부 노출 없음. <code>decreaseAll(items)</code> 일괄 차감 인터페이스만 본 주차 합의.
+    </div>
+  </div>
+  <div class="domain-card like">
+    <div class="name">Like</div>
+    <div class="desc">
+      <span class="tag entity">ProductLike</span><span class="tag as">LikeService</span><span class="tag repo">ProductLikeRepository</span><br>
+      로그인 사용자 토글. UK <code>(user_id, product_id)</code>. 멱등 200/204. hard delete.
+    </div>
+  </div>
+  <div class="domain-card order">
+    <div class="name">Order ★ 가장 복잡</div>
+    <div class="desc">
+      <span class="tag entity">Order</span><span class="tag entity">OrderItem</span><span class="tag vo">Money</span><span class="tag agg">Aggregate Root</span><span class="tag ds">OrderPlacementService</span><span class="tag as">OrderService</span><span class="tag as">OrderFacade</span><span class="tag repo">OrderRepository</span><br>
+      로그인 사용자 생성 + 본인/관리자 조회. Product/Inventory 협업. Snapshot 보존.
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s5">
+  <h2><span class="num">5</span>한 도메인 내부 파일 구조 — 단순 vs 복잡</h2>
+
+  <p>
+    한 도메인이 4 layer를 가로지르는 클래스 의존 관계.
+    <strong>단순 케이스 (Brand)</strong>는 Controller → Service → Entity/Repository로 끝나고,
+    <strong>복잡 케이스 (Order)</strong>는 Controller → Facade → Service → Domain Service → Entity/Repository로 한 단이 더 들어갑니다.
+  </p>
+
+  <h3 style="margin-top: 28px; font-size: 18px; color: var(--brand);">5.1 Brand — 단순 CRUD (Domain Service · Facade 없음)</h3>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart TB
+        subgraph Pres["interfaces/api/brand/ (Presentation)"]
+          Ctrl["BrandV1Controller<br/>AdminBrandV1Controller"]
+          Spec["BrandV1ApiSpec<br/>(OpenAPI)"]
+          Dto["BrandV1Dto<br/>(Request/Response)"]
+        end
+
+        subgraph App["application/brand/ (Application)"]
+          Svc["BrandService<br/>@Transactional, Use Case"]
+        end
+
+        subgraph Dom["domain/brand/ (Domain)"]
+          Br["Brand<br/>@Entity + 비즈니스 메서드"]
+          Vo["BrandName<br/>@Embeddable VO + init 검증"]
+          Repo["BrandRepository<br/>(Port — 인터페이스)"]
+          Err["BrandErrorCode"]
+        end
+
+        subgraph Inf["infrastructure/brand/ (Infrastructure)"]
+          Impl["BrandRepositoryImpl<br/>(Adapter)"]
+          Jpa["BrandJpaRepository<br/>: JpaRepository"]
+        end
+
+        DB[("brand 테이블")]
+
+        Ctrl --> Svc
+        Svc --> Repo
+        Svc --> Br
+        Br --> Vo
+        Impl -.implements.-> Repo
+        Impl --> Jpa
+        Jpa --> DB
+
+        style Pres fill:#FFFBEB,stroke:#B45309
+        style App fill:#EEF2FF,stroke:#4F46E5
+        style Dom fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Inf fill:#ECFEFF,stroke:#0E7490
+
+        style Br fill:#fff,stroke:#047857,stroke-width:2px
+        style Vo fill:#fff,stroke:#4F46E5,stroke-width:2px
+        style Repo fill:#fff,stroke:#047857,stroke-width:2px
+        style Err fill:#fff,stroke:#71717A
+        style Impl fill:#fff,stroke:#0E7490,stroke-width:2px
+        style Jpa fill:#fff,stroke:#0E7490
+        style Svc fill:#fff,stroke:#4F46E5,stroke-width:2px
+        style Ctrl fill:#fff,stroke:#B45309,stroke-width:2px
+        style Spec fill:#fff,stroke:#B45309
+        style Dto fill:#fff,stroke:#B45309
+        style DB fill:#F4F4F5,stroke:#71717A
+    </div>
+    <div class="caption">단순 도메인 골격: Controller가 Service를 직접 호출, Service가 Entity와 Repository를 다룬다.</div>
+  </div>
+
+  <h3 style="margin-top: 36px; font-size: 18px; color: var(--order);">5.2 Order — 복잡 케이스 (Domain Service + Facade)</h3>
+
+  <p>
+    Order는 Product · Inventory · Order 세 도메인의 협업이고, OrderItem이 Aggregate 내부 자식입니다.
+    <code>OrderPlacementService</code>가 Application Service와 Entity/Repository 사이에서 협업 로직을 캡슐화합니다.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart TB
+        subgraph Pres2["interfaces/api/order/ (Presentation)"]
+          OCtrl["OrderV1Controller<br/>AdminOrderV1Controller"]
+          OSpec["OrderV1ApiSpec"]
+          ODto["OrderV1Dto"]
+        end
+
+        subgraph App2["application/order/ (Application)"]
+          OFac["OrderFacade<br/>인증 컨텍스트 + DTO 매핑"]
+          OSvc["OrderService<br/>@Transactional, Use Case"]
+        end
+
+        subgraph Dom2["domain/order/ + domain/product/ + domain/inventory/ (Domain)"]
+          DS2["OrderPlacementService<br/>★ Domain Service<br/>3 도메인 협업"]
+          OAgg["Order (Root)<br/>+ OrderItem (자식)<br/>@OneToMany cascade=ALL"]
+          OMoney["Money<br/>@Embeddable VO"]
+          ORepo["OrderRepository (Port)"]
+          PRepo["ProductRepository (Port)"]
+          IRepo["InventoryRepository (Port)"]
+        end
+
+        subgraph Inf2["infrastructure/* (Infrastructure)"]
+          OImpl["OrderRepositoryImpl"]
+          PImpl["ProductRepositoryImpl"]
+          IImpl["InventoryRepositoryImpl"]
+        end
+
+        DB2[("MySQL")]
+
+        OCtrl --> OFac
+        OFac --> OSvc
+        OSvc --> DS2
+        OSvc --> ORepo
+        DS2 --> PRepo
+        DS2 --> IRepo
+        DS2 --> OAgg
+        OAgg --> OMoney
+
+        OImpl -.implements.-> ORepo
+        PImpl -.implements.-> PRepo
+        IImpl -.implements.-> IRepo
+        OImpl --> DB2
+        PImpl --> DB2
+        IImpl --> DB2
+
+        style Pres2 fill:#FFFBEB,stroke:#B45309
+        style App2 fill:#EEF2FF,stroke:#4F46E5
+        style Dom2 fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Inf2 fill:#ECFEFF,stroke:#0E7490
+
+        style OCtrl fill:#fff,stroke:#B45309,stroke-width:2px
+        style OSpec fill:#fff,stroke:#B45309
+        style ODto fill:#fff,stroke:#B45309
+        style OFac fill:#fff,stroke:#4F46E5,stroke-width:2px
+        style OSvc fill:#fff,stroke:#4F46E5,stroke-width:2px
+        style DS2 fill:#FCE7F3,stroke:#BE185D,stroke-width:3px
+        style OAgg fill:#fff,stroke:#047857,stroke-width:2px
+        style OMoney fill:#fff,stroke:#4F46E5,stroke-width:2px
+        style ORepo fill:#fff,stroke:#047857,stroke-width:2px
+        style PRepo fill:#fff,stroke:#047857
+        style IRepo fill:#fff,stroke:#047857
+        style OImpl fill:#fff,stroke:#0E7490,stroke-width:2px
+        style PImpl fill:#fff,stroke:#0E7490
+        style IImpl fill:#fff,stroke:#0E7490
+        style DB2 fill:#F4F4F5,stroke:#71717A
+    </div>
+    <div class="caption">
+      Domain Service가 Application Service와 Entity/Repository <strong>사이</strong>에 들어옴.
+      Application Service는 트랜잭션 경계와 Order 저장만 담당, 도메인 협업은 Domain Service가 캡슐화.
+    </div>
+  </div>
+
+  <table class="summary">
+    <thead>
+      <tr><th>책임</th><th>Brand (단순)</th><th>Order (복잡)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>DTO ↔ Command 변환</td><td>Controller가 직접</td><td>Facade가 분리 (인증 컨텍스트 포함)</td></tr>
+      <tr><td>트랜잭션 경계</td><td>Service</td><td>Service</td></tr>
+      <tr><td>도메인 협업 로직</td><td>없음 (단일 Entity)</td><td><strong>Domain Service</strong></td></tr>
+      <tr><td>Repository 호출 주체</td><td>Service</td><td>Service(자기 Repo) + Domain Service(타 도메인 Repo)</td></tr>
+      <tr><td>파일 수 (대략)</td><td>약 12개</td><td>약 18개</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s6">
+  <h2><span class="num">6</span>요청 처리 흐름 — Domain Service의 자리</h2>
+
+  <p>
+    Evans 정통 DDD에서 <strong>Application Service는 Domain Service를 호출하고, Domain Service가
+    Entity와 Repository를 오케스트레이션</strong>합니다. Application Service가 Repository를 직접 들고
+    있는 게 아니라, 협업이 필요한 경우 Domain Service에 위임합니다.
+  </p>
+
+  <p>
+    아래 두 흐름을 나란히 보면 Domain Service의 자리가 명확해집니다. 단순 도메인은 Domain Service가
+    없어 Application Service가 Entity/Repository를 직접 다루고, 복잡 도메인은 Application Service와
+    Entity/Repository 사이에 Domain Service가 한 단 들어옵니다.
+  </p>
+
+  <h3 style="margin-top: 24px; font-size: 18px; color: var(--brand);">6.1 단순 케이스 — Brand / Like / Inventory</h3>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        Ctrl1["Controller"]
+        Svc1["Application Service<br/>@Transactional<br/>(트랜잭션 + Use Case 조립)"]
+        Ent1["Entity / VO<br/>비즈니스 메서드"]
+        Repo1["Repository (Port)"]
+        Impl1["RepositoryImpl (Adapter)"]
+        DB1[("MySQL")]
+
+        Ctrl1 --> Svc1
+        Svc1 --> Ent1
+        Svc1 --> Repo1
+        Impl1 -.implements.-> Repo1
+        Impl1 --> DB1
+
+        style Ctrl1 fill:#FEF3C7,stroke:#B45309,stroke-width:2px
+        style Svc1 fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Ent1 fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Repo1 fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Impl1 fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style DB1 fill:#F4F4F5,stroke:#71717A,stroke-width:2px
+    </div>
+    <div class="caption">
+      Application Service가 Entity의 비즈니스 메서드를 호출하고, 같은 자리에서 Repository로 저장.
+      <strong>Domain Service 없음.</strong> Brand / Like / Inventory처럼 단일 Entity로 끝나는 경우.
+    </div>
+  </div>
+
+  <h3 style="margin-top: 36px; font-size: 18px; color: var(--order);">6.2 복잡 케이스 — Product (Like 연동) / Order (3 도메인 협업)</h3>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        Ctrl2["Controller"]
+        Fac2["Facade (선택)<br/>인증 컨텍스트 + DTO 매핑"]
+        Svc2["Application Service<br/>@Transactional<br/>(트랜잭션 + 자기 Repository 저장)"]
+        DSx["Domain Service ★<br/>도메인 협업 캡슐화<br/>예: OrderPlacementService"]
+        EntA["자기 도메인 Entity<br/>(Aggregate Root)"]
+        EntB["타 도메인 Entity<br/>(읽기만)"]
+        RepoA["자기 Repository"]
+        RepoB["타 도메인 Repository"]
+
+        Ctrl2 --> Fac2
+        Fac2 --> Svc2
+        Svc2 --> DSx
+        Svc2 --> RepoA
+        DSx --> RepoB
+        DSx --> EntB
+        DSx --> EntA
+
+        style Ctrl2 fill:#FEF3C7,stroke:#B45309,stroke-width:2px
+        style Fac2 fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,stroke-dasharray: 4 3
+        style Svc2 fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style DSx fill:#FCE7F3,stroke:#BE185D,stroke-width:3px
+        style EntA fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style EntB fill:#ECFDF5,stroke:#047857
+        style RepoA fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style RepoB fill:#ECFDF5,stroke:#047857
+    </div>
+    <div class="caption">
+      <strong>Application Service → Domain Service → Entity/Repository</strong>.
+      Application Service가 트랜잭션을 열고 Domain Service에 위임하면,
+      Domain Service가 여러 도메인의 Entity·Repository를 협업시켜 Aggregate 결과를 돌려준다.
+      Facade는 인증 컨텍스트가 무거울 때만 둠 (Order는 둠, Product는 안 둠).
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px; font-size: 18px;">6.3 두 흐름의 책임 분담</h3>
+
+  <table class="summary">
+    <thead>
+      <tr><th>레이어</th><th>책임</th><th>단순 케이스</th><th>복잡 케이스</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Controller</td>
+        <td>HTTP 경계 (라우팅, 상태 코드, JSON 직렬화)</td>
+        <td colspan="2">동일 — 얇은 매핑만</td>
+      </tr>
+      <tr>
+        <td>Facade (선택)</td>
+        <td>인증 컨텍스트 소비, DTO ↔ Command 매핑</td>
+        <td>없음 (Controller가 직접)</td>
+        <td>둠 (Order)</td>
+      </tr>
+      <tr>
+        <td>Application Service</td>
+        <td><code>@Transactional</code> 경계, Use Case 조립</td>
+        <td>Entity·Repository 직접 호출</td>
+        <td>Domain Service에 위임 + 자기 Repository 저장</td>
+      </tr>
+      <tr>
+        <td><strong>Domain Service ★</strong></td>
+        <td>도메인 협업, invariant 검증, Aggregate 생성</td>
+        <td>없음</td>
+        <td><strong>여기서 협업 캡슐화</strong></td>
+      </tr>
+      <tr>
+        <td>Entity / VO</td>
+        <td>도메인 상태 + 비즈니스 메서드 + invariant</td>
+        <td colspan="2">동일</td>
+      </tr>
+      <tr>
+        <td>Repository (Port)</td>
+        <td>도메인 관점의 저장소 인터페이스</td>
+        <td colspan="2">동일</td>
+      </tr>
+      <tr>
+        <td>RepositoryImpl (Adapter)</td>
+        <td>JPA 구현체 — Port 구현, DIP</td>
+        <td colspan="2">동일</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="info" style="margin-top: 20px;">
+    <div class="label">왜 Domain Service가 "중간"에 있어야 하나</div>
+    Evans, <em>Domain-Driven Design</em> Ch.5 — "행위가 어느 Entity·VO에도 자연스럽게 속하지 않을 때,
+    무상태(stateless) 협업자로 Domain Layer 안에 등장한다." Application 위에 두면 비즈니스 규칙이
+    Application Service로 새고, Entity 안에 욱여넣으면 단일 책임이 깨진다. 둘 사이의 무상태 협업자가
+    Domain Service의 정확한 자리.
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s7">
+  <h2><span class="num">7</span>Order Use Case 시퀀스 — 가장 복잡한 케이스</h2>
+
+  <p>
+    주문 생성은 Product · Inventory · Order 세 도메인의 협업입니다. 본 프로젝트가 채택한
+    <strong>4단 패턴</strong>(id 참조 + Domain Service + 트랜잭션 + Snapshot)이 모두
+    적용되는 자리.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      sequenceDiagram
+        participant Client
+        participant Filter as UserHeader<br/>Filter
+        participant Ctrl as OrderV1<br/>Controller
+        participant Fac as OrderFacade
+        participant Svc as OrderService<br/>@Transactional
+        participant DS as OrderPlacement<br/>Service (Domain)
+        participant PR as Product<br/>Repository
+        participant IS as Inventory<br/>Service
+        participant OR as Order<br/>Repository
+
+        Client->>Filter: POST /api/v1/orders
+        Filter->>Ctrl: userId = parseLong(헤더)
+        Ctrl->>Fac: place(request)
+        Fac->>Svc: place(userId, command)
+        Note over Svc: @Transactional 시작
+        Svc->>Svc: items 빈 체크 → 400
+
+        Svc->>DS: place(userId, items)
+        DS->>PR: findAllByIdIn(productIds)
+        PR-->>DS: List<Product>
+        alt 누락 발견
+            DS--xClient: 404 PRODUCT_NOT_FOUND
+        end
+        DS->>DS: snapshot 생성 (name, price, brand)
+        DS->>IS: decreaseAll(items)
+        alt 재고 부족
+            IS--xClient: 409 STOCK_INSUFFICIENT
+        end
+        DS-->>Svc: Order (factory가 invariant 검증)
+
+        Svc->>OR: save(order)
+        OR-->>Svc: persisted
+        Note over Svc: @Transactional commit
+        Svc-->>Fac: OrderInfo
+        Fac-->>Ctrl: OrderResponse
+        Ctrl-->>Client: 201 Created
+    </div>
+    <div class="caption">중간 단계 예외(404/409)는 트랜잭션을 롤백시켜 Inventory 차감과 Order 저장이 일관성 있게 처리됨.</div>
+  </div>
+
+  <table class="summary">
+    <thead>
+      <tr><th>4단 패턴</th><th>이 시퀀스에서의 자리</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>① id 참조 (객체 그래프 X)</td><td>Order는 <code>userId: Long</code>, OrderItem은 <code>productId: Long</code>만 보유</td></tr>
+      <tr><td>② Domain Service에서 협업 캡슐화</td><td><code>OrderPlacementService</code>가 Product/Inventory/Order 협업을 한 자리에</td></tr>
+      <tr><td>③ Application Service에서 트랜잭션</td><td><code>OrderService.place</code>의 <code>@Transactional</code>이 전체를 묶음</td></tr>
+      <tr><td>④ Snapshot (시간 의존 정보 박기)</td><td>OrderItem에 <code>productName</code>, <code>brandName</code>, <code>unitPrice</code>를 복사</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s8">
+  <h2><span class="num">8</span>Aggregate vs Soft Reference</h2>
+
+  <p>
+    DDD의 "Reference Other Aggregates by Identity" 원칙(Vernon Rule 3)이 코드에 어떻게
+    박히는지. Aggregate <strong>안</strong>은 객체 참조 + JPA cascade, Aggregate <strong>사이</strong>는
+    id 참조 + Application cascade.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      flowchart LR
+        subgraph OrderAgg["Order Aggregate (한 Aggregate)"]
+          direction TB
+          OrderRoot["Order (Root)"]
+          OI1["OrderItem #1"]
+          OI2["OrderItem #2"]
+          OrderRoot -->|"@OneToMany<br/>cascade=ALL<br/>orphanRemoval"| OI1
+          OrderRoot -->|""| OI2
+        end
+
+        BrandAgg["Brand Aggregate"]
+        ProductAgg["Product Aggregate"]
+        InvAgg["Inventory Aggregate"]
+        LikeAgg["ProductLike Aggregate"]
+
+        OI1 -.productId<br/>(soft ref).-> ProductAgg
+        OI1 -.brandId<br/>(snapshot).-> BrandAgg
+        ProductAgg -.brandId.-> BrandAgg
+        InvAgg -.productId.-> ProductAgg
+        LikeAgg -.productId.-> ProductAgg
+
+        style OrderAgg fill:#FEE2E2,stroke:#B91C1C,stroke-width:3px
+        style OrderRoot fill:#fff,stroke:#B91C1C,stroke-width:2px
+        style OI1 fill:#fff,stroke:#B91C1C
+        style OI2 fill:#fff,stroke:#B91C1C
+        style BrandAgg fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style ProductAgg fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style InvAgg fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style LikeAgg fill:#FEF3C7,stroke:#B45309,stroke-width:2px
+    </div>
+    <div class="caption">실선 = 같은 Aggregate 안 (JPA cascade). 점선 = 다른 Aggregate (soft reference). Order만 multi-entity aggregate, 나머지는 single-entity.</div>
+  </div>
+
+  <table class="summary">
+    <thead>
+      <tr><th></th><th>Aggregate 안</th><th>Aggregate 사이</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="key">참조 방식</td><td>객체 참조 (<code>@OneToMany</code>)</td><td>id 참조 (<code>Long brandId</code>)</td></tr>
+      <tr><td class="key">DB FK</td><td>설정 가능 (Order ↔ OrderItem)</td><td><strong>없음</strong> (soft reference)</td></tr>
+      <tr><td class="key">JPA cascade</td><td><code>cascade=ALL, orphanRemoval=true</code></td><td>없음 — Application Service에서 명시 호출</td></tr>
+      <tr><td class="key">Lazy / Eager</td><td>Aggregate 한계 안에서 결정</td><td>해당 없음 (id만)</td></tr>
+      <tr><td class="key">예시</td><td>Order ↔ OrderItem</td><td>Product → Brand, Order → Product</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s9">
+  <h2><span class="num">9</span>핵심 결정 사항 요약</h2>
+
+  <p>
+    멘토링이나 PR 리뷰에서 한 번에 꺼낼 수 있는 결정 요약. 각 항목은 plan §2 또는
+    plan §3에 근거가 있고 본 주차 재논의 금지 사항입니다.
+  </p>
+
+  <table class="summary">
+    <thead>
+      <tr><th>영역</th><th>결정</th><th>근거</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="key">앱 구조</td><td><code>apps/commerce-api</code> 단일 앱 + 패키지로 4 layer 분리</td><td>YAGNI — 학습 컨텍스트에 모듈 분리 비용 과함</td></tr>
+      <tr><td class="key">JPA Entity</td><td>도메인 클래스에 <code>@Entity</code> 같이 붙임 (절충안)</td><td>dirty checking 등 JPA 이점 활용. Spring 팀·빅테크 다수</td></tr>
+      <tr><td class="key">Repository</td><td>Domain Port + Infrastructure Adapter + JpaRepository (3단)</td><td>DIP 보존. Domain이 Spring 타입을 모름</td></tr>
+      <tr><td class="key">도메인 간 FK</td><td>없음. <code>brand_id</code> 등은 soft reference</td><td>Aggregate 분리. cascade는 Application에서 명시</td></tr>
+      <tr><td class="key">Brand → Product cascade</td><td>Application cascade (옵션 A). Domain Event 미적용</td><td>본 주차 단일 앱 — 양방향 의존이 패키지 cycle에 그침</td></tr>
+      <tr><td class="key">Domain Service</td><td><code>ProductCatalogService</code>, <code>OrderPlacementService</code> 2개만</td><td>Evans 3 조건 만족 시. 단일 entity CRUD에는 안 만듦 (YAGNI)</td></tr>
+      <tr><td class="key">Facade 도입 기준</td><td><strong>본 과제엔 Facade 없음</strong>. 여러 application service를 조합하는 케이스가 없음 — 도메인 조합은 Domain Service + 경량 Application Service</td><td>Facade는 결제·쿠폰 등 독립 use case 복수 결합(미래)에만. 04-domain-feature-plan.md 참조</td></tr>
+      <tr><td class="key">Aggregate</td><td>Order + OrderItem만 multi-entity. 나머지 single-entity</td><td>Vernon Small Aggregate 원칙</td></tr>
+      <tr><td class="key">Snapshot</td><td>OrderItem에 productName/brandName/unitPrice 복사</td><td>시간 의존 정보를 박아 Product 변경/삭제에 무관하게</td></tr>
+      <tr><td class="key">트랜잭션 범위</td><td>한 Use Case = 한 트랜잭션. 여러 Aggregate 변경 허용</td><td>단일 DB + 모놀리스 — 실용 절충</td></tr>
+      <tr><td class="key">Soft Delete</td><td>BaseEntity의 <code>deletedAt</code> 사용. <code>status</code> enum 제거</td><td>BaseEntity 빌트인 중복 회피</td></tr>
+      <tr><td class="key">인증</td><td><strong>본 과제 범위 밖</strong> (API/필터 미구현). 사용자 식별자는 service 파라미터 <code>requesterId: Long</code></td><td>본인 검증(Like 403 / Order 404)은 service 단위테스트로</td></tr>
+      <tr><td class="key">에러</td><td><code>CoreException</code> 서브클래스만. <code>ErrorCode</code>는 owning 도메인 enum</td><td>CLAUDE.md §2 — 일관된 매핑</td></tr>
+      <tr><td class="key">테스트</td><td>Domain 단위 / Repository 통합(@DataJpaTest+H2) / E2E(@SpringBootTest+MockMvc)</td><td>@Transactional 일괄 부착 금지. <code>DatabaseCleanup</code> + <code>@BeforeEach</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="info">
+    <div class="label">참조</div>
+    상세 결정 배경: <code>docs/week3/00-plan.md</code> · <code>docs/week3/01-checklist.md</code> ·
+    <code>docs/week3/02-ddd-concepts.html</code> (개념 가이드) ·
+    <code>docs/week2/01-requirements.md</code> (요구사항 SSOT) ·
+    <code>CLAUDE.md</code> §2~§13
+  </div>
+</section>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      fontFamily: 'system-ui, -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif',
+      fontSize: '14px',
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#18181B',
+      primaryBorderColor: '#71717A',
+      lineColor: '#71717A',
+    },
+    flowchart: {
+      htmlLabels: true,
+      curve: 'basis',
+      useMaxWidth: false,
+    },
+    sequence: {
+      actorMargin: 60,
+      boxMargin: 10,
+      useMaxWidth: false,
+    }
+  });
+</script>
+</body>
+</html>

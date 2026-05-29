@@ -402,6 +402,17 @@
   </div>
 </header>
 
+<div style="margin:16px 0;padding:16px 20px;border:2px solid #B45309;background:#FFFBEB;border-radius:8px;color:#1c1917;line-height:1.6">
+  <strong style="color:#B45309">⚠️ 정정 (최신 결정 · 본 배너가 본문보다 우선)</strong>
+  <p style="margin:8px 0 4px">아래 본문의 일부 표·다이어그램은 초기 설계 시점 기준이라 다음과 충돌할 수 있습니다. 충돌 시 <strong>이 배너 + <code>docs/week3/04-domain-feature-plan.md</code></strong>가 정답입니다.</p>
+  <ul style="margin:6px 0 0;padding-left:20px">
+    <li><strong>과제 범위</strong>: domain + 경량 application + repository(인터페이스+구현) + 단위테스트. <strong>API · Controller · E2E · Admin 엔드포인트 · 웹 DTO(<code>*V1Dto</code>) · 인증 필터 · HTTP status 매핑은 범위 밖</strong> (본문의 <code>interfaces/</code>·Controller·시퀀스의 Filter/Controller는 학습용 일반 예시로만 본다).</li>
+    <li><strong>Value Object 3개뿐</strong>: <code>BrandName</code> · <code>ProductName</code> · <code>Money</code>. <strong><code>LikeCount</code>·<code>Quantity</code>는 VO 아님</strong> → 엔티티 필드 + 도메인 메서드(<code>Product.likeCount: Long</code> + <code>like()/unlike()</code>, <code>Inventory.quantity: Long</code> + <code>decrease()/increase()</code>). <strong><code>Price</code> VO 없음</strong> → <code>Money</code>(shared kernel <code>com.loopers.domain.shared</code>)로 통합, Product 가격·Order 금액 공용.</li>
+    <li><strong>Facade 없음(본 과제)</strong>: 여러 application service를 조합하는 케이스가 없다. 본문의 "모든 도메인 Facade" / "Order만 Facade" / <code>*Facade</code> 표기는 무효. 도메인 조합은 <strong>Domain Service</strong>(<code>ProductCatalogService</code>, <code>OrderPlacementService</code>) + 경량 <strong>Application Service</strong>가 담당. (Facade는 결제·쿠폰 등 독립 use case가 여러 개 붙는 미래에만.)</li>
+    <li><strong>인증/식별자</strong>: 필터·<code>RequestAttribute("userId")</code>·stub 정책 무효. 사용자 식별자는 service 메서드 <strong>파라미터(<code>requesterId: Long</code>)</strong>로 전달. 본인 검증: Like=<code>ForbiddenException</code>, Order=<code>NotFoundException</code>.</li>
+  </ul>
+</div>
+
 <nav class="toc">
   <h2>목차</h2>
   <ol>
@@ -412,6 +423,8 @@
     <li><a href="#s4">Entity vs Domain — 헷갈리는 두 단어 정리</a></li>
     <li><a href="#s5">본 프로젝트 매트릭스 — 5도메인 × 6패턴</a></li>
     <li><a href="#s6">레퍼런스 — 공식 문서 + 빅테크 블로그</a></li>
+    <li><a href="#s7">같이 붙이는 절충안 — 실제 구조와 흐름</a></li>
+    <li><a href="#s8">Domain Service 깊게 보기 + Facade는 꼭 필요한가</a></li>
   </ol>
 </nav>
 
@@ -720,7 +733,7 @@
         <code>apps/commerce-api/src/main/kotlin/com/loopers/domain/{도메인}/</code>
         <ul>
           <li><code>Brand.kt</code> — Entity</li>
-          <li><code>BrandName.kt</code>, <code>Price.kt</code>, <code>Money.kt</code>, <code>Quantity.kt</code>, <code>LikeCount.kt</code> — Value Object</li>
+          <li><code>BrandName.kt</code>, <code>ProductName.kt</code>, <code>domain/shared/Money.kt</code> — Value Object (<code>Price</code>/<code>Quantity</code>/<code>LikeCount</code>는 VO 아님 — 엔티티 필드)</li>
           <li><code>BrandRepository.kt</code> — <strong>인터페이스만</strong></li>
           <li><code>ProductCatalogService.kt</code>, <code>OrderPlacementService.kt</code> — Domain Service</li>
           <li><code>BrandErrorCode.kt</code> — owning 도메인 에러 코드</li>
@@ -1019,10 +1032,10 @@ Presentation → Application → Domain ← Infrastructure
     <div class="label">Value Object (모두 <code>@Embeddable</code>, <code>data class</code>, <code>init</code>에서 검증)</div>
     <ul>
       <li><code>BrandName</code> — 길이 1~50, blank 금지</li>
-      <li><code>Price</code> — value ≥ 0</li>
+      <li><code>Money</code> — value ≥ 0 (shared kernel, Product 가격·Order 금액 공용. <code>Price</code> VO 없음)</li>
       <li><code>Money</code> — 주문 총액 (단위 통일)</li>
-      <li><code>Quantity</code> — value ≥ 0, <code>decrease(n)</code> 부족 시 <code>STOCK_INSUFFICIENT</code> throw</li>
-      <li><code>LikeCount</code> — value ≥ 0, <code>increment()</code> / <code>decrement()</code> (0 이하 no-op)</li>
+      <li><code>Inventory.quantity</code> (VO 아님, 엔티티 필드) — <code>decrease(n)</code> 부족 시 <code>STOCK_INSUFFICIENT</code> throw, <code>increase(n)</code></li>
+      <li><code>Product.likeCount</code> (VO 아님, 엔티티 필드) — <code>like()</code> / <code>unlike()</code> (0 floor no-op)</li>
     </ul>
     <small>
       길이 상한 같은 숫자는 <code>@Column(length = 50)</code>과 <code>init</code> 양쪽에
@@ -1289,7 +1302,7 @@ Presentation → Application → Domain ← Infrastructure
 }
 
 <span class="comment">// 권장 — Rich Domain Model</span>
-<span class="keyword">class</span> Product(<span class="keyword">var</span> likeCount: LikeCount) {
+<span class="keyword">class</span> Product(<span class="keyword">var</span> likeCount: Long) {
     <span class="keyword">fun</span> like() {
         likeCount = likeCount.increment()  <span class="comment">// 로직이 Entity에</span>
     }
@@ -1535,22 +1548,22 @@ Presentation → Application → Domain ← Infrastructure
         <td><span class="tag vo">BrandName</span></td>
         <td class="empty">단일 Entity Aggregate</td>
         <td class="empty">단순 CRUD라 불필요</td>
-        <td><span class="tag as">BrandService</span><br><span class="tag as">BrandFacade</span></td>
+        <td><span class="tag as">BrandService</span></td>
         <td><span class="tag repo">BrandRepository</span></td>
       </tr>
       <tr>
         <td class="domain-col">Product</td>
         <td><span class="tag entity">Product</span></td>
-        <td><span class="tag vo">Price</span><br><span class="tag vo">LikeCount</span></td>
+        <td><span class="tag vo">ProductName</span><br><span class="tag vo">Money</span> <small>(likeCount는 필드)</small></td>
         <td class="empty">단일 Entity Aggregate</td>
         <td><span class="tag ds">ProductCatalogService</span><br><small>(Product + Brand + Inventory 합성)</small></td>
-        <td><span class="tag as">ProductService</span><br><span class="tag as">ProductFacade</span></td>
+        <td><span class="tag as">ProductService</span></td>
         <td><span class="tag repo">ProductRepository</span></td>
       </tr>
       <tr>
         <td class="domain-col">Inventory</td>
         <td><span class="tag entity">Inventory</span></td>
-        <td><span class="tag vo">Quantity</span></td>
+        <td>— <small>(quantity는 엔티티 필드)</small></td>
         <td class="empty">단일 Entity Aggregate</td>
         <td class="empty">단순 (decreaseAll은 Application)</td>
         <td><span class="tag as">InventoryService</span></td>
@@ -1562,7 +1575,7 @@ Presentation → Application → Domain ← Infrastructure
         <td class="empty">현 시점 VO 없음</td>
         <td class="empty">단일 Entity Aggregate</td>
         <td class="empty">단일 entity 협업이라 불필요</td>
-        <td><span class="tag as">LikeService</span><br><span class="tag as">LikeFacade</span></td>
+        <td><span class="tag as">LikeService</span></td>
         <td><span class="tag repo">ProductLikeRepository</span></td>
       </tr>
       <tr>
@@ -1571,7 +1584,7 @@ Presentation → Application → Domain ← Infrastructure
         <td><span class="tag vo">Money</span></td>
         <td><span class="tag agg">Order</span><br><small>(Order ←→ OrderItem)</small></td>
         <td><span class="tag ds">OrderPlacementService</span><br><small>(Product/Inventory 협업 + snapshot)</small></td>
-        <td><span class="tag as">OrderService</span><br><span class="tag as">OrderFacade</span></td>
+        <td><span class="tag as">OrderService</span></td>
         <td><span class="tag repo">OrderRepository</span></td>
       </tr>
     </tbody>
@@ -1679,6 +1692,724 @@ Presentation → Application → Domain ← Infrastructure
     <li><code>docs/conventions.md</code> — 영속성·모델링 공통 규칙</li>
     <li><code>CLAUDE.md</code> §2 (Error Handling), §3 (Design Principles), §4 (Code Organization)</li>
   </ul>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s7">
+  <h2><span class="num">7</span>같이 붙이는 절충안 — 실제 구조와 흐름</h2>
+
+  <p>
+    이전 섹션들에서 "엄밀한 DDD는 Domain Entity와 JPA Entity를 분리한다,
+    하지만 dirty checking을 잃는 비용이 커서 실무는 같이 붙이는 절충안을 쓴다"고 했습니다.
+    그럼 <strong>같이 붙인 구조가 실제로 어떻게 생겼는가</strong>를 그림으로 정리합니다.
+  </p>
+
+  <div class="definition">
+    <div class="label">한 줄 요약</div>
+    <div class="body">
+      <strong>도메인 클래스 = 한 개 (Domain Entity + JPA Entity 겸직).
+      Repository는 분리 (인터페이스 in Domain, 구현 in Infrastructure).
+      Service에서 도메인 메서드만 호출하면 dirty checking이 UPDATE를 자동으로 흘립니다.</strong>
+    </div>
+  </div>
+
+  <h3>7.1 그림 1 — 전체 구조 (어디까지 같이, 어디부터 분리)</h3>
+
+  <p>
+    초록색이 "한 클래스에 같이 붙이는" 영역, 청록색이 "분리하는" 영역입니다.
+    Brand 클래스 하나가 Domain Layer에 살면서 JPA 어노테이션을 같이 가집니다.
+    Repository는 인터페이스만 Domain에, 실제 구현은 Infrastructure에 분리합니다.
+  </p>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        subgraph Presentation["interfaces/brand (Presentation)"]
+          Ctrl["BrandController"]
+          Dto["BrandV1Dto"]
+        end
+
+        subgraph Application["application/brand (Application)"]
+          Svc["BrandService<br/>@Transactional"]
+          Fac["BrandFacade"]
+        end
+
+        subgraph Domain["domain/brand (Domain) — 같이 붙임"]
+          Brand["Brand<br/>@Entity + 비즈니스 메서드"]
+          VO["BrandName<br/>@Embeddable VO"]
+          Repo["BrandRepository<br/>인터페이스만"]
+          Err["BrandErrorCode"]
+        end
+
+        subgraph Infra["infrastructure/brand (Infrastructure) — 분리"]
+          Impl["BrandRepositoryImpl<br/>@Repository"]
+          Jpa["BrandJpaRepository<br/>: JpaRepository"]
+        end
+
+        DB[("MySQL")]
+
+        Ctrl --> Fac
+        Fac --> Svc
+        Svc --> Repo
+        Svc --> Brand
+        Brand --> VO
+        Impl -.구현.-> Repo
+        Impl --> Jpa
+        Jpa --> DB
+
+        style Brand fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style VO fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Repo fill:#ECFDF5,stroke:#047857,stroke-width:2px
+        style Err fill:#ECFDF5,stroke:#047857,stroke-width:1px
+        style Impl fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Jpa fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Svc fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Fac fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Ctrl fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style Dto fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style DB fill:#F4F4F5,stroke:#71717A,stroke-width:2px
+    </div>
+  </div>
+
+  <p>
+    화살표 의미:
+  </p>
+
+  <ul>
+    <li><strong>실선 ─→</strong> 직접 의존 (import). 예: <code>BrandService</code>가 <code>BrandRepository</code>를 import</li>
+    <li><strong>점선 ⇢ "구현"</strong> Dependency Inversion. <code>BrandRepositoryImpl</code>이 <code>BrandRepository</code> 인터페이스를 implements. 컴파일 의존은 Infrastructure → Domain (한 방향).</li>
+  </ul>
+
+  <h3>7.2 그림 2 — Brand 클래스 안에는 무엇이 함께 사는가</h3>
+
+  <p>
+    "같이 붙인다"가 무슨 의미인지 클래스 내부를 펼쳐봅니다. <strong>한 클래스 안에 JPA
+    어노테이션 + 도메인 invariant + 비즈니스 메서드</strong>가 모두 살아 있습니다.
+    Spring 어노테이션(@Service · @Component)은 들어오지 않습니다.
+  </p>
+
+  <pre><span class="comment">// com.loopers.domain.brand.Brand</span>
+@Entity                                         <span class="comment">// ← JPA</span>
+@Table(name = <span class="string">"brand"</span>)
+<span class="keyword">class</span> Brand <span class="keyword">protected constructor</span>(    <span class="comment">// ← JPA가 요구 (protected로 외부 차단)</span>
+    @Embedded
+    <span class="keyword">var</span> name: BrandName,                       <span class="comment">// ← VO 같이 살음</span>
+    @Column(length = 500)
+    <span class="keyword">var</span> description: String? = <span class="keyword">null</span>,
+    @Column(length = 500)
+    <span class="keyword">var</span> logoUrl: String? = <span class="keyword">null</span>,
+) : BaseEntity() {                              <span class="comment">// ← id, createdAt, updatedAt, deletedAt 상속</span>
+
+    <span class="comment">// ── 도메인 행위 (Rich Domain Model) ──</span>
+    <span class="keyword">fun</span> rename(newName: BrandName) {            <span class="comment">// 비즈니스 메서드</span>
+        <span class="keyword">this</span>.name = newName
+        <span class="comment">// ↑ @Transactional 안이라면 dirty checking이 UPDATE 자동 생성</span>
+    }
+
+    <span class="keyword">fun</span> updateDescription(newDesc: String?) {
+        <span class="keyword">this</span>.description = newDesc
+    }
+
+    <span class="comment">// markDeleted()는 BaseEntity.delete()를 사용 (deletedAt = now)</span>
+
+    <span class="keyword">companion object</span> {
+        <span class="keyword">fun</span> create(name: BrandName, description: String?, logoUrl: String?): Brand =
+            Brand(name, description, logoUrl)   <span class="comment">// factory — invariant 검증은 BrandName.init에서</span>
+    }
+}
+
+<span class="comment">// com.loopers.domain.brand.BrandName — VO</span>
+@Embeddable
+<span class="keyword">data class</span> BrandName(
+    @Column(name = <span class="string">"name"</span>, length = 50, nullable = <span class="keyword">false</span>, unique = <span class="keyword">true</span>)
+    <span class="keyword">val</span> value: String
+) {
+    <span class="keyword">init</span> {
+        <span class="keyword">require</span>(value.isNotBlank()) { <span class="string">"브랜드 이름은 비어있을 수 없습니다"</span> }
+        <span class="keyword">require</span>(value.length <span class="keyword">in</span> 1..50) { <span class="string">"브랜드 이름은 1~50자입니다"</span> }
+    }
+}</pre>
+
+  <div class="project-map">
+    <div class="label">관찰 포인트</div>
+    <ul>
+      <li><strong>JPA 어노테이션과 비즈니스 메서드가 한 클래스</strong> — 분리 안 함</li>
+      <li><strong><code>protected constructor</code></strong> — Hibernate가 요구하는 no-arg 생성자를 외부에서 못 부르게 차단 (Kotlin은 <code>kotlin-jpa</code> 플러그인이 자동)</li>
+      <li><strong><code>var</code> 필드</strong> — JPA가 setter로 hydration. 외부에서 직접 set하지 않고 도메인 메서드(<code>rename</code>)를 통해서만 변경</li>
+      <li><strong>VO는 <code>@Embeddable</code></strong> — 별도 테이블 없이 같은 row에 컬럼으로 펼쳐짐 (<code>name</code> 컬럼)</li>
+      <li><strong>invariant 검증은 <code>init</code></strong> — DB 레벨까지 못 가게 fail-fast</li>
+    </ul>
+  </div>
+
+  <h3>7.3 그림 3 — Repository 분리 패턴 (Port &amp; Adapter)</h3>
+
+  <p>
+    Brand 객체는 같이 붙이지만 Repository는 분리합니다. 이게 DIP의 핵심.
+    Domain은 추상(<code>BrandRepository</code>)에만 의존하고, 구현(<code>BrandRepositoryImpl</code>)은
+    Infrastructure에 있습니다.
+  </p>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart LR
+        Svc["BrandService<br/>application 레이어"]
+
+        subgraph Port["Domain Layer (Port)"]
+          Port_If["interface<br/>BrandRepository<br/><br/>save / findById /<br/>existsByName"]
+        end
+
+        subgraph Adapter["Infrastructure Layer (Adapter)"]
+          Impl["@Repository<br/>BrandRepositoryImpl"]
+          Jpa["interface<br/>BrandJpaRepository<br/>: JpaRepository&lt;Brand, Long&gt;"]
+        end
+
+        DB[("brand 테이블")]
+
+        Svc -->|"BrandRepository 타입으로<br/>주입받음"| Port_If
+        Impl -.implements.-> Port_If
+        Impl -->|위임| Jpa
+        Jpa -->|Spring Data 자동 구현| DB
+
+        style Svc fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Port_If fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style Impl fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style Jpa fill:#ECFEFF,stroke:#0E7490,stroke-width:2px
+        style DB fill:#F4F4F5,stroke:#71717A,stroke-width:2px
+    </div>
+  </div>
+
+  <pre><span class="comment">// com.loopers.domain.brand.BrandRepository — Port (순수 Kotlin)</span>
+<span class="keyword">interface</span> BrandRepository {
+    <span class="keyword">fun</span> save(brand: Brand): Brand
+    <span class="keyword">fun</span> findById(id: Long): Brand?
+    <span class="keyword">fun</span> existsByName(name: BrandName): Boolean
+    <span class="keyword">fun</span> findAll(pageable: Pageable): Page&lt;Brand&gt;
+}
+
+<span class="comment">// com.loopers.infrastructure.brand.BrandJpaRepository — Spring Data JPA</span>
+<span class="keyword">interface</span> BrandJpaRepository : JpaRepository&lt;Brand, Long&gt; {
+    <span class="keyword">fun</span> existsByName(name: BrandName): Boolean
+}
+
+<span class="comment">// com.loopers.infrastructure.brand.BrandRepositoryImpl — Adapter</span>
+@Repository
+<span class="keyword">class</span> BrandRepositoryImpl(
+    <span class="keyword">private val</span> jpa: BrandJpaRepository
+) : BrandRepository {
+    <span class="keyword">override fun</span> save(brand: Brand): Brand = jpa.save(brand)
+    <span class="keyword">override fun</span> findById(id: Long): Brand? = jpa.findById(id).orElse(<span class="keyword">null</span>)
+    <span class="keyword">override fun</span> existsByName(name: BrandName): Boolean = jpa.existsByName(name)
+    <span class="keyword">override fun</span> findAll(pageable: Pageable): Page&lt;Brand&gt; = jpa.findAll(pageable)
+}</pre>
+
+  <div class="project-map">
+    <div class="label">왜 굳이 한 단계 더 감싸나 (BrandJpaRepository를 직접 안 쓰고)</div>
+    <ul>
+      <li><strong>Domain이 Spring을 모르게 함</strong> — <code>JpaRepository</code>는 Spring Data 타입. 이걸 Domain Port로 직접 쓰면 <code>Optional&lt;Brand&gt;</code>, <code>Page&lt;T&gt;</code> 같은 Spring 타입이 Domain 시그니처에 묻음</li>
+      <li><strong>인터페이스 메서드를 도메인 어휘로 선택</strong> — <code>BrandRepository.findById</code>는 <code>Brand?</code>를 반환 (Kotlin nullable). <code>JpaRepository.findById</code>는 <code>Optional&lt;Brand&gt;</code>. Adapter가 그 차이를 흡수.</li>
+      <li><strong>구현 교체 자유</strong> — 내일 JPA → MyBatis로 바꿔도 <code>BrandRepositoryImpl</code>만 다시 쓰면 됨. <code>BrandService</code>는 한 줄도 안 바뀜.</li>
+    </ul>
+  </div>
+
+  <h3>7.4 그림 4 — 트랜잭션 안에서 dirty checking이 흐르는 모습</h3>
+
+  <p>
+    같이 붙이는 절충안의 진짜 보상은 여기서 나옵니다. <code>save()</code>를 부르지 않아도
+    필드 변경이 자동으로 UPDATE로 흘러갑니다.
+  </p>
+
+  <div class="diagram wide">
+    <div class="mermaid">
+      sequenceDiagram
+        participant Client
+        participant Service as BrandService<br/>@Transactional
+        participant Repo as BrandRepository<br/>(인터페이스)
+        participant Adapter as BrandRepositoryImpl
+        participant JPA as Hibernate<br/>(영속성 컨텍스트)
+        participant DB as MySQL
+
+        Client->>Service: rename(brandId, newName)
+        Note over Service: @Transactional 시작<br/>= 영속성 컨텍스트 시작
+        Service->>Repo: findById(brandId)
+        Repo->>Adapter: findById(brandId)
+        Adapter->>JPA: findById(brandId)
+        JPA->>DB: SELECT ...
+        DB-->>JPA: row
+        JPA-->>Adapter: Brand (managed 상태)
+        Adapter-->>Service: Brand
+
+        Note over Service,JPA: 여기부터 dirty checking 마법
+        Service->>Service: brand.rename(newName)<br/>(필드만 바꿈)
+        Note over Service: save() 호출 안 함
+
+        Note over Service: @Transactional 끝<br/>= commit 직전 flush
+        JPA->>JPA: 변경 감지 (snapshot 비교)
+        JPA->>DB: UPDATE brand SET name=? WHERE id=?
+        DB-->>JPA: ok
+        JPA-->>Client: 200 OK
+    </div>
+  </div>
+
+  <p>
+    핵심은 두 가지:
+  </p>
+
+  <ul>
+    <li><strong><code>brand.rename(newName)</code>만 호출하고 <code>save()</code>를 부르지 않음</strong> — Service 코드가 단순해짐</li>
+    <li><strong>트랜잭션 commit 시점에 Hibernate가 snapshot과 현재 상태를 비교해 변경된 필드만 UPDATE</strong> — 자동 변경 추적</li>
+  </ul>
+
+  <p>
+    만약 Domain Entity와 JPA Entity를 분리했다면 이 흐름이 다음처럼 바뀝니다:
+  </p>
+
+  <ol>
+    <li><code>jpa.findById</code> → <code>BrandEntity</code> 로드</li>
+    <li><code>mapper.toDomain(brandEntity)</code> → <code>Brand</code> (도메인) 생성</li>
+    <li><code>brand.rename(newName)</code> → 도메인 필드 변경</li>
+    <li><code>mapper.toEntity(brand)</code> → 새 <code>BrandEntity</code> 생성</li>
+    <li><code>jpa.save(brandEntity)</code> → <strong>명시적으로 다시 저장</strong> (영속 상태 객체가 아니라 merge 또는 새 row 위험)</li>
+  </ol>
+
+  <p>
+    매번 매핑 + 명시적 save가 필요하고, 영속 상태 객체의 id identity를 직접 관리해야 하는
+    부담이 생깁니다. 이게 plan §3.4에서 "같이 붙이는 절충안 채택"의 실제 이유입니다.
+  </p>
+
+  <h3>7.5 본 프로젝트 5개 도메인 적용 — 같은 그림이 반복된다</h3>
+
+  <p>
+    위 4개 그림이 Brand 예시였는데, 본 주차 5개 도메인에 모두 같은 패턴이 반복됩니다.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th>도메인</th>
+        <th>같이 붙는 Entity</th>
+        <th>같이 붙는 VO</th>
+        <th>분리되는 Repository</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Brand</strong></td>
+        <td><code>Brand</code> (@Entity)</td>
+        <td><code>BrandName</code> (@Embeddable)</td>
+        <td><code>BrandRepository</code> (Port) ↔ <code>BrandRepositoryImpl</code> (Adapter) ↔ <code>BrandJpaRepository</code></td>
+      </tr>
+      <tr>
+        <td><strong>Product</strong></td>
+        <td><code>Product</code> (@Entity)</td>
+        <td><code>ProductName</code>, <code>Money</code> (@Embeddable). likeCount는 <code>Long</code> 필드</td>
+        <td><code>ProductRepository</code> 같은 3단</td>
+      </tr>
+      <tr>
+        <td><strong>Inventory</strong></td>
+        <td><code>Inventory</code> (@Entity)</td>
+        <td>없음 — quantity는 <code>Long</code> 필드</td>
+        <td><code>InventoryRepository</code> 같은 3단</td>
+      </tr>
+      <tr>
+        <td><strong>Like</strong></td>
+        <td><code>ProductLike</code> (@Entity)</td>
+        <td>— (VO 없음)</td>
+        <td><code>ProductLikeRepository</code> 같은 3단</td>
+      </tr>
+      <tr>
+        <td><strong>Order</strong></td>
+        <td><code>Order</code> + <code>OrderItem</code> (@Entity, aggregate)</td>
+        <td><code>Money</code> (@Embeddable)</td>
+        <td><code>OrderRepository</code> 같은 3단</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>7.6 그래서 Phase 1 코드 작성 시 손에 잡히는 흐름</h3>
+
+  <ol>
+    <li><code>domain/brand/Brand.kt</code> — Entity, JPA 어노테이션 + 비즈니스 메서드 같이</li>
+    <li><code>domain/brand/BrandName.kt</code> — VO, <code>@Embeddable</code> + init 검증</li>
+    <li><code>domain/brand/BrandRepository.kt</code> — 순수 Kotlin 인터페이스 (Port)</li>
+    <li><code>domain/brand/BrandErrorCode.kt</code> — 에러 코드 enum</li>
+    <li><code>infrastructure/brand/BrandJpaRepository.kt</code> — Spring Data JPA 인터페이스</li>
+    <li><code>infrastructure/brand/BrandRepositoryImpl.kt</code> — Adapter, <code>BrandRepository</code> 구현</li>
+    <li><code>application/brand/BrandService.kt</code> — <code>@Transactional</code> Use Case, 도메인 메서드 호출 (save 명시 호출 불필요한 경우 많음)</li>
+    <li><code>application/brand/BrandFacade.kt</code> — DTO 매핑 + 인증 컨텍스트 소비</li>
+    <li><code>interfaces/api/brand/BrandV1Controller.kt</code> + <code>BrandV1Dto.kt</code> + <code>BrandV1ApiSpec.kt</code></li>
+  </ol>
+
+  <p>
+    이 9개 파일이 한 도메인의 기본 골격이고, 5개 도메인에 같은 패턴이 반복됩니다.
+    "어디 클래스를 어느 레이어에 둘까"라는 매번의 결정 비용이 사라집니다.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<section id="s8">
+  <h2><span class="num">8</span>Domain Service 깊게 보기 + Facade는 꼭 필요한가</h2>
+
+  <p>
+    §3에서 Domain Service와 Application Service의 책임을 간단히 다뤘는데, 두 가지를
+    더 깊게 짚습니다. (1) Domain Service가 정확히 무엇이고 언제 만드는가,
+    (2) Application Service와 Facade를 둘 다 두는 본 프로젝트의 결정이 정당한가.
+  </p>
+
+  <h3>8.1 Domain Service의 정확한 정의 — Eric Evans의 3가지 조건</h3>
+
+  <p>
+    Evans는 책에서 Domain Service의 자격 조건 3가지를 명시했습니다.
+  </p>
+
+  <div class="definition">
+    <div class="label">Evans의 Domain Service 3 조건</div>
+    <div class="body">
+      <ol style="margin: 8px 0 0; padding-left: 22px;">
+        <li>The operation relates to a <strong>domain concept</strong> that is not a natural part of an Entity or Value Object.</li>
+        <li>The interface is defined in terms of <strong>other elements of the domain model</strong> (즉 도메인 객체를 주고받음).</li>
+        <li>The operation is <strong>stateless</strong>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <p>
+    핵심 신호 한 줄: <strong>"이 행위를 어느 Entity의 메서드로 옮길까 고민했는데
+    딱 맞는 자리가 없다 — 그리고 그 행위가 도메인의 한 개념이다"</strong>.
+    이때 Domain Service를 만듭니다. Vaughn Vernon은 더 강하게 표현합니다.
+  </p>
+
+  <blockquote>
+    "Rather than creating a static method on an Aggregate Root class, which is a code smell,
+    you should use a Service instead."
+    <cite>— Vaughn Vernon, <em>Implementing DDD</em> Ch.7</cite>
+  </blockquote>
+
+  <h3>8.2 본 프로젝트 Domain Service 2개가 왜 Domain Service인지 — 3 조건 적용</h3>
+
+  <p>
+    plan에 잡혀 있는 <code>ProductCatalogService</code>와 <code>OrderPlacementService</code>를
+    Evans 3 조건에 대입합니다.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th><code>ProductCatalogService</code></th><th><code>OrderPlacementService</code></th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-key">① 도메인 개념인가</td>
+        <td>"상품 카탈로그 응답을 만든다" — Product + Brand + Inventory 합성. 카탈로그는 도메인 어휘.</td>
+        <td>"주문을 체결한다" — Product 조회 + 스냅샷 + Inventory 차감 + Order 생성. 주문 체결은 도메인 어휘.</td>
+      </tr>
+      <tr>
+        <td class="col-key">② 어느 Entity로 못 옮기는가</td>
+        <td>Product 메서드도 아니고 Brand 메서드도 아님. 세 객체의 합성.</td>
+        <td>Order에 정적 메서드로 둘 수도 있지만, Product/Inventory Repository에 의존이 필요해 Aggregate Root에 두기 어색.</td>
+      </tr>
+      <tr>
+        <td class="col-key">③ stateless인가</td>
+        <td>의존성은 final, 멤버 변수 없음.</td>
+        <td>의존성은 final, 멤버 변수 없음.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>8.3 Domain Service가 아닌 것 — 흔한 오해</h3>
+
+  <p>
+    "Service"라는 이름이 붙었다고 다 Domain Service가 아닙니다. 본 프로젝트에 등장하는
+    Service들도 대부분 Application Service입니다.
+  </p>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th>클래스</th>
+        <th>분류</th>
+        <th>이유</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>ProductCatalogService</code></td>
+        <td><span class="tag ds">Domain Service</span></td>
+        <td>여러 도메인 합성, 도메인 어휘, stateless</td>
+      </tr>
+      <tr>
+        <td><code>OrderPlacementService</code></td>
+        <td><span class="tag ds">Domain Service</span></td>
+        <td>주문 체결 로직, 여러 Aggregate 협업</td>
+      </tr>
+      <tr>
+        <td><code>BrandService</code></td>
+        <td><span class="tag as">Application Service</span></td>
+        <td>Use Case 조립 + 트랜잭션. 단일 Brand 객체 다룸 — 도메인 협업 없음.</td>
+      </tr>
+      <tr>
+        <td><code>ProductService</code></td>
+        <td><span class="tag as">Application Service</span></td>
+        <td>Use Case 조립 (Brand 검증 + Inventory 생성 cascade는 application 책임)</td>
+      </tr>
+      <tr>
+        <td><code>LikeService</code></td>
+        <td><span class="tag as">Application Service</span></td>
+        <td>토글 흐름 + 트랜잭션 + 권한 검증</td>
+      </tr>
+      <tr>
+        <td><code>OrderService</code></td>
+        <td><span class="tag as">Application Service</span></td>
+        <td>OrderPlacementService를 호출 + 트랜잭션 + 응답 변환</td>
+      </tr>
+      <tr>
+        <td><code>InventoryService</code></td>
+        <td><span class="tag as">Application Service</span></td>
+        <td><code>decreaseAll(items)</code>는 일괄 처리이지만 도메인 협업이 아니라 단순 반복 — Application으로 분류 (plan 결정)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart TB
+        subgraph Domain["domain/ — Domain Service는 여기"]
+          Pcs["ProductCatalogService"]
+          Ops["OrderPlacementService"]
+        end
+
+        subgraph Application["application/ — Application Service는 여기"]
+          Bs["BrandService"]
+          Ps["ProductService"]
+          Ls["LikeService"]
+          Os["OrderService"]
+          Is["InventoryService"]
+        end
+
+        Os -->|호출| Ops
+        Ps -->|호출| Pcs
+        Ops -->|호출| Is
+        Ops -.snapshot.-> Pcs
+
+        style Pcs fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style Ops fill:#ECFDF5,stroke:#047857,stroke-width:3px
+        style Bs fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Ps fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Ls fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Os fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style Is fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+    </div>
+  </div>
+
+  <h3>8.4 Domain Service vs Application Service 책임 한 표</h3>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>Domain Service</th><th>Application Service</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="col-key">레이어</td><td><code>domain/</code></td><td><code>application/</code></td></tr>
+      <tr><td class="col-key">반환 타입</td><td>도메인 객체 (Entity / VO / Aggregate)</td><td>Info / DTO (외부 모양)</td></tr>
+      <tr><td class="col-key">트랜잭션</td><td>가지지 않음</td><td><code>@Transactional</code> 경계 자체를 가짐</td></tr>
+      <tr><td class="col-key">인증/권한</td><td>모름</td><td>인증 컨텍스트 소비</td></tr>
+      <tr><td class="col-key">외부 어댑터</td><td>Domain Repository / 다른 Domain Service만</td><td>Repository / 외부 API / 큐 등 자유</td></tr>
+      <tr><td class="col-key">테스트</td><td>순수 단위 (Spring 없이)</td><td>주로 mock 단위, 통합은 별도</td></tr>
+      <tr><td class="col-key">예</td><td><code>OrderPlacementService.place</code></td><td><code>OrderService.place</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>8.5 Facade는 꼭 두어야 하는가 — 비판적 검토</h3>
+
+  <p>
+    본 프로젝트는 모든 도메인에 <code>BrandService</code> + <code>BrandFacade</code>처럼
+    Service와 Facade를 둘 다 둡니다. 이게 정말 필요한가?
+    DDD 원전과 빅테크 실무를 모두 검토합니다.
+  </p>
+
+  <h4>8.5.1 DDD 원전 — Facade라는 별도 layer는 없다</h4>
+
+  <p>
+    Evans와 Vernon 책에는 Service와 Facade를 별도로 두라는 권장이 없습니다.
+    <strong>Application Service 자체가 Facade 역할을 합니다.</strong>
+    Medium의 정리가 가장 명확합니다.
+  </p>
+
+  <blockquote>
+    "An application service acts as a facade through which clients interact with the domain model.
+    The term 'facade' in DDD essentially refers to the role that Application Services play."
+    <cite>— "Application Services VS Domain Services in DDD"</cite>
+  </blockquote>
+
+  <p>
+    Microsoft .NET DDD 공식 docs도 동일합니다. Application Service 하나가 "Use Case 조립
+    + 트랜잭션 + 인증 + DTO 변환 + 외부 어댑터 호출"을 모두 책임지는 것이 정석입니다.
+  </p>
+
+  <h4>8.5.2 Spring 커뮤니티 — Facade를 별도 두는 패턴은 흔하지만 조건부</h4>
+
+  <p>
+    Spring 진영에서는 Facade를 별도 두는 패턴이 자주 등장합니다. Baeldung, Spring Framework Guru,
+    JavaGuides 모두 다루는 패턴입니다. 다만 그 정당화는 다음 한 가지에 모입니다.
+  </p>
+
+  <blockquote>
+    "As your Spring Boot project grows, you'll often see controllers or service classes
+    bloated with multiple service calls. <strong>That's a sign it's time for a facade.</strong>"
+    <cite>— Java Guides 2025</cite>
+  </blockquote>
+
+  <p>
+    핵심은 <strong>"여러 Service 호출이 한 곳에 쌓이기 시작할 때"</strong>입니다.
+    단순 위임만 하는 Facade는 오버엔지니어링이라고 같은 글들이 경고합니다.
+  </p>
+
+  <blockquote>
+    "Sometimes the pattern can be overused in simple scenarios, which will lead to
+    redundant implementations."
+    <cite>— Spring Framework Guru</cite>
+  </blockquote>
+
+  <h4>8.5.3 본 프로젝트 5개 도메인 — 도메인별로 Facade의 정당성을 평가</h4>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th>도메인</th>
+        <th>Facade가 해야 할 일</th>
+        <th>Service만으로 충분한가</th>
+        <th>평가</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>Brand</code></td>
+        <td>Request → Command 변환, Response 변환, LDAP 헤더 소비</td>
+        <td>가능 (Service에 흡수)</td>
+        <td><span style="color:var(--warn)">⚠ 사실상 passthrough 가능성</span></td>
+      </tr>
+      <tr>
+        <td><code>Product</code></td>
+        <td>Request → Command, Sort enum 매핑, 사용자/관리자 응답 DTO 분리</td>
+        <td>가능</td>
+        <td><span style="color:var(--warn)">⚠ DTO 분리는 의미 있으나 얇은 layer</span></td>
+      </tr>
+      <tr>
+        <td><code>Inventory</code></td>
+        <td>외부 API 없음, 본 주차 controller 직접 노출 안 됨</td>
+        <td>Facade 자체 불필요</td>
+        <td><span style="color:var(--ok)">✓ Facade 없음 (plan에 없음)</span></td>
+      </tr>
+      <tr>
+        <td><code>Like</code></td>
+        <td>본인 검증(`RequestAttribute("userId")` 비교) + 토글 응답 변환</td>
+        <td>본인 검증 정도면 Service에서도 가능</td>
+        <td><span style="color:var(--warn)">⚠ 본인 검증 위치 명확화에는 유의미</span></td>
+      </tr>
+      <tr>
+        <td><code>Order</code></td>
+        <td>Request → Command, 인증 컨텍스트 + OrderService + 응답 DTO. 시나리오 17개로 가장 복잡.</td>
+        <td>Service에 모두 두면 비대해짐</td>
+        <td><span style="color:var(--ok)">✓ 의미 있음 (가장 명확한 Facade 케이스)</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>8.6 Facade를 두는 흐름 vs 안 두는 흐름</h3>
+
+  <p>
+    같은 "Brand 생성" 시나리오를 두 가지 호출 흐름으로 비교합니다.
+  </p>
+
+  <div class="diagram">
+    <div class="mermaid">
+      flowchart LR
+        subgraph A["Facade 둠 (본 프로젝트 plan)"]
+          A_Ctrl["AdminBrandController"]
+          A_Fac["BrandFacade<br/>Request → Command,<br/>LDAP 헤더 소비"]
+          A_Svc["BrandService<br/>@Transactional,<br/>Repository 호출"]
+          A_Ctrl --> A_Fac --> A_Svc
+        end
+
+        subgraph B["Facade 안 둠 (Application Service 일체)"]
+          B_Ctrl["AdminBrandController"]
+          B_Svc["BrandService<br/>@Transactional,<br/>Request 흡수 + Response 생성<br/>+ Repository 호출"]
+          B_Ctrl --> B_Svc
+        end
+
+        style A_Fac fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style A_Svc fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style B_Svc fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px
+        style A_Ctrl fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+        style B_Ctrl fill:#FFFBEB,stroke:#B45309,stroke-width:2px
+    </div>
+  </div>
+
+  <p>
+    각 옵션의 트레이드오프:
+  </p>
+
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>Facade 둠 (본 프로젝트)</h4>
+      <ul>
+        <li>Service가 도메인 객체 단위만 다룸 → 도메인 책임 명확</li>
+        <li>Request/Response DTO 의존이 Service에 묻지 않음</li>
+        <li>여러 Service 협업이 생길 때 자리가 마련됨</li>
+        <li>모든 도메인에 같은 패턴 — 일관성</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>Facade 둠의 비용</h4>
+      <ul>
+        <li>단순 도메인(Brand)에서는 사실상 passthrough — YAGNI 위반</li>
+        <li>같은 메서드 시그니처가 Facade → Service에 두 번 등장</li>
+        <li>파일 수 증가 + 추적 비용</li>
+        <li>학습자 입장에서 "이 메서드는 Facade에 두는가 Service에 두는가" 매번 결정 필요</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.7 그래서 본 프로젝트는 Facade를 그대로 두는 게 정당한가</h3>
+
+  <p>
+    객관적 평가:
+  </p>
+
+  <ul>
+    <li><strong>Order는 명확히 필요</strong>: 시나리오 17개 + 다중 도메인 협업 + 인증 + 응답 DTO 분리 — Facade가 빛나는 자리.</li>
+    <li><strong>Brand · Product · Like는 경계 케이스</strong>: 본질적으로는 Service에 흡수해도 됨. 두면 사실상 passthrough.</li>
+    <li><strong>학습 컨텍스트에서의 가치</strong>: 5개 도메인에 같은 패턴을 반복하는 것이 layer 책임 분리를 손에 익히는 데 도움. 일관성 우선.</li>
+    <li><strong>실서비스로 가면 다시 평가</strong>: 단순 도메인의 Facade를 합치는 리팩토링이 자연스럽게 등장할 가능성. 그때 합치면 됨.</li>
+  </ul>
+
+  <div class="definition">
+    <div class="label">결론</div>
+    <div class="body">
+      Facade는 DDD 원전 필수가 아니라 <strong>Spring 커뮤니티 관습</strong>입니다.
+      본 주차에서는 plan §3.6에 잡힌 대로 모든 도메인에 두되 (학습 일관성),
+      Brand/Product/Like의 Facade가 사실상 passthrough라는 점을 인식하고 진행합니다.
+      실서비스 단계에서는 도메인별로 정당성을 재평가해 합치는 것을 검토할 수 있습니다.
+    </div>
+  </div>
+
+  <h3>8.8 한 줄 가이드</h3>
+
+  <ul>
+    <li><strong>Domain Service</strong>는 Evans 3 조건을 만족할 때만 (단일 entity 협업이면 만들지 마라).</li>
+    <li><strong>Application Service</strong>는 모든 Use Case에 필요 (트랜잭션 경계).</li>
+    <li><strong>Facade</strong>는 Application Service가 비대해질 때 분리. 본 프로젝트는 일관성 위해 모든 도메인에 두지만 단순 도메인은 사실상 passthrough.</li>
+  </ul>
+
+  <div class="refs">
+    <div class="label">레퍼런스</div>
+    <ul>
+      <li>Vaughn Vernon, <em>Implementing DDD</em> Ch.7 — <a href="https://www.oreilly.com/library/view/implementing-domain-driven-design/9780133039900/ch07.html" target="_blank">Services</a></li>
+      <li>Microsoft .NET DDD — <a href="https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/ddd-oriented-microservice" target="_blank">Designing a DDD-oriented microservice</a></li>
+      <li>Hector Reyes — <a href="https://hector-reyesaleman.medium.com/application-layer-orchestrators-service-facades-9b71b6e2ff7f" target="_blank">DDD Application Layer — Orchestrators &amp; Service Facades</a></li>
+      <li>JC Navarrete — <a href="https://medium.com/@jankrloz/application-services-vs-domain-services-in-ddd-7846dcbd7f95" target="_blank">Application Services VS Domain Services in DDD</a></li>
+      <li>Spring Framework Guru — <a href="https://springframework.guru/gang-of-four-design-patterns/facade-pattern/" target="_blank">Facade Pattern in Spring</a></li>
+      <li>Java Guides 2025 — <a href="https://www.javaguides.net/2025/08/facade-pattern-in-spring-boot-project.html" target="_blank">Facade Pattern in a Spring Boot Project</a></li>
+      <li>Baeldung — <a href="https://www.baeldung.com/java-facade-pattern" target="_blank">Facade Design Pattern in Java</a></li>
+    </ul>
+  </div>
 </section>
 
 </div>

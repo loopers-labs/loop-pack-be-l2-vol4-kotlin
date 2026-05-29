@@ -1,5 +1,9 @@
 # Week-3 도메인 구현 + DDD 학습 계획
 
+> ⚠️ **범위 정정 (최신, 우선):** 본 과제 실제 운영 플랜은 [`04-domain-feature-plan.md`](./04-domain-feature-plan.md)입니다.
+> **API / Controller / E2E / Admin 엔드포인트 / 웹 DTO / 인증 필터 / HTTP status 는 본 과제 범위 밖** — 본 문서의 `interfaces` / Controller / E2E / Admin / `*V1Dto` 항목은 무시합니다.
+> VO는 **`BrandName` · `ProductName` · `Money` 3개**뿐 (`LikeCount`·`Quantity`·`Price`는 VO 아님 — 엔티티 필드).
+>
 > 산출물 보관 위치: 본 플랜이 승인되면 Phase 0의 첫 작업으로 본 문서를 `docs/week3/00-plan.md`로 옮긴 뒤 변경분을 commit.
 
 ---
@@ -49,7 +53,7 @@
 
 ### §3.4 Entity vs Value Object — Brand phase 직전
 - 정의: 식별성(`id`)으로 동일성 → Entity. 속성 동일성 + immutable → VO.
-- 본 프로젝트 적용: Brand/Product/ProductLike/Order/OrderItem/Inventory = Entity. BrandName/Price/Money/Quantity/LikeCount = `@Embeddable` VO + `init` invariant.
+- 본 프로젝트 적용: Brand/Product/ProductLike/Order/OrderItem/Inventory = Entity. **VO 3개: `BrandName`/`ProductName`/`Money`** = `@Embeddable` + `init` invariant. (`Money`는 shared kernel — Product 가격·Order 금액 공용. `Price` VO 없음.) **`LikeCount`/`Quantity`는 VO 아님** — 가변 카운터라 엔티티 필드(`Product.likeCount: Long` + `like()/unlike()`, `Inventory.quantity: Long` + `decrease()/increase()`)로 둔다. 상세 결정은 `04-domain-feature-plan.md` 참조.
 - 자료:
   - Microsoft .NET DDD: "Implement value objects" — https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/implement-value-objects
   - Microsoft .NET DDD: "Design a microservice domain model" — https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/microservice-domain-model
@@ -154,7 +158,9 @@ interfaces/api/brand/BrandV1Controller.kt, AdminBrandV1Controller.kt, BrandV1Dto
 
 **Product 패키지:**
 ```
-domain/product/Product.kt, Price.kt, LikeCount.kt, ProductStatus.kt 제거(R3 결정), ProductSort.kt, ProductErrorCode.kt, ProductRepository.kt, ProductCatalogService.kt(domain service)
+domain/product/Product.kt(likeCount: Long 필드 + like()/unlike()), ProductName.kt(VO), ProductSort.kt, ProductErrorCode.kt, ProductRepository.kt, ProductCatalogService.kt(domain service)
+domain/shared/Money.kt(VO, Product·Order 공용 화폐 — Price 대체)
+(ProductStatus.kt 미생성 R3 / Price.kt·LikeCount.kt VO 미생성 — 가격은 Money, 좋아요수는 필드)
 infrastructure/product/ProductJpaRepository.kt, ProductRepositoryImpl.kt
 application/product/ProductService.kt, ProductFacade.kt
 interfaces/api/product/ProductV1Controller.kt, AdminProductV1Controller.kt, ProductV1Dto.kt, ProductV1ApiSpec.kt
@@ -162,7 +168,7 @@ interfaces/api/product/ProductV1Controller.kt, AdminProductV1Controller.kt, Prod
 
 **Inventory 패키지:**
 ```
-domain/inventory/Inventory.kt, Quantity.kt, InventoryErrorCode.kt, InventoryRepository.kt
+domain/inventory/Inventory.kt(quantity: Long 필드 + decrease()/increase(), Quantity VO 미생성), InventoryErrorCode.kt, InventoryRepository.kt
 infrastructure/inventory/InventoryJpaRepository.kt, InventoryRepositoryImpl.kt
 application/inventory/InventoryService.kt
 ```
@@ -178,9 +184,9 @@ application/inventory/InventoryService.kt
 | 정렬 처리 (`ProductSort` → `Sort`) | `ProductService.list` | enum 매핑, 단순 |
 
 **도메인 invariant:**
-- `Price.init` value ≥ 0.
-- `LikeCount.init` value ≥ 0, `increment()`, `decrement()`(value > 0일 때만 감소, 0 이하는 no-op).
-- `Quantity.init` value ≥ 0. `decrease(n)` 부족 시 throw `ConflictException(STOCK_INSUFFICIENT)`. `increase(n)`.
+- `Money.init` value ≥ 0 (shared VO, 가격·금액 공용).
+- `Product.likeCount`(Long 필드) — `like()` 증가, `unlike()` 감소(0 이하 no-op). VO 아님.
+- `Inventory.quantity`(Long 필드) — `decrease(n)` 부족 시 throw `ConflictException(STOCK_INSUFFICIENT)`, `increase(n)`. 음수 방지는 엔티티 메서드. VO 아님.
 
 **ErrorCode:**
 - Product: `PRODUCT_NOT_FOUND`(404), `INVALID_PRODUCT_NAME`(400), `INVALID_PRICE`(400), `INVALID_PRODUCT_SORT`(400).
@@ -221,7 +227,8 @@ interfaces/api/like/LikeV1Controller.kt, LikeV1Dto.kt, LikeV1ApiSpec.kt
 
 **패키지/파일:**
 ```
-domain/order/Order.kt(aggregate root), OrderItem.kt, Money.kt, OrderStatus.kt(CREATED 단일), OrderErrorCode.kt, OrderRepository.kt, OrderPlacementService.kt(domain service)
+domain/order/Order.kt(aggregate root), OrderItem.kt, OrderStatus.kt(CREATED 단일), OrderErrorCode.kt, OrderRepository.kt, OrderPlacementService.kt(domain service)
+(Money는 domain/shared/Money.kt 재사용 — Product 세션에서 생성됨. totalAmount/unitPrice가 Money)
 infrastructure/order/OrderJpaRepository.kt, OrderRepositoryImpl.kt
 application/order/OrderService.kt, OrderFacade.kt
 interfaces/api/order/OrderV1Controller.kt, AdminOrderV1Controller.kt, OrderV1Dto.kt, OrderV1ApiSpec.kt

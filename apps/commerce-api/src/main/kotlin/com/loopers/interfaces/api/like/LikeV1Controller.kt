@@ -2,14 +2,12 @@ package com.loopers.interfaces.api.like
 
 import com.loopers.application.like.LikeFacade
 import com.loopers.interfaces.api.ApiResponse
-import com.loopers.interfaces.api.PageResponse
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -19,39 +17,38 @@ class LikeV1Controller(
 ) : LikeV1ApiSpec {
     @PostMapping("/products/{productId}/likes")
     override fun like(
-        @RequestHeader("X-Loopers-User-Id") memberId: Long,
+        @RequestHeader("X-Loopers-LoginId") loginId: String,
+        @RequestHeader("X-Loopers-LoginPw") password: String,
         @PathVariable productId: Long,
     ): ApiResponse<Any> {
-        likeFacade.like(memberId = memberId, productId = productId)
+        likeFacade.like(loginId = loginId, rawPassword = password, productId = productId)
         return ApiResponse.success()
     }
 
     @DeleteMapping("/products/{productId}/likes")
     override fun unlike(
-        @RequestHeader("X-Loopers-User-Id") memberId: Long,
+        @RequestHeader("X-Loopers-LoginId") loginId: String,
+        @RequestHeader("X-Loopers-LoginPw") password: String,
         @PathVariable productId: Long,
     ): ApiResponse<Any> {
-        likeFacade.unlike(memberId = memberId, productId = productId)
+        likeFacade.unlike(loginId = loginId, rawPassword = password, productId = productId)
         return ApiResponse.success()
     }
 
     @GetMapping("/users/{userId}/likes")
     override fun getLikedProducts(
-        @RequestHeader("X-Loopers-User-Id") memberId: Long,
+        @RequestHeader("X-Loopers-LoginId") loginId: String,
+        @RequestHeader("X-Loopers-LoginPw") password: String,
         @PathVariable userId: Long,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int,
-    ): ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>> {
+    ): ApiResponse<List<LikeV1Dto.LikedProductResponse>> {
         val likedProducts = likeFacade.getLikedProducts(
-            memberId = memberId,
+            loginId = loginId,
+            rawPassword = password,
             userId = userId,
-            page = page,
-            size = size,
         )
 
         return likedProducts
             .map(LikeV1Dto.LikedProductResponse::from)
-            .let { PageResponse.from(it) }
             .let { ApiResponse.success(it) }
     }
 }

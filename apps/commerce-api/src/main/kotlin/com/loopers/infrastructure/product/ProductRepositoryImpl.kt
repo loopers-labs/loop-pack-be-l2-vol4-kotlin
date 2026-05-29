@@ -21,6 +21,15 @@ class ProductRepositoryImpl(
             ?.let(ProductMapper::toDomain)
     }
 
+    override fun findAllByIds(productIds: Collection<Long>): List<Product> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return productJpaRepository.findAllById(productIds)
+            .map(ProductMapper::toDomain)
+    }
+
     override fun findAllByBrandId(brandId: Long): List<Product> {
         return productJpaRepository.findAllByBrandId(brandId)
             .map(ProductMapper::toDomain)

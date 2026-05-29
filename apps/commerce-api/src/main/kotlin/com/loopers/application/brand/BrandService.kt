@@ -31,6 +31,15 @@ class BrandService(
     }
 
     @Transactional(readOnly = true)
+    fun getBrands(brandIds: Collection<Long>): List<Brand> {
+        if (brandIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return brandRepository.findAllByIds(brandIds)
+    }
+
+    @Transactional(readOnly = true)
     fun getBrands(page: Int, size: Int): Page<Brand> {
         return brandRepository.findDisplayable(page = page, size = size)
     }

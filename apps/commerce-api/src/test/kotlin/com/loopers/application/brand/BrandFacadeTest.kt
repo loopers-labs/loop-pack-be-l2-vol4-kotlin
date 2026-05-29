@@ -52,6 +52,10 @@ class BrandFacadeTest {
             return brands.find { it.id == brandId }
         }
 
+        override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
+            return brands.filter { it.id in brandIds }
+        }
+
         override fun findDisplayable(page: Int, size: Int): Page<Brand> {
             val content = brands
                 .filter { !it.isDeleted }

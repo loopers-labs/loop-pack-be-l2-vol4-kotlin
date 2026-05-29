@@ -19,6 +19,15 @@ class BrandRepositoryImpl(
             ?.let(BrandMapper::toDomain)
     }
 
+    override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
+        if (brandIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return brandJpaRepository.findAllById(brandIds)
+            .map(BrandMapper::toDomain)
+    }
+
     override fun findDisplayable(page: Int, size: Int): Page<Brand> {
         val pageable = PageRequest.of(
             page,

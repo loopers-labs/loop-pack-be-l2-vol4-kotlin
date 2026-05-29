@@ -30,6 +30,14 @@ class ProductService(
         return product
     }
 
+    fun getProducts(productIds: Collection<Long>): List<Product> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return productRepository.findAllByIds(productIds)
+    }
+
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
         return productRepository.findDisplayableSummaries(
             brandId = command.brandId,

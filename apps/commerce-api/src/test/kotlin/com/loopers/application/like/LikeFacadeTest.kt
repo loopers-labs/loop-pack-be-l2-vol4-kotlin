@@ -1,7 +1,11 @@
 package com.loopers.application.like
 
+import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
 import com.loopers.application.productstat.ProductStatService
+import com.loopers.application.user.UserService
+import com.loopers.domain.brand.Brand
+import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.like.Like
 import com.loopers.domain.like.LikeRepository
 import com.loopers.domain.like.ProductLikeService
@@ -11,6 +15,10 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.domain.productstat.ProductStat
 import com.loopers.domain.productstat.ProductStatRepository
+import com.loopers.domain.user.PasswordEncoder
+import com.loopers.domain.user.User
+import com.loopers.domain.user.UserAccountService
+import com.loopers.domain.user.UserRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
@@ -33,7 +41,7 @@ class LikeFacadeTest {
             val fixture = LikeFacadeFixture()
             fixture.productRepository.save(createProduct(id = 10L))
 
-            fixture.likeFacade.like(memberId = 1L, productId = 10L)
+            fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
             val productStat = fixture.productStatRepository.findByProductId(10L)
             assertAll(
@@ -50,7 +58,7 @@ class LikeFacadeTest {
             fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
             fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
-            fixture.likeFacade.like(memberId = 1L, productId = 10L)
+            fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
             val productStat = fixture.productStatRepository.findByProductId(10L)
             assertThat(productStat?.likeCount).isEqualTo(1L)
@@ -62,7 +70,7 @@ class LikeFacadeTest {
             val fixture = LikeFacadeFixture()
 
             val result = assertThrows<CoreException> {
-                fixture.likeFacade.like(memberId = 1L, productId = 10L)
+                fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -75,7 +83,7 @@ class LikeFacadeTest {
             fixture.productRepository.save(createProduct(id = 10L, isDeleted = true))
 
             val result = assertThrows<CoreException> {
-                fixture.likeFacade.like(memberId = 1L, productId = 10L)
+                fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -93,7 +101,7 @@ class LikeFacadeTest {
             fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
             fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
-            fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+            fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
             val productStat = fixture.productStatRepository.findByProductId(10L)
             assertAll(
@@ -109,7 +117,7 @@ class LikeFacadeTest {
             fixture.productRepository.save(createProduct(id = 10L))
             fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
 
-            fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+            fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
             val productStat = fixture.productStatRepository.findByProductId(10L)
             assertThat(productStat?.likeCount).isEqualTo(1L)
@@ -121,7 +129,7 @@ class LikeFacadeTest {
             val fixture = LikeFacadeFixture()
 
             val result = assertThrows<CoreException> {
-                fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+                fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -134,7 +142,7 @@ class LikeFacadeTest {
             fixture.productRepository.save(createProduct(id = 10L, isDeleted = true))
 
             val result = assertThrows<CoreException> {
-                fixture.likeFacade.unlike(memberId = 1L, productId = 10L)
+                fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -148,17 +156,32 @@ class LikeFacadeTest {
         @Test
         fun getsLikedProducts() {
             val fixture = LikeFacadeFixture()
-            fixture.likeRepository.addLikedProductSummary(
-                memberId = 1L,
-                productSummary = createProductSummary(productId = 10L),
-            )
+            fixture.brandRepository.save(createBrand(id = 1L))
+            fixture.productRepository.save(createProduct(id = 10L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
-            val result = fixture.likeFacade.getLikedProducts(memberId = 1L, userId = 1L, page = 0, size = 20)
+            val result = fixture.likeFacade.getLikedProducts(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, userId = 1L)
 
             assertAll(
-                { assertThat(result.content).hasSize(1) },
-                { assertThat(result.content.first().productId).isEqualTo(10L) },
+                { assertThat(result).hasSize(1) },
+                { assertThat(result.first().productId).isEqualTo(10L) },
+                { assertThat(result.first().brandName).isEqualTo("loopers") },
+                { assertThat(result.first().likeCount).isEqualTo(1L) },
             )
+        }
+
+        @DisplayName("삭제된 상품은 좋아요 목록에서 제외한다")
+        @Test
+        fun excludesDeletedProducts() {
+            val fixture = LikeFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L))
+            fixture.productRepository.save(createProduct(id = 10L, isDeleted = true))
+            fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
+
+            val result = fixture.likeFacade.getLikedProducts(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, userId = 1L)
+
+            assertThat(result).isEmpty()
         }
 
         @DisplayName("로그인 회원과 조회 대상이 다르면 조회할 수 없다")
@@ -167,7 +190,7 @@ class LikeFacadeTest {
             val fixture = LikeFacadeFixture()
 
             val result = assertThrows<CoreException> {
-                fixture.likeFacade.getLikedProducts(memberId = 1L, userId = 2L, page = 0, size = 20)
+                fixture.likeFacade.getLikedProducts(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, userId = 2L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
@@ -176,19 +199,35 @@ class LikeFacadeTest {
 
     private class LikeFacadeFixture {
         val likeRepository = FakeLikeRepository()
+        val userRepository = FakeUserRepository()
+        val brandRepository = FakeBrandRepository()
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
         val likeFacade = LikeFacade(
             likeService = LikeService(likeRepository),
+            userService = UserService(userRepository, UserAccountService()),
             productService = ProductService(productRepository),
+            brandService = BrandService(brandRepository),
             productStatService = ProductStatService(productStatRepository),
             productLikeService = ProductLikeService(),
         )
+
+        init {
+            userRepository.save(
+                User(
+                    id = 1L,
+                    loginId = LOGIN_ID,
+                    password = PasswordEncoder.encode(RAW_PASSWORD),
+                    name = "홍길동",
+                    birthDate = java.time.LocalDate.of(1990, 1, 1),
+                    email = "loopers@example.com",
+                ),
+            )
+        }
     }
 
     private class FakeLikeRepository : LikeRepository {
         private val likes = mutableListOf<Like>()
-        private val likedProductSummaries = mutableMapOf<Long, MutableList<ProductSummary>>()
 
         override fun saveIfAbsent(like: Like): Boolean {
             if (exists(memberId = like.memberId, productId = like.productId)) {
@@ -203,22 +242,60 @@ class LikeFacadeTest {
             return likes.removeIf { it.memberId == memberId && it.productId == productId }
         }
 
-        override fun findLikedProductSummaries(memberId: Long, page: Int, size: Int): Page<ProductSummary> {
-            val offset = page * size
-            val content = likedProductSummaries[memberId]
-                .orEmpty()
-                .drop(offset)
-                .take(size)
-
-            return PageImpl(content, PageRequest.of(page, size), likedProductSummaries[memberId].orEmpty().size.toLong())
-        }
-
-        fun addLikedProductSummary(memberId: Long, productSummary: ProductSummary) {
-            likedProductSummaries.getOrPut(memberId, ::mutableListOf).add(productSummary)
+        override fun findAllByMemberId(memberId: Long): List<Like> {
+            return likes.filter { it.memberId == memberId }.asReversed()
         }
 
         fun exists(memberId: Long, productId: Long): Boolean {
             return likes.any { it.memberId == memberId && it.productId == productId }
+        }
+    }
+
+    private class FakeUserRepository : UserRepository {
+        private val users = mutableListOf<User>()
+
+        override fun existsByLoginId(loginId: String): Boolean {
+            return users.any { it.loginId == loginId }
+        }
+
+        override fun findByLoginId(loginId: String): User? {
+            return users.find { it.loginId == loginId }
+        }
+
+        override fun save(user: User): User {
+            users.removeIf { it.id == user.id }
+            users.add(user)
+            return user
+        }
+    }
+
+    private class FakeBrandRepository : BrandRepository {
+        private val brands = mutableListOf<Brand>()
+
+        override fun findById(brandId: Long): Brand? {
+            return brands.find { it.id == brandId }
+        }
+
+        override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
+            return brands.filter { it.id in brandIds }
+        }
+
+        override fun findDisplayable(page: Int, size: Int): Page<Brand> {
+            return PageImpl(brands.filter { !it.isDeleted }, PageRequest.of(page, size), brands.size.toLong())
+        }
+
+        override fun existsByName(name: String): Boolean {
+            return brands.any { it.name == name }
+        }
+
+        override fun save(brand: Brand): Brand {
+            brands.removeIf { it.id == brand.id }
+            brands.add(brand)
+            return brand
+        }
+
+        override fun update(brand: Brand): Brand {
+            return save(brand)
         }
     }
 
@@ -227,6 +304,10 @@ class LikeFacadeTest {
 
         override fun findById(productId: Long): Product? {
             return products.find { it.id == productId }
+        }
+
+        override fun findAllByIds(productIds: Collection<Long>): List<Product> {
+            return products.filter { it.id in productIds }
         }
 
         override fun findAllByBrandId(brandId: Long): List<Product> {
@@ -301,15 +382,21 @@ class LikeFacadeTest {
         )
     }
 
-    private fun createProductSummary(productId: Long): ProductSummary {
-        return ProductSummary(
-            productId = productId,
-            productName = "loopers hoodie",
-            price = 10_000L,
-            imageUrl = "https://image.loopers/product.png",
-            brandId = 1L,
-            brandName = "loopers",
-            likeCount = 1L,
+    private fun createBrand(
+        id: Long,
+        isDeleted: Boolean = false,
+    ): Brand {
+        return Brand(
+            id = id,
+            name = "loopers",
+            description = "loopers brand",
+            logoImageUrl = "https://image.loopers/brand.png",
+            isDeleted = isDeleted,
         )
+    }
+
+    private companion object {
+        private const val LOGIN_ID = "loopers123"
+        private const val RAW_PASSWORD = "Loopers123!"
     }
 }

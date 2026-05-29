@@ -4,12 +4,14 @@ import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.infrastructure.like.ProductLikeEntity
 import com.loopers.infrastructure.like.ProductLikeJpaRepository
+import com.loopers.infrastructure.member.MemberEntity
+import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.infrastructure.product.ProductEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.productstat.ProductStatEntity
 import com.loopers.infrastructure.productstat.ProductStatJpaRepository
 import com.loopers.interfaces.api.ApiResponse
-import com.loopers.interfaces.api.PageResponse
+import com.loopers.domain.user.PasswordEncoder
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -33,6 +35,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
     private val productJpaRepository: ProductJpaRepository,
     private val productLikeJpaRepository: ProductLikeJpaRepository,
     private val productStatJpaRepository: ProductStatJpaRepository,
+    private val memberJpaRepository: MemberJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -46,20 +49,21 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("상품을 좋아요 상태로 만든다")
         @Test
         fun likesProduct() {
+            val member = createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.POST,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(productLikeJpaRepository.findAll()).hasSize(1) },
+                { assertThat(productLikeJpaRepository.findAll().single().memberId).isEqualTo(member.id) },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
             )
         }
@@ -67,6 +71,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("이미 좋아요 상태여도 성공하고 좋아요 수는 증가하지 않는다")
         @Test
         fun ignoresDuplicateLike() {
+            createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 0L))
@@ -74,13 +79,13 @@ class LikeV1ApiE2ETest @Autowired constructor(
             testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.POST,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.POST,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
@@ -95,10 +100,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("존재하지 않는 상품은 좋아요할 수 없다")
         @Test
         fun returnsNotFound_whenProductDoesNotExist() {
+            createMember()
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/999/likes",
                 HttpMethod.POST,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
@@ -108,17 +114,35 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("삭제된 상품은 좋아요할 수 없다")
         @Test
         fun returnsNotFound_whenProductIsDeleted() {
+            createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id, isDeleted = true)
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.POST,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("인증 정보가 올바르지 않으면 좋아요할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenCredentialsAreInvalid() {
+            createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                HttpMethod.POST,
+                HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
         }
     }
 
@@ -128,15 +152,16 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("상품을 좋아요하지 않은 상태로 만든다")
         @Test
         fun unlikesProduct() {
+            val member = createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = product.id))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.DELETE,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
@@ -151,6 +176,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("이미 좋아요하지 않은 상태여도 성공하고 좋아요 수는 감소하지 않는다")
         @Test
         fun ignoresAbsentLike() {
+            createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
@@ -158,7 +184,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.DELETE,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
@@ -173,10 +199,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("존재하지 않는 상품은 좋아요 취소할 수 없다")
         @Test
         fun returnsNotFound_whenProductDoesNotExist() {
+            createMember()
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/999/likes",
                 HttpMethod.DELETE,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
@@ -186,17 +213,35 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("삭제된 상품은 좋아요 취소할 수 없다")
         @Test
         fun returnsNotFound_whenProductIsDeleted() {
+            createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id, isDeleted = true)
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
                 HttpMethod.DELETE,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("인증 정보가 올바르지 않으면 좋아요 취소할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenCredentialsAreInvalid() {
+            createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
         }
     }
 
@@ -206,59 +251,75 @@ class LikeV1ApiE2ETest @Autowired constructor(
         @DisplayName("로그인한 회원이 좋아요한 상품 목록을 조회한다")
         @Test
         fun getsLikedProducts() {
+            val member = createMember()
             val brand = createBrand()
             val firstProduct = createProduct(brandId = brand.id, name = "loopers hoodie")
             val secondProduct = createProduct(brandId = brand.id, name = "loopers cap")
             productStatJpaRepository.save(ProductStatEntity(productId = firstProduct.id, likeCount = 3L))
             productStatJpaRepository.save(ProductStatEntity(productId = secondProduct.id, likeCount = 5L))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = firstProduct.id))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = secondProduct.id))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = firstProduct.id))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = secondProduct.id))
 
             val response = testRestTemplate.exchange(
-                "$USERS_ENDPOINT/1/likes?page=0&size=20",
+                "$USERS_ENDPOINT/${member.id}/likes",
                 HttpMethod.GET,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
-                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<LikeV1Dto.LikedProductResponse>>>() {},
             )
 
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(response.body?.data?.data).hasSize(2) },
-                { assertThat(response.body?.data?.data?.map { it.productId }).containsExactly(secondProduct.id, firstProduct.id) },
-                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(2L) },
+                { assertThat(response.body?.data).hasSize(2) },
+                { assertThat(response.body?.data?.map { it.productId }).containsExactly(secondProduct.id, firstProduct.id) },
             )
         }
 
         @DisplayName("삭제된 상품은 좋아요 목록에서 제외한다")
         @Test
         fun excludesDeletedProduct() {
+            val member = createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id, isDeleted = true)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = product.id))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
 
             val response = testRestTemplate.exchange(
-                "$USERS_ENDPOINT/1/likes?page=0&size=20",
+                "$USERS_ENDPOINT/${member.id}/likes",
                 HttpMethod.GET,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
-                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<LikeV1Dto.LikedProductResponse>>>() {},
             )
 
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(response.body?.data?.data).isEmpty() },
-                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(0L) },
+                { assertThat(response.body?.data).isEmpty() },
             )
         }
 
         @DisplayName("로그인한 회원과 조회 대상이 다르면 조회할 수 없다")
         @Test
         fun returnsUnauthorized_whenMemberIdDoesNotMatchUserId() {
+            createMember()
             val response = testRestTemplate.exchange(
-                "$USERS_ENDPOINT/2/likes?page=0&size=20",
+                "$USERS_ENDPOINT/2/likes",
                 HttpMethod.GET,
-                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
-                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<LikeV1Dto.LikedProductResponse>>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("인증 정보가 올바르지 않으면 좋아요 목록을 조회할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenCredentialsAreInvalid() {
+            val member = createMember()
+
+            val response = testRestTemplate.exchange(
+                "$USERS_ENDPOINT/${member.id}/likes",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<List<LikeV1Dto.LikedProductResponse>>>() {},
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
@@ -293,14 +354,35 @@ class LikeV1ApiE2ETest @Autowired constructor(
         )
     }
 
-    private fun createUserHeaders(memberId: Long): HttpHeaders {
+    private fun createMember(
+        loginId: String = LOGIN_ID,
+        password: String = RAW_PASSWORD,
+    ): MemberEntity {
+        return memberJpaRepository.save(
+            MemberEntity(
+                loginId = loginId,
+                password = PasswordEncoder.encode(password),
+                name = "홍길동",
+                birthDate = java.time.LocalDate.of(1990, 1, 1),
+                email = "$loginId@example.com",
+            ),
+        )
+    }
+
+    private fun createAuthHeaders(
+        loginId: String = LOGIN_ID,
+        password: String = RAW_PASSWORD,
+    ): HttpHeaders {
         return HttpHeaders().apply {
-            set("X-Loopers-User-Id", memberId.toString())
+            set("X-Loopers-LoginId", loginId)
+            set("X-Loopers-LoginPw", password)
         }
     }
 
     private companion object {
         private const val PRODUCTS_ENDPOINT = "/api/v1/products"
         private const val USERS_ENDPOINT = "/api/v1/users"
+        private const val LOGIN_ID = "loopers123"
+        private const val RAW_PASSWORD = "Loopers123!"
     }
 }

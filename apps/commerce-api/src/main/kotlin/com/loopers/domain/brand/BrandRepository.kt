@@ -5,6 +5,8 @@ import org.springframework.data.domain.Page
 interface BrandRepository {
     fun findById(brandId: Long): Brand?
 
+    fun findAllByIds(brandIds: Collection<Long>): List<Brand>
+
     fun findDisplayable(page: Int, size: Int): Page<Brand>
 
     fun existsByName(name: String): Boolean

@@ -27,10 +27,10 @@ class ProductLikeService {
         val statByProductId = productStats.associateBy { it.productId }
 
         return likes.mapNotNull { like ->
-            val product = productById[like.productId]?.takeIf(Product::isDisplayable)
+            val product = productById[like.productId]
                 ?: return@mapNotNull null
 
-            val brand = brandById[product.brandId]?.takeIf(Brand::isDisplayable)
+            val brand = brandById[product.brandId]
                 ?: return@mapNotNull null
 
             val productStat = statByProductId[product.id]

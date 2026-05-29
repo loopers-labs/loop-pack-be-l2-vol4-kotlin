@@ -14,9 +14,6 @@ class ProductCatalogService {
         brand: Brand,
         productStat: ProductStat,
     ): ProductCatalog {
-        product.ensureDisplayable()
-        brand.ensureDisplayable()
-
         return ProductCatalog(
             product = product,
             brand = brand,
@@ -30,9 +27,6 @@ class ProductCatalogService {
         productStat: ProductStat,
         inventory: Inventory,
     ): AdminProductCatalog {
-        product.ensureDisplayable()
-        brand.ensureDisplayable()
-
         return AdminProductCatalog(
             product = product,
             brand = brand,

@@ -23,13 +23,6 @@ class ProductService(
         return product
     }
 
-    fun getDisplayableProduct(productId: Long): Product {
-        val product = getProduct(productId)
-        product.ensureDisplayable()
-
-        return product
-    }
-
     fun getProducts(productIds: Collection<Long>): List<Product> {
         if (productIds.isEmpty()) {
             return emptyList()
@@ -95,7 +88,6 @@ class ProductService(
     @Transactional
     fun deleteProductsByBrandId(brandId: Long): List<Product> {
         val products = productRepository.findAllByBrandId(brandId)
-            .filter { !it.isDeleted }
             .onEach(Product::delete)
 
         return productRepository.updateAll(products)

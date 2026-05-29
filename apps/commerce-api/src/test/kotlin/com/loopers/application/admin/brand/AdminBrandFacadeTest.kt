@@ -46,8 +46,8 @@ class AdminBrandFacadeTest {
             adminBrandFacade.deleteBrand(1L)
 
             assertAll(
-                { assertThat(brandRepository.findById(1L)?.isDeleted).isTrue() },
-                { assertThat(productRepository.findById(10L)?.isDeleted).isTrue() },
+                { assertThat(brandRepository.brands.find { it.id == 1L }?.isDeleted).isTrue() },
+                { assertThat(productRepository.products.find { it.id == 10L }?.isDeleted).isTrue() },
                 { assertThat(productRepository.findById(20L)?.isDeleted).isFalse() },
             )
         }
@@ -373,11 +373,11 @@ class AdminBrandFacadeTest {
         val brands = mutableListOf<Brand>()
 
         override fun findById(brandId: Long): Brand? {
-            return brands.find { it.id == brandId }
+            return brands.find { it.id == brandId && !it.isDeleted }
         }
 
         override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
-            return brands.filter { it.id in brandIds }
+            return brands.filter { it.id in brandIds && !it.isDeleted }
         }
 
         override fun findDisplayable(page: Int, size: Int): Page<Brand> {
@@ -426,15 +426,15 @@ class AdminBrandFacadeTest {
         val products = mutableListOf<Product>()
 
         override fun findById(productId: Long): Product? {
-            return products.find { it.id == productId }
+            return products.find { it.id == productId && !it.isDeleted }
         }
 
         override fun findAllByIds(productIds: Collection<Long>): List<Product> {
-            return products.filter { it.id in productIds }
+            return products.filter { it.id in productIds && !it.isDeleted }
         }
 
         override fun findAllByBrandId(brandId: Long): List<Product> {
-            return products.filter { it.brandId == brandId }
+            return products.filter { it.brandId == brandId && !it.isDeleted }
         }
 
         override fun findDisplayableSummaries(

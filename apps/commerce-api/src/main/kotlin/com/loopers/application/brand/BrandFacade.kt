@@ -10,9 +10,7 @@ class BrandFacade(
 ) {
     @Transactional(readOnly = true)
     fun getBrand(brandId: Long): BrandInfo {
-        val brand = brandService.getBrand(brandId)
-        brand.ensureDisplayable()
-
-        return BrandInfo.from(brand)
+        return brandService.getBrand(brandId)
+            .let(BrandInfo::from)
     }
 }

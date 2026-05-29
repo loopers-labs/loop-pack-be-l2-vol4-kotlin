@@ -41,8 +41,6 @@ class ProductQueryRepositoryImpl(
             .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
             .leftJoin(productStatEntity).on(productStatEntity.productId.eq(productEntity.id))
             .where(
-                productEntity.isDeleted.isFalse,
-                brandEntity.isDeleted.isFalse,
                 brandIdEq(brandId),
             )
             .orderBy(*orderSpecifiers(sort))
@@ -56,8 +54,6 @@ class ProductQueryRepositoryImpl(
                 .from(productEntity)
                 .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
                 .where(
-                    productEntity.isDeleted.isFalse,
-                    brandEntity.isDeleted.isFalse,
                     brandIdEq(brandId),
                 )
                 .fetchOne() ?: 0L

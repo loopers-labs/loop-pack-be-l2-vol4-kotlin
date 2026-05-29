@@ -23,7 +23,7 @@ class LikeFacade(
     @Transactional
     fun like(loginId: String, rawPassword: String, productId: Long) {
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
-        val product = productService.getDisplayableProduct(productId)
+        val product = productService.getProduct(productId)
         val created = likeService.like(memberId = user.id, productId = product.id)
 
         if (created) {
@@ -36,7 +36,7 @@ class LikeFacade(
     @Transactional
     fun unlike(loginId: String, rawPassword: String, productId: Long) {
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
-        val product = productService.getDisplayableProduct(productId)
+        val product = productService.getProduct(productId)
         val deleted = likeService.unlike(memberId = user.id, productId = product.id)
 
         if (deleted) {

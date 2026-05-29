@@ -43,7 +43,7 @@ class AdminProductFacadeTest {
 
             fixture.adminProductFacade.deleteProduct(10L)
 
-            val result = fixture.productRepository.findById(10L)
+            val result = fixture.productRepository.products.find { it.id == 10L }
             assertThat(result?.isDeleted).isTrue()
         }
 
@@ -436,11 +436,11 @@ class AdminProductFacadeTest {
         private val brands = mutableListOf<Brand>()
 
         override fun findById(brandId: Long): Brand? {
-            return brands.find { it.id == brandId }
+            return brands.find { it.id == brandId && !it.isDeleted }
         }
 
         override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
-            return brands.filter { it.id in brandIds }
+            return brands.filter { it.id in brandIds && !it.isDeleted }
         }
 
         override fun findDisplayable(page: Int, size: Int): Page<Brand> {
@@ -465,19 +465,19 @@ class AdminProductFacadeTest {
     }
 
     private class FakeProductRepository : ProductRepository {
-        private val products = mutableListOf<Product>()
+        val products = mutableListOf<Product>()
         private var sequence = 1L
 
         override fun findById(productId: Long): Product? {
-            return products.find { it.id == productId }
+            return products.find { it.id == productId && !it.isDeleted }
         }
 
         override fun findAllByIds(productIds: Collection<Long>): List<Product> {
-            return products.filter { it.id in productIds }
+            return products.filter { it.id in productIds && !it.isDeleted }
         }
 
         override fun findAllByBrandId(brandId: Long): List<Product> {
-            return products.filter { it.brandId == brandId }
+            return products.filter { it.brandId == brandId && !it.isDeleted }
         }
 
         override fun findDisplayableSummaries(

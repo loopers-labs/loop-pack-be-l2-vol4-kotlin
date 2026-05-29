@@ -20,7 +20,7 @@ class AdminBrandFacade(
     }
 
     fun getBrand(brandId: Long): BrandInfo {
-        return brandService.getDisplayableBrand(brandId)
+        return brandService.getBrand(brandId)
             .let(BrandInfo::from)
     }
 

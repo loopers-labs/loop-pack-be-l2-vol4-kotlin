@@ -81,16 +81,6 @@ class Product(
         }
     }
 
-    fun ensureDisplayable() {
-        if (!isDisplayable()) {
-            throw CoreException(ErrorType.NOT_FOUND, "Product not found.")
-        }
-    }
-
-    fun isDisplayable(): Boolean {
-        return !isDeleted
-    }
-
     fun delete() {
         isDeleted = true
     }

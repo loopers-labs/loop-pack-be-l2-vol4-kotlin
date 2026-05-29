@@ -23,14 +23,6 @@ class BrandService(
     }
 
     @Transactional(readOnly = true)
-    fun getDisplayableBrand(brandId: Long): Brand {
-        val brand = getBrand(brandId)
-        brand.ensureDisplayable()
-
-        return brand
-    }
-
-    @Transactional(readOnly = true)
     fun getBrands(brandIds: Collection<Long>): List<Brand> {
         if (brandIds.isEmpty()) {
             return emptyList()
@@ -59,7 +51,7 @@ class BrandService(
 
     @Transactional
     fun updateBrand(brandId: Long, command: BrandUpdateCommand): Brand {
-        val brand = getDisplayableBrand(brandId)
+        val brand = getBrand(brandId)
 
         if (brand.name != command.name && brandRepository.existsByName(command.name)) {
             throw CoreException(ErrorType.CONFLICT, "Brand name already exists.")
@@ -76,7 +68,7 @@ class BrandService(
 
     @Transactional
     fun deleteBrand(brandId: Long): Brand {
-        val brand = getDisplayableBrand(brandId)
+        val brand = getBrand(brandId)
         brand.delete()
 
         return brandRepository.update(brand)

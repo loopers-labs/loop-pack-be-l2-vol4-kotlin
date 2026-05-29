@@ -27,8 +27,8 @@ class AdminProductFacade(
     }
 
     fun getProduct(productId: Long): AdminProductDetailInfo {
-        val product = productService.getDisplayableProduct(productId)
-        val brand = brandService.getDisplayableBrand(product.brandId)
+        val product = productService.getProduct(productId)
+        val brand = brandService.getBrand(product.brandId)
         val inventory = inventoryService.getInventory(product.id)
         val productStat = productStatService.getProductStat(product.id)
         val productCatalog = productCatalogService.displayForAdmin(
@@ -43,7 +43,7 @@ class AdminProductFacade(
 
     @Transactional
     fun createProduct(command: ProductCreateCommand): AdminProductDetailInfo {
-        val brand = brandService.getDisplayableBrand(command.brandId)
+        val brand = brandService.getBrand(command.brandId)
         val product = productService.createProduct(command)
         val inventory = inventoryService.createInventory(productId = product.id, quantity = command.quantity)
         val productStat = productStatService.emptyStat(product.id)
@@ -58,8 +58,8 @@ class AdminProductFacade(
     }
 
     fun updateProduct(productId: Long, command: ProductUpdateCommand): AdminProductDetailInfo {
-        val product = productService.getDisplayableProduct(productId)
-        val brand = brandService.getDisplayableBrand(product.brandId)
+        val product = productService.getProduct(productId)
+        val brand = brandService.getBrand(product.brandId)
         val inventory = inventoryService.getInventory(product.id)
         val updatedProduct = productService.updateProduct(product = product, command = command)
         val productStat = productStatService.getProductStat(product.id)
@@ -74,8 +74,8 @@ class AdminProductFacade(
     }
 
     fun deleteProduct(productId: Long) {
-        val product = productService.getDisplayableProduct(productId)
-        brandService.getDisplayableBrand(product.brandId)
+        val product = productService.getProduct(productId)
+        brandService.getBrand(product.brandId)
         productService.deleteProduct(product)
     }
 }

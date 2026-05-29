@@ -49,11 +49,11 @@ class BrandFacadeTest {
         private val brands = mutableListOf<Brand>()
 
         override fun findById(brandId: Long): Brand? {
-            return brands.find { it.id == brandId }
+            return brands.find { it.id == brandId && !it.isDeleted }
         }
 
         override fun findAllByIds(brandIds: Collection<Long>): List<Brand> {
-            return brands.filter { it.id in brandIds }
+            return brands.filter { it.id in brandIds && !it.isDeleted }
         }
 
         override fun findDisplayable(page: Int, size: Int): Page<Brand> {

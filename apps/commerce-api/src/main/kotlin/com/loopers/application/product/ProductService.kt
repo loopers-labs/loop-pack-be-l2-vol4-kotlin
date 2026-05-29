@@ -63,6 +63,13 @@ class ProductService(
     }
 
     @Transactional
+    fun deleteProduct(product: Product): Product {
+        product.delete()
+
+        return productRepository.update(product)
+    }
+
+    @Transactional
     fun deleteProductsByBrandId(brandId: Long): List<Product> {
         val products = productRepository.findAllByBrandId(brandId)
             .filter { !it.isDeleted }

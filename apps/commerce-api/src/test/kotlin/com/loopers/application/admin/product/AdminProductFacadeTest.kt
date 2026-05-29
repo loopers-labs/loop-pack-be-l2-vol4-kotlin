@@ -28,6 +28,63 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
 class AdminProductFacadeTest {
+    @DisplayName("관리자 상품 삭제")
+    @Nested
+    inner class DeleteProduct {
+        @DisplayName("등록된 상품을 삭제한다")
+        @Test
+        fun deletesProduct() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+
+            fixture.adminProductFacade.deleteProduct(10L)
+
+            val result = fixture.productRepository.findById(10L)
+            assertThat(result?.isDeleted).isTrue()
+        }
+
+        @DisplayName("존재하지 않는 상품은 삭제할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductDoesNotExist() {
+            val fixture = AdminProductFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.deleteProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("이미 삭제된 상품은 삭제할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L, isDeleted = true))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.deleteProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 삭제할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers", isDeleted = true))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.deleteProduct(10L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     @DisplayName("관리자 상품 수정")
     @Nested
     inner class UpdateProduct {

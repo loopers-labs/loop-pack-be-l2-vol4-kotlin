@@ -276,6 +276,75 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("DELETE /api-admin/v1/products/{productId}")
+    @Nested
+    inner class DeleteProduct {
+        @DisplayName("등록된 상품을 삭제한다")
+        @Test
+        fun deletesProduct() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            val deletedProduct = productJpaRepository.findById(product.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(deletedProduct.isDeleted).isTrue() },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 삭제할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/999",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("이미 삭제된 상품은 삭제할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductIsDeleted() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie", isDeleted = true)
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 삭제할 수 없다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = createBrand(name = "loopers", isDeleted = true)
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     @DisplayName("GET /api-admin/v1/products/{productId}")
     @Nested
     inner class GetProduct {

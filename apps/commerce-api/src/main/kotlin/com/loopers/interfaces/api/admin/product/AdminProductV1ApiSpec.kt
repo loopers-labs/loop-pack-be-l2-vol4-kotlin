@@ -46,4 +46,13 @@ interface AdminProductV1ApiSpec {
         productId: Long,
         request: AdminProductV1Dto.UpdateProductRequest,
     ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
+
+    @Operation(
+        summary = "관리자 상품 삭제",
+        description = "관리자가 상품을 삭제합니다.",
+    )
+    fun deleteProduct(
+        adminId: String,
+        productId: Long,
+    ): ApiResponse<Any>
 }

@@ -62,4 +62,10 @@ class AdminProductFacade(
 
         return ProductDetailInfo.from(productCatalog)
     }
+
+    fun deleteProduct(productId: Long) {
+        val product = productService.getDisplayableProduct(productId)
+        brandService.getDisplayableBrand(product.brandId)
+        productService.deleteProduct(product)
+    }
 }

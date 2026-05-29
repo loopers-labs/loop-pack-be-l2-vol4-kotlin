@@ -82,3 +82,7 @@ Content-Type: application/json
   "description": "updated product",
   "imageUrl": "https://image.loopers/updated.png"
 }
+
+### 관리자 상품 삭제
+DELETE {{commerce-api}}/api-admin/v1/products/1
+X-Loopers-Ldap: admin

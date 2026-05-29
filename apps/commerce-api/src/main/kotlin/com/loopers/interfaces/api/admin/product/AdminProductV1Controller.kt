@@ -5,6 +5,7 @@ import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.domain.product.ProductSort
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -70,5 +71,14 @@ class AdminProductV1Controller(
         return adminProductFacade.updateProduct(productId = productId, command = request.toCommand())
             .let(AdminProductV1Dto.ProductDetailResponse::from)
             .let { ApiResponse.success(it) }
+    }
+
+    @DeleteMapping("/{productId}")
+    override fun deleteProduct(
+        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @PathVariable productId: Long,
+    ): ApiResponse<Any> {
+        adminProductFacade.deleteProduct(productId)
+        return ApiResponse.success()
     }
 }

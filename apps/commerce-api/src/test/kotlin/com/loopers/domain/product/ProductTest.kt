@@ -20,31 +20,6 @@ class ProductTest {
         )
     }
 
-    @DisplayName("좋아요를 누르면, 좋아요 수가 1 증가한다.")
-    @Test
-    fun like_incrementsLikeCount() {
-        val product = product()
-        product.like()
-        assertThat(product.likeCount).isEqualTo(1)
-    }
-
-    @DisplayName("좋아요를 취소하면, 좋아요 수가 1 감소한다.")
-    @Test
-    fun unlike_decrementsLikeCount() {
-        val product = product()
-        product.like()
-        product.unlike()
-        assertThat(product.likeCount).isEqualTo(0)
-    }
-
-    @DisplayName("좋아요 수가 0일 때 취소하면, 0을 유지한다(no-op).")
-    @Test
-    fun unlike_isNoOp_whenLikeCountIsZero() {
-        val product = product()
-        product.unlike()
-        assertThat(product.likeCount).isEqualTo(0)
-    }
-
     @DisplayName("상품을 수정하면, 이름과 가격은 변경되지만 브랜드 식별자는 불변이다.")
     @Test
     fun update_changesNameAndPrice_butNotBrandId() {

@@ -14,9 +14,9 @@ import com.loopers.support.error.BadRequestException
 import org.springframework.data.domain.Limit
 import org.springframework.data.domain.ScrollPosition
 import org.springframework.data.domain.Sort
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Repository
 
-@Component
+@Repository
 class ProductRepositoryImpl(
     private val productJpaRepository: ProductJpaRepository,
 ) : ProductRepository {
@@ -31,6 +31,14 @@ class ProductRepositoryImpl(
 
     override fun findActiveByBrandId(brandId: Long): List<Product> =
         productJpaRepository.findByBrandIdAndStatusNot(brandId, ProductStatus.DELETED)
+
+    override fun increaseLikeCount(productId: Long) {
+        productJpaRepository.incrementLikeCount(productId)
+    }
+
+    override fun decreaseLikeCount(productId: Long) {
+        productJpaRepository.decrementLikeCount(productId)
+    }
 
     override fun findAll(sort: ProductSort, brandId: Long?, cursor: Cursor?, size: Int): CursorPage<Product> {
         val scrollPosition = scrollPosition(sort, cursor)

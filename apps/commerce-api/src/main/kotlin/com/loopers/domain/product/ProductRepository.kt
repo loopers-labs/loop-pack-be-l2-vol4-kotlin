@@ -13,4 +13,8 @@ interface ProductRepository {
     fun findActiveByBrandId(brandId: Long): List<Product>
 
     fun findAll(sort: ProductSort, brandId: Long?, cursor: Cursor?, size: Int): CursorPage<Product>
+
+    fun increaseLikeCount(productId: Long)
+
+    fun decreaseLikeCount(productId: Long)
 }

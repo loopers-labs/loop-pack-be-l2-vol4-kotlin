@@ -163,7 +163,7 @@ class ProductServiceTest {
     @DisplayName("상품 상세는 상품·브랜드명·좋아요 수를 조합해 반환한다.")
     @Test
     fun detailCombinesProductBrandAndLikeCount() {
-        val product = product().also { it.like() }
+        val product = product()
         whenever(productRepository.findActiveById(10L)).thenReturn(product)
         whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키")))
 
@@ -173,7 +173,7 @@ class ProductServiceTest {
             { assertThat(detail.name).isEqualTo("에어맥스") },
             { assertThat(detail.brandId).isEqualTo(1L) },
             { assertThat(detail.brandName).isEqualTo("나이키") },
-            { assertThat(detail.likeCount).isEqualTo(1L) },
+            { assertThat(detail.likeCount).isEqualTo(0L) },
             { assertThat(detail.price).isEqualTo(100_000) },
         )
     }

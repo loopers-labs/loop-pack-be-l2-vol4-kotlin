@@ -1,8 +1,5 @@
 package com.loopers.domain.like
 
-import com.loopers.domain.shared.CursorPage
-import com.loopers.domain.shared.IdCursor
-
 interface ProductLikeRepository {
     fun save(productLike: ProductLike): ProductLike
 
@@ -12,5 +9,5 @@ interface ProductLikeRepository {
 
     fun delete(productLike: ProductLike)
 
-    fun findAllByUserId(userId: Long, cursor: IdCursor?, size: Int): CursorPage<ProductLike>
+    fun findAllByUserId(userId: Long): List<ProductLike>
 }

@@ -1,7 +1,6 @@
 package com.loopers.infrastructure.like
 
 import com.loopers.domain.like.ProductLike
-import com.loopers.domain.shared.IdCursor
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -49,32 +48,14 @@ class ProductLikeRepositoryIntegrationTest @Autowired constructor(
         assertThat(repository.findByUserIdAndProductId(10L, 100L)).isNull()
     }
 
-    @DisplayName("본인 좋아요 목록은 id DESC keyset으로 size만큼 반환하고, 다음 페이지가 있으면 nextCursor를 채운다.")
+    @DisplayName("본인 좋아요 목록은 최근 등록 순(id DESC)으로 반환한다.")
     @Test
-    fun returnsFirstPage_withNextCursor() {
+    fun returnsOwnLikes_orderedByIdDesc() {
         val saved = (1..3).map { repository.save(ProductLike(10L, it.toLong())) }
 
-        val page = repository.findAllByUserId(10L, null, 2)
+        val likes = repository.findAllByUserId(10L)
 
-        assertAll(
-            { assertThat(page.content.map { it.id }).containsExactly(saved[2].id, saved[1].id) },
-            { assertThat(page.hasNext).isTrue() },
-            { assertThat(page.nextCursor).isEqualTo(IdCursor(saved[1].id)) },
-        )
-    }
-
-    @DisplayName("nextCursor로 다음 페이지를 조회하면 이어지고, 마지막 페이지의 nextCursor는 null이다.")
-    @Test
-    fun returnsNextPage_andNullCursorOnLastPage() {
-        val saved = (1..3).map { repository.save(ProductLike(10L, it.toLong())) }
-
-        val lastPage = repository.findAllByUserId(10L, IdCursor(saved[1].id), 2)
-
-        assertAll(
-            { assertThat(lastPage.content.map { it.id }).containsExactly(saved[0].id) },
-            { assertThat(lastPage.hasNext).isFalse() },
-            { assertThat(lastPage.nextCursor).isNull() },
-        )
+        assertThat(likes.map { it.id }).containsExactly(saved[2].id, saved[1].id, saved[0].id)
     }
 
     @DisplayName("목록은 본인(userId)의 좋아요만 포함한다.")
@@ -83,8 +64,8 @@ class ProductLikeRepositoryIntegrationTest @Autowired constructor(
         repository.save(ProductLike(10L, 100L))
         repository.save(ProductLike(99L, 200L))
 
-        val page = repository.findAllByUserId(10L, null, 10)
+        val likes = repository.findAllByUserId(10L)
 
-        assertThat(page.content.map { it.productId }).containsExactly(100L)
+        assertThat(likes.map { it.productId }).containsExactly(100L)
     }
 }

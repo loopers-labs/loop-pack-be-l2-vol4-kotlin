@@ -1,5 +1,6 @@
 package com.loopers.application.like
 
+import com.loopers.domain.like.LikeAction
 import com.loopers.domain.like.LikeErrorCode
 import com.loopers.domain.like.ProductLike
 import com.loopers.domain.like.ProductLikeRepository
@@ -7,8 +8,6 @@ import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductErrorCode
 import com.loopers.domain.product.ProductName
 import com.loopers.domain.product.ProductRepository
-import com.loopers.domain.shared.CursorPage
-import com.loopers.domain.shared.IdCursor
 import com.loopers.domain.shared.Money
 import com.loopers.support.error.ForbiddenException
 import com.loopers.support.error.NotFoundException
@@ -22,11 +21,13 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.context.ApplicationEventPublisher
 
 class LikeServiceTest {
     private val productRepository: ProductRepository = mock()
     private val productLikeRepository: ProductLikeRepository = mock()
-    private val likeService = LikeService(productRepository, productLikeRepository)
+    private val eventPublisher: ApplicationEventPublisher = mock()
+    private val likeService = LikeService(productRepository, productLikeRepository, eventPublisher)
 
     private fun product(): Product = Product(brandId = 1L, name = ProductName("상품"), price = Money(1000))
 
@@ -43,6 +44,7 @@ class LikeServiceTest {
         assertAll(
             { verify(productLikeRepository).save(any()) },
             { assertThat(product.likeCount).isEqualTo(1) },
+            { verify(eventPublisher).publishEvent(LikeChangedEvent(10L, 1L, LikeAction.LIKE)) },
         )
     }
 
@@ -58,6 +60,7 @@ class LikeServiceTest {
         assertAll(
             { verify(productLikeRepository, never()).save(any()) },
             { assertThat(product.likeCount).isEqualTo(0) },
+            { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }
 
@@ -71,6 +74,7 @@ class LikeServiceTest {
         assertAll(
             { assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND) },
             { verify(productLikeRepository, never()).save(any()) },
+            { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }
 
@@ -88,6 +92,7 @@ class LikeServiceTest {
         assertAll(
             { verify(productLikeRepository).delete(productLike) },
             { assertThat(product.likeCount).isEqualTo(0) },
+            { verify(eventPublisher).publishEvent(LikeChangedEvent(10L, 1L, LikeAction.UNLIKE)) },
         )
     }
 
@@ -103,6 +108,7 @@ class LikeServiceTest {
         assertAll(
             { verify(productLikeRepository, never()).delete(any()) },
             { assertThat(product.likeCount).isEqualTo(0) },
+            { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }
 
@@ -116,37 +122,29 @@ class LikeServiceTest {
         assertAll(
             { assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND) },
             { verify(productLikeRepository, never()).delete(any()) },
+            { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }
 
-    @DisplayName("본인의 좋아요 목록을 조회하면, content를 LikeInfo로 매핑하고 hasNext·nextCursor를 그대로 전달한다.")
+    @DisplayName("본인의 좋아요 목록을 조회하면, ProductLike를 LikeInfo로 매핑해 반환한다.")
     @Test
-    fun mapsLikePageToInfo_whenRequesterIsOwner() {
-        whenever(productLikeRepository.findAllByUserId(10L, null, 2)).thenReturn(
-            CursorPage(
-                content = listOf(ProductLike(10L, 100L), ProductLike(10L, 101L)),
-                hasNext = true,
-                nextCursor = IdCursor(5L),
-            ),
-        )
+    fun mapsLikesToInfo_whenRequesterIsOwner() {
+        whenever(productLikeRepository.findAllByUserId(10L))
+            .thenReturn(listOf(ProductLike(10L, 100L), ProductLike(10L, 101L)))
 
-        val page = likeService.findMine(10L, 10L, null, 2)
+        val likes = likeService.findMine(10L, 10L)
 
-        assertAll(
-            { assertThat(page.content.map { it.productId }).containsExactly(100L, 101L) },
-            { assertThat(page.hasNext).isTrue() },
-            { assertThat(page.nextCursor).isEqualTo(IdCursor(5L)) },
-        )
+        assertThat(likes.map { it.productId }).containsExactly(100L, 101L)
     }
 
     @DisplayName("본인이 아닌 다른 사용자의 좋아요 목록을 조회하면, FORBIDDEN 예외가 발생하고 조회하지 않는다.")
     @Test
     fun throwsForbidden_whenRequesterIsNotOwner() {
-        val result = assertThrows<ForbiddenException> { likeService.findMine(10L, 99L, null, 2) }
+        val result = assertThrows<ForbiddenException> { likeService.findMine(10L, 99L) }
 
         assertAll(
             { assertThat(result.errorCode).isEqualTo(LikeErrorCode.FORBIDDEN_LIKE_ACCESS) },
-            { verify(productLikeRepository, never()).findAllByUserId(any(), any(), any()) },
+            { verify(productLikeRepository, never()).findAllByUserId(any()) },
         )
     }
 }

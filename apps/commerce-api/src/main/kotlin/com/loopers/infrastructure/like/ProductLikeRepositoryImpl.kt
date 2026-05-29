@@ -2,14 +2,9 @@ package com.loopers.infrastructure.like
 
 import com.loopers.domain.like.ProductLike
 import com.loopers.domain.like.ProductLikeRepository
-import com.loopers.domain.shared.CursorPage
-import com.loopers.domain.shared.IdCursor
-import org.springframework.data.domain.Limit
-import org.springframework.data.domain.ScrollPosition
-import org.springframework.data.domain.Sort
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Repository
 
-@Component
+@Repository
 class ProductLikeRepositoryImpl(
     private val productLikeJpaRepository: ProductLikeJpaRepository,
 ) : ProductLikeRepository {
@@ -26,25 +21,6 @@ class ProductLikeRepositoryImpl(
         productLikeJpaRepository.delete(productLike)
     }
 
-    override fun findAllByUserId(userId: Long, cursor: IdCursor?, size: Int): CursorPage<ProductLike> {
-        val scrollPosition =
-            if (cursor == null) {
-                ScrollPosition.keyset()
-            } else {
-                ScrollPosition.of(mapOf<String, Any>("id" to cursor.id), ScrollPosition.Direction.FORWARD)
-            }
-        val window = productLikeJpaRepository.findByUserId(
-            userId,
-            scrollPosition,
-            Limit.of(size),
-            Sort.by(Sort.Direction.DESC, "id"),
-        )
-        val nextCursor =
-            if (window.hasNext() && window.content.isNotEmpty()) {
-                IdCursor(window.content.last().id)
-            } else {
-                null
-            }
-        return CursorPage(window.content, window.hasNext(), nextCursor)
-    }
+    override fun findAllByUserId(userId: Long): List<ProductLike> =
+        productLikeJpaRepository.findByUserIdOrderByIdDesc(userId)
 }

@@ -444,6 +444,14 @@ class AdminBrandFacadeTest {
             return product
         }
 
+        override fun existsByBrandIdAndName(brandId: Long, name: String): Boolean {
+            return products.any { it.brandId == brandId && it.name == name }
+        }
+
+        override fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean {
+            return products.any { it.brandId == brandId && it.name == name && it.id != productId }
+        }
+
         override fun update(product: Product): Product {
             products.removeIf { it.id == product.id }
             products.add(product)

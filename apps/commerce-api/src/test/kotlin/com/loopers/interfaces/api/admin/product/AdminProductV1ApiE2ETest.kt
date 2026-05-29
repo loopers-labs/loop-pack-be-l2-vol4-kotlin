@@ -2,6 +2,8 @@ package com.loopers.interfaces.api.admin.product
 
 import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
+import com.loopers.infrastructure.inventory.InventoryEntity
+import com.loopers.infrastructure.inventory.InventoryJpaRepository
 import com.loopers.infrastructure.product.ProductEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.productstat.ProductStatEntity
@@ -29,6 +31,7 @@ import org.springframework.http.MediaType
 class AdminProductV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandJpaRepository: BrandJpaRepository,
+    private val inventoryJpaRepository: InventoryJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
     private val productStatJpaRepository: ProductStatJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -113,6 +116,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 price = 10_000L,
                 description = "loopers product",
                 imageUrl = "https://image.loopers/product.png",
+                quantity = 100L,
             )
 
             val response = testRestTemplate.exchange(
@@ -128,8 +132,34 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.productName).isEqualTo("loopers hoodie") },
                 { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
                 { assertThat(response.body?.data?.likeCount).isEqualTo(0L) },
+                { assertThat(response.body?.data?.quantity).isEqualTo(100L) },
                 { assertThat(productJpaRepository.findAll()).hasSize(1) },
+                { assertThat(inventoryJpaRepository.findAll()).hasSize(1) },
             )
+        }
+
+        @DisplayName("같은 브랜드에 같은 이름의 상품은 등록할 수 없다")
+        @Test
+        fun returnsConflict_whenProductNameAlreadyExistsInBrand() {
+            val brand = createBrand(name = "loopers")
+            createProduct(brandId = brand.id, name = "loopers hoodie")
+            val request = AdminProductV1Dto.CreateProductRequest(
+                brandId = brand.id,
+                name = "loopers hoodie",
+                price = 10_000L,
+                description = "loopers product",
+                imageUrl = "https://image.loopers/product.png",
+                quantity = 100L,
+            )
+
+            val response = testRestTemplate.exchange(
+                PRODUCTS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
         }
 
         @DisplayName("존재하지 않는 브랜드에는 상품을 등록할 수 없다")
@@ -141,6 +171,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 price = 10_000L,
                 description = "loopers product",
                 imageUrl = "https://image.loopers/product.png",
+                quantity = 100L,
             )
 
             val response = testRestTemplate.exchange(
@@ -163,6 +194,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 price = 10_000L,
                 description = "loopers product",
                 imageUrl = "https://image.loopers/product.png",
+                quantity = 100L,
             )
 
             val response = testRestTemplate.exchange(
@@ -184,6 +216,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         fun updatesProduct() {
             val brand = createBrand(name = "loopers")
             val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            createInventory(productId = product.id, quantity = 7L)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
             val request = AdminProductV1Dto.UpdateProductRequest(
                 name = "updated hoodie",
@@ -207,8 +240,33 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.price).isEqualTo(20_000L) },
                 { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
                 { assertThat(response.body?.data?.likeCount).isEqualTo(3L) },
+                { assertThat(response.body?.data?.quantity).isEqualTo(7L) },
                 { assertThat(updatedProduct.brandId).isEqualTo(brand.id) },
             )
+        }
+
+        @DisplayName("같은 브랜드 내 다른 상품 이름과 중복되게 수정할 수 없다")
+        @Test
+        fun returnsConflict_whenProductNameAlreadyExistsInBrand() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            createProduct(brandId = brand.id, name = "updated hoodie")
+            createInventory(productId = product.id, quantity = 7L)
+            val request = AdminProductV1Dto.UpdateProductRequest(
+                name = "updated hoodie",
+                price = 20_000L,
+                description = "updated product",
+                imageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
         }
 
         @DisplayName("존재하지 않는 상품은 수정할 수 없다")
@@ -353,6 +411,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         fun returnsProductDetail() {
             val brand = createBrand(name = "loopers")
             val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            createInventory(productId = product.id, quantity = 7L)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
 
             val response = testRestTemplate.exchange(
@@ -369,6 +428,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
                 { assertThat(response.body?.data?.brand?.name).isEqualTo(brand.name) },
                 { assertThat(response.body?.data?.likeCount).isEqualTo(3L) },
+                { assertThat(response.body?.data?.quantity).isEqualTo(7L) },
             )
         }
 
@@ -445,6 +505,15 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 description = "$name product",
                 imageUrl = "https://image.loopers/$name.png",
                 isDeleted = isDeleted,
+            ),
+        )
+    }
+
+    private fun createInventory(productId: Long, quantity: Long): InventoryEntity {
+        return inventoryJpaRepository.save(
+            InventoryEntity(
+                productId = productId,
+                quantity = quantity,
             ),
         )
     }

@@ -6,4 +6,5 @@ data class ProductCreateCommand(
     val price: Long,
     val description: String,
     val imageUrl: String,
+    val quantity: Long,
 )

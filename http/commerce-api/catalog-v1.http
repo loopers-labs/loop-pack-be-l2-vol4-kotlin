@@ -68,7 +68,8 @@ Content-Type: application/json
   "name": "loopers hoodie",
   "price": 10000,
   "description": "loopers product",
-  "imageUrl": "https://image.loopers/product.png"
+  "imageUrl": "https://image.loopers/product.png",
+  "quantity": 100
 }
 
 ### 관리자 상품 수정

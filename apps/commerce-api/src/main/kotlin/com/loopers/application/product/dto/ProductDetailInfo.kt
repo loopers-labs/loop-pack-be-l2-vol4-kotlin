@@ -11,9 +11,10 @@ data class ProductDetailInfo(
     val imageUrl: String,
     val brand: BrandInfo,
     val likeCount: Long,
+    val quantity: Long? = null,
 ) {
     companion object {
-        fun from(productCatalog: ProductCatalog): ProductDetailInfo {
+        fun from(productCatalog: ProductCatalog, quantity: Long? = null): ProductDetailInfo {
             val product = productCatalog.product
             return ProductDetailInfo(
                 productId = product.id,
@@ -23,6 +24,7 @@ data class ProductDetailInfo(
                 imageUrl = product.imageUrl,
                 brand = BrandInfo.from(productCatalog.brand),
                 likeCount = productCatalog.productStat.likeCount,
+                quantity = quantity,
             )
         }
     }

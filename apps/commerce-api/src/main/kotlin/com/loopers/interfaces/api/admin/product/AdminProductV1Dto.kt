@@ -13,6 +13,7 @@ class AdminProductV1Dto {
         val price: Long,
         val description: String,
         val imageUrl: String,
+        val quantity: Long,
     ) {
         fun toCommand(): ProductCreateCommand {
             return ProductCreateCommand(
@@ -21,6 +22,7 @@ class AdminProductV1Dto {
                 price = price,
                 description = description,
                 imageUrl = imageUrl,
+                quantity = quantity,
             )
         }
     }
@@ -73,6 +75,7 @@ class AdminProductV1Dto {
         val imageUrl: String,
         val brand: BrandV1Dto.BrandResponse,
         val likeCount: Long,
+        val quantity: Long,
     ) {
         companion object {
             fun from(info: ProductDetailInfo): ProductDetailResponse {
@@ -84,6 +87,7 @@ class AdminProductV1Dto {
                     imageUrl = info.imageUrl,
                     brand = BrandV1Dto.BrandResponse.from(info.brand),
                     likeCount = info.likeCount,
+                    quantity = requireNotNull(info.quantity) { "Inventory quantity is required." },
                 )
             }
         }

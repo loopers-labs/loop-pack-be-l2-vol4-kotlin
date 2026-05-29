@@ -6,4 +6,8 @@ interface ProductJpaRepository :
     JpaRepository<ProductEntity, Long>,
     ProductQueryRepository {
     fun findAllByBrandId(brandId: Long): List<ProductEntity>
+
+    fun existsByBrandIdAndName(brandId: Long, name: String): Boolean
+
+    fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean
 }

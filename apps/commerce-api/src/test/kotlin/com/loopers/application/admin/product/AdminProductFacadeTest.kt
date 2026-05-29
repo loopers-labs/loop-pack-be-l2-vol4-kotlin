@@ -1,6 +1,7 @@
 package com.loopers.application.admin.product
 
 import com.loopers.application.brand.BrandService
+import com.loopers.application.inventory.InventoryService
 import com.loopers.application.product.ProductService
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
@@ -8,6 +9,8 @@ import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.inventory.Inventory
+import com.loopers.domain.inventory.InventoryRepository
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductCatalogService
 import com.loopers.domain.product.ProductRepository
@@ -94,6 +97,7 @@ class AdminProductFacadeTest {
             val fixture = AdminProductFacadeFixture()
             fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
             fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.inventoryRepository.save(Inventory(productId = 10L, quantity = 7L))
             fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 5L))
 
             val result = fixture.adminProductFacade.updateProduct(
@@ -112,7 +116,32 @@ class AdminProductFacadeTest {
                 { assertThat(result.price).isEqualTo(20_000L) },
                 { assertThat(result.brand.brandId).isEqualTo(1L) },
                 { assertThat(result.likeCount).isEqualTo(5L) },
+                { assertThat(result.quantity).isEqualTo(7L) },
             )
+        }
+
+        @DisplayName("같은 브랜드 내 다른 상품 이름과 중복되게 수정할 수 없다")
+        @Test
+        fun throwsConflict_whenProductNameAlreadyExistsInBrand() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.productRepository.save(createProduct(id = 20L, brandId = 1L, name = "updated hoodie"))
+            fixture.inventoryRepository.save(Inventory(productId = 10L, quantity = 7L))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.updateProduct(
+                    productId = 10L,
+                    command = ProductUpdateCommand(
+                        name = "updated hoodie",
+                        price = 20_000L,
+                        description = "updated product",
+                        imageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
 
         @DisplayName("존재하지 않는 상품은 수정할 수 없다")
@@ -196,6 +225,7 @@ class AdminProductFacadeTest {
                     price = 10_000L,
                     description = "loopers product",
                     imageUrl = "https://image.loopers/product.png",
+                    quantity = 100L,
                 ),
             )
 
@@ -204,7 +234,32 @@ class AdminProductFacadeTest {
                 { assertThat(result.productName).isEqualTo("loopers hoodie") },
                 { assertThat(result.brand.brandId).isEqualTo(1L) },
                 { assertThat(result.likeCount).isEqualTo(0L) },
+                { assertThat(result.quantity).isEqualTo(100L) },
+                { assertThat(fixture.inventoryRepository.findByProductId(result.productId)?.quantity).isEqualTo(100L) },
             )
+        }
+
+        @DisplayName("같은 브랜드에 같은 이름의 상품은 등록할 수 없다")
+        @Test
+        fun throwsConflict_whenProductNameAlreadyExistsInBrand() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.createProduct(
+                    ProductCreateCommand(
+                        brandId = 1L,
+                        name = "loopers hoodie",
+                        price = 10_000L,
+                        description = "loopers product",
+                        imageUrl = "https://image.loopers/product.png",
+                        quantity = 100L,
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
 
         @DisplayName("존재하지 않는 브랜드에는 상품을 등록할 수 없다")
@@ -220,6 +275,7 @@ class AdminProductFacadeTest {
                         price = 10_000L,
                         description = "loopers product",
                         imageUrl = "https://image.loopers/product.png",
+                        quantity = 100L,
                     ),
                 )
             }
@@ -241,6 +297,7 @@ class AdminProductFacadeTest {
                         price = 10_000L,
                         description = "loopers product",
                         imageUrl = "https://image.loopers/product.png",
+                        quantity = 100L,
                     ),
                 )
             }
@@ -258,6 +315,7 @@ class AdminProductFacadeTest {
             val fixture = AdminProductFacadeFixture()
             fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
             fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.inventoryRepository.save(Inventory(productId = 10L, quantity = 7L))
             fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 3L))
 
             val result = fixture.adminProductFacade.getProduct(10L)
@@ -266,6 +324,7 @@ class AdminProductFacadeTest {
                 { assertThat(result.productId).isEqualTo(10L) },
                 { assertThat(result.brand.name).isEqualTo("loopers") },
                 { assertThat(result.likeCount).isEqualTo(3L) },
+                { assertThat(result.quantity).isEqualTo(7L) },
             )
         }
 
@@ -361,11 +420,13 @@ class AdminProductFacadeTest {
 
     private class AdminProductFacadeFixture {
         val brandRepository = FakeBrandRepository()
+        val inventoryRepository = FakeInventoryRepository()
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
         val adminProductFacade = AdminProductFacade(
             productService = ProductService(productRepository),
             brandService = BrandService(brandRepository),
+            inventoryService = InventoryService(inventoryRepository),
             productStatService = ProductStatService(productStatRepository),
             productCatalogService = ProductCatalogService(),
         )
@@ -446,6 +507,14 @@ class AdminProductFacadeTest {
             )
         }
 
+        override fun existsByBrandIdAndName(brandId: Long, name: String): Boolean {
+            return products.any { it.brandId == brandId && it.name == name }
+        }
+
+        override fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean {
+            return products.any { it.brandId == brandId && it.name == name && it.id != productId }
+        }
+
         override fun save(product: Product): Product {
             val saved = if (product.id == 0L) {
                 Product(
@@ -474,6 +543,20 @@ class AdminProductFacadeTest {
         override fun updateAll(products: Collection<Product>): List<Product> {
             products.forEach(::save)
             return products.toList()
+        }
+    }
+
+    private class FakeInventoryRepository : InventoryRepository {
+        private val inventories = mutableListOf<Inventory>()
+
+        override fun findByProductId(productId: Long): Inventory? {
+            return inventories.find { it.productId == productId }
+        }
+
+        override fun save(inventory: Inventory): Inventory {
+            inventories.removeIf { it.productId == inventory.productId }
+            inventories.add(inventory)
+            return inventory
         }
     }
 
@@ -512,12 +595,13 @@ class AdminProductFacadeTest {
     private fun createProduct(
         id: Long,
         brandId: Long,
+        name: String = "loopers hoodie",
         isDeleted: Boolean = false,
     ): Product {
         return Product(
             id = id,
             brandId = brandId,
-            name = "loopers hoodie",
+            name = name,
             price = 10_000L,
             description = "loopers product",
             imageUrl = "https://image.loopers/product.png",

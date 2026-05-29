@@ -6,6 +6,7 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
@@ -39,9 +40,25 @@ class ProductRepositoryImpl(
         )
     }
 
+    override fun existsByBrandIdAndName(brandId: Long, name: String): Boolean {
+        return productJpaRepository.existsByBrandIdAndName(brandId = brandId, name = name)
+    }
+
+    override fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean {
+        return productJpaRepository.existsByBrandIdAndNameAndIdNot(
+            brandId = brandId,
+            name = name,
+            productId = productId,
+        )
+    }
+
     override fun save(product: Product): Product {
-        return productJpaRepository.save(ProductMapper.toEntity(product))
-            .let(ProductMapper::toDomain)
+        return try {
+            productJpaRepository.save(ProductMapper.toEntity(product))
+                .let(ProductMapper::toDomain)
+        } catch (e: DataIntegrityViolationException) {
+            throw CoreException(ErrorType.CONFLICT, "Product name already exists in brand.")
+        }
     }
 
     override fun update(product: Product): Product {

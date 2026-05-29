@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MissingRequestHeaderException
@@ -110,6 +111,12 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handleNotFound(e: NoResourceFoundException): ResponseEntity<ApiResponse<*>> {
         return failureResponse(errorType = ErrorType.NOT_FOUND)
+    }
+
+    @ExceptionHandler
+    fun handleConflict(e: DataIntegrityViolationException): ResponseEntity<ApiResponse<*>> {
+        log.warn("DataIntegrityViolationException : {}", e.message, e)
+        return failureResponse(errorType = ErrorType.CONFLICT)
     }
 
     @ExceptionHandler

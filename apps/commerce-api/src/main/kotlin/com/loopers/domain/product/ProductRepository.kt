@@ -15,6 +15,10 @@ interface ProductRepository {
         size: Int,
     ): Page<ProductSummary>
 
+    fun existsByBrandIdAndName(brandId: Long, name: String): Boolean
+
+    fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean
+
     fun save(product: Product): Product
 
     fun update(product: Product): Product

@@ -41,6 +41,10 @@ class ProductService(
 
     @Transactional
     fun createProduct(command: ProductCreateCommand): Product {
+        if (productRepository.existsByBrandIdAndName(brandId = command.brandId, name = command.name)) {
+            throw CoreException(ErrorType.CONFLICT, "Product name already exists in brand.")
+        }
+
         return Product(
             brandId = command.brandId,
             name = command.name,
@@ -52,6 +56,17 @@ class ProductService(
 
     @Transactional
     fun updateProduct(product: Product, command: ProductUpdateCommand): Product {
+        if (
+            product.name != command.name &&
+            productRepository.existsByBrandIdAndNameAndIdNot(
+                brandId = product.brandId,
+                name = command.name,
+                productId = product.id,
+            )
+        ) {
+            throw CoreException(ErrorType.CONFLICT, "Product name already exists in brand.")
+        }
+
         product.update(
             name = command.name,
             price = command.price,

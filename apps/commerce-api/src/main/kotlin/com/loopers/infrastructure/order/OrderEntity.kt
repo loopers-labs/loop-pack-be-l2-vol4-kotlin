@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.hibernate.annotations.BatchSize
 import java.time.ZonedDateTime
 
 @Entity
@@ -37,6 +38,7 @@ class OrderEntity(
     var orderedAt: ZonedDateTime,
 ) : BaseEntity() {
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @BatchSize(size = 50)
     val items: MutableList<OrderItemEntity> = mutableListOf()
 
     fun addItem(item: OrderItemEntity) {

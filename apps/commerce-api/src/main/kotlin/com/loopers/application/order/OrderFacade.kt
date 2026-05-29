@@ -4,12 +4,14 @@ import com.loopers.application.brand.BrandService
 import com.loopers.application.inventory.InventoryService
 import com.loopers.application.order.dto.OrderCreateCommand
 import com.loopers.application.order.dto.OrderInfo
+import com.loopers.application.order.dto.OrderSummaryInfo
 import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
 import com.loopers.domain.order.OrderPlacementService
 import com.loopers.domain.order.dto.OrderPlacementItem
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
 
 @Component
 class OrderFacade(
@@ -45,5 +47,32 @@ class OrderFacade(
         inventoryService.updateInventories(result.inventories)
         return orderService.save(result.order)
             .let(OrderInfo::from)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrders(
+        loginId: String,
+        rawPassword: String,
+        startAt: ZonedDateTime,
+        endAt: ZonedDateTime,
+    ): List<OrderSummaryInfo> {
+        val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
+
+        return orderService.getOrders(
+            memberId = user.id,
+            startAt = startAt,
+            endAt = endAt,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrder(
+        loginId: String,
+        rawPassword: String,
+        orderId: Long,
+    ): OrderInfo {
+        val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
+
+        return orderService.getOrder(memberId = user.id, orderId = orderId)
     }
 }

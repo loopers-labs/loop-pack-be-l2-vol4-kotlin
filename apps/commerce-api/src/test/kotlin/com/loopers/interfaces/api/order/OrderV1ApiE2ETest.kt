@@ -8,6 +8,8 @@ import com.loopers.infrastructure.inventory.InventoryEntity
 import com.loopers.infrastructure.inventory.InventoryJpaRepository
 import com.loopers.infrastructure.member.MemberEntity
 import com.loopers.infrastructure.member.MemberJpaRepository
+import com.loopers.infrastructure.order.OrderEntity
+import com.loopers.infrastructure.order.OrderItemEntity
 import com.loopers.infrastructure.order.OrderJpaRepository
 import com.loopers.infrastructure.product.ProductEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
@@ -28,6 +30,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
+import java.time.ZonedDateTime
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class OrderV1ApiE2ETest @Autowired constructor(
@@ -158,6 +161,92 @@ class OrderV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/orders")
+    @Nested
+    inner class GetOrders {
+        @DisplayName("로그인한 회원의 기간 내 주문 목록을 조회한다")
+        @Test
+        fun getsOrders() {
+            val member = createMember()
+            val otherMember = createMember(loginId = "other123")
+            val now = ZonedDateTime.now()
+            val firstOrder = createOrder(memberId = member.id, orderedAt = now.minusDays(1), totalAmount = 10_000L)
+            val secondOrder = createOrder(memberId = member.id, orderedAt = now, totalAmount = 20_000L)
+            createOrder(memberId = otherMember.id, orderedAt = now, totalAmount = 30_000L)
+
+            val response = testRestTemplate.exchange(
+                ordersUrl(startAt = now.minusDays(2), endAt = now.plusDays(1)),
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<OrderV1Dto.OrderSummaryResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.map { it.orderId }).containsExactly(secondOrder.id, firstOrder.id) },
+                { assertThat(response.body?.data?.map { it.totalAmount }).containsExactly(20_000L, 10_000L) },
+            )
+        }
+
+        @DisplayName("인증 정보가 올바르지 않으면 주문 목록을 조회할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenCredentialsAreInvalid() {
+            createMember()
+            val now = ZonedDateTime.now()
+
+            val response = testRestTemplate.exchange(
+                ordersUrl(startAt = now.minusDays(1), endAt = now.plusDays(1)),
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<List<OrderV1Dto.OrderSummaryResponse>>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+    }
+
+    @DisplayName("GET /api/v1/orders/{orderId}")
+    @Nested
+    inner class GetOrder {
+        @DisplayName("로그인한 회원의 주문 상세를 조회한다")
+        @Test
+        fun getsOrder() {
+            val member = createMember()
+            val order = createOrder(memberId = member.id)
+
+            val response = testRestTemplate.exchange(
+                "$ORDERS_ENDPOINT/${order.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.orderId).isEqualTo(order.id) },
+                { assertThat(response.body?.data?.items).hasSize(1) },
+                { assertThat(response.body?.data?.items?.single()?.productName).isEqualTo("hoodie") },
+            )
+        }
+
+        @DisplayName("다른 회원의 주문은 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenOrderBelongsToOtherMember() {
+            createMember()
+            val otherMember = createMember(loginId = "other123")
+            val order = createOrder(memberId = otherMember.id)
+
+            val response = testRestTemplate.exchange(
+                "$ORDERS_ENDPOINT/${order.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createMember(
         loginId: String = LOGIN_ID,
         password: String = RAW_PASSWORD,
@@ -208,6 +297,32 @@ class OrderV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun createOrder(
+        memberId: Long,
+        orderedAt: ZonedDateTime = ZonedDateTime.now(),
+        totalAmount: Long = 10_000L,
+    ): OrderEntity {
+        val order = OrderEntity(
+            orderNumber = "order-$memberId-${orderedAt.toInstant().toEpochMilli()}-$totalAmount",
+            memberId = memberId,
+            status = OrderStatus.COMPLETED,
+            totalAmount = totalAmount,
+            orderedAt = orderedAt,
+        )
+        order.addItem(
+            OrderItemEntity(
+                productId = 1L,
+                productName = "hoodie",
+                brandName = "loopers",
+                unitPrice = totalAmount,
+                quantity = 1L,
+                totalAmount = totalAmount,
+            ),
+        )
+
+        return orderJpaRepository.save(order)
+    }
+
     private fun createAuthHeaders(
         loginId: String = LOGIN_ID,
         password: String = RAW_PASSWORD,
@@ -220,6 +335,10 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
     private fun countOrderItems(): Long {
         return jdbcTemplate.queryForObject("select count(*) from order_item", Long::class.java) ?: 0L
+    }
+
+    private fun ordersUrl(startAt: ZonedDateTime, endAt: ZonedDateTime): String {
+        return "$ORDERS_ENDPOINT?startAt=${startAt.toLocalDateTime()}&endAt=${endAt.toLocalDateTime()}"
     }
 
     private companion object {

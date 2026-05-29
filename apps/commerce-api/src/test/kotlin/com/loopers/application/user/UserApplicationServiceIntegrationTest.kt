@@ -45,12 +45,13 @@ class UserApplicationServiceIntegrationTest @Autowired constructor(
             val result = userApplicationService.signUp(loginId, rawPassword, name, birthDate, email)
 
             // assert
+            val savedEntity = userJpaRepository.findByLoginIdAndDeletedAtIsNull(loginId)
             assertAll(
                 { assertThat(result.loginId).isEqualTo(loginId) },
                 { assertThat(result.name).isEqualTo(name) },
                 { assertThat(result.email).isEqualTo(email) },
-                { assertThat(result.password).startsWith("\$2") },
-                { assertThat(userJpaRepository.findByLoginIdAndDeletedAtIsNull(loginId)).isNotNull() },
+                { assertThat(savedEntity).isNotNull() },
+                { assertThat(savedEntity?.password).startsWith("\$2") },
             )
         }
 

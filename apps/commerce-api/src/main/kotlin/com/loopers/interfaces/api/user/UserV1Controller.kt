@@ -1,6 +1,6 @@
 package com.loopers.interfaces.api.user
 
-import com.loopers.application.user.UserFacade
+import com.loopers.application.user.UserApplicationService
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.support.auth.LoginAuth
 import com.loopers.support.auth.LoginUser
@@ -17,14 +17,14 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/v1/users")
 class UserV1Controller(
-    private val userFacade: UserFacade,
+    private val userApplicationService: UserApplicationService,
 ) : UserV1ApiSpec {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     override fun signUp(
         @Valid @RequestBody request: UserV1Dto.SignUpRequest,
     ): ApiResponse<UserV1Dto.SignUpResponse> {
-        val info = userFacade.signUp(
+        val info = userApplicationService.signUp(
             loginId = request.loginId,
             rawPassword = request.password,
             name = request.name,
@@ -36,7 +36,7 @@ class UserV1Controller(
 
     @GetMapping("/me")
     override fun getUserInfo(@LoginAuth loginUser: LoginUser): ApiResponse<UserV1Dto.GetUserInfoResponse> {
-        val info = userFacade.getUserInfo(
+        val info = userApplicationService.getUserInfo(
             loginId = loginUser.loginId,
             rawPassword = loginUser.rawPassword,
         )
@@ -48,7 +48,7 @@ class UserV1Controller(
         @LoginAuth loginUser: LoginUser,
         @Valid @RequestBody request: UserV1Dto.ChangePasswordRequest,
     ): ApiResponse<Unit> {
-        userFacade.changePassword(loginUser.loginId, loginUser.rawPassword, request.newPassword)
+        userApplicationService.changePassword(loginUser.loginId, loginUser.rawPassword, request.newPassword)
         return ApiResponse.success(null)
     }
 }

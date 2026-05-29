@@ -24,7 +24,7 @@ class UserApplicationService(
         name: String,
         birthDate: LocalDate,
         email: String,
-    ): User {
+    ): UserInfo {
         if (userRepository.existsByLoginId(loginId)) {
             throw CoreException(ErrorType.CONFLICT, "이미 사용 중인 로그인 ID 입니다.")
         }
@@ -39,27 +39,25 @@ class UserApplicationService(
                 birthDate = birthDate,
                 email = email,
             ),
-        )
+        ).let { UserInfo.from(it) }
     }
 
-    fun getUser(id: Long): User {
-        return userRepository.find(id)
+    fun getUser(id: Long): UserInfo {
+        return userRepository.find(id)?.let { UserInfo.from(it) }
             ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 유저입니다.")
     }
 
-    fun getUserInfo(loginId: String, rawPassword: String): User {
-        val user = userRepository.findByLoginId(loginId)
-            ?: throw CoreException(ErrorType.UNAUTHORIZED)
+    fun getUserInfo(loginId: String, rawPassword: String): UserInfo {
+        val user = findUserByLoginId(loginId)
         if (!userPasswordEncoder.matches(rawPassword, user.password)) {
             throw CoreException(ErrorType.UNAUTHORIZED)
         }
-        return user
+        return UserInfo.from(user)
     }
 
     @Transactional
     fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String) {
-        val user = userRepository.findByLoginId(loginId)
-            ?: throw CoreException(ErrorType.UNAUTHORIZED)
+        val user = findUserByLoginId(loginId)
         if (!userPasswordEncoder.matches(currentRawPassword, user.password)) {
             throw CoreException(ErrorType.UNAUTHORIZED)
         }
@@ -71,5 +69,10 @@ class UserApplicationService(
         )
         user.changePassword(newEncoded)
         userRepository.save(user)
+    }
+
+    private fun findUserByLoginId(loginId: String): User {
+        return userRepository.findByLoginId(loginId)
+            ?: throw CoreException(ErrorType.UNAUTHORIZED)
     }
 }

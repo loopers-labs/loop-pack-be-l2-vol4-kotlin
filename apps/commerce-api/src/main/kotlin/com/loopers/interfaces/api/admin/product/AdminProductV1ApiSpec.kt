@@ -36,4 +36,14 @@ interface AdminProductV1ApiSpec {
         adminId: String,
         request: AdminProductV1Dto.CreateProductRequest,
     ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
+
+    @Operation(
+        summary = "관리자 상품 수정",
+        description = "관리자가 상품 기본 정보를 수정합니다. 상품의 브랜드와 재고는 수정하지 않습니다.",
+    )
+    fun updateProduct(
+        adminId: String,
+        productId: Long,
+        request: AdminProductV1Dto.UpdateProductRequest,
+    ): ApiResponse<AdminProductV1Dto.ProductDetailResponse>
 }

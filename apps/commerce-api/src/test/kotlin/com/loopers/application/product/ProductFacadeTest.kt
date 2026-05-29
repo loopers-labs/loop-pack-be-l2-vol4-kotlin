@@ -167,6 +167,12 @@ class ProductFacadeTest {
             return product
         }
 
+        override fun update(product: Product): Product {
+            products.removeIf { it.id == product.id }
+            products.add(product)
+            return product
+        }
+
         override fun updateAll(products: Collection<Product>): List<Product> {
             products.forEach(::save)
             return products.toList()

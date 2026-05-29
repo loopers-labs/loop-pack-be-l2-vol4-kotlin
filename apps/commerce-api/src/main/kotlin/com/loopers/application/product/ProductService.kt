@@ -2,6 +2,7 @@ package com.loopers.application.product
 
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
+import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.dto.ProductSummary
@@ -47,6 +48,18 @@ class ProductService(
             description = command.description,
             imageUrl = command.imageUrl,
         ).let(productRepository::save)
+    }
+
+    @Transactional
+    fun updateProduct(product: Product, command: ProductUpdateCommand): Product {
+        product.update(
+            name = command.name,
+            price = command.price,
+            description = command.description,
+            imageUrl = command.imageUrl,
+        )
+
+        return productRepository.update(product)
     }
 
     @Transactional

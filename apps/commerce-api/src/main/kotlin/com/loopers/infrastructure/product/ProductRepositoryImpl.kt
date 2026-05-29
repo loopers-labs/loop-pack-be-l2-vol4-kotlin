@@ -40,13 +40,14 @@ class ProductRepositoryImpl(
     }
 
     override fun save(product: Product): Product {
-        val entity = if (product.id == 0L) {
-            ProductMapper.toEntity(product)
-        } else {
-            productJpaRepository.findByIdOrNull(product.id)
-                ?.also { it.update(product) }
-                ?: throw CoreException(ErrorType.NOT_FOUND, "Product not found.")
-        }
+        return productJpaRepository.save(ProductMapper.toEntity(product))
+            .let(ProductMapper::toDomain)
+    }
+
+    override fun update(product: Product): Product {
+        val entity = productJpaRepository.findByIdOrNull(product.id)
+            ?.also { it.update(product) }
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Product not found.")
 
         return productJpaRepository.save(entity)
             .let(ProductMapper::toDomain)

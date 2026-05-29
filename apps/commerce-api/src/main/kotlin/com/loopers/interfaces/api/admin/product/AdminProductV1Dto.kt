@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.admin.product
 
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductDetailInfo
+import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.interfaces.api.brand.BrandV1Dto
 
@@ -16,6 +17,22 @@ class AdminProductV1Dto {
         fun toCommand(): ProductCreateCommand {
             return ProductCreateCommand(
                 brandId = brandId,
+                name = name,
+                price = price,
+                description = description,
+                imageUrl = imageUrl,
+            )
+        }
+    }
+
+    data class UpdateProductRequest(
+        val name: String,
+        val price: Long,
+        val description: String,
+        val imageUrl: String,
+    ) {
+        fun toCommand(): ProductUpdateCommand {
+            return ProductUpdateCommand(
                 name = name,
                 price = price,
                 description = description,

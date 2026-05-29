@@ -28,6 +28,42 @@ class Product(
         private set
 
     init {
+        validate(
+            brandId = brandId,
+            name = name,
+            price = price,
+            description = description,
+            imageUrl = imageUrl,
+        )
+    }
+
+    fun update(
+        name: String,
+        price: Long,
+        description: String,
+        imageUrl: String,
+    ) {
+        validate(
+            brandId = brandId,
+            name = name,
+            price = price,
+            description = description,
+            imageUrl = imageUrl,
+        )
+
+        this.name = name
+        this.price = price
+        this.description = description
+        this.imageUrl = imageUrl
+    }
+
+    private fun validate(
+        brandId: Long,
+        name: String,
+        price: Long,
+        description: String,
+        imageUrl: String,
+    ) {
         if (brandId <= 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Brand id must be positive.")
         }

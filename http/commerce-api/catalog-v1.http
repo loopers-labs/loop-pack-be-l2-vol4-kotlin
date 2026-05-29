@@ -70,3 +70,15 @@ Content-Type: application/json
   "description": "loopers product",
   "imageUrl": "https://image.loopers/product.png"
 }
+
+### 관리자 상품 수정
+PUT {{commerce-api}}/api-admin/v1/products/1
+X-Loopers-Ldap: admin
+Content-Type: application/json
+
+{
+  "name": "updated hoodie",
+  "price": 20000,
+  "description": "updated product",
+  "imageUrl": "https://image.loopers/updated.png"
+}

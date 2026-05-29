@@ -4,6 +4,7 @@ import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
+import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
@@ -27,6 +28,101 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
 class AdminProductFacadeTest {
+    @DisplayName("관리자 상품 수정")
+    @Nested
+    inner class UpdateProduct {
+        @DisplayName("등록된 상품 기본 정보를 수정한다")
+        @Test
+        fun updatesProduct() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 5L))
+
+            val result = fixture.adminProductFacade.updateProduct(
+                productId = 10L,
+                command = ProductUpdateCommand(
+                    name = "updated hoodie",
+                    price = 20_000L,
+                    description = "updated product",
+                    imageUrl = "https://image.loopers/updated.png",
+                ),
+            )
+
+            assertAll(
+                { assertThat(result.productId).isEqualTo(10L) },
+                { assertThat(result.productName).isEqualTo("updated hoodie") },
+                { assertThat(result.price).isEqualTo(20_000L) },
+                { assertThat(result.brand.brandId).isEqualTo(1L) },
+                { assertThat(result.likeCount).isEqualTo(5L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 수정할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductDoesNotExist() {
+            val fixture = AdminProductFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.updateProduct(
+                    productId = 10L,
+                    command = ProductUpdateCommand(
+                        name = "updated hoodie",
+                        price = 20_000L,
+                        description = "updated product",
+                        imageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 수정할 수 없다")
+        @Test
+        fun throwsNotFound_whenProductIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L, isDeleted = true))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.updateProduct(
+                    productId = 10L,
+                    command = ProductUpdateCommand(
+                        name = "updated hoodie",
+                        price = 20_000L,
+                        description = "updated product",
+                        imageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 수정할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val fixture = AdminProductFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, name = "loopers", isDeleted = true))
+            fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
+
+            val result = assertThrows<CoreException> {
+                fixture.adminProductFacade.updateProduct(
+                    productId = 10L,
+                    command = ProductUpdateCommand(
+                        name = "updated hoodie",
+                        price = 20_000L,
+                        description = "updated product",
+                        imageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
     @DisplayName("관리자 상품 등록")
     @Nested
     inner class CreateProduct {
@@ -310,6 +406,12 @@ class AdminProductFacadeTest {
             products.removeIf { it.id == saved.id }
             products.add(saved)
             return saved
+        }
+
+        override fun update(product: Product): Product {
+            products.removeIf { it.id == product.id }
+            products.add(product)
+            return product
         }
 
         override fun updateAll(products: Collection<Product>): List<Product> {

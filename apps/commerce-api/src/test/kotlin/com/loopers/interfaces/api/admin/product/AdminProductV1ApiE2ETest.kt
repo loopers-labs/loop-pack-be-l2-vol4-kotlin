@@ -176,6 +176,106 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("PUT /api-admin/v1/products/{productId}")
+    @Nested
+    inner class UpdateProduct {
+        @DisplayName("등록된 상품 기본 정보를 수정한다")
+        @Test
+        fun updatesProduct() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
+            val request = AdminProductV1Dto.UpdateProductRequest(
+                name = "updated hoodie",
+                price = 20_000L,
+                description = "updated product",
+                imageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            val updatedProduct = productJpaRepository.findById(product.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.productId).isEqualTo(product.id) },
+                { assertThat(response.body?.data?.productName).isEqualTo("updated hoodie") },
+                { assertThat(response.body?.data?.price).isEqualTo(20_000L) },
+                { assertThat(response.body?.data?.brand?.brandId).isEqualTo(brand.id) },
+                { assertThat(response.body?.data?.likeCount).isEqualTo(3L) },
+                { assertThat(updatedProduct.brandId).isEqualTo(brand.id) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 상품은 수정할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductDoesNotExist() {
+            val request = AdminProductV1Dto.UpdateProductRequest(
+                name = "updated hoodie",
+                price = 20_000L,
+                description = "updated product",
+                imageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/999",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 상품은 수정할 수 없다")
+        @Test
+        fun returnsNotFound_whenProductIsDeleted() {
+            val brand = createBrand(name = "loopers")
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie", isDeleted = true)
+            val request = AdminProductV1Dto.UpdateProductRequest(
+                name = "updated hoodie",
+                price = 20_000L,
+                description = "updated product",
+                imageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드의 상품은 수정할 수 없다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = createBrand(name = "loopers", isDeleted = true)
+            val product = createProduct(brandId = brand.id, name = "loopers hoodie")
+            val request = AdminProductV1Dto.UpdateProductRequest(
+                name = "updated hoodie",
+                price = 20_000L,
+                description = "updated product",
+                imageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$PRODUCTS_ENDPOINT/${product.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminProductV1Dto.ProductDetailResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     @DisplayName("GET /api-admin/v1/products/{productId}")
     @Nested
     inner class GetProduct {

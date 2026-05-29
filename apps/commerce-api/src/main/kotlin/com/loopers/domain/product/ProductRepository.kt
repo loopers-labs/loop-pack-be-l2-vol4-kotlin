@@ -17,5 +17,7 @@ interface ProductRepository {
 
     fun save(product: Product): Product
 
+    fun update(product: Product): Product
+
     fun updateAll(products: Collection<Product>): List<Product>
 }

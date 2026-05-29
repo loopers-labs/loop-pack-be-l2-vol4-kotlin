@@ -2,6 +2,8 @@ package com.loopers.infrastructure.brand
 
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -37,6 +39,15 @@ class BrandRepositoryImpl(
     override fun save(brand: Brand): Brand {
         return BrandMapper.toEntity(brand)
             .let(brandJpaRepository::save)
+            .let(BrandMapper::toDomain)
+    }
+
+    override fun update(brand: Brand): Brand {
+        val entity = brandJpaRepository.findByIdOrNull(brand.id)
+            ?.also { it.update(brand) }
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
+
+        return brandJpaRepository.save(entity)
             .let(BrandMapper::toDomain)
     }
 }

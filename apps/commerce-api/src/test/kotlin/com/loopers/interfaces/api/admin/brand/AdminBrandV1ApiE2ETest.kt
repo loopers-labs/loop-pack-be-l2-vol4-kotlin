@@ -175,12 +175,105 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("PUT /api-admin/v1/brands/{brandId}")
+    @Nested
+    inner class UpdateBrand {
+        @DisplayName("브랜드 수정 요청이 유효하면 브랜드 정보를 수정한다")
+        @Test
+        fun returnsUpdatedBrand_whenRequestIsValid() {
+            val brandId = createBrand(name = "loopers")
+            val request = updateBrandRequest(
+                name = "loopers updated",
+                description = "updated brand",
+                logoImageUrl = "https://image.loopers/updated.png",
+            )
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/$brandId",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.brandId).isEqualTo(brandId) },
+                { assertThat(response.body?.data?.name).isEqualTo(request.name) },
+                { assertThat(response.body?.data?.description).isEqualTo(request.description) },
+                { assertThat(response.body?.data?.logoImageUrl).isEqualTo(request.logoImageUrl) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드 수정 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/999",
+                HttpMethod.PUT,
+                HttpEntity(updateBrandRequest(), createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드 수정 요청 시 실패한다")
+        @Test
+        fun returnsNotFound_whenBrandIsDeleted() {
+            val brand = brandJpaRepository.save(
+                BrandEntity(
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                    isDeleted = true,
+                ),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/${brand.id}",
+                HttpMethod.PUT,
+                HttpEntity(updateBrandRequest(), createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("이미 존재하는 브랜드명으로 브랜드 수정 요청 시 실패한다")
+        @Test
+        fun returnsConflict_whenBrandNameAlreadyExists() {
+            val brandId = createBrand(name = "loopers")
+            createBrand(name = "street")
+
+            val response = testRestTemplate.exchange(
+                "$BRANDS_ENDPOINT/$brandId",
+                HttpMethod.PUT,
+                HttpEntity(updateBrandRequest(name = "street"), createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminBrandV1Dto.BrandResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+        }
+    }
+
     private fun createBrandRequest(
         name: String = "loopers",
         description: String = "loopers brand",
         logoImageUrl: String = "https://image.loopers/logo.png",
     ): AdminBrandV1Dto.CreateBrandRequest {
         return AdminBrandV1Dto.CreateBrandRequest(
+            name = name,
+            description = description,
+            logoImageUrl = logoImageUrl,
+        )
+    }
+
+    private fun updateBrandRequest(
+        name: String = "loopers updated",
+        description: String = "updated brand",
+        logoImageUrl: String = "https://image.loopers/updated.png",
+    ): AdminBrandV1Dto.UpdateBrandRequest {
+        return AdminBrandV1Dto.UpdateBrandRequest(
             name = name,
             description = description,
             logoImageUrl = logoImageUrl,

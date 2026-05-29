@@ -10,4 +10,6 @@ interface BrandRepository {
     fun existsByName(name: String): Boolean
 
     fun save(brand: Brand): Brand
+
+    fun update(brand: Brand): Brand
 }

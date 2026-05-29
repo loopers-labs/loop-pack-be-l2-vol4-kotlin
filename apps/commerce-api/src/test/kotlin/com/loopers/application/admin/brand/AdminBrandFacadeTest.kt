@@ -1,7 +1,8 @@
-package com.loopers.application.catalog
+package com.loopers.application.admin.brand
 
 import com.loopers.application.brand.BrandService
 import com.loopers.application.brand.dto.BrandCreateCommand
+import com.loopers.application.brand.dto.BrandUpdateCommand
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
 import com.loopers.support.error.CoreException
@@ -16,15 +17,15 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 
-class AdminCatalogFacadeTest {
-    @DisplayName("관리자 브랜드 상세 조회")
+class AdminBrandFacadeTest {
+    @DisplayName("관리자 브랜드 수정")
     @Nested
-    inner class GetBrand {
-        @DisplayName("등록된 브랜드 상세 정보를 조회한다")
+    inner class UpdateBrand {
+        @DisplayName("브랜드 수정 요청이 유효하면 브랜드 정보를 수정한다")
         @Test
-        fun returnsBrand() {
+        fun updatesBrand_whenCommandIsValid() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
             val brand = brandRepository.save(
                 Brand(
                     id = 1L,
@@ -34,7 +35,127 @@ class AdminCatalogFacadeTest {
                 ),
             )
 
-            val result = adminCatalogFacade.getBrand(brand.id)
+            val result = adminBrandFacade.updateBrand(
+                brandId = brand.id,
+                command = BrandUpdateCommand(
+                    name = "loopers updated",
+                    description = "updated brand",
+                    logoImageUrl = "https://image.loopers/updated.png",
+                ),
+            )
+
+            assertAll(
+                { assertThat(result.brandId).isEqualTo(brand.id) },
+                { assertThat(result.name).isEqualTo("loopers updated") },
+                { assertThat(result.description).isEqualTo("updated brand") },
+                { assertThat(result.logoImageUrl).isEqualTo("https://image.loopers/updated.png") },
+            )
+        }
+
+        @DisplayName("존재하지 않는 브랜드는 수정할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandDoesNotExist() {
+            val brandRepository = FakeBrandRepository()
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
+
+            val result = assertThrows<CoreException> {
+                adminBrandFacade.updateBrand(
+                    brandId = 1L,
+                    command = BrandUpdateCommand(
+                        name = "loopers",
+                        description = "loopers brand",
+                        logoImageUrl = "https://image.loopers/logo.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("삭제된 브랜드는 수정할 수 없다")
+        @Test
+        fun throwsNotFound_whenBrandIsDeleted() {
+            val brandRepository = FakeBrandRepository()
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
+            brandRepository.save(
+                Brand(
+                    id = 1L,
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                    isDeleted = true,
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                adminBrandFacade.updateBrand(
+                    brandId = 1L,
+                    command = BrandUpdateCommand(
+                        name = "loopers updated",
+                        description = "updated brand",
+                        logoImageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("이미 존재하는 브랜드명으로 브랜드를 수정할 수 없다")
+        @Test
+        fun throwsConflict_whenBrandNameAlreadyExists() {
+            val brandRepository = FakeBrandRepository()
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
+            brandRepository.save(
+                Brand(
+                    id = 1L,
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                ),
+            )
+            brandRepository.save(
+                Brand(
+                    id = 2L,
+                    name = "street",
+                    description = "street brand",
+                    logoImageUrl = "https://image.loopers/street.png",
+                ),
+            )
+
+            val result = assertThrows<CoreException> {
+                adminBrandFacade.updateBrand(
+                    brandId = 1L,
+                    command = BrandUpdateCommand(
+                        name = "street",
+                        description = "updated brand",
+                        logoImageUrl = "https://image.loopers/updated.png",
+                    ),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
+        }
+    }
+
+    @DisplayName("관리자 브랜드 상세 조회")
+    @Nested
+    inner class GetBrand {
+        @DisplayName("등록된 브랜드 상세 정보를 조회한다")
+        @Test
+        fun returnsBrand() {
+            val brandRepository = FakeBrandRepository()
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
+            val brand = brandRepository.save(
+                Brand(
+                    id = 1L,
+                    name = "loopers",
+                    description = "loopers brand",
+                    logoImageUrl = "https://image.loopers/logo.png",
+                ),
+            )
+
+            val result = adminBrandFacade.getBrand(brand.id)
 
             assertAll(
                 { assertThat(result.brandId).isEqualTo(brand.id) },
@@ -48,10 +169,10 @@ class AdminCatalogFacadeTest {
         @Test
         fun throwsNotFound_whenBrandDoesNotExist() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
 
             val result = assertThrows<CoreException> {
-                adminCatalogFacade.getBrand(1L)
+                adminBrandFacade.getBrand(1L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -61,7 +182,7 @@ class AdminCatalogFacadeTest {
         @Test
         fun throwsNotFound_whenBrandIsDeleted() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
             brandRepository.save(
                 Brand(
                     id = 1L,
@@ -73,7 +194,7 @@ class AdminCatalogFacadeTest {
             )
 
             val result = assertThrows<CoreException> {
-                adminCatalogFacade.getBrand(1L)
+                adminBrandFacade.getBrand(1L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -87,15 +208,15 @@ class AdminCatalogFacadeTest {
         @Test
         fun returnsBrandPage() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
-            adminCatalogFacade.createBrand(
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
+            adminBrandFacade.createBrand(
                 BrandCreateCommand(
                     name = "loopers",
                     description = "loopers brand",
                     logoImageUrl = "https://image.loopers/logo.png",
                 ),
             )
-            adminCatalogFacade.createBrand(
+            adminBrandFacade.createBrand(
                 BrandCreateCommand(
                     name = "street",
                     description = "street brand",
@@ -103,7 +224,7 @@ class AdminCatalogFacadeTest {
                 ),
             )
 
-            val result = adminCatalogFacade.getBrands(page = 0, size = 20)
+            val result = adminBrandFacade.getBrands(page = 0, size = 20)
 
             assertAll(
                 { assertThat(result.content).hasSize(2) },
@@ -120,14 +241,14 @@ class AdminCatalogFacadeTest {
         @Test
         fun savesBrand_whenCommandIsValid() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
             val command = BrandCreateCommand(
                 name = "loopers",
                 description = "loopers brand",
                 logoImageUrl = "https://image.loopers/logo.png",
             )
 
-            val result = adminCatalogFacade.createBrand(command)
+            val result = adminBrandFacade.createBrand(command)
 
             assertAll(
                 { assertThat(result.brandId).isEqualTo(1L) },
@@ -140,10 +261,10 @@ class AdminCatalogFacadeTest {
         @Test
         fun throwsBadRequest_whenBrandNameIsBlank() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
 
             val result = assertThrows<CoreException> {
-                adminCatalogFacade.createBrand(
+                adminBrandFacade.createBrand(
                     BrandCreateCommand(
                         name = "",
                         description = "loopers brand",
@@ -159,16 +280,16 @@ class AdminCatalogFacadeTest {
         @Test
         fun throwsConflict_whenBrandNameAlreadyExists() {
             val brandRepository = FakeBrandRepository()
-            val adminCatalogFacade = AdminCatalogFacade(BrandService(brandRepository))
+            val adminBrandFacade = AdminBrandFacade(BrandService(brandRepository))
             val command = BrandCreateCommand(
                 name = "loopers",
                 description = "loopers brand",
                 logoImageUrl = "https://image.loopers/logo.png",
             )
-            adminCatalogFacade.createBrand(command)
+            adminBrandFacade.createBrand(command)
 
             val result = assertThrows<CoreException> {
-                adminCatalogFacade.createBrand(command)
+                adminBrandFacade.createBrand(command)
             }
 
             assertAll(
@@ -218,6 +339,12 @@ class AdminCatalogFacadeTest {
             brands.removeIf { it.id == savedBrand.id }
             brands.add(savedBrand)
             return savedBrand
+        }
+
+        override fun update(brand: Brand): Brand {
+            brands.removeIf { it.id == brand.id }
+            brands.add(brand)
+            return brand
         }
     }
 }

@@ -74,5 +74,11 @@ class BrandFacadeTest {
             brands.add(brand)
             return brand
         }
+
+        override fun update(brand: Brand): Brand {
+            brands.removeIf { it.id == brand.id }
+            brands.add(brand)
+            return brand
+        }
     }
 }

@@ -23,6 +23,32 @@ class Brand(
         private set
 
     init {
+        validate(name = name, description = description, logoImageUrl = logoImageUrl)
+    }
+
+    fun ensureDisplayable() {
+        if (isDeleted) {
+            throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
+        }
+    }
+
+    fun update(
+        name: String,
+        description: String,
+        logoImageUrl: String,
+    ) {
+        validate(name = name, description = description, logoImageUrl = logoImageUrl)
+
+        this.name = name
+        this.description = description
+        this.logoImageUrl = logoImageUrl
+    }
+
+    private fun validate(
+        name: String,
+        description: String,
+        logoImageUrl: String,
+    ) {
         if (name.isBlank()) {
             throw CoreException(ErrorType.BAD_REQUEST, "Brand name must not be blank.")
         }
@@ -31,12 +57,6 @@ class Brand(
         }
         if (logoImageUrl.isBlank()) {
             throw CoreException(ErrorType.BAD_REQUEST, "Brand logo image url must not be blank.")
-        }
-    }
-
-    fun ensureDisplayable() {
-        if (isDeleted) {
-            throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
         }
     }
 }

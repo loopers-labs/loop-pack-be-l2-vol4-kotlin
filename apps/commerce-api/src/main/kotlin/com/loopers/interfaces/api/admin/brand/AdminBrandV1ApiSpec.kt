@@ -34,4 +34,14 @@ interface AdminBrandV1ApiSpec {
         adminId: String,
         request: AdminBrandV1Dto.CreateBrandRequest,
     ): ApiResponse<AdminBrandV1Dto.BrandResponse>
+
+    @Operation(
+        summary = "관리자 브랜드 수정",
+        description = "관리자가 브랜드 정보를 수정합니다.",
+    )
+    fun updateBrand(
+        adminId: String,
+        brandId: Long,
+        request: AdminBrandV1Dto.UpdateBrandRequest,
+    ): ApiResponse<AdminBrandV1Dto.BrandResponse>
 }

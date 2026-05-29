@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.admin.brand
 
 import com.loopers.application.brand.dto.BrandCreateCommand
 import com.loopers.application.brand.dto.BrandInfo
+import com.loopers.application.brand.dto.BrandUpdateCommand
 
 class AdminBrandV1Dto {
     data class CreateBrandRequest(
@@ -11,6 +12,20 @@ class AdminBrandV1Dto {
     ) {
         fun toCommand(): BrandCreateCommand {
             return BrandCreateCommand(
+                name = name,
+                description = description,
+                logoImageUrl = logoImageUrl,
+            )
+        }
+    }
+
+    data class UpdateBrandRequest(
+        val name: String,
+        val description: String,
+        val logoImageUrl: String,
+    ) {
+        fun toCommand(): BrandUpdateCommand {
+            return BrandUpdateCommand(
                 name = name,
                 description = description,
                 logoImageUrl = logoImageUrl,

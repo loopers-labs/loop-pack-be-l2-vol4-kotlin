@@ -24,4 +24,8 @@ class ProductStatService(
     fun emptyStat(productId: Long): ProductStat {
         return ProductStat(productId = productId, likeCount = 0)
     }
+
+    fun save(productStat: ProductStat): ProductStat {
+        return productStatRepository.save(productStat)
+    }
 }

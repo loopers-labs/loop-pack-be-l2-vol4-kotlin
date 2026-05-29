@@ -39,5 +39,8 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Worktrees ###
+.worktrees/
+
 ### Mac ###
 .DS_STORE

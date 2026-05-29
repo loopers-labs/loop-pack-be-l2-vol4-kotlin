@@ -55,26 +55,14 @@ class LikeFacade(
 
         val likes = likeService.getLikes(user.id)
         val products = productService.getProducts(likes.map { it.productId })
-        val displayableProducts = productLikeService.displayLikedProducts(likes = likes, products = products)
-        val brandById = brandService.getBrands(displayableProducts.map { it.brandId })
-            .filter { !it.isDeleted }
-            .associateBy { it.id }
-        val statByProductId = productStatService.getProductStats(displayableProducts.map { it.id })
-            .associateBy { it.productId }
+        val brands = brandService.getBrands(products.map { it.brandId })
+        val productStats = productStatService.getProductStats(products.map { it.id })
 
-        return displayableProducts.mapNotNull { product ->
-            val brand = brandById[product.brandId] ?: return@mapNotNull null
-            val productStat = statByProductId[product.id] ?: productStatService.emptyStat(product.id)
-
-            ProductSummary(
-                productId = product.id,
-                productName = product.name,
-                price = product.price,
-                imageUrl = product.imageUrl,
-                brandId = brand.id,
-                brandName = brand.name,
-                likeCount = productStat.likeCount,
-            )
-        }
+        return productLikeService.displayLikedProductSummaries(
+            likes = likes,
+            products = products,
+            brands = brands,
+            productStats = productStats,
+        )
     }
 }

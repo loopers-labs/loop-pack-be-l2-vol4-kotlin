@@ -296,6 +296,28 @@ class LikeV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("삭제된 브랜드의 상품은 좋아요 목록에서 제외한다")
+        @Test
+        fun excludesDeletedBrandProduct() {
+            val member = createMember()
+            val brand = createBrand(isDeleted = true)
+            val product = createProduct(brandId = brand.id)
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+
+            val response = testRestTemplate.exchange(
+                "$USERS_ENDPOINT/${member.id}/likes",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<LikeV1Dto.LikedProductResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data).isEmpty() },
+            )
+        }
+
         @DisplayName("로그인한 회원과 조회 대상이 다르면 조회할 수 없다")
         @Test
         fun returnsUnauthorized_whenMemberIdDoesNotMatchUserId() {

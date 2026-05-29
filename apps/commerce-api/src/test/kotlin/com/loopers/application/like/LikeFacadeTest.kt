@@ -184,6 +184,19 @@ class LikeFacadeTest {
             assertThat(result).isEmpty()
         }
 
+        @DisplayName("삭제된 브랜드의 상품은 좋아요 목록에서 제외한다")
+        @Test
+        fun excludesDeletedBrandProducts() {
+            val fixture = LikeFacadeFixture()
+            fixture.brandRepository.save(createBrand(id = 1L, isDeleted = true))
+            fixture.productRepository.save(createProduct(id = 10L))
+            fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
+
+            val result = fixture.likeFacade.getLikedProducts(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, userId = 1L)
+
+            assertThat(result).isEmpty()
+        }
+
         @DisplayName("로그인 회원과 조회 대상이 다르면 조회할 수 없다")
         @Test
         fun throwsUnauthorized_whenMemberIdDoesNotMatchUserId() {

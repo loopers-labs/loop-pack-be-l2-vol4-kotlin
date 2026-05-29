@@ -27,9 +27,13 @@ class Brand(
     }
 
     fun ensureDisplayable() {
-        if (isDeleted) {
+        if (!isDisplayable()) {
             throw CoreException(ErrorType.NOT_FOUND, "Brand not found.")
         }
+    }
+
+    fun isDisplayable(): Boolean {
+        return !isDeleted
     }
 
     fun update(

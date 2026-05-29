@@ -19,4 +19,15 @@ class Inventory(
             throw CoreException(ErrorType.BAD_REQUEST, "Inventory quantity must not be negative.")
         }
     }
+
+    fun deduct(quantity: Long) {
+        if (quantity <= 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Deduct quantity must be positive.")
+        }
+        if (this.quantity < quantity) {
+            throw CoreException(ErrorType.CONFLICT, "Inventory quantity is insufficient.")
+        }
+
+        this.quantity -= quantity
+    }
 }

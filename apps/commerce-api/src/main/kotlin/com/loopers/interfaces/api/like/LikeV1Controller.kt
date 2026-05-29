@@ -2,19 +2,22 @@ package com.loopers.interfaces.api.like
 
 import com.loopers.application.like.LikeFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/v1/products/{productId}/likes")
+@RequestMapping("/api/v1")
 class LikeV1Controller(
     private val likeFacade: LikeFacade,
 ) : LikeV1ApiSpec {
-    @PostMapping
+    @PostMapping("/products/{productId}/likes")
     override fun like(
         @RequestHeader("X-Loopers-User-Id") memberId: Long,
         @PathVariable productId: Long,
@@ -23,12 +26,32 @@ class LikeV1Controller(
         return ApiResponse.success()
     }
 
-    @DeleteMapping
+    @DeleteMapping("/products/{productId}/likes")
     override fun unlike(
         @RequestHeader("X-Loopers-User-Id") memberId: Long,
         @PathVariable productId: Long,
     ): ApiResponse<Any> {
         likeFacade.unlike(memberId = memberId, productId = productId)
         return ApiResponse.success()
+    }
+
+    @GetMapping("/users/{userId}/likes")
+    override fun getLikedProducts(
+        @RequestHeader("X-Loopers-User-Id") memberId: Long,
+        @PathVariable userId: Long,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>> {
+        val likedProducts = likeFacade.getLikedProducts(
+            memberId = memberId,
+            userId = userId,
+            page = page,
+            size = size,
+        )
+
+        return likedProducts
+            .map(LikeV1Dto.LikedProductResponse::from)
+            .let { PageResponse.from(it) }
+            .let { ApiResponse.success(it) }
     }
 }

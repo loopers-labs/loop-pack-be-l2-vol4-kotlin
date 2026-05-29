@@ -9,6 +9,7 @@ import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.productstat.ProductStatEntity
 import com.loopers.infrastructure.productstat.ProductStatJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -199,24 +200,91 @@ class LikeV1ApiE2ETest @Autowired constructor(
         }
     }
 
-    private fun createBrand(): BrandEntity {
+    @DisplayName("GET /api/v1/users/{userId}/likes")
+    @Nested
+    inner class GetLikedProducts {
+        @DisplayName("로그인한 회원이 좋아요한 상품 목록을 조회한다")
+        @Test
+        fun getsLikedProducts() {
+            val brand = createBrand()
+            val firstProduct = createProduct(brandId = brand.id, name = "loopers hoodie")
+            val secondProduct = createProduct(brandId = brand.id, name = "loopers cap")
+            productStatJpaRepository.save(ProductStatEntity(productId = firstProduct.id, likeCount = 3L))
+            productStatJpaRepository.save(ProductStatEntity(productId = secondProduct.id, likeCount = 5L))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = firstProduct.id))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = secondProduct.id))
+
+            val response = testRestTemplate.exchange(
+                "$USERS_ENDPOINT/1/likes?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.data).hasSize(2) },
+                { assertThat(response.body?.data?.data?.map { it.productId }).containsExactly(secondProduct.id, firstProduct.id) },
+                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(2L) },
+            )
+        }
+
+        @DisplayName("삭제된 상품은 좋아요 목록에서 제외한다")
+        @Test
+        fun excludesDeletedProduct() {
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, isDeleted = true)
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productLikeJpaRepository.save(ProductLikeEntity(memberId = 1L, productId = product.id))
+
+            val response = testRestTemplate.exchange(
+                "$USERS_ENDPOINT/1/likes?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.data).isEmpty() },
+                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("로그인한 회원과 조회 대상이 다르면 조회할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenMemberIdDoesNotMatchUserId() {
+            val response = testRestTemplate.exchange(
+                "$USERS_ENDPOINT/2/likes?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createUserHeaders(memberId = 1L)),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+    }
+
+    private fun createBrand(isDeleted: Boolean = false): BrandEntity {
         return brandJpaRepository.save(
             BrandEntity(
                 name = "loopers",
                 description = "loopers brand",
                 logoImageUrl = "https://image.loopers/brand.png",
+                isDeleted = isDeleted,
             ),
         )
     }
 
     private fun createProduct(
         brandId: Long,
+        name: String = "loopers hoodie",
         isDeleted: Boolean = false,
     ): ProductEntity {
         return productJpaRepository.save(
             ProductEntity(
                 brandId = brandId,
-                name = "loopers hoodie",
+                name = name,
                 price = 10_000L,
                 description = "loopers product",
                 imageUrl = "https://image.loopers/product.png",
@@ -233,5 +301,6 @@ class LikeV1ApiE2ETest @Autowired constructor(
 
     private companion object {
         private const val PRODUCTS_ENDPOINT = "/api/v1/products"
+        private const val USERS_ENDPOINT = "/api/v1/users"
     }
 }

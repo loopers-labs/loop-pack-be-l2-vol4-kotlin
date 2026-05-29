@@ -141,6 +141,39 @@ class LikeFacadeTest {
         }
     }
 
+    @DisplayName("내가 좋아요한 상품 목록 조회")
+    @Nested
+    inner class GetLikedProducts {
+        @DisplayName("로그인 회원과 조회 대상이 같으면 좋아요한 상품 목록을 조회한다")
+        @Test
+        fun getsLikedProducts() {
+            val fixture = LikeFacadeFixture()
+            fixture.likeRepository.addLikedProductSummary(
+                memberId = 1L,
+                productSummary = createProductSummary(productId = 10L),
+            )
+
+            val result = fixture.likeFacade.getLikedProducts(memberId = 1L, userId = 1L, page = 0, size = 20)
+
+            assertAll(
+                { assertThat(result.content).hasSize(1) },
+                { assertThat(result.content.first().productId).isEqualTo(10L) },
+            )
+        }
+
+        @DisplayName("로그인 회원과 조회 대상이 다르면 조회할 수 없다")
+        @Test
+        fun throwsUnauthorized_whenMemberIdDoesNotMatchUserId() {
+            val fixture = LikeFacadeFixture()
+
+            val result = assertThrows<CoreException> {
+                fixture.likeFacade.getLikedProducts(memberId = 1L, userId = 2L, page = 0, size = 20)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+        }
+    }
+
     private class LikeFacadeFixture {
         val likeRepository = FakeLikeRepository()
         val productRepository = FakeProductRepository()
@@ -155,6 +188,7 @@ class LikeFacadeTest {
 
     private class FakeLikeRepository : LikeRepository {
         private val likes = mutableListOf<Like>()
+        private val likedProductSummaries = mutableMapOf<Long, MutableList<ProductSummary>>()
 
         override fun saveIfAbsent(like: Like): Boolean {
             if (exists(memberId = like.memberId, productId = like.productId)) {
@@ -167,6 +201,20 @@ class LikeFacadeTest {
 
         override fun deleteIfExists(memberId: Long, productId: Long): Boolean {
             return likes.removeIf { it.memberId == memberId && it.productId == productId }
+        }
+
+        override fun findLikedProductSummaries(memberId: Long, page: Int, size: Int): Page<ProductSummary> {
+            val offset = page * size
+            val content = likedProductSummaries[memberId]
+                .orEmpty()
+                .drop(offset)
+                .take(size)
+
+            return PageImpl(content, PageRequest.of(page, size), likedProductSummaries[memberId].orEmpty().size.toLong())
+        }
+
+        fun addLikedProductSummary(memberId: Long, productSummary: ProductSummary) {
+            likedProductSummaries.getOrPut(memberId, ::mutableListOf).add(productSummary)
         }
 
         fun exists(memberId: Long, productId: Long): Boolean {
@@ -250,6 +298,18 @@ class LikeFacadeTest {
             description = "loopers product",
             imageUrl = "https://image.loopers/product.png",
             isDeleted = isDeleted,
+        )
+    }
+
+    private fun createProductSummary(productId: Long): ProductSummary {
+        return ProductSummary(
+            productId = productId,
+            productName = "loopers hoodie",
+            price = 10_000L,
+            imageUrl = "https://image.loopers/product.png",
+            brandId = 1L,
+            brandName = "loopers",
+            likeCount = 1L,
         )
     }
 }

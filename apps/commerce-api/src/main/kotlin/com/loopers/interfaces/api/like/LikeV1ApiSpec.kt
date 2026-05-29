@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.like
 
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 
@@ -23,4 +24,15 @@ interface LikeV1ApiSpec {
         memberId: Long,
         productId: Long,
     ): ApiResponse<Any>
+
+    @Operation(
+        summary = "내가 좋아요한 상품 목록 조회",
+        description = "로그인한 회원이 좋아요한 상품 목록을 조회합니다.",
+    )
+    fun getLikedProducts(
+        memberId: Long,
+        userId: Long,
+        page: Int,
+        size: Int,
+    ): ApiResponse<PageResponse<LikeV1Dto.LikedProductResponse>>
 }

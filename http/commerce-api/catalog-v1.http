@@ -24,6 +24,10 @@ X-Loopers-User-Id: 1
 DELETE {{commerce-api}}/api/v1/products/1/likes
 X-Loopers-User-Id: 1
 
+### 내가 좋아요한 상품 목록 조회
+GET {{commerce-api}}/api/v1/users/1/likes?page=0&size=20
+X-Loopers-User-Id: 1
+
 ### 관리자 브랜드 등록
 POST {{commerce-api}}/api-admin/v1/brands
 X-Loopers-Ldap: admin

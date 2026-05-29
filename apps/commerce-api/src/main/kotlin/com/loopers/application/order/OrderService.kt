@@ -6,6 +6,7 @@ import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -14,6 +15,19 @@ import java.time.ZonedDateTime
 class OrderService(
     private val orderRepository: OrderRepository,
 ) {
+    @Transactional(readOnly = true)
+    fun getOrders(page: Int, size: Int): Page<OrderSummaryInfo> {
+        return orderRepository.findAll(page = page, size = size)
+            .map(OrderSummaryInfo::from)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrder(orderId: Long): OrderInfo {
+        return orderRepository.findById(orderId)
+            ?.let(OrderInfo::from)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+    }
+
     @Transactional(readOnly = true)
     fun getOrders(
         memberId: Long,

@@ -2,6 +2,9 @@ package com.loopers.infrastructure.order
 
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 import java.time.ZonedDateTime
 
@@ -9,6 +12,25 @@ import java.time.ZonedDateTime
 class OrderRepositoryImpl(
     private val orderJpaRepository: OrderJpaRepository,
 ) : OrderRepository {
+    override fun findAll(page: Int, size: Int): Page<Order> {
+        val pageable = PageRequest.of(
+            page,
+            size,
+            Sort.by(
+                Sort.Order.desc("orderedAt"),
+                Sort.Order.desc("id"),
+            ),
+        )
+
+        return orderJpaRepository.findAll(pageable)
+            .map(OrderMapper::toDomain)
+    }
+
+    override fun findById(orderId: Long): Order? {
+        return orderJpaRepository.findWithItemsById(orderId)
+            ?.let(OrderMapper::toDomain)
+    }
+
     override fun findAllByMemberIdAndOrderedAtBetween(
         memberId: Long,
         startAt: ZonedDateTime,

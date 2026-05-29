@@ -1,6 +1,12 @@
 package com.loopers.domain.order
 
+import org.springframework.data.domain.Page
+
 interface OrderRepository {
+    fun findAll(page: Int, size: Int): Page<Order>
+
+    fun findById(orderId: Long): Order?
+
     fun findAllByMemberIdAndOrderedAtBetween(
         memberId: Long,
         startAt: java.time.ZonedDateTime,

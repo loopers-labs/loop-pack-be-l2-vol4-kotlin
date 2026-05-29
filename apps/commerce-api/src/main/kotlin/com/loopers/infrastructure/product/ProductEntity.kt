@@ -6,8 +6,10 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.hibernate.annotations.SQLRestriction
 
 @Entity
+@SQLRestriction("is_deleted = false")
 @Table(
     name = "product",
     uniqueConstraints = [

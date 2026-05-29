@@ -21,6 +21,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.data.repository.findByIdOrNull
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -28,6 +29,7 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandJpaRepository: BrandJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
+    private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -280,8 +282,8 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
 
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(brandJpaRepository.findByIdOrNull(brandId)?.isDeleted).isTrue() },
-                { assertThat(productJpaRepository.findByIdOrNull(product.id)?.isDeleted).isTrue() },
+                { assertThat(isBrandDeleted(brandId)).isTrue() },
+                { assertThat(isProductDeleted(product.id)).isTrue() },
                 { assertThat(productJpaRepository.findByIdOrNull(otherProduct.id)?.isDeleted).isFalse() },
             )
         }
@@ -373,6 +375,22 @@ class AdminBrandV1ApiE2ETest @Autowired constructor(
                 imageUrl = "https://image.loopers/product.png",
             ),
         )
+    }
+
+    private fun isBrandDeleted(brandId: Long): Boolean {
+        return jdbcTemplate.queryForObject(
+            "select is_deleted from brand where id = ?",
+            Boolean::class.java,
+            brandId,
+        ) ?: false
+    }
+
+    private fun isProductDeleted(productId: Long): Boolean {
+        return jdbcTemplate.queryForObject(
+            "select is_deleted from product where id = ?",
+            Boolean::class.java,
+            productId,
+        ) ?: false
     }
 
     private companion object {

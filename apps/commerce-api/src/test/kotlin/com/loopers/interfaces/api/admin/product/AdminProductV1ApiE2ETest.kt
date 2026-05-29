@@ -26,6 +26,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdminProductV1ApiE2ETest @Autowired constructor(
@@ -34,6 +35,7 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
     private val inventoryJpaRepository: InventoryJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
     private val productStatJpaRepository: ProductStatJpaRepository,
+    private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -350,10 +352,9 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val deletedProduct = productJpaRepository.findById(product.id).orElseThrow()
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(deletedProduct.isDeleted).isTrue() },
+                { assertThat(isProductDeleted(product.id)).isTrue() },
             )
         }
 
@@ -523,6 +524,14 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
             set("X-Loopers-Ldap", "admin")
             contentType = MediaType.APPLICATION_JSON
         }
+    }
+
+    private fun isProductDeleted(productId: Long): Boolean {
+        return jdbcTemplate.queryForObject(
+            "select is_deleted from product where id = ?",
+            Boolean::class.java,
+            productId,
+        ) ?: false
     }
 
     private companion object {

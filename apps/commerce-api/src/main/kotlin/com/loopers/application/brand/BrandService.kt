@@ -4,7 +4,9 @@ import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandErrorCode
 import com.loopers.domain.brand.BrandName
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.brand.BrandStatus
 import com.loopers.domain.shared.CursorPage
+import com.loopers.domain.shared.IdCursor
 import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.springframework.stereotype.Service
@@ -24,17 +26,15 @@ class BrandService(
         return BrandInfo.from(brand)
     }
 
-    @Transactional(readOnly = true)
     fun get(id: Long): BrandInfo {
         val brand = brandRepository.findActiveById(id)
             ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
         return BrandInfo.from(brand)
     }
 
-    @Transactional(readOnly = true)
-    fun list(cursor: Long?, size: Int): CursorPage<BrandInfo> {
+    fun list(cursor: IdCursor?, size: Int): CursorPage<BrandInfo> {
         val page = brandRepository.findAll(cursor, size)
-        return CursorPage(page.content.map(BrandInfo::from), page.hasNext)
+        return CursorPage(page.content.map(BrandInfo::from), page.hasNext, page.nextCursor)
     }
 
     @Transactional
@@ -47,6 +47,14 @@ class BrandService(
         }
         brand.update(name, command.description)
         return BrandInfo.from(brand)
+    }
+
+    @Transactional
+    fun delete(id: Long) {
+        val brand = brandRepository.findActiveById(id)
+            ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
+        brand.transitionTo(BrandStatus.DELETED)
+        // 후속(Product 머지 후): 이 브랜드의 Product soft delete cascade — BrandFacade에서 ProductService와 조합 (04 플랜 기능 7)
     }
 }
 

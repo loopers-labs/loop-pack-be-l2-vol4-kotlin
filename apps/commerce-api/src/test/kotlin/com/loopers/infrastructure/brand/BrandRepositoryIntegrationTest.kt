@@ -2,6 +2,8 @@ package com.loopers.infrastructure.brand
 
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandName
+import com.loopers.domain.brand.BrandStatus
+import com.loopers.domain.shared.IdCursor
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -10,45 +12,40 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.data.domain.Limit
-import org.springframework.data.domain.ScrollPosition
-import org.springframework.data.domain.Sort
 
 @DataJpaTest
 class BrandRepositoryIntegrationTest @Autowired constructor(
     private val brandJpaRepository: BrandJpaRepository,
 ) {
-    private val latestFirst = Sort.by(Sort.Direction.DESC, "id")
+    private val repository = BrandRepositoryImpl(brandJpaRepository)
 
-    @DisplayName("브랜드를 저장하면, 삭제되지 않은 단건 조회로 찾을 수 있다.")
+    private fun deleted(name: String): Brand =
+        Brand(BrandName(name)).also { it.transitionTo(BrandStatus.DELETED) }
+
+    @DisplayName("ACTIVE 브랜드는 단건 조회로 찾을 수 있다.")
     @Test
     fun findsActiveBrand_whenSaved() {
         val saved = brandJpaRepository.save(Brand(BrandName("나이키")))
 
-        val found = brandJpaRepository.findByIdAndDeletedAtIsNull(saved.id)
-
-        assertThat(found?.name).isEqualTo(BrandName("나이키"))
+        assertThat(repository.findActiveById(saved.id)?.name).isEqualTo(BrandName("나이키"))
     }
 
-    @DisplayName("soft delete된 브랜드는, 삭제되지 않은 단건 조회로 찾을 수 없다.")
+    @DisplayName("DELETED 브랜드는 단건 조회로 찾을 수 없다.")
     @Test
     fun doesNotFindDeletedBrand() {
-        val brand = Brand(BrandName("나이키")).also { it.delete() }
-        val saved = brandJpaRepository.save(brand)
+        val saved = brandJpaRepository.save(deleted("나이키"))
 
-        val found = brandJpaRepository.findByIdAndDeletedAtIsNull(saved.id)
-
-        assertThat(found).isNull()
+        assertThat(repository.findActiveById(saved.id)).isNull()
     }
 
-    @DisplayName("이름 존재 여부를 조회한다.")
+    @DisplayName("이름 존재 여부를 조회한다. (삭제 포함 전체 행 대상)")
     @Test
     fun returnsExistsByName() {
         brandJpaRepository.save(Brand(BrandName("나이키")))
 
         assertAll(
-            { assertThat(brandJpaRepository.existsByNameValue("나이키")).isTrue() },
-            { assertThat(brandJpaRepository.existsByNameValue("아디다스")).isFalse() },
+            { assertThat(repository.existsByName(BrandName("나이키"))).isTrue() },
+            { assertThat(repository.existsByName(BrandName("아디다스"))).isFalse() },
         )
     }
 
@@ -62,48 +59,42 @@ class BrandRepositoryIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("keyset 페이지네이션은 id DESC 정렬로 size만큼 반환하고, 다음 페이지 존재 여부를 알려준다.")
+    @DisplayName("목록은 id DESC keyset으로 size만큼 반환하고, 다음 페이지가 있으면 nextCursor(IdCursor)를 채운다.")
     @Test
-    fun returnsFirstPage_orderedByIdDesc() {
+    fun returnsFirstPage_withNextCursor() {
         val saved = (1..3).map { brandJpaRepository.save(Brand(BrandName("브랜드$it"))) }
-        val expectedFirst = saved[2].id
-        val expectedSecond = saved[1].id
 
-        val window = brandJpaRepository.findByDeletedAtIsNull(ScrollPosition.keyset(), Limit.of(2), latestFirst)
+        val page = repository.findAll(null, 2)
 
         assertAll(
-            { assertThat(window.content.map { it.id }).containsExactly(expectedFirst, expectedSecond) },
-            { assertThat(window.hasNext()).isTrue() },
+            { assertThat(page.content.map { it.id }).containsExactly(saved[2].id, saved[1].id) },
+            { assertThat(page.hasNext).isTrue() },
+            { assertThat(page.nextCursor).isEqualTo(IdCursor(saved[1].id)) },
         )
     }
 
-    @DisplayName("커서로 다음 페이지를 조회하면, 이전 페이지를 제외하고 이어진다.")
+    @DisplayName("nextCursor로 다음 페이지를 조회하면 이어지고, 마지막 페이지의 nextCursor는 null이다.")
     @Test
-    fun returnsNextPage_afterCursor() {
+    fun returnsNextPage_andNullCursorOnLastPage() {
         val saved = (1..3).map { brandJpaRepository.save(Brand(BrandName("브랜드$it"))) }
-        val cursor = saved[1].id
-        val expectedLast = saved[0].id
 
-        val window = brandJpaRepository.findByDeletedAtIsNull(
-            ScrollPosition.of(mapOf<String, Any>("id" to cursor), ScrollPosition.Direction.FORWARD),
-            Limit.of(2),
-            latestFirst,
-        )
+        val lastPage = repository.findAll(IdCursor(saved[1].id), 2)
 
         assertAll(
-            { assertThat(window.content.map { it.id }).containsExactly(expectedLast) },
-            { assertThat(window.hasNext()).isFalse() },
+            { assertThat(lastPage.content.map { it.id }).containsExactly(saved[0].id) },
+            { assertThat(lastPage.hasNext).isFalse() },
+            { assertThat(lastPage.nextCursor).isNull() },
         )
     }
 
-    @DisplayName("페이지 결과에서 soft delete된 브랜드는 제외된다.")
+    @DisplayName("목록 결과에서 DELETED 브랜드는 제외된다.")
     @Test
     fun excludesDeletedBrand_fromPage() {
         brandJpaRepository.save(Brand(BrandName("나이키")))
-        brandJpaRepository.save(Brand(BrandName("아디다스")).also { it.delete() })
+        brandJpaRepository.save(deleted("아디다스"))
 
-        val window = brandJpaRepository.findByDeletedAtIsNull(ScrollPosition.keyset(), Limit.of(10), latestFirst)
+        val page = repository.findAll(null, 10)
 
-        assertThat(window.content.map { it.name.value }).containsExactly("나이키")
+        assertThat(page.content.map { it.name.value }).containsExactly("나이키")
     }
 }

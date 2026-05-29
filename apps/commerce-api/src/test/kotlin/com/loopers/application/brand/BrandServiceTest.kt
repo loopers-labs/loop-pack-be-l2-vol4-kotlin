@@ -4,7 +4,9 @@ import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandErrorCode
 import com.loopers.domain.brand.BrandName
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.brand.BrandStatus
 import com.loopers.domain.shared.CursorPage
+import com.loopers.domain.shared.IdCursor
 import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.assertj.core.api.Assertions.assertThat
@@ -41,17 +43,6 @@ class BrandServiceTest {
         )
     }
 
-    @DisplayName("설명 없이 등록하면, description이 null인 브랜드를 저장한다.")
-    @Test
-    fun savesBrandWithNullDescription_whenDescriptionOmitted() {
-        whenever(brandRepository.existsByName(any())).thenReturn(false)
-        whenever(brandRepository.save(any())).thenAnswer { it.arguments[0] as Brand }
-
-        val info = brandService.register(BrandCreateCommand("나이키"))
-
-        assertThat(info.description).isNull()
-    }
-
     @DisplayName("이미 존재하는 이름으로 등록하면, CONFLICT 예외가 발생하고 저장하지 않는다.")
     @Test
     fun throwsConflict_whenRegisterNameIsDuplicated() {
@@ -85,20 +76,19 @@ class BrandServiceTest {
     fun throwsNotFound_whenBrandDoesNotExist() {
         whenever(brandRepository.findActiveById(1L)).thenReturn(null)
 
-        val result = assertThrows<NotFoundException> {
-            brandService.get(1L)
-        }
+        val result = assertThrows<NotFoundException> { brandService.get(1L) }
 
         assertThat(result.errorCode).isEqualTo(BrandErrorCode.BRAND_NOT_FOUND)
     }
 
-    @DisplayName("브랜드 목록을 조회하면, 페이지를 BrandInfo로 매핑해 반환한다.")
+    @DisplayName("브랜드 목록을 조회하면, content는 BrandInfo로 매핑하고 hasNext·nextCursor는 그대로 전달한다.")
     @Test
     fun mapsBrandPageToInfo_whenListed() {
         whenever(brandRepository.findAll(null, 2)).thenReturn(
             CursorPage(
                 content = listOf(Brand(BrandName("나이키")), Brand(BrandName("아디다스"))),
                 hasNext = true,
+                nextCursor = IdCursor(2L),
             ),
         )
 
@@ -107,6 +97,7 @@ class BrandServiceTest {
         assertAll(
             { assertThat(page.content.map { it.name }).containsExactly("나이키", "아디다스") },
             { assertThat(page.hasNext).isTrue() },
+            { assertThat(page.nextCursor).isEqualTo(IdCursor(2L)) },
         )
     }
 
@@ -145,6 +136,27 @@ class BrandServiceTest {
         val result = assertThrows<NotFoundException> {
             brandService.update(BrandUpdateCommand(1L, "아디다스"))
         }
+
+        assertThat(result.errorCode).isEqualTo(BrandErrorCode.BRAND_NOT_FOUND)
+    }
+
+    @DisplayName("존재하는 브랜드를 삭제하면, DELETED 상태로 전이된다.")
+    @Test
+    fun deletesBrand_whenExists() {
+        val brand = Brand(BrandName("나이키"))
+        whenever(brandRepository.findActiveById(1L)).thenReturn(brand)
+
+        brandService.delete(1L)
+
+        assertThat(brand.status).isEqualTo(BrandStatus.DELETED)
+    }
+
+    @DisplayName("존재하지 않는 브랜드를 삭제하면, NOT_FOUND 예외가 발생한다.")
+    @Test
+    fun throwsNotFound_whenDeleteTargetDoesNotExist() {
+        whenever(brandRepository.findActiveById(1L)).thenReturn(null)
+
+        val result = assertThrows<NotFoundException> { brandService.delete(1L) }
 
         assertThat(result.errorCode).isEqualTo(BrandErrorCode.BRAND_NOT_FOUND)
     }

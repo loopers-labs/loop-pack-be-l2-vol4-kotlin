@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.brand
 
 import com.loopers.domain.brand.Brand
+import com.loopers.domain.brand.BrandStatus
 import org.springframework.data.domain.Limit
 import org.springframework.data.domain.ScrollPosition
 import org.springframework.data.domain.Sort
@@ -12,9 +13,10 @@ interface BrandJpaRepository : JpaRepository<Brand, Long> {
 
     fun existsByNameValueAndIdNot(name: String, id: Long): Boolean
 
-    fun findByIdAndDeletedAtIsNull(id: Long): Brand?
+    fun findByIdAndStatusNot(id: Long, status: BrandStatus): Brand?
 
-    fun findByDeletedAtIsNull(
+    fun findByStatusNot(
+        status: BrandStatus,
         scrollPosition: ScrollPosition,
         limit: Limit,
         sort: Sort,

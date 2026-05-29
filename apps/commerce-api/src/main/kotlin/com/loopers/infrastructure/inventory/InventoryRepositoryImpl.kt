@@ -13,8 +13,32 @@ class InventoryRepositoryImpl(
             ?.let(InventoryMapper::toDomain)
     }
 
+    override fun findAllByProductIdsForUpdate(productIds: Collection<Long>): List<Inventory> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return inventoryJpaRepository.findAllByProductIdInForUpdate(productIds)
+            .map(InventoryMapper::toDomain)
+    }
+
     override fun save(inventory: Inventory): Inventory {
         return inventoryJpaRepository.save(InventoryMapper.toEntity(inventory))
             .let(InventoryMapper::toDomain)
+    }
+
+    override fun updateAll(inventories: Collection<Inventory>): List<Inventory> {
+        if (inventories.isEmpty()) {
+            return emptyList()
+        }
+
+        val inventoryByProductId = inventories.associateBy { it.productId }
+        val entities = inventoryJpaRepository.findAllByProductIdIn(inventoryByProductId.keys)
+            .onEach { entity ->
+                inventoryByProductId[entity.productId]?.let(entity::update)
+            }
+
+        return inventoryJpaRepository.saveAll(entities)
+            .map(InventoryMapper::toDomain)
     }
 }

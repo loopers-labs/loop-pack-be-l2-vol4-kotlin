@@ -17,11 +17,23 @@ class InventoryService(
             ?: throw CoreException(ErrorType.NOT_FOUND, "Inventory not found.")
     }
 
+    fun getInventoriesForUpdate(productIds: Collection<Long>): List<Inventory> {
+        if (productIds.isEmpty()) {
+            return emptyList()
+        }
+
+        return inventoryRepository.findAllByProductIdsForUpdate(productIds)
+    }
+
     @Transactional
     fun createInventory(productId: Long, quantity: Long): Inventory {
         return Inventory(
             productId = productId,
             quantity = quantity,
         ).let(inventoryRepository::save)
+    }
+
+    fun updateInventories(inventories: Collection<Inventory>): List<Inventory> {
+        return inventoryRepository.updateAll(inventories)
     }
 }

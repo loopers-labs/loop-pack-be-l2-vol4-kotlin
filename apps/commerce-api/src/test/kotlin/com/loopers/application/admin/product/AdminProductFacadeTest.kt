@@ -561,10 +561,19 @@ class AdminProductFacadeTest {
             return inventories.find { it.productId == productId }
         }
 
+        override fun findAllByProductIdsForUpdate(productIds: Collection<Long>): List<Inventory> {
+            return inventories.filter { it.productId in productIds }
+        }
+
         override fun save(inventory: Inventory): Inventory {
             inventories.removeIf { it.productId == inventory.productId }
             inventories.add(inventory)
             return inventory
+        }
+
+        override fun updateAll(inventories: Collection<Inventory>): List<Inventory> {
+            inventories.forEach(::save)
+            return inventories.toList()
         }
     }
 

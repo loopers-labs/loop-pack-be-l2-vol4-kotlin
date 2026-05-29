@@ -26,24 +26,21 @@ class ProductLikeService {
         val brandById = brands.associateBy { it.id }
         val statByProductId = productStats.associateBy { it.productId }
 
-        return likes
-            .mapNotNull { productById[it.productId] }
-            .filter(Product::isDisplayable)
-            .mapNotNull { product ->
-                val brand = brandById[product.brandId]?.takeIf(Brand::isDisplayable)
-                    ?: return@mapNotNull null
-                val productStat = statByProductId[product.id]
-                    ?: ProductStat(productId = product.id, likeCount = 0)
+        return likes.mapNotNull { like ->
+            val product = productById[like.productId]?.takeIf(Product::isDisplayable)
+                ?: return@mapNotNull null
 
-                ProductSummary(
-                    productId = product.id,
-                    productName = product.name,
-                    price = product.price,
-                    imageUrl = product.imageUrl,
-                    brandId = brand.id,
-                    brandName = brand.name,
-                    likeCount = productStat.likeCount,
-                )
-            }
+            val brand = brandById[product.brandId]?.takeIf(Brand::isDisplayable)
+                ?: return@mapNotNull null
+
+            val productStat = statByProductId[product.id]
+                ?: ProductStat.empty(product.id)
+
+            ProductSummary.from(
+                product = product,
+                brand = brand,
+                productStat = productStat,
+            )
+        }
     }
 }

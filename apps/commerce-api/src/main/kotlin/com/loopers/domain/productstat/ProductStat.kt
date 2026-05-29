@@ -30,4 +30,10 @@ class ProductStat(
         }
         likeCount -= 1
     }
+
+    companion object {
+        fun empty(productId: Long): ProductStat {
+            return ProductStat(productId = productId, likeCount = 0L)
+        }
+    }
 }

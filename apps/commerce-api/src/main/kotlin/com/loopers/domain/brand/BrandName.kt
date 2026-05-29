@@ -5,25 +5,16 @@ import jakarta.persistence.Column
 import jakarta.persistence.Embeddable
 
 @Embeddable
-class BrandName(
-    value: String,
-) {
+data class BrandName(
     @Column(name = "name", nullable = false, length = 50)
-    var value: String = value
-        private set
-
+    val value: String,
+) {
     init {
         if (value.isBlank() || value.length > 50) {
             throw BadRequestException(BrandErrorCode.INVALID_BRAND_NAME)
         }
     }
 
-    override fun equals(other: Any?): Boolean =
-        this === other || other is BrandName && value == other.value
-
-    override fun hashCode(): Int =
-        value.hashCode()
-
-    override fun toString(): String =
-        value
+    // 프로젝트 VO 규칙: toString은 원문 value 그대로 (data class 기본 "BrandName(value=..)" 대신)
+    override fun toString(): String = value
 }

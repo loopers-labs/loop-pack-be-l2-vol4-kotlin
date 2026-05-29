@@ -3,6 +3,7 @@ package com.loopers.domain.brand
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertAll
 
 class BrandTest {
     @DisplayName("브랜드를 삭제하면, deletedAt이 설정된다.")
@@ -27,13 +28,16 @@ class BrandTest {
         assertThat(brand.deletedAt).isEqualTo(firstDeletedAt)
     }
 
-    @DisplayName("브랜드 이름을 수정하면, name이 변경된다.")
+    @DisplayName("브랜드를 수정하면, name과 description이 변경된다.")
     @Test
-    fun changesName_whenUpdated() {
-        val brand = Brand(BrandName("나이키"))
+    fun changesNameAndDescription_whenUpdated() {
+        val brand = Brand(BrandName("나이키"), "스포츠 브랜드")
 
-        brand.updateName(BrandName("아디다스"))
+        brand.update(BrandName("아디다스"), "독일 스포츠 브랜드")
 
-        assertThat(brand.name).isEqualTo(BrandName("아디다스"))
+        assertAll(
+            { assertThat(brand.name).isEqualTo(BrandName("아디다스")) },
+            { assertThat(brand.description).isEqualTo("독일 스포츠 브랜드") },
+        )
     }
 }

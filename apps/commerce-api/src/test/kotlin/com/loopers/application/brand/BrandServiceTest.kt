@@ -23,20 +23,33 @@ class BrandServiceTest {
     private val brandRepository: BrandRepository = mock()
     private val brandService = BrandService(brandRepository)
 
-    @DisplayName("유효한 이름으로 등록하면, 브랜드를 저장하고 정보를 반환한다.")
+    @DisplayName("유효한 이름·설명으로 등록하면, 브랜드를 저장하고 정보를 반환한다.")
     @Test
     fun savesBrand_whenRegisterRequestIsValid() {
         whenever(brandRepository.existsByName(any())).thenReturn(false)
         whenever(brandRepository.save(any())).thenAnswer { it.arguments[0] as Brand }
 
-        val info = brandService.register(BrandCreateCommand("나이키"))
+        val info = brandService.register(BrandCreateCommand("나이키", "스포츠 브랜드"))
 
         val captor = argumentCaptor<Brand>()
         verify(brandRepository).save(captor.capture())
         assertAll(
             { assertThat(captor.firstValue.name.value).isEqualTo("나이키") },
+            { assertThat(captor.firstValue.description).isEqualTo("스포츠 브랜드") },
             { assertThat(info.name).isEqualTo("나이키") },
+            { assertThat(info.description).isEqualTo("스포츠 브랜드") },
         )
+    }
+
+    @DisplayName("설명 없이 등록하면, description이 null인 브랜드를 저장한다.")
+    @Test
+    fun savesBrandWithNullDescription_whenDescriptionOmitted() {
+        whenever(brandRepository.existsByName(any())).thenReturn(false)
+        whenever(brandRepository.save(any())).thenAnswer { it.arguments[0] as Brand }
+
+        val info = brandService.register(BrandCreateCommand("나이키"))
+
+        assertThat(info.description).isNull()
     }
 
     @DisplayName("이미 존재하는 이름으로 등록하면, CONFLICT 예외가 발생하고 저장하지 않는다.")
@@ -57,11 +70,14 @@ class BrandServiceTest {
     @DisplayName("존재하는 브랜드를 조회하면, 브랜드 정보를 반환한다.")
     @Test
     fun returnsBrandInfo_whenBrandExists() {
-        whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키")))
+        whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키"), "스포츠 브랜드"))
 
         val info = brandService.get(1L)
 
-        assertThat(info.name).isEqualTo("나이키")
+        assertAll(
+            { assertThat(info.name).isEqualTo("나이키") },
+            { assertThat(info.description).isEqualTo("스포츠 브랜드") },
+        )
     }
 
     @DisplayName("존재하지 않는 브랜드를 조회하면, NOT_FOUND 예외가 발생한다.")
@@ -94,15 +110,18 @@ class BrandServiceTest {
         )
     }
 
-    @DisplayName("충돌 없이 이름을 수정하면, 이름이 변경된 정보를 반환한다.")
+    @DisplayName("충돌 없이 수정하면, name·description이 변경된 정보를 반환한다.")
     @Test
-    fun updatesName_whenNoConflict() {
-        whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키")))
+    fun updatesBrand_whenNoConflict() {
+        whenever(brandRepository.findActiveById(1L)).thenReturn(Brand(BrandName("나이키"), "스포츠 브랜드"))
         whenever(brandRepository.existsByNameExcludingId(any(), any())).thenReturn(false)
 
-        val info = brandService.update(BrandUpdateCommand(1L, "아디다스"))
+        val info = brandService.update(BrandUpdateCommand(1L, "아디다스", "독일 스포츠 브랜드"))
 
-        assertThat(info.name).isEqualTo("아디다스")
+        assertAll(
+            { assertThat(info.name).isEqualTo("아디다스") },
+            { assertThat(info.description).isEqualTo("독일 스포츠 브랜드") },
+        )
     }
 
     @DisplayName("다른 브랜드와 충돌하는 이름으로 수정하면, CONFLICT 예외가 발생한다.")

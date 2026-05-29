@@ -20,7 +20,7 @@ class BrandService(
         if (brandRepository.existsByName(name)) {
             throw ConflictException(BrandErrorCode.DUPLICATE_BRAND_NAME)
         }
-        val brand = brandRepository.save(Brand(name))
+        val brand = brandRepository.save(Brand(name, command.description))
         return BrandInfo.from(brand)
     }
 
@@ -45,29 +45,33 @@ class BrandService(
         if (brandRepository.existsByNameExcludingId(name, command.id)) {
             throw ConflictException(BrandErrorCode.DUPLICATE_BRAND_NAME)
         }
-        brand.updateName(name)
+        brand.update(name, command.description)
         return BrandInfo.from(brand)
     }
 }
 
 data class BrandCreateCommand(
     val name: String,
+    val description: String? = null,
 )
 
 data class BrandUpdateCommand(
     val id: Long,
     val name: String,
+    val description: String? = null,
 )
 
 data class BrandInfo(
     val id: Long,
     val name: String,
+    val description: String?,
 ) {
     companion object {
         fun from(brand: Brand): BrandInfo =
             BrandInfo(
                 id = brand.id,
                 name = brand.name.value,
+                description = brand.description,
             )
     }
 }

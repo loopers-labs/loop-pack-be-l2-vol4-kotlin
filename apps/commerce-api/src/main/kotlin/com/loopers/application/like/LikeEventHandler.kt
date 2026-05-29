@@ -1,5 +1,8 @@
 package com.loopers.application.like
 
+import com.loopers.domain.event.ProductLikedEvent
+import com.loopers.domain.event.ProductUnlikedEvent
+import com.loopers.domain.like.LikeAction
 import com.loopers.domain.like.LikeEvent
 import com.loopers.domain.like.LikeEventRepository
 import org.slf4j.LoggerFactory
@@ -10,25 +13,35 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 
+/**
+ * Like 가 좋아요 사실을 구독해 이력(LikeEvent)을 append 한다. 커밋 후 비동기.
+ * 적재 실패는 로깅만 — 본 토글 트랜잭션과 독립(L-?7).
+ */
 @Component
 class LikeEventHandler(
     private val likeEventRepository: LikeEventRepository,
 ) {
     private val logger = LoggerFactory.getLogger(LikeEventHandler::class.java)
 
-    // 커밋 후 별도 트랜잭션에서 비동기 append. 적재 실패는 로깅만 — 본 토글 트랜잭션을 막지 않는다(L-?7).
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    fun append(event: LikeChangedEvent) {
+    fun onLiked(event: ProductLikedEvent) = append(event.userId, event.productId, LikeAction.LIKE)
+
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onUnliked(event: ProductUnlikedEvent) = append(event.userId, event.productId, LikeAction.UNLIKE)
+
+    private fun append(userId: Long, productId: Long, action: LikeAction) {
         try {
-            likeEventRepository.append(LikeEvent(event.userId, event.productId, event.action))
+            likeEventRepository.append(LikeEvent(userId, productId, action))
         } catch (e: Exception) {
             logger.warn(
                 "LikeEvent append 실패 (userId={}, productId={}, action={}): {}",
-                event.userId,
-                event.productId,
-                event.action,
+                userId,
+                productId,
+                action,
                 e.javaClass.simpleName,
             )
         }

@@ -60,14 +60,4 @@ class Product(
             delete()
         }
     }
-
-    fun like() {
-        likeCount++
-    }
-
-    fun unlike() {
-        if (likeCount > 0) {
-            likeCount--
-        }
-    }
 }

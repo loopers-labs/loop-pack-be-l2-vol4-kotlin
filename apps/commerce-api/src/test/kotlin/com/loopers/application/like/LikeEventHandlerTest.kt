@@ -1,5 +1,7 @@
 package com.loopers.application.like
 
+import com.loopers.domain.event.ProductLikedEvent
+import com.loopers.domain.event.ProductUnlikedEvent
 import com.loopers.domain.like.LikeAction
 import com.loopers.domain.like.LikeEvent
 import com.loopers.domain.like.LikeEventRepository
@@ -19,10 +21,10 @@ class LikeEventHandlerTest {
     private val likeEventRepository: LikeEventRepository = mock()
     private val handler = LikeEventHandler(likeEventRepository)
 
-    @DisplayName("좋아요 변경 이벤트를 받으면, 같은 내용으로 LikeEvent를 append한다.")
+    @DisplayName("ProductLikedEvent를 구독하면, LIKE 이력을 append한다.")
     @Test
-    fun appendsLikeEvent_whenEventReceived() {
-        handler.append(LikeChangedEvent(10L, 100L, LikeAction.LIKE))
+    fun appendsLikeEvent_onLiked() {
+        handler.onLiked(ProductLikedEvent(10L, 100L))
 
         val captor = argumentCaptor<LikeEvent>()
         verify(likeEventRepository).append(captor.capture())
@@ -33,11 +35,21 @@ class LikeEventHandlerTest {
         )
     }
 
+    @DisplayName("ProductUnlikedEvent를 구독하면, UNLIKE 이력을 append한다.")
+    @Test
+    fun appendsLikeEvent_onUnliked() {
+        handler.onUnliked(ProductUnlikedEvent(10L, 100L))
+
+        val captor = argumentCaptor<LikeEvent>()
+        verify(likeEventRepository).append(captor.capture())
+        assertThat(captor.firstValue.action).isEqualTo(LikeAction.UNLIKE)
+    }
+
     @DisplayName("append가 실패해도 예외를 전파하지 않는다. (이력 적재 실패가 본 트랜잭션을 막지 않음)")
     @Test
     fun doesNotPropagate_whenAppendFails() {
         whenever(likeEventRepository.append(any())).doThrow(RuntimeException("DB down"))
 
-        assertDoesNotThrow { handler.append(LikeChangedEvent(10L, 100L, LikeAction.UNLIKE)) }
+        assertDoesNotThrow { handler.onLiked(ProductLikedEvent(10L, 100L)) }
     }
 }

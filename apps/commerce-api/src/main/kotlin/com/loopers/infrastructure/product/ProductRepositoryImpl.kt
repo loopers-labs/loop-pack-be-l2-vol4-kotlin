@@ -29,6 +29,14 @@ class ProductRepositoryImpl(
     override fun findActiveByBrandId(brandId: Long): List<Product> =
         productJpaRepository.findByBrandIdAndStatusNot(brandId, ProductStatus.DELETED)
 
+    override fun increaseLikeCount(productId: Long) {
+        productJpaRepository.incrementLikeCount(productId)
+    }
+
+    override fun decreaseLikeCount(productId: Long) {
+        productJpaRepository.decrementLikeCount(productId)
+    }
+
     override fun findAll(sort: ProductSort, brandId: Long?, cursor: Cursor?, size: Int): CursorPage<Product> {
         val scrollPosition = scrollPosition(sort, cursor)
         val window = if (brandId == null) {

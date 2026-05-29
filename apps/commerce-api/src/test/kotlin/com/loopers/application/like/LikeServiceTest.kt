@@ -1,6 +1,7 @@
 package com.loopers.application.like
 
-import com.loopers.domain.like.LikeAction
+import com.loopers.domain.event.ProductLikedEvent
+import com.loopers.domain.event.ProductUnlikedEvent
 import com.loopers.domain.like.LikeErrorCode
 import com.loopers.domain.like.ProductLike
 import com.loopers.domain.like.ProductLikeRepository
@@ -31,11 +32,10 @@ class LikeServiceTest {
 
     private fun product(): Product = Product(brandId = 1L, name = ProductName("상품"), price = Money(1000))
 
-    @DisplayName("좋아요한 적 없는 상품에 좋아요하면, ProductLike를 저장하고 likeCount를 1 증가시킨다.")
+    @DisplayName("좋아요한 적 없는 상품에 좋아요하면, ProductLike를 저장하고 ProductLikedEvent를 발행한다.")
     @Test
-    fun savesLikeAndIncrementsCount_whenNotLikedYet() {
-        val product = product()
-        whenever(productRepository.findActiveById(1L)).thenReturn(product)
+    fun savesLikeAndPublishesEvent_whenNotLikedYet() {
+        whenever(productRepository.findActiveById(1L)).thenReturn(product())
         whenever(productLikeRepository.existsByUserIdAndProductId(10L, 1L)).thenReturn(false)
         whenever(productLikeRepository.save(any())).thenAnswer { it.arguments[0] as ProductLike }
 
@@ -43,23 +43,20 @@ class LikeServiceTest {
 
         assertAll(
             { verify(productLikeRepository).save(any()) },
-            { assertThat(product.likeCount).isEqualTo(1) },
-            { verify(eventPublisher).publishEvent(LikeChangedEvent(10L, 1L, LikeAction.LIKE)) },
+            { verify(eventPublisher).publishEvent(ProductLikedEvent(10L, 1L)) },
         )
     }
 
-    @DisplayName("이미 좋아요한 상품에 다시 좋아요하면, 저장도 증가도 하지 않는다. (멱등)")
+    @DisplayName("이미 좋아요한 상품에 다시 좋아요하면, 저장도 이벤트 발행도 하지 않는다. (멱등)")
     @Test
     fun isNoOp_whenAlreadyLiked() {
-        val product = product()
-        whenever(productRepository.findActiveById(1L)).thenReturn(product)
+        whenever(productRepository.findActiveById(1L)).thenReturn(product())
         whenever(productLikeRepository.existsByUserIdAndProductId(10L, 1L)).thenReturn(true)
 
         likeService.like(10L, 1L)
 
         assertAll(
             { verify(productLikeRepository, never()).save(any()) },
-            { assertThat(product.likeCount).isEqualTo(0) },
             { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }
@@ -78,12 +75,10 @@ class LikeServiceTest {
         )
     }
 
-    @DisplayName("좋아요한 상품의 좋아요를 취소하면, ProductLike를 삭제하고 likeCount를 1 감소시킨다.")
+    @DisplayName("좋아요한 상품의 좋아요를 취소하면, ProductLike를 삭제하고 ProductUnlikedEvent를 발행한다.")
     @Test
-    fun deletesLikeAndDecrementsCount_whenLiked() {
-        val product = product()
-        product.like()
-        whenever(productRepository.findActiveById(1L)).thenReturn(product)
+    fun deletesLikeAndPublishesEvent_whenLiked() {
+        whenever(productRepository.findActiveById(1L)).thenReturn(product())
         val productLike = ProductLike(userId = 10L, productId = 1L)
         whenever(productLikeRepository.findByUserIdAndProductId(10L, 1L)).thenReturn(productLike)
 
@@ -91,23 +86,20 @@ class LikeServiceTest {
 
         assertAll(
             { verify(productLikeRepository).delete(productLike) },
-            { assertThat(product.likeCount).isEqualTo(0) },
-            { verify(eventPublisher).publishEvent(LikeChangedEvent(10L, 1L, LikeAction.UNLIKE)) },
+            { verify(eventPublisher).publishEvent(ProductUnlikedEvent(10L, 1L)) },
         )
     }
 
-    @DisplayName("좋아요한 적 없는 상품의 좋아요를 취소하면, 삭제도 감소도 하지 않는다. (멱등)")
+    @DisplayName("좋아요한 적 없는 상품의 좋아요를 취소하면, 삭제도 이벤트 발행도 하지 않는다. (멱등)")
     @Test
     fun isNoOp_whenNotLiked() {
-        val product = product()
-        whenever(productRepository.findActiveById(1L)).thenReturn(product)
+        whenever(productRepository.findActiveById(1L)).thenReturn(product())
         whenever(productLikeRepository.findByUserIdAndProductId(10L, 1L)).thenReturn(null)
 
         likeService.unlike(10L, 1L)
 
         assertAll(
             { verify(productLikeRepository, never()).delete(any()) },
-            { assertThat(product.likeCount).isEqualTo(0) },
             { verify(eventPublisher, never()).publishEvent(any()) },
         )
     }

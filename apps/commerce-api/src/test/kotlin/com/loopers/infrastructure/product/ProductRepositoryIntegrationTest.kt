@@ -23,9 +23,29 @@ class ProductRepositoryIntegrationTest @Autowired constructor(
     private val productRepository = ProductRepositoryImpl(productJpaRepository)
 
     private fun save(name: String, price: Long, brandId: Long = 1L, likes: Int = 0): Product {
-        val product = Product(brandId = brandId, name = ProductName(name), price = Money(price))
-        repeat(likes) { product.like() }
-        return productJpaRepository.save(product)
+        val saved = productJpaRepository.saveAndFlush(Product(brandId = brandId, name = ProductName(name), price = Money(price)))
+        repeat(likes) { productRepository.increaseLikeCount(saved.id) }
+        return saved
+    }
+
+    @DisplayName("increaseLikeCount는 like_count를 원자적으로 1 증가시킨다.")
+    @Test
+    fun increaseLikeCount_increments() {
+        val saved = save("에어맥스", 100_000)
+
+        productRepository.increaseLikeCount(saved.id)
+
+        assertThat(productRepository.findActiveById(saved.id)?.likeCount).isEqualTo(1)
+    }
+
+    @DisplayName("decreaseLikeCount는 0 미만으로 내려가지 않는다(floor).")
+    @Test
+    fun decreaseLikeCount_flooredAtZero() {
+        val saved = save("에어맥스", 100_000)
+
+        productRepository.decreaseLikeCount(saved.id)
+
+        assertThat(productRepository.findActiveById(saved.id)?.likeCount).isEqualTo(0)
     }
 
     @DisplayName("상품을 저장하면, 활성 단건 조회로 찾을 수 있다.")

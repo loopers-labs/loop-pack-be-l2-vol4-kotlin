@@ -1,31 +1,39 @@
-# Auth — Architecture
+# Auth & Admin — Architecture
 
-Scope: sign-up, get-my-info, change-password endpoints, plus the header-based authentication mechanism shared by all protected endpoints.
+Scope: sign-up, admin sign-up, get-my-info, change-password endpoints, plus the header-based authentication and admin authorization mechanism shared by protected endpoints.
 
 ## Goals & non-goals
 
 - **Goals**
   - Implement sign-up, get-my-info, change-password per the feature spec.
+  - Implement admin-only admin account creation.
   - Header-based stateless authentication (`X-Loopers-LoginId`, `X-Loopers-LoginPw`).
+  - Role-based admin authorization through `@Admin`.
   - Keep business logic independent of the Spring framework — domain types must not import Spring.
   - Make the protected endpoint set greppable and tamper-resistant under refactors.
 - **Non-goals**
   - No Spring Security. The team accepts the resulting risks (password on every request, no session, no rate limiting, no CSRF/CORS opinions baked in).
   - No facade layer for this feature. There is no cross-module orchestration to justify it; the controller talks directly to the domain service.
   - No login/logout endpoints, no token issuance, no refresh flows. Auth is "verify credentials on every request."
+  - No role management endpoint. Roles are assigned at account creation only.
+  - No public first-admin bootstrap endpoint. The first admin is provisioned outside this API.
 
 ## Layered layout
 
 ```
 interfaces/api/user/
   ├── UserV1Controller.kt
+  ├── AdminUserV1Controller.kt
   ├── UserV1ApiSpec.kt
+  ├── AdminUserV1ApiSpec.kt
   └── UserV1Dto.kt
 
 domain/user/
   ├── User.kt                  JPA entity, extends BaseEntity
   │                            fields: loginId: String, encryptedPassword: String,
-  │                                    name: String, birthdate: LocalDate, email: String
+  │                                    name: String, birthdate: LocalDate, email: String,
+  │                                    role: UserRole
+  ├── UserRole.kt              enum: CONSUMER, ADMIN
   ├── UserService.kt           @Component, @Transactional
   ├── UserRepository.kt        port (interface)
   ├── PasswordEncoder.kt       port (interface)
@@ -41,6 +49,7 @@ infrastructure/user/
 support/auth/
   ├── CurrentUser.kt                  parameter annotation
   ├── LoginRequired.kt                method/class annotation
+  ├── Admin.kt                        method/class annotation; implies LoginRequired
   ├── AuthenticationInterceptor.kt    HandlerInterceptor — authenticates AND enforces
   ├── CurrentUserArgumentResolver.kt  HandlerMethodArgumentResolver — reads from request scope
   └── AuthWebMvcConfigurer.kt         registers interceptor + resolver
@@ -62,21 +71,23 @@ HTTP request
   ▼
 AuthenticationInterceptor.preHandle(req, resp, handler)
   ├─ if handler is not HandlerMethod → return true (static resources, error dispatches)
-  ├─ inspect handler method (and its declaring class) for @LoginRequired
-  │     ├─ absent → return true (public endpoint; headers ignored)
+  ├─ inspect handler method (and its declaring class) for @LoginRequired / @Admin
+  │     ├─ both absent → return true (public endpoint; headers ignored)
   │     └─ present → continue
   ├─ read X-Loopers-LoginId / X-Loopers-LoginPw
   │     ├─ either missing/blank → throw CoreException(UNAUTHORIZED)
   │     └─ both present → continue
   ├─ userService.authenticate(loginId, rawPw)
   │     ├─ no user / hash mismatch → throw CoreException(UNAUTHORIZED)
-  │     └─ success → req.setAttribute(CURRENT_USER_KEY, user); return true
+  │     └─ success → req.setAttribute(CURRENT_USER_KEY, user)
+  ├─ if @Admin is present and user.role != ADMIN → throw CoreException(FORBIDDEN)
+  └─ return true
   │
   ▼
 CurrentUserArgumentResolver.resolveArgument
   ├─ read req.getAttribute(CURRENT_USER_KEY)
   ├─ absent → throw IllegalStateException
-  │     ("@CurrentUser used without @LoginRequired" — programming error, not 401)
+  │     ("@CurrentUser used without @LoginRequired/@Admin" — programming error, not 401)
   └─ present → return User
   │
   ▼
@@ -85,10 +96,13 @@ Controller method body
 
 ### Rules locked in
 
-- **`@LoginRequired` is mandatory on every protected endpoint.** No exceptions. The protected set is `grep -r @LoginRequired apps/commerce-api/src/main`.
-- **`@CurrentUser` is a thin reader.** It never enforces auth. Missing user in request scope = programmer error (`@CurrentUser` placed without `@LoginRequired`), not an HTTP 401.
+- **`@LoginRequired` is mandatory on ordinary protected endpoints.** Admin-only endpoints use `@Admin`, which implies login. The protected set is `grep -rE "@LoginRequired|@Admin" apps/commerce-api/src/main`.
+- **`@Admin` is a method/class annotation.** It authenticates the request, stashes the current user, then authorizes `user.role == UserRole.ADMIN`.
+- **Admin authorization stays in `AuthenticationInterceptor`.** Keep `preHandle` at one abstraction level by pushing the admin role check into a private method (for example, `authorizeAdminIfRequired(...)`).
+- **`@CurrentUser` is a thin reader.** It never enforces auth. Missing user in request scope = programmer error (`@CurrentUser` placed without `@LoginRequired`/`@Admin`), not an HTTP 401.
 - **Public endpoints ignore the headers entirely.** Sign-up does not attempt opportunistic authentication if headers happen to be present.
 - **Unauthorized failures throw `CoreException(ErrorType.UNAUTHORIZED, …)`.** `ApiControllerAdvice` already maps `CoreException` to the standard envelope, so no custom translation is needed in `support/auth/`.
+- **Authenticated non-admin users hitting `@Admin` endpoints throw `CoreException(ErrorType.FORBIDDEN, …)`.** Add `ErrorType.FORBIDDEN` so invalid credentials remain 401 and insufficient role remains 403.
 
 ## Domain model
 
@@ -123,6 +137,7 @@ class User(
     val name: String,
     val birthdate: LocalDate,
     val email: String,
+    val role: UserRole,
 ) : BaseEntity() {
     init {
         require(loginId.matches(LOGIN_ID_PATTERN)) { ... }
@@ -139,8 +154,20 @@ class User(
 - Per-field shape rules live on `init` (`loginId` regex, `name` non-blank, `email` regex, `birthdate` past).
 - Cross-field rules (birthdate-in-password) and uniqueness (`loginId`) live on `UserService` — they can't be enforced from a single object's construction.
 - `User` does not validate `encryptedPassword` content; it trusts the encoder.
+- `role` is required and immutable after creation. Ordinary sign-up creates `UserRole.CONSUMER`; admin sign-up creates `UserRole.ADMIN`.
 
 `init`-block failures should throw `CoreException(ErrorType.BAD_REQUEST, …)` so the existing `ApiControllerAdvice` produces the standard envelope.
+
+### `UserRole`
+
+```kotlin
+enum class UserRole {
+    CONSUMER,
+    ADMIN,
+}
+```
+
+Persist the enum on `User` with a non-null JPA column and `@Enumerated(EnumType.STRING)`. The database stores `CONSUMER` / `ADMIN`, not ordinal values.
 
 ### Ports
 
@@ -194,11 +221,14 @@ Additional service-layer checks at changePassword:
 
 | Method | Path | Auth | Body | Response |
 | --- | --- | --- | --- | --- |
-| POST | `/api/v1/users` | public | `{ loginId, password, name, birthdate, email }` | `MyInfoResponse` |
+| POST | `/api/v1/users` | public | `{ loginId, password, name, birthdate, email }` | `MyInfoResponse` (`role = CONSUMER`) |
+| POST | `/api/v1/admin/users` | `@Admin` | `{ loginId, password, name, birthdate, email }` | `MyInfoResponse` (`role = ADMIN`) |
 | GET | `/api/v1/users/me` | `@LoginRequired` | — | `MyInfoResponse` |
 | PATCH | `/api/v1/users/me/password` | `@LoginRequired` | `{ oldPassword, newPassword }` | empty success |
 
-`MyInfoResponse = { loginId, name (masked), birthdate, email }`. Name masking (replace the last character with `*`) is a presentation concern, performed inline in the DTO mapper (`MyInfoResponse.from(user)`). The domain returns the full name; masking is the responsibility of whoever is rendering it.
+`MyInfoResponse = { loginId, name (masked), birthdate, email, role }`. Name masking (replace the last character with `*`) is a presentation concern, performed inline in the DTO mapper (`MyInfoResponse.from(user)`). The domain returns the full name; masking is the responsibility of whoever is rendering it.
+
+Admin account creation intentionally does not accept a `role` field. The endpoint creates admin users only; ordinary public registration creates consumers only. Both paths reuse the same loginId uniqueness, password hashing, password shape, birthdate-in-password, name, birthdate, and email validation rules.
 
 All responses go through `ApiResponse.success(...)`. All error paths throw `CoreException(ErrorType, …)`; `ApiControllerAdvice` handles translation.
 
@@ -236,6 +266,22 @@ class UserV1Controller(
         return ApiResponse.success(Unit)
     }
 }
+
+@RestController
+@RequestMapping("/api/v1/admin/users")
+class AdminUserV1Controller(
+    private val userService: UserService,
+) : AdminUserV1ApiSpec {
+
+    @Admin
+    @PostMapping
+    override fun signUpAdmin(
+        @RequestBody @Valid request: UserV1Dto.SignUpRequest,
+    ): ApiResponse<UserV1Dto.MyInfoResponse> =
+        userService.registerAdmin(request.toCommand())
+            .let { UserV1Dto.MyInfoResponse.from(it) }
+            .let { ApiResponse.success(it) }
+}
 ```
 
 ## Accepted tradeoffs (write them down so we don't relitigate)
@@ -245,11 +291,17 @@ class UserV1Controller(
 - **Birthdate-in-password is over-strict.** False positives (e.g., `1234560101`) are accepted in exchange for a one-line rule that's easy to audit and explain.
 - **No facade.** Reintroduce one when a second domain (points/orders/etc.) needs to compose with user operations.
 - **`support/` is no longer Spring-free.** Cohesion wins over coupling-axis purity for this package.
+- **Admin is a `User` role, not a separate account model.** A separate admin table/domain would add ceremony without changing the authorization decision needed by `@Admin`.
+- **`@Admin` implies `@LoginRequired`.** Requiring both annotations creates an avoidable foot-gun; an admin marker must never become public because another marker was forgotten.
+- **No role mutation for now.** Creating admins is in scope; promoting/demoting existing users is not.
 
 ## Decisions explicitly rejected
 
 - **`@LoginRequired` as an AOP aspect separate from the interceptor.** Rejected: split the auth decision across two places (header read in interceptor, enforcement in aspect) for no functional gain.
-- **`@CurrentUser` resolver enforcing auth on its own.** Rejected: with `@LoginRequired` mandatory, the interceptor is already guaranteed to have stashed (or rejected). Duplicate enforcement creates two error paths for the same condition.
+- **`@Admin` as an AOP aspect separate from the interceptor.** Rejected for the same reason: authentication and authorization would be split across two request gates.
+- **Requiring both `@LoginRequired` and `@Admin` on admin endpoints.** Rejected: `@Admin` already implies authentication, so the duplicate marker adds noise and creates a forgotten-annotation risk.
+- **Allowing admin registration request bodies to choose `role`.** Rejected: that expands the feature into general role management. `/api/v1/admin/users` creates admins only.
+- **`@CurrentUser` resolver enforcing auth on its own.** Rejected: with `@LoginRequired`/`@Admin` owning endpoint protection, the interceptor is already guaranteed to have stashed (or rejected). Duplicate enforcement creates two error paths for the same condition.
 - **DTO-level business validation (`@field:Pattern` mirroring entity regex).** Rejected: two sources of truth for the same rule will drift. DTOs do shape checks (`@NotBlank` / `@NotNull` / `@Email`); the `User` entity's `init` block owns business shape; `UserService` owns cross-field rules.
 
 - **Wrapping every field in a value object (`LoginId`, `Name`, `Email`, `Birthdate`, `EncryptedPassword`).** Rejected: six wrappers for a sign-up form is ceremony without payoff. Type safety against mixing up `name` and `email` isn't a real risk in a CRUD entity. `RawPassword` is the exception — see above. `EncryptedPassword` also dropped (kept as `String` for JPA convenience).

@@ -1,5 +1,10 @@
-package com.loopers.domain.user
+package com.loopers.application.user
 
+import com.loopers.domain.user.EncodedPassword
+import com.loopers.domain.user.RawPassword
+import com.loopers.domain.user.User
+import com.loopers.domain.user.UserPasswordEncoder
+import com.loopers.domain.user.UserRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
@@ -8,7 +13,7 @@ import java.time.LocalDate
 
 @Transactional(readOnly = true)
 @Component
-class UserService(
+class UserApplicationService(
     private val userRepository: UserRepository,
     private val userPasswordEncoder: UserPasswordEncoder,
 ) {
@@ -19,7 +24,7 @@ class UserService(
         name: String,
         birthDate: LocalDate,
         email: String,
-    ): UserModel {
+    ): User {
         if (userRepository.existsByLoginId(loginId)) {
             throw CoreException(ErrorType.CONFLICT, "이미 사용 중인 로그인 ID 입니다.")
         }
@@ -27,7 +32,7 @@ class UserService(
             userPasswordEncoder.encode(RawPassword(rawPassword, birthDate).value),
         )
         return userRepository.save(
-            UserModel(
+            User(
                 loginId = loginId,
                 encodedPassword = encodedPassword,
                 name = name,
@@ -37,7 +42,12 @@ class UserService(
         )
     }
 
-    fun getUserInfo(loginId: String, rawPassword: String): UserModel {
+    fun getUser(id: Long): User {
+        return userRepository.find(id)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "존재하지 않는 유저입니다.")
+    }
+
+    fun getUserInfo(loginId: String, rawPassword: String): User {
         val user = userRepository.findByLoginId(loginId)
             ?: throw CoreException(ErrorType.UNAUTHORIZED)
         if (!userPasswordEncoder.matches(rawPassword, user.password)) {
@@ -60,5 +70,6 @@ class UserService(
             userPasswordEncoder.encode(RawPassword(newRawPassword, user.birthDate).value),
         )
         user.changePassword(newEncoded)
+        userRepository.save(user)
     }
 }

@@ -1,5 +1,7 @@
-package com.loopers.domain.user
+package com.loopers.application.user
 
+import com.loopers.domain.user.EncodedPassword
+import com.loopers.infrastructure.user.UserJpaEntity
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -16,8 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 
 @SpringBootTest
-class UserServiceIntegrationTest @Autowired constructor(
-    private val userService: UserService,
+class UserApplicationServiceIntegrationTest @Autowired constructor(
+    private val userApplicationService: UserApplicationService,
     private val userJpaRepository: UserJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -40,7 +42,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             val email = "seondays@example.com"
 
             // act
-            val result = userService.signUp(loginId, rawPassword, name, birthDate, email)
+            val result = userApplicationService.signUp(loginId, rawPassword, name, birthDate, email)
 
             // assert
             assertAll(
@@ -48,7 +50,7 @@ class UserServiceIntegrationTest @Autowired constructor(
                 { assertThat(result.name).isEqualTo(name) },
                 { assertThat(result.email).isEqualTo(email) },
                 { assertThat(result.password).startsWith("\$2") },
-                { assertThat(userJpaRepository.findByLoginId(loginId)).isNotNull() },
+                { assertThat(userJpaRepository.findByLoginIdAndDeletedAtIsNull(loginId)).isNotNull() },
             )
         }
 
@@ -57,7 +59,7 @@ class UserServiceIntegrationTest @Autowired constructor(
         fun throwsConflict_whenLoginIdAlreadyExists() {
             // arrange
             userJpaRepository.save(
-                UserModel(
+                UserJpaEntity(
                     loginId = "seondays",
                     encodedPassword = EncodedPassword("\$2a\$10\$existingHashedPassword."),
                     name = "선데이",
@@ -68,7 +70,7 @@ class UserServiceIntegrationTest @Autowired constructor(
 
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.signUp(
+                userApplicationService.signUp(
                     loginId = "seondays",
                     rawPassword = "Password1!",
                     name = "다른이름",
@@ -89,7 +91,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             // arrange
             val loginId = "seondays"
             val rawPassword = "Password1!"
-            userService.signUp(
+                userApplicationService.signUp(
                 loginId = loginId,
                 rawPassword = rawPassword,
                 name = "선데이",
@@ -98,7 +100,7 @@ class UserServiceIntegrationTest @Autowired constructor(
             )
 
             // act
-            val result = userService.getUserInfo(loginId, rawPassword)
+            val result = userApplicationService.getUserInfo(loginId, rawPassword)
 
             // assert
             assertAll(
@@ -113,7 +115,7 @@ class UserServiceIntegrationTest @Autowired constructor(
         fun throwsUnauthorized_whenLoginIdNotFound() {
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.getUserInfo(loginId = "nonexistent", rawPassword = "Password1!")
+                userApplicationService.getUserInfo(loginId = "nonexistent", rawPassword = "Password1!")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
@@ -123,7 +125,7 @@ class UserServiceIntegrationTest @Autowired constructor(
         fun throwsUnauthorized_whenPasswordDoesNotMatch() {
             // arrange
             val loginId = "seondays"
-            userService.signUp(
+            userApplicationService.signUp(
                 loginId = loginId,
                 rawPassword = "Password1!",
                 name = "선데이",
@@ -133,7 +135,7 @@ class UserServiceIntegrationTest @Autowired constructor(
 
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.getUserInfo(loginId = loginId, rawPassword = "WrongPass1!")
+                userApplicationService.getUserInfo(loginId = loginId, rawPassword = "WrongPass1!")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
@@ -149,16 +151,16 @@ class UserServiceIntegrationTest @Autowired constructor(
             val loginId = "seondays"
             val oldPassword = "OldPass1!"
             val newPassword = "NewPass1!"
-            userService.signUp(loginId, oldPassword, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+            userApplicationService.signUp(loginId, oldPassword, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
 
             // act
-            userService.changePassword(loginId, oldPassword, newPassword)
+            userApplicationService.changePassword(loginId, oldPassword, newPassword)
 
             // assert
             assertAll(
-                { assertThat(userService.getUserInfo(loginId, newPassword).loginId).isEqualTo(loginId) },
+                { assertThat(userApplicationService.getUserInfo(loginId, newPassword).loginId).isEqualTo(loginId) },
                 {
-                    assertThrows<CoreException> { userService.getUserInfo(loginId, oldPassword) }
+                    assertThrows<CoreException> { userApplicationService.getUserInfo(loginId, oldPassword) }
                     .also { assertThat(it.errorType).isEqualTo(ErrorType.UNAUTHORIZED) }
                 },
             )
@@ -169,7 +171,7 @@ class UserServiceIntegrationTest @Autowired constructor(
         fun throwsUnauthorized_whenLoginIdNotFound() {
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.changePassword("nonexistent", "OldPass1!", "NewPass1!")
+                userApplicationService.changePassword("nonexistent", "OldPass1!", "NewPass1!")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
@@ -178,11 +180,11 @@ class UserServiceIntegrationTest @Autowired constructor(
         @Test
         fun throwsUnauthorized_whenCurrentPasswordDoesNotMatch() {
             // arrange
-            userService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+            userApplicationService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
 
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.changePassword("seondays", "WrongPass1!", "NewPass1!")
+                userApplicationService.changePassword("seondays", "WrongPass1!", "NewPass1!")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
         }
@@ -192,11 +194,11 @@ class UserServiceIntegrationTest @Autowired constructor(
         fun throwsBadRequest_whenNewPasswordIsSameAsCurrent() {
             // arrange
             val password = "OldPass1!"
-            userService.signUp("seondays", password, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+            userApplicationService.signUp("seondays", password, "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
 
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.changePassword("seondays", password, password)
+                userApplicationService.changePassword("seondays", password, password)
             }
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
@@ -205,11 +207,11 @@ class UserServiceIntegrationTest @Autowired constructor(
         @Test
         fun throwsBadRequest_whenNewPasswordContainsBirthDate() {
             // arrange
-            userService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
+            userApplicationService.signUp("seondays", "OldPass1!", "선데이", LocalDate.of(1990, 1, 1), "seondays@example.com")
 
             // act & assert
             val result = assertThrows<CoreException> {
-                userService.changePassword("seondays", "OldPass1!", "Pass19900101!")
+                userApplicationService.changePassword("seondays", "OldPass1!", "Pass19900101!")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }

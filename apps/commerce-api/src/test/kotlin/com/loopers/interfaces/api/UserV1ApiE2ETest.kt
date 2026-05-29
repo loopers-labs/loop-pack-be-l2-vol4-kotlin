@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api
 
 import com.loopers.domain.user.EncodedPassword
-import com.loopers.domain.user.UserModel
+import com.loopers.infrastructure.user.UserJpaEntity
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.interfaces.api.user.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
@@ -73,7 +73,7 @@ class UserV1ApiE2ETest @Autowired constructor(
 
             // arrange
             userJpaRepository.save(
-                UserModel(
+                UserJpaEntity(
                     loginId = loginId,
                     encodedPassword = EncodedPassword("\$2a\$10\$existingHashedPassword."),
                     name = "기존가입자",

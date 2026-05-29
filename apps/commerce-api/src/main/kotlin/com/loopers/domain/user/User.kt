@@ -1,50 +1,38 @@
 package com.loopers.domain.user
 
-import com.loopers.domain.BaseEntity
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import jakarta.persistence.Column
-import jakarta.persistence.Entity
-import jakarta.persistence.Table
 import java.time.LocalDate
 
-@Entity
-@Table(name = "users")
-class UserModel(
-    loginId: String,
+class User(
+    val id: Long? = null,
+    val loginId: String,
     encodedPassword: EncodedPassword,
     name: String,
     birthDate: LocalDate,
     email: String,
-) : BaseEntity() {
-    @Column(name = "login_id", nullable = false, unique = true, length = 20)
-    val loginId: String = loginId
-
-    @Column(name = "password", nullable = false)
+) {
     var password: String = encodedPassword.value
-        protected set
+        private set
 
-    @Column(name = "name", nullable = false, length = 20)
     var name: String = name
-        protected set
+        private set
 
-    @Column(name = "birth_date", nullable = false)
     var birthDate: LocalDate = birthDate
-        protected set
+        private set
 
-    @Column(name = "email", nullable = false)
     var email: String = email
-        protected set
-
-    fun changePassword(encodedPassword: EncodedPassword) {
-        this.password = encodedPassword.value
-    }
+        private set
 
     init {
         validateLoginId(loginId)
         validateName(name)
         validateBirthDate(birthDate)
         validateEmail(email)
+    }
+
+    fun changePassword(encodedPassword: EncodedPassword) {
+        password = encodedPassword.value
     }
 
     companion object {

@@ -2,6 +2,7 @@ package com.loopers.domain.user
 
 interface UserRepository {
     fun existsByLoginId(loginId: String): Boolean
-    fun findByLoginId(loginId: String): UserModel?
-    fun save(user: UserModel): UserModel
+    fun find(id: Long): User?
+    fun findByLoginId(loginId: String): User?
+    fun save(user: User): User
 }

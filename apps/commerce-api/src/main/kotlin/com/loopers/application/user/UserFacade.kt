@@ -1,12 +1,11 @@
 package com.loopers.application.user
 
-import com.loopers.domain.user.UserService
 import org.springframework.stereotype.Component
 import java.time.LocalDate
 
 @Component
 class UserFacade(
-    private val userService: UserService,
+    private val userApplicationService: UserApplicationService,
 ) {
     fun signUp(
         loginId: String,
@@ -15,16 +14,16 @@ class UserFacade(
         birthDate: LocalDate,
         email: String,
     ): UserInfo {
-        return userService.signUp(loginId, rawPassword, name, birthDate, email)
+        return userApplicationService.signUp(loginId, rawPassword, name, birthDate, email)
             .let { UserInfo.from(it) }
     }
 
     fun getUserInfo(loginId: String, rawPassword: String): UserInfo {
-        return userService.getUserInfo(loginId, rawPassword)
+        return userApplicationService.getUserInfo(loginId, rawPassword)
             .let { UserInfo.from(it) }
     }
 
     fun changePassword(loginId: String, currentRawPassword: String, newRawPassword: String) {
-        userService.changePassword(loginId, currentRawPassword, newRawPassword)
+        userApplicationService.changePassword(loginId, currentRawPassword, newRawPassword)
     }
 }

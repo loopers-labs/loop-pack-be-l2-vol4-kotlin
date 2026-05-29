@@ -10,7 +10,7 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import java.time.LocalDate
 
-class UserModelTest {
+class UserTest {
     @DisplayName("회원 가입 시, ")
     @Nested
     inner class CreateUser {
@@ -25,7 +25,7 @@ class UserModelTest {
             val validEmail = "seondays@example.com"
 
             // act
-            val user = UserModel(
+            val user = User(
                 loginId = validLoginId,
                 encodedPassword = EncodedPassword(validPassword),
                 name = validName,
@@ -195,7 +195,7 @@ class UserModelTest {
         name: String = "선데이",
         birthDate: LocalDate = LocalDate.of(1990, 1, 1),
         email: String = "seondays@example.com",
-    ) = UserModel(
+    ) = User(
         loginId = loginId,
         encodedPassword = EncodedPassword(password),
         name = name,

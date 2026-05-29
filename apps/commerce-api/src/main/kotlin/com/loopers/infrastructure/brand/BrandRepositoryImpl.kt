@@ -9,9 +9,9 @@ import com.loopers.domain.shared.IdCursor
 import org.springframework.data.domain.Limit
 import org.springframework.data.domain.ScrollPosition
 import org.springframework.data.domain.Sort
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Repository
 
-@Component
+@Repository
 class BrandRepositoryImpl(
     private val brandJpaRepository: BrandJpaRepository,
 ) : BrandRepository {

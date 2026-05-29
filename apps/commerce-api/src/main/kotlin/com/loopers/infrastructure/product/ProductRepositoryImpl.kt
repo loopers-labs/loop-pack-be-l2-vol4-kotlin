@@ -14,9 +14,9 @@ import com.loopers.support.error.BadRequestException
 import org.springframework.data.domain.Limit
 import org.springframework.data.domain.ScrollPosition
 import org.springframework.data.domain.Sort
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Repository
 
-@Component
+@Repository
 class ProductRepositoryImpl(
     private val productJpaRepository: ProductJpaRepository,
 ) : ProductRepository {

@@ -84,6 +84,7 @@ erDiagram
         VARCHAR product_name
         BIGINT product_price
         INT quantity
+        BIGINT total_price
         DATETIME created_at
         DATETIME updated_at
         DATETIME deleted_at

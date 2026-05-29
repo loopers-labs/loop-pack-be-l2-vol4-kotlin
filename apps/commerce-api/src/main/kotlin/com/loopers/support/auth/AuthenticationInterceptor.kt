@@ -25,10 +25,18 @@ class AuthenticationInterceptor(
             handler.method.isAnnotationPresent(LoginRequired::class.java) ||
                 handler.beanType.isAnnotationPresent(LoginRequired::class.java) ||
                 requiresAdmin
-        if (!requiresLogin) return true
 
         val loginId = request.getHeader(LOGIN_ID_HEADER)
         val loginPw = request.getHeader(LOGIN_PW_HEADER)
+        if (!requiresLogin) {
+            if (loginId.isNullOrBlank() && loginPw.isNullOrBlank()) return true
+            if (loginId.isNullOrBlank() || loginPw.isNullOrBlank()) {
+                throw CoreException(ErrorType.UNAUTHORIZED, "인증 헤더가 필요합니다.")
+            }
+            request.setAttribute(CURRENT_USER_KEY, userService.authenticate(loginId, RawPassword(loginPw)))
+            return true
+        }
+
         if (loginId.isNullOrBlank() || loginPw.isNullOrBlank()) {
             throw CoreException(ErrorType.UNAUTHORIZED, "인증 헤더가 필요합니다.")
         }

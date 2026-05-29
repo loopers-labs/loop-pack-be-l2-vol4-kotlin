@@ -1,0 +1,21 @@
+package com.loopers.interfaces.api.order
+
+import com.loopers.domain.user.User
+import com.loopers.interfaces.api.ApiResponse
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
+
+@Tag(name = "Order V1 API", description = "Loopers 주문 API 입니다.")
+interface OrderV1ApiSpec {
+    @Operation(summary = "주문 조회", description = "소비자의 주문 상세를 조회합니다.")
+    fun getOrder(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>
+
+    @Operation(summary = "주문창 접근", description = "주문 스냅샷과 재고 예약을 생성합니다.")
+    fun checkout(user: User, request: OrderV1Dto.CheckoutRequest): ApiResponse<OrderV1Dto.OrderResponse>
+
+    @Operation(summary = "주문 결제", description = "결제를 승인하고 예약을 확정한 뒤 실제 재고를 차감합니다.")
+    fun pay(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>
+
+    @Operation(summary = "주문 취소", description = "배송 시작 전 주문을 취소합니다.")
+    fun cancel(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>
+}

@@ -20,7 +20,7 @@ Loopers Kotlin Spring Template - 멀티 모듈 Spring Boot 프로젝트
 | API Docs | SpringDoc OpenAPI | 2.7.0 |
 | Monitoring | Micrometer + Prometheus | - |
 | Tracing | Micrometer Tracing (Brave) | - |
-| Test | JUnit 5, MockK (4.0.2), Testcontainers | - |
+| Test | JUnit 5, SpringMockK (4.0.2), Mockito (5.14.0) + mockito-kotlin (5.4.0), Instancio (5.0.2), Testcontainers | - |
 | Lint | ktlint | 1.0.1 |
 | Coverage | JaCoCo | - |
 
@@ -48,12 +48,23 @@ root
 ## Architecture (Layered + Hexagonal)
 
 ```
-interfaces/   → Controller, Consumer, DTO (API 진입점)
-application/  → Facade (유스케이스 오케스트레이션)
-domain/       → Service, Model, Repository(Port 인터페이스)
-infrastructure/ → JPA Repository 구현체 (Adapter)
-support/error/  → CoreException, ErrorType
+interfaces/   → Inbound Adapter: Controller, Consumer, Request/Response DTO
+                + XxxApplicationServicePort 인바운드 포트 (application 구현체와의 연결점)
+application/  → Application Service: XxxApplicationServiceAdapter 구현 (도메인 서비스 오케스트레이션),
+                Command/Result DTO, 트랜잭션 경계. if/for 같은 복잡 분기 지양.
+domain/       → Core + Outbound Port: Entity, VO, Domain Service(XxxService),
+                XxxRepositoryPort 인터페이스. Domain Service는 도메인 ↔ Repository 연결 및 도메인 메서드 오케스트레이션.
+infrastructure/ → Outbound Adapter: XxxEntity(JPA), XxxJpaRepository, XxxRepositoryAdapter(Port 구현), 외부 API 어댑터
+com.loopers.support.error → CoreException, ErrorType (각 앱 모듈 내 공용 에러 패키지)
 ```
+
+## Rules
+
+상세 규칙(도메인 모델링 / Hexagonal 아키텍처 & 패키지 / 코딩 규칙)은 다음 파일에 분리되어 있으며, Claude Code가 매 실행 시 자동 임포트합니다.
+
+@.claude/rules/domain-modeling.md
+@.claude/rules/architecture.md
+@.claude/rules/coding.md
 
 ## Build & Run
 
@@ -118,6 +129,7 @@ BOOTSTRAP_SERVERS (Kafka)
 - Management 엔드포인트: port 8081 (`/health`, `/prometheus`)
 - Kafka consumer: manual ACK 모드
 - JPA: open-in-view 비활성화, batch fetch size 100
+- JPA 연관관계: 실제 DB FK 제약은 걸지 않는다. 연관은 상대 엔티티의 **id 값(Long)** 으로만 보유하고, 해당 컬럼에는 **인덱스만** 부여한다. (`@ManyToOne` / `@JoinColumn`(FK) 사용 금지)
 - Redis: Master/Replica 구조 (Master: 쓰기, Replica: 읽기)
 
 ## HTTP Client

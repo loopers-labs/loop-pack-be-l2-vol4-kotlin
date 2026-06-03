@@ -1,0 +1,5 @@
+### 브랜드 상세 조회 (회원/비회원) — 정상
+GET {{commerce-api}}/api/v1/brands/1
+
+### 브랜드 상세 조회 — 존재하지 않는 id (404)
+GET {{commerce-api}}/api/v1/brands/99999

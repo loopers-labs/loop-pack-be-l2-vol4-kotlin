@@ -1,8 +1,8 @@
 package com.loopers.infrastructure.user
 
-import com.loopers.domain.BaseEntity
-import com.loopers.domain.user.Password
+import com.loopers.persistence.BaseEntity
 import com.loopers.domain.user.User
+import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import java.time.LocalDate
@@ -10,34 +10,20 @@ import java.time.LocalDate
 @Entity
 @Table(name = "user")
 class UserEntity(
-    val loginId: String,
-    var password: String,
+    @Column(name = "name", nullable = false)
     val name: String,
+
+    @Column(name = "birth", nullable = false)
     val birth: LocalDate,
+
+    @Column(name = "email", nullable = false)
     val email: String,
 ) : BaseEntity() {
-    fun changePassword(newPassword: String) {
-        this.password = newPassword
-    }
-
     fun toDomain(): User =
-        User(
-            id = id,
-            loginId = loginId,
-            password = Password(password),
-            name = name,
-            birth = birth,
-            email = email,
-        )
+        User(id = id, name = name, birth = birth, email = email)
 
     companion object {
         fun from(user: User): UserEntity =
-            UserEntity(
-                loginId = user.loginId,
-                password = user.password.value,
-                name = user.name,
-                birth = user.birth,
-                email = user.email,
-            )
+            UserEntity(name = user.name, birth = user.birth, email = user.email)
     }
 }

@@ -38,3 +38,9 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### OMC ###
+.omc
+
+### Local working docs ###
+docs/todo-list.md

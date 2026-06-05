@@ -5,8 +5,12 @@ import com.loopers.domain.user.port.PasswordEncoder
 import java.time.format.DateTimeFormatter
 
 class Password private constructor(
-    val encoded: String,
+    private val encoded: String,
 ) {
+    fun matches(raw: String, encoder: PasswordEncoder): Boolean = encoder.matches(raw, encoded)
+
+    fun encodedForPersistence(): String = encoded
+
     companion object {
         private val PASSWORD_REGEX =
             Regex("^(?=.*[A-Z])(?=.*[a-z])(?=.*\\d)(?=.*[!@#$%^&*(),.?\":{}|<>])[A-Za-z0-9!@#$%^&*(),.?\":{}|<>]{8,16}$")

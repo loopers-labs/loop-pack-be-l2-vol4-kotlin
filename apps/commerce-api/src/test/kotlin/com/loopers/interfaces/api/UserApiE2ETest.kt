@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api
 
 import com.loopers.ApiTest
-import com.loopers.domain.user.application.UserService
+import com.loopers.domain.user.application.service.UserService
 import com.loopers.domain.user.presentation.response.MyUserResponse
 import com.loopers.domain.user.presentation.response.SignUpResponse
 import com.loopers.domain.user.support.UserSteps.Companion.기본_로그인_ID
@@ -108,6 +108,28 @@ class UserApiE2ETest
         }
 
         @Test
+        fun `로그인ID_헤더가_blank면_401_UNAUTHORIZED를_반환한다`() {
+            userService.signUp(사용자_회원가입())
+
+            listOf("", "   ").forEach { blankLoginId ->
+                val response = getMe(authHeaders(loginId = blankLoginId))
+
+                assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+            }
+        }
+
+        @Test
+        fun `비밀번호_헤더가_blank면_401_UNAUTHORIZED를_반환한다`() {
+            userService.signUp(사용자_회원가입())
+
+            listOf("", "   ").forEach { blankPassword ->
+                val response = getMe(authHeaders(password = blankPassword))
+
+                assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+            }
+        }
+
+        @Test
         fun `존재하지_않는_사용자면_401_UNAUTHORIZED를_반환한다`() {
             val response = getMe(authHeaders(loginId = "missingUser"))
 
@@ -139,6 +161,15 @@ class UserApiE2ETest
             userService.signUp(사용자_회원가입())
 
             val response = changePassword(authHeaders(), "Pw19900514!")
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @Test
+        fun `새_비밀번호가_현재_비밀번호와_같으면_400_BAD_REQUEST를_반환한다`() {
+            userService.signUp(사용자_회원가입())
+
+            val response = changePassword(authHeaders(), 기본_비밀번호)
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         }

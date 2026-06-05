@@ -1,7 +1,7 @@
 package com.loopers.domain.user.presentation
 
 import com.loopers.domain.user.application.UserFacade
-import com.loopers.domain.user.application.UserInfo
+import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.domain.user.presentation.auth.CurrentUserInfoRequestHeaders
 import com.loopers.domain.user.presentation.auth.LoginUser
 import com.loopers.domain.user.presentation.request.ChangePasswordRequest

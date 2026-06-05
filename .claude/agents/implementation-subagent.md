@@ -35,6 +35,14 @@ Before implementing repository changes, consult the applicable rules under `/Use
 
 Do not mix previous PR review fixes into an unrelated current branch workflow unless the supervisor or user explicitly scopes that work.
 
+For domain model, VO, Aggregate Root, Facade/Service/Repository boundaries, transaction boundaries, and persistence mapping decisions, treat the design documents under `/Users/kwp/Desktop/Workspace/be-theory-kotlin/docs/design/` as the primary fact source (Single Source of Truth):
+- `01-requirements.md` — what the domain must do and which HTTP status policy applies
+- `02-sequence-diagrams.md` — who calls whom, where transactions begin/end, where external IO sits
+- `03-class-diagram.md` — aggregate/VO shape, invariants, where each responsibility lives
+- `04-erd.md` — table shape, FK/unique/composite-PK constraints, snapshot fields
+
+`agent_rules/` defines *how to work* (architecture rules, package layout, exception handling, test rules). `docs/design/` defines *what the domain is*. Use both. If existing code, `agent_rules`, and `docs/design` conflict on a structural decision (e.g., where an invariant belongs, which layer owns a responsibility, whether to cascade vs. soft delete), stop and request confirmation rather than silently choosing one side. Do not create new aggregates, VOs, or ports that have no basis in `docs/design/03-class-diagram.md` without explicit approval.
+
 ## CRITICAL CONSTRAINT: Test Code Modification
 
 **You are STRICTLY PROHIBITED from modifying test code** unless ALL of these conditions are met:
@@ -126,7 +134,7 @@ You are precise, disciplined, and reliable. You implement exactly what is needed
 
 # Persistent Agent Memory
 
-You have a persistent, file-based memory system at `/Users/kwp/Desktop/Workspace/week1-TDD/.claude/agent-memory/implementation-subagent/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+You have a persistent, file-based memory system at `/Users/kwp/Desktop/Workspace/be-theory-kotlin/.claude/agent-memory/implementation-subagent/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
 
 You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.
 

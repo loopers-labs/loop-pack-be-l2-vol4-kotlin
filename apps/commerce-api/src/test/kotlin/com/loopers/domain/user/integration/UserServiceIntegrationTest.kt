@@ -1,7 +1,8 @@
 package com.loopers.domain.user.integration
 
-import com.loopers.domain.user.application.UserService
+import com.loopers.domain.user.application.service.UserService
 import com.loopers.domain.user.application.command.UserChangePasswordCommand
+import com.loopers.domain.user.exception.DuplicateLoginIdException
 import com.loopers.domain.user.infrastructure.persistence.UserJpaRepository
 import com.loopers.domain.user.infrastructure.persistence.UserRepositoryImpl
 import com.loopers.domain.user.model.UserModel
@@ -54,12 +55,15 @@ class UserServiceIntegrationTest
 
         @Test
         fun `중복_로그인ID로_가입하면_CONFLICT가_발생한다`() {
-            userService.signUp(사용자_회원가입(loginId = "duplicate"))
+            val loginId = "duplicate"
+            userService.signUp(사용자_회원가입(loginId = loginId))
 
             val ex = assertThrows<CoreException> {
-                userService.signUp(사용자_회원가입(loginId = "duplicate", email = "other@example.com"))
+                userService.signUp(사용자_회원가입(loginId = loginId, email = "other@example.com"))
             }
             assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
+            assertThat(ex.message).doesNotContain(loginId)
+            assertThat(ex.cause).isInstanceOf(DuplicateLoginIdException::class.java)
         }
 
         @Test
@@ -169,25 +173,31 @@ class UserServiceIntegrationTest
         fun `아이디_선점당할시_가입실패후_409에러`() {
             val executor = Executors.newFixedThreadPool(2)
 
-            val results = (1..2).map { index ->
-                executor.submit<Result<UserModel>> {
-                    runCatching {
-                        userService.signUp(
-                            사용자_회원가입(
-                                loginId = RACE_LOGIN_ID,
-                                email = "race$index@example.com",
-                            ),
-                        )
+            try {
+                val results = (1..2).map { index ->
+                    executor.submit<Result<UserModel>> {
+                        runCatching {
+                            userService.signUp(
+                                사용자_회원가입(
+                                    loginId = RACE_LOGIN_ID,
+                                    email = "race$index@example.com",
+                                ),
+                            )
+                        }
                     }
-                }
-            }.map { it.get(10, TimeUnit.SECONDS) }
-            executor.shutdown()
+                }.map { it.get(10, TimeUnit.SECONDS) }
 
-            val failures = results.mapNotNull { it.exceptionOrNull() }
-            assertThat(results.count { it.isSuccess }).isEqualTo(1)
-            assertThat(failures).hasSize(1)
-            assertThat(failures.single()).isInstanceOf(CoreException::class.java)
-            assertThat((failures.single() as CoreException).errorType).isEqualTo(ErrorType.CONFLICT)
+                val failures = results.mapNotNull { it.exceptionOrNull() }
+                assertThat(results.count { it.isSuccess }).isEqualTo(1)
+                assertThat(failures).hasSize(1)
+                assertThat(failures.single()).isInstanceOf(CoreException::class.java)
+                assertThat((failures.single() as CoreException).errorType).isEqualTo(ErrorType.CONFLICT)
+            } finally {
+                executor.shutdownNow()
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    throw IllegalStateException("동시성 테스트 executor 종료 실패")
+                }
+            }
         }
 
         @TestConfiguration
@@ -205,7 +215,7 @@ class UserServiceIntegrationTest
 
             override fun existsByLoginId(loginId: String): Boolean {
                 if (loginId == RACE_LOGIN_ID) {
-                    barrier.await(5, TimeUnit.SECONDS)
+                    awaitRaceBarrier()
                     return false
                 }
                 return delegate.existsByLoginId(loginId)
@@ -213,12 +223,25 @@ class UserServiceIntegrationTest
 
             override fun save(user: UserModel): UserModel = delegate.save(user)
 
+            override fun findById(id: Long): UserModel? = delegate.findById(id)
+
             override fun findByLoginId(loginId: String): UserModel? = delegate.findByLoginId(loginId)
 
             override fun findByIdForUpdate(id: Long): UserModel? = delegate.findByIdForUpdate(id)
 
             override fun updatePassword(id: Long, password: Password) {
                 delegate.updatePassword(id, password)
+            }
+
+            private fun awaitRaceBarrier() {
+                try {
+                    barrier.await(5, TimeUnit.SECONDS)
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw IllegalStateException("동시성 테스트 동기화 실패", e)
+                } catch (e: Exception) {
+                    throw IllegalStateException("동시성 테스트 동기화 실패", e)
+                }
             }
         }
 

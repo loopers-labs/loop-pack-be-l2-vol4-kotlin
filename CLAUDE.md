@@ -63,11 +63,28 @@ LLM의 일반적인 코딩 실수를 줄이기 위한 행동 지침이다. 프�
 
 지침 작동 확인: Diff 내 불필요한 변경 감소, 복잡성으로 인한 재작성 빈도 감소, 구현 전 질문을 통한 명확한 의사결정 증대.
 
+# 자주 쓰는 명령
+상세 옵션·프로필은 `agent_rules/projectInfo.md` 참고.
+
+```bash
+make init                                   # 최초 1회: ktlint pre-commit hook 활성화
+./gradlew :apps:commerce-api:bootRun        # 로컬 실행
+./gradlew :apps:commerce-api:test           # 테스트
+./gradlew ktlintCheck                       # 린트
+```
+
+# 진입점 / 다른 에이전트와의 관계
+- 본 `CLAUDE.md` 는 Claude 측 행동지침의 원천이다.
+- Codex 는 `AGENTS.md` 를 진입점으로 사용하며, 동일한 라우팅 표를 공유한다.
+- 모듈 구조: `apps/` (실행 가능한 SpringBoot 앱) / `modules/` (재사용 설정) / `supports/` (logging·monitoring 등 add-on).
+
 # 문서 목록 및 설명
 하위 문서 정보를 에이전트가 작업 시 먼저 파악 선행할 것.
-1. **/Users/kwp/Desktop/Workspace/be-theory-kotlin/agent_rules/groundRules.md - 작업물 작성 시 지켜야 할 규칙, 프로젝트 워크플로우 정의서, DDD/패키지/예외 처리/테스트 전략 기준**
-2. **/Users/kwp/Desktop/Workspace/be-theory-kotlin/agent_rules/projectInfo.md - 프로젝트 간단 정보 및 기술 스택, 모듈 구조, 실행/검증 명령, API/도메인 요구사항 기준**
-3. **/Users/kwp/Desktop/Workspace/be-theory-kotlin/agent_rules/testing-conventions.md - 테스트 파일 분류, 테스트 네이밍, Steps 패턴, API 테스트 작성 기준**
-4. **/Users/kwp/Desktop/Workspace/be-theory-kotlin/agent_rules/vcs_rule.md - 이전 PR 리뷰 수정, CodeRabbit/Copilot/사람 리뷰 대응, CI 픽스, 커밋/브랜치/worktree/GitHub Issue/PR 작업 기준**
+1. **`agent_rules/groundRules.md` - 작업물 작성 시 지켜야 할 규칙, 프로젝트 워크플로우 정의서, DDD/패키지/예외 처리/테스트 전략 기준**
+2. **`agent_rules/projectInfo.md` - 프로젝트 간단 정보 및 기술 스택, 모듈 구조, 실행/검증 명령, API/도메인 요구사항 기준**
+3. **`agent_rules/testing-conventions.md` - 테스트 파일 분류, 테스트 네이밍, Steps 패턴, API 테스트 작성 기준**
+4. **`agent_rules/vcs_rule.md` - 이전 PR 리뷰 수정, CodeRabbit/Copilot/사람 리뷰 대응, CI 픽스, 커밋/브랜치/worktree/GitHub Issue/PR 작업 기준**
+5. **`docs/design/01-requirements.md` ~ `04-erd.md` - 도메인 용어(유비쿼터스 언어), 요구사항, 시퀀스/클래스/ERD 의 SoT. 코드보다 우선하며 도메인 작업 시 agent_rules 와 함께 필수 선행 참조한다. 본 문서는 작업·아키텍처 지침이 아니라 도메인 사실(fact) 의 원천이다.**
+6. **`docs/quest-per-week/` - 개발 주차별 브랜치 달성목표와 체크리스트. 현재 브랜치의 진행 상태를 평가하거나 다음 작업 범위를 정할 때 해당 주차 문서를 `agent_rules/vcs_rule.md` 와 함께 선행 참조한다.**
 사용자 동의 구한 후 새로운 구현체나 요구사항 변경 등 갱신 필요시 업데이트.
 단 변경 전 사용자 명시적 동의 획득해야 함

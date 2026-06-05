@@ -97,6 +97,7 @@ subprojects {
         useJUnitPlatform()
         systemProperty("user.timezone", "Asia/Seoul")
         systemProperty("spring.profiles.active", "test")
+        // docker-java reads this key. Docker Desktop 29 rejects its old default API version.
         systemProperty("api.version", System.getProperty("api.version") ?: "1.40")
         jvmArgs("-Xshare:off")
     }

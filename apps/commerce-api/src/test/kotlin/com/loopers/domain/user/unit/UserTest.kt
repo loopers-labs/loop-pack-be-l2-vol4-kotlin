@@ -7,6 +7,7 @@ import com.loopers.domain.user.support.UserSteps.Companion.기본_비밀번호
 import com.loopers.domain.user.support.UserSteps.Companion.기본_생년월일
 import com.loopers.domain.user.support.UserSteps.Companion.기본_이름
 import com.loopers.domain.user.support.UserSteps.Companion.기본_이메일
+import com.loopers.domain.user.support.UserSteps.Companion.기본_인코더
 import com.loopers.domain.user.support.UserSteps.Companion.비밀번호_생성
 import com.loopers.domain.user.support.UserSteps.Companion.회원_도메인_생성
 import org.assertj.core.api.Assertions.assertThat
@@ -23,7 +24,7 @@ class UserTest {
         assertThat(user.name.value).isEqualTo(기본_이름)
         assertThat(user.birthday.value).isEqualTo(기본_생년월일)
         assertThat(user.email.value).isEqualTo(기본_이메일)
-        assertThat(user.password.encoded).isEqualTo("ENC($기본_비밀번호)")
+        assertThat(user.password.matches(기본_비밀번호, 기본_인코더())).isTrue()
     }
 
     @Test

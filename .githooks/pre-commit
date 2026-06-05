@@ -1,4 +1,11 @@
-#!/bin/bash
+#!/bin/sh
+set -eu
 
 GIT_DIR=$(git rev-parse --show-toplevel)
-$GIT_DIR/gradlew ktlintCheck
+cd "$GIT_DIR"
+
+python3 .codex/sync-from-claude.py
+git add .codex/agents
+python3 .codex/sync-from-claude.py --check >/dev/null
+
+"$GIT_DIR/gradlew" ktlintCheck

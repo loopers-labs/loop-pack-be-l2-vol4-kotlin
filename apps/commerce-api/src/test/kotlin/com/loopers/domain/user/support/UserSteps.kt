@@ -23,6 +23,7 @@ class UserSteps {
 
         fun 기본_인코더(): PasswordEncoder = mockk {
             every { encode(any()) } answers { "ENC(" + firstArg<String>() + ")" }
+            every { matches(any(), any()) } answers { secondArg<String>() == "ENC(" + firstArg<String>() + ")" }
         }
 
         fun 비밀번호_생성(

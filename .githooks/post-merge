@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+if [ -f .codex/sync-from-claude.py ]; then
+  python3 .codex/sync-from-claude.py >/dev/null
+fi

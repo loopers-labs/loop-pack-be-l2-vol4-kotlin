@@ -23,4 +23,13 @@ class CoreExceptionTest {
 
         assertThat(exception.message).isEqualTo(customMessage)
     }
+
+    @Test
+    fun `원인_예외가_있으면_cause로_보존한다`() {
+        val cause = IllegalArgumentException("root cause")
+
+        val exception = CoreException(ErrorType.INTERNAL_ERROR, "custom message", cause)
+
+        assertThat(exception.cause).isSameAs(cause)
+    }
 }

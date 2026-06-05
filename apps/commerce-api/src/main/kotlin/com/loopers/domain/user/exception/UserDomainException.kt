@@ -2,7 +2,8 @@ package com.loopers.domain.user.exception
 
 open class UserDomainException(
     message: String,
-) : RuntimeException(message)
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
 
 class InvalidUserException(
     message: String,

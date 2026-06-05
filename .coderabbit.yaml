@@ -46,6 +46,19 @@ reviews:
     - "!**/build/**"
     - "!**/out/**"
     - "!**/.gradle/**"
+    # 에이전트/저장소 운영 메타 파일은 리뷰 대상에서 제외한다.
+    - "!**/.codex/**"
+    - "!**/agents/*.toml"
+    - "!**/sync-from-claude.py"
+    - "!**/.githooks/**"
+    - "!**/post-checkout"
+    - "!**/post-merge"
+    - "!**/pre-commit"
+    - "!**/.github/**"
+    - "!**/ISSUE_TEMPLATE/**"
+    - "!**/.editorconfig"
+    - "!**/.gitignore"
+    - "!**/.coderabbit.yaml"
 
   # 경로별 리뷰 가이드(스키마에 존재하는 path_instructions 사용)
   path_instructions:

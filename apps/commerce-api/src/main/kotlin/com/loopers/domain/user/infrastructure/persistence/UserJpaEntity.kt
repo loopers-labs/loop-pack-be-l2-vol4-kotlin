@@ -10,12 +10,23 @@ import com.loopers.domain.user.vo.Password
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import java.time.LocalDate
 
+const val USER_LOGIN_ID_UNIQUE_CONSTRAINT = "uk_users_login_id"
+
 @Entity
-@Table(name = "users")
+@Table(
+    name = "users",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = USER_LOGIN_ID_UNIQUE_CONSTRAINT,
+            columnNames = ["login_id"],
+        ),
+    ],
+)
 class UserJpaEntity(
-    @Column(name = "login_id", unique = true, nullable = false)
+    @Column(name = "login_id", nullable = false)
     var loginId: String,
     @Column(name = "encoded_password", nullable = false)
     var encodedPassword: String,
@@ -38,7 +49,7 @@ class UserJpaEntity(
     companion object {
         fun fromDomain(user: UserModel): UserJpaEntity = UserJpaEntity(
             loginId = user.loginId.value,
-            encodedPassword = user.password.encoded,
+            encodedPassword = user.password.encodedForPersistence(),
             name = user.name.value,
             birthday = user.birthday.value,
             email = user.email.value,

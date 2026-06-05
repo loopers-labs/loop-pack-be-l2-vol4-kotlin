@@ -1,4 +1,4 @@
-package com.loopers.domain.user.application
+package com.loopers.domain.user.application.service
 
 import com.loopers.domain.user.application.command.UserChangePasswordCommand
 import com.loopers.domain.user.application.command.UserSignUpCommand
@@ -26,7 +26,7 @@ class UserService(
     fun signUp(command: UserSignUpCommand): UserModel {
         return try {
             if (userRepository.existsByLoginId(command.loginId)) {
-                throwDuplicateLoginIdConflict()
+                throwDuplicateLoginIdConflict(DuplicateLoginIdException(command.loginId))
             }
             val birthday = Birthday.of(command.birthday)
             val password = Password.of(command.rawPassword, birthday, passwordEncoder)
@@ -39,18 +39,22 @@ class UserService(
             )
             try {
                 userRepository.save(user)
-            } catch (_: DuplicateLoginIdException) {
-                throwDuplicateLoginIdConflict()
+            } catch (e: DuplicateLoginIdException) {
+                throwDuplicateLoginIdConflict(e)
             }
         } catch (e: UserDomainException) {
-            throw CoreException(ErrorType.BAD_REQUEST, e.message)
+            throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
     }
 
     @Transactional(readOnly = true)
+    fun findById(userId: Long): UserModel =
+        userRepository.findById(userId) ?: throw CoreException(ErrorType.NOT_FOUND)
+
+    @Transactional(readOnly = true)
     fun getMe(loginId: String, rawPassword: String): UserModel {
         val user = userRepository.findByLoginId(loginId) ?: throwUnauthorized()
-        if (!passwordEncoder.matches(rawPassword, user.password.encoded)) {
+        if (!user.password.matches(rawPassword, passwordEncoder)) {
             throwUnauthorized()
         }
         return user
@@ -59,10 +63,10 @@ class UserService(
     @Transactional
     fun changePassword(command: UserChangePasswordCommand) {
         val user = userRepository.findByIdForUpdate(command.userId) ?: throwUnauthorized()
-        if (!passwordEncoder.matches(command.currentRawPassword, user.password.encoded)) {
+        if (!user.password.matches(command.currentRawPassword, passwordEncoder)) {
             throwUnauthorized()
         }
-        if (passwordEncoder.matches(command.newRawPassword, user.password.encoded)) {
+        if (user.password.matches(command.newRawPassword, passwordEncoder)) {
             throw CoreException(ErrorType.BAD_REQUEST, SAME_PASSWORD_MESSAGE)
         }
 
@@ -70,12 +74,12 @@ class UserService(
             val password = Password.of(command.newRawPassword, user.birthday, passwordEncoder)
             userRepository.updatePassword(user.id, password)
         } catch (e: UserDomainException) {
-            throw CoreException(ErrorType.BAD_REQUEST, e.message)
+            throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
     }
 
-    private fun throwDuplicateLoginIdConflict(): Nothing {
-        throw CoreException(ErrorType.CONFLICT, DUPLICATE_LOGIN_ID_MESSAGE)
+    private fun throwDuplicateLoginIdConflict(cause: DuplicateLoginIdException): Nothing {
+        throw CoreException(ErrorType.CONFLICT, DUPLICATE_LOGIN_ID_MESSAGE, cause)
     }
 
     private fun throwUnauthorized(): Nothing {

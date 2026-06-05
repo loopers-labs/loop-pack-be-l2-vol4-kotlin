@@ -1,7 +1,7 @@
 package com.loopers.domain.user.presentation.auth
 
 import com.loopers.domain.user.application.UserFacade
-import com.loopers.domain.user.application.UserInfo
+import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.servlet.http.HttpServletRequest
@@ -27,9 +27,16 @@ class LoginUserArgumentResolver(
         binderFactory: WebDataBinderFactory?,
     ): Any {
         val request = webRequest.getNativeRequest(HttpServletRequest::class.java) ?: throwUnauthorized()
-        val loginId = request.getHeader(CurrentUserInfoRequestHeaders.LOGIN_ID) ?: throwUnauthorized()
-        val rawPassword = request.getHeader(CurrentUserInfoRequestHeaders.LOGIN_PW) ?: throwUnauthorized()
+        val loginId = request.getHeader(CurrentUserInfoRequestHeaders.LOGIN_ID).requireNotBlank()
+        val rawPassword = request.getHeader(CurrentUserInfoRequestHeaders.LOGIN_PW).requireNotBlank()
         return userFacade.getMe(loginId, rawPassword)
+    }
+
+    private fun String?.requireNotBlank(): String {
+        if (this.isNullOrBlank()) {
+            throwUnauthorized()
+        }
+        return this
     }
 
     private fun throwUnauthorized(): Nothing {

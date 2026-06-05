@@ -1,6 +1,6 @@
 package com.loopers.domain.user.presentation.response
 
-import com.loopers.domain.user.application.UserInfo
+import com.loopers.domain.user.application.info.UserInfo
 import java.time.LocalDate
 
 data class SignUpResponse(

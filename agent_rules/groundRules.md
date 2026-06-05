@@ -26,14 +26,14 @@
 - 각 플로우마다 unused import 제거, ktlint 적용 등 정리 작업을 수행한다.
 - 신규 기능, 버그 픽스, 수정, 리팩토링, 요구사항 변경은 모두 동일하게 Red Phase 에서 시작한다.
 - 기존 테스트가 변경사항을 검증하지 못하는 경우, 먼저 테스트를 추가하거나 기존 테스트를 변경하여 의도한 실패 상태를 만든다.
-- 커밋은 작업 단위로 관리한다. Red Phase 는 테스트 추가/변경만 단독 커밋하고, Green Phase 와 Blue Phase 는 기존 코드 변경 및 리팩토링을 묶어 하나의 커밋으로 만든다.
+- 커밋은 작업 단위로 관리한다. Red Phase 는 반드시 먼저 수행하되, 테스트 추가/변경과 이를 통과시키는 Green/Blue Phase 구현은 같은 작업 단위 커밋에 함께 포함할 수 있다.
 
 #### 1. Red Phase
 - 요구사항을 만족하는 실패 테스트를 먼저 작성한다.
 - 테스트가 검증하려는 비즈니스 규칙을 명확히 드러낸다.
 - 버그 픽스는 버그를 재현하는 실패 테스트를 먼저 작성한다.
 - 리팩토링과 요구사항 변경도 현재 코드가 변경 의도를 만족하지 못함을 드러내는 실패 테스트를 먼저 작성한다.
-- 이 단계의 커밋에는 테스트 추가/변경만 포함한다.
+- 이 단계에서 작성한 테스트는 의도한 실패를 확인한 뒤, 같은 작업 단위의 구현 커밋에 함께 포함할 수 있다.
 
 #### 2. Green Phase
 - Red Phase 의 테스트가 통과할 수 있는 최소 구현을 작성한다.
@@ -43,9 +43,9 @@
 #### 3. Blue Phase
 - 기존 Refactor Phase 에 해당한다.
 - 테스트가 모두 통과하는 상태에서 코드 품질을 개선한다.
-- 불필요한 private 함수 추출을 지양하고, OOP 원칙에 맞게 가독성과 유지보수성을 높인다.
+- 불필요한 private 함수 추출을 지양하고, OOP 원칙에 맞게 가독성과 유지보수성을 높인다. (단, VO 값 검증 함수는 "Value Object 작성 규칙" 을 따라 단일 조건이라도 분리한다.)
 - 비효율적 구현이 발견되면 트레이드오프를 설명한 뒤 최적화를 제안한다.
-- Green Phase 의 구현 변경과 Blue Phase 의 리팩토링은 작업 단위별 하나의 커밋으로 묶는다.
+- Green Phase 의 구현 변경과 Blue Phase 의 리팩토링은 같은 작업 단위 안에서 Red Phase 테스트와 함께 하나의 커밋으로 묶을 수 있다.
 
 ## 아키텍처 규칙 (DDD)
 
@@ -66,7 +66,7 @@
 
 ### 기능 패키지 구성
 - 사용자, 상품처럼 개별 도메인 기능은 `domain/<aggregate>/application`, `domain/<aggregate>/infrastructure`, `domain/<aggregate>/presentation` 아래에 둔다.
-- 여러 기능에서 공유하는 예외, 상수, 웹 공통 처리는 루트의 `common/**` 아래에 둔다.
+- 여러 도메인이 공유하는 공통 응답/예외 처리 등 전역 웹 인프라는 루트 `interfaces/api`, 로깅·보안·에러타입 등 횡단 관심사는 루트 `support/` 아래에 둔다.
 - 순수 도메인 모델은 `domain/<aggregate>/model`, `vo`, `service`, `port` 에 두고, Spring/JPA/presentation 의존성을 넣지 않는다.
 - 특정 도메인에서만 사용하는 WebMvcConfigurer, HandlerMethodArgumentResolver, 인증 어노테이션, 요청 헤더 상수는 해당 도메인의 `presentation` 아래에 둔다.
 - JPA Entity 의 컬럼 타입은 단순 매핑을 우선하고, 도메인 모델의 VO 변환 책임은 infrastructure 의 `toDomain()` / `fromDomain()` 경계에 둔다.
@@ -77,23 +77,67 @@
 - 외부 협력자가 필요하면 도메인 또는 application 쪽에 port 인터페이스를 두고, infrastructure 에서 구현한다.
 
 ### API 예외 처리
-- 전역 API 예외 핸들러는 `common/web` 에 두고, 특정 도메인 전용 예외 처리와 분리한다.
+- 전역 API 예외 핸들러는 루트 `interfaces/api` (`ApiControllerAdvice`) 에 두고, 특정 도메인 전용 예외 처리와 분리한다.
 - HTTP 응답 상태를 표현하는 에러 타입은 커스텀 enum/string 대신 Spring 표준 `HttpStatus` 를 사용한다.
 - 컨트롤러/유스케이스에서 인증 실패, 권한 실패, 잘못된 요청 등 HTTP 상태가 필요한 예외를 만들 때도 `HttpStatus` 를 기준으로 전달한다.
+
+### 입력 검증
+- Request DTO 는 API 스펙 관점의 형식 검증을 수행한다.
+- 도메인 VO/모델은 동일한 값이라도 도메인 불변식 관점의 검증을 다시 수행한다.
+- DTO 검증은 도메인 검증보다 느슨할 수 없으며, API 전용 제약은 DTO 에만 둘 수 있다.
+- 도메인 불변식은 `docs/design` 에 먼저 정의하고, DTO 검증은 이를 API 경계에서 반복 방어한다.
 
 ### 도메인 패키지 구성
 ```
 domain/<aggregate>/
-├── application/ # 유스케이스, 애그리거트별 port
-├── infrastructure/ # 영속성, 외부 시스템 어댑터
-├── presentation/ # 컨트롤러, 요청/응답 DTO
-├── model/      # DDD 애그리거트 루트·엔티티(POJO)
-├── vo/         # 값 객체
-├── service/    # 도메인 서비스(필요할 때만 생성)
-└── port/       # 외부 협력자 인터페이스
+├── application/                # 유스케이스 계층
+│   ├── <Aggregate>Facade       # 도메인 조합 — application 직하
+│   ├── service/                # 애플리케이션 서비스(단일 도메인 트랜잭션 경계)
+│   ├── info/                   # 응용 결과 DTO
+│   └── command/                # 유스케이스 입력 DTO
+├── infrastructure/
+│   └── persistence/<model>/    # 모델별 JPA Entity·Spring Data Repository·port 구현 (예: product/, stock/)
+├── presentation/               # 컨트롤러, API spec, 요청/응답 DTO
+├── model/                      # DDD 애그리거트 루트·엔티티(POJO)
+├── vo/                         # 값 객체
+├── service/                    # 도메인 서비스(필요할 때만 생성)
+└── port/                       # 외부 협력자 인터페이스
 ```
+- `application` 내부는 `<Aggregate>Facade` 를 직하에 두고, 애플리케이션 서비스/결과 DTO/입력 DTO 를 각각 `service/`·`info/`·`command/` 하위에 둔다. `user`/`product` 도메인이 이 형태로 정렬되어 있다.
+- 트리 최상위 `service/`(도메인 서비스)와 `application/service/`(애플리케이션 서비스)는 다른 개념이다. 전자는 도메인 객체 간 협력으로 표현하기 어려운 무상태 규칙용이며 필요할 때만 만든다.
+- `infrastructure/persistence/` 아래는 한 애그리거트가 여러 영속 모델을 가지면 모델별 하위 패키지(`product/`, `stock/`)로 나눈다.
 - `util/`, `constant/` 는 실제 추출 대상이 생길 때만 추가한다.
 - 단순 편의를 위한 공용 패키지를 먼저 만들지 않는다.
+- 본 트리는 도메인별 패키지의 **목표 구조** (도메인-계층 순) 다. 신규 도메인은 본 트리를 따르고, 미정렬 도메인(`example`)은 별도 마이그레이션 작업에서 본 트리대로 정렬한다.
+
+### 도메인 & 객체 설계 전략
+- 도메인 객체는 비즈니스 규칙을 캡슐화한다. 불변식은 VO, Aggregate Root, Entity 중 가장 가까운 도메인 객체에 둔다.
+- 애플리케이션 서비스 (Facade) 는 서로 다른 도메인을 조립해 도메인 로직을 조정함으로써 기능을 제공한다. 비즈니스 규칙 자체를 직접 구현하지 않는다.
+- 같은 규칙이 여러 Service 에 반복 등장하면 도메인 객체에 속할 가능성이 높다. 발견 즉시 도메인 객체로 끌어올린다.
+- 각 기능에 대한 책임과 결합도에 대해 개발자의 의도를 확인하고 개발을 진행한다. 의도가 모호하면 작업을 중단하고 사용자에게 질문한다.
+- Domain Service 는 무상태 (stateless) 로 유지하고, 도메인 객체 간 협력으로 표현하기 어려운 규칙만 수용한다.
+- 다른 애그리거트는 객체 참조가 아니라 식별자 (`userId`, `brandId`, `productId` 등) 로 참조한다. 다중 도메인 조합과 다른 도메인의 존재 검증은 Facade 에서 수행한다.
+- 도메인 객체는 자기 상태 변경에 필요한 행위만 노출한다. getter/setter 의 무분별한 노출은 지양한다.
+- 도메인 모델은 POJO 로 유지하고, 영속·전송 어노테이션은 부착하지 않는다.
+- 도메인 사실의 SoT 는 `docs/design/01-requirements.md` (용어·요구사항) 과 `docs/design/03-class-diagram.md` (모델·VO·불변식) 다. 본 룰과 SoT 가 충돌하면 작업을 중단하고 사용자에게 확인한다.
+
+### Value Object 작성 규칙
+- 단일 필드 VO 는 `@JvmInline value class` 를 기본으로 한다. 복합 필드 VO(예: `LikeKey`)는 일반 class 로 둔다. 목적은 성능이 아니라 타입 안전·표현 일관성이며, 컬렉션 타입 인자(`List<Money>`)·nullable(`Money?`)·인터페이스 업캐스트에서는 박싱되어 이득이 제한됨을 인지하고 사용한다.
+- VO 값 검증은 `init` 블록이 아니라 `companion object` 의 `of()` 팩토리에서 수행한다. `private constructor` 로 직접 생성을 막아 `of()` 를 유일 생성 경로로 둔다. DB 복원처럼 재검증이 불필요한 경우 `fromEncoded` / `fromPersisted` 류 별도 팩토리로 우회 경로를 명시한다.
+- 검증 로직은 `private validate*` 함수로 분리해 `of()` 가 "검증 → 생성" 흐름으로 읽히게 한다. 단일 조건이라도 분리한다. 이는 "단순성 우선" 의 불필요한 private 함수 추출 지양 규칙에 대한 명시적 예외이며, VO 검증의 일관성·확장성을 우선한다.
+- 단, underlying 값을 외부에 노출하면 안 되는 단일 필드 VO(예: `Password` 의 인코딩 값)는 value class 기본 규칙의 예외로 일반 class 를 유지한다. value class 는 underlying 프로퍼티를 public 으로 강제하므로 노출 통제(`encodedForPersistence()` 같은 의도적 접근자만 허용)가 깨진다. 또한 이런 VO 의 실제 비용은 객체 할당이 아니라 CPU 집약적 연산(예: BCrypt 해시)에 있어 value class 의 할당 최적화 이득이 무의미하다.
+
+### 아키텍처, 패키지 구성 전략
+- 본 프로젝트는 레이어드 아키텍처를 따르며, DIP (의존성 역전 원칙) 을 준수한다. 외부 계층이 도메인 계층에 의존하고, 도메인은 외부 계층의 구현 세부사항을 알지 않는다.
+- 외부 협력자가 필요하면 도메인 또는 application 쪽에 port 인터페이스를 두고, infrastructure 에서 구현한다.
+- 단일 도메인 상태 변경은 Service 가 트랜잭션 경계를 가진다. 여러 도메인 상태를 함께 바꾸는 유스케이스는 Facade 가 트랜잭션 경계를 가진다.
+- Service 끼리 직접 의존하지 않는다. 다른 도메인이 필요하면 Facade 에서 조합한다. Facade 는 직접 Repository 를 호출하지 않는다. 영속 협력은 Service 가 다룬다.
+- API request / response DTO 와 응용 레이어의 DTO (command / info) 는 분리해 작성한다. presentation DTO 가 application 계층으로, application DTO 가 presentation 계층으로 누수되지 않게 한다.
+- 패키징 전략은 도메인(기능) 우선 패키징(package-by-feature)을 따른다. 최상위 분류는 도메인(`domain/<aggregate>/`)이며, 각 도메인 내부에 presentation/application/infrastructure/model/vo/port 계층을 둔다. 레이어를 최상위에 두고 그 아래 도메인을 나누는 layer-first 배치는 사용하지 않는다.
+- 단, 여러 도메인이 공유하는 전역 웹 인프라(공통 응답·예외 핸들러)는 루트 `interfaces/api`, 로깅·보안·에러타입 같은 횡단 관심사는 루트 `support/` 에 두는 것을 예외로 허용한다.
+- 현재 `user`/`product` 도메인이 이 구조를 따른다. `example` 도메인은 아직 정렬되지 않은 layer-first 레거시이며(`application/example`, `infrastructure/example`, `interfaces/api/example`) 별도 마이그레이션 대상이다.
+- 도메인 내부 패키지 구조는 본 문서 "### 도메인 패키지 구성" 트리 (도메인-계층 순) 를 **목표**로 한다. 신규 도메인은 본 트리를 따르고, 기존 도메인의 정렬은 별도 마이그레이션 작업으로 진행한다.
+- 시퀀스 흐름의 SoT 는 `docs/design/02-sequence-diagrams.md`, 영속성 형태의 SoT 는 `docs/design/04-erd.md` 다. 트랜잭션 경계와 협력 책임은 이 문서들을 우선 참조한다.
 
 ## 테스트 규약
 

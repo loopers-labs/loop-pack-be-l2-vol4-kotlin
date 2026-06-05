@@ -1,6 +1,6 @@
 package com.loopers.domain.user.presentation
 
-import com.loopers.domain.user.application.UserInfo
+import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.domain.user.presentation.request.ChangePasswordRequest
 import com.loopers.domain.user.presentation.request.SignUpRequest
 import com.loopers.domain.user.presentation.response.MyUserResponse

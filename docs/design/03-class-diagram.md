@@ -134,13 +134,13 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `LoginId` | 영문/숫자 4~20자, 시스템 전체 유일성 |
-| `Password` | 평문 정책 검증(8~16자·문자종류·생년월일 토큰 금지) + BCrypt 인코딩 |
-| `Name` | 공백 제외 1~50자 |
-| `Birthday` | `LocalDate`, 과거 날짜만 |
-| `Email` | RFC 5322 간이 형식 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `LoginId` | 사용자 로그인 식별자 | 영문/숫자 4~20자, 시스템 전체 유일 |
+| `Password` | 인증 비밀값 정책과 인코딩 결과 표현 | 8~16자, 문자종류 조건 충족, 생년월일 토큰 포함 불가, BCrypt 인코딩 보관 |
+| `Name` | 사용자 이름 | 공백 제외 1~50자 |
+| `Birthday` | 사용자 생년월일 | `LocalDate`, 과거 날짜만 허용 |
+| `Email` | 사용자 이메일 주소 | RFC 5322 간이 형식 |
 
 ### 객체 책임/불변식
 
@@ -238,12 +238,12 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `Ldap` | 관리자 LDAP 식별자, 시스템 전체 유일성 |
-| `AdminName` | 관리자 이름 (User `Name` 과 같은 규칙) |
-| `TargetType` | 변경 대상 종류 (`BRAND` / `PRODUCT`) |
-| `OperationType` | 변경 종류 (`CREATED` / `UPDATED` / `DELETED`) |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `Ldap` | 관리자 LDAP 식별자 | 시스템 전체 유일 |
+| `AdminName` | 관리자 이름 | User `Name` 과 같은 규칙 |
+| `TargetType` | 변경 대상 종류 | `BRAND` / `PRODUCT` 만 허용 |
+| `OperationType` | 변경 종류 | `CREATED` / `UPDATED` / `DELETED` 만 허용 |
 
 ### 객체 책임/불변식
 
@@ -329,9 +329,9 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `BrandName` | 브랜드 이름 — 등록·수정 시 도메인 정책 검증 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `BrandName` | 브랜드 이름 | 등록·수정 시 도메인 정책 검증 |
 
 ### 객체 책임/불변식
 
@@ -440,12 +440,12 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `ProductName` | 상품 이름 |
-| `Money` | 가격 표현 (음수 불가, 단위 표준화) — `OrderModel`/`OrderItemModel` 에서도 재사용 |
-| `Quantity` | 주문 요청 수량, 양수만 허용 |
-| `StockQuantity` | 재고 수량, 0 이상만 허용 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `ProductName` | 상품 이름 | 공백 문자열 불가 |
+| `Money` | 가격 표현 — `OrderModel`/`OrderItemModel` 에서도 재사용 | 음수 불가, 단위 표준화 |
+| `Quantity` | 주문 요청 수량 | 자연수만 허용 |
+| `StockQuantity` | 재고 수량 | 0 이상 정수만 허용 |
 
 ### 객체 책임/불변식
 
@@ -521,9 +521,9 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `LikeKey` | `userId` + `productId` 복합 식별자. 한 사용자와 한 상품 쌍의 현재 좋아요 상태를 표현 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `LikeKey` | `userId` + `productId` 복합 식별자 | 한 사용자와 한 상품 쌍의 현재 좋아요 상태만 표현 |
 
 ### 객체 책임/불변식
 
@@ -635,10 +635,10 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `Money` | 주문 합계·할인·결제 금액과 주문 항목 단가에서 재사용 (Product §4 와 동일 VO) |
-| `Quantity` | 주문 항목 수량, 양수만 허용 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `Money` | 주문 합계·할인·결제 금액과 주문 항목 단가 표현 | Product §4 와 동일 VO, 음수 불가 |
+| `Quantity` | 주문 항목 수량 | 양수만 허용 |
 
 ### 객체 책임/불변식
 
@@ -717,11 +717,11 @@ classDiagram
 
 ### Value Objects
 
-| VO | 책임 |
-| --- | --- |
-| `PaymentMethod` | 결제 수단 식별. 현재는 `CARD` 같은 최소 값으로 시작하고 결제수단별 정책은 추후 구체화 |
-| `PaymentStatus` | `REQUESTED` → `APPROVED` 또는 `FAILED` 상태 전이 |
-| `Money` | 결제 금액. 주문의 `paymentPrice`와 일치해야 함 |
+| VO | 책임 | 제약사항 |
+| --- | --- | --- |
+| `PaymentMethod` | 결제 수단 식별 | 현재는 `CARD` 같은 최소 값으로 시작하고 결제수단별 정책은 추후 구체화 |
+| `PaymentStatus` | 결제 상태 표현 | `REQUESTED` → `APPROVED` 또는 `FAILED` 상태 전이만 허용 |
+| `Money` | 결제 금액 | 주문의 `paymentPrice`와 일치해야 함 |
 
 ### 객체 책임/불변식
 

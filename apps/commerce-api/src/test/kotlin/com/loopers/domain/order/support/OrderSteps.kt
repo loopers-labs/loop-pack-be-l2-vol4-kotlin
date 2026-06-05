@@ -42,9 +42,11 @@ class OrderSteps {
 
         fun 주문_생성_커맨드(
             userId: Long = 기본_주문자_ID,
+            idempotencyKey: String? = null,
             items: List<OrderItemCreateCommand> = listOf(주문항목_생성_커맨드()),
         ): OrderCreateCommand = OrderCreateCommand(
             userId = userId,
+            idempotencyKey = idempotencyKey,
             items = items,
         )
 

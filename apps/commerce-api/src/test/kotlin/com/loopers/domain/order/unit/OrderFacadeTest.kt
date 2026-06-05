@@ -24,7 +24,7 @@ import org.junit.jupiter.api.assertThrows
 
 class OrderFacadeTest {
     @Test
-    fun `주문은_유저와_상품을_확인하고_재고를_차감한_뒤_저장한다`() {
+    fun `주문은_유저와_상품을_확인하고_저장한_뒤_재고를_차감한다`() {
         val userService = mockk<UserService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
@@ -53,7 +53,7 @@ class OrderFacadeTest {
             재고_도메인_생성(productId = 10L, leftStock = 8),
             재고_도메인_생성(productId = 20L, leftStock = 4),
         )
-        every { orderService.placeOrder(1L, any()) } answers {
+        every { orderService.placeOrder(1L, any(), null) } answers {
             주문_도메인_생성(
                 id = 100L,
                 orderedUserId = 1L,
@@ -70,18 +70,18 @@ class OrderFacadeTest {
         verifySequence {
             userService.findById(1L)
             productService.findOrderableSnapshots(listOf(10L, 20L))
+            orderService.placeOrder(1L, any(), null)
             stockService.decreaseAll(
                 listOf(
                     StockDecreaseCommand(productId = 10L, quantity = 2),
                     StockDecreaseCommand(productId = 20L, quantity = 1),
                 ),
             )
-            orderService.placeOrder(1L, any())
         }
     }
 
     @Test
-    fun `재고가_부족하면_주문을_저장하지_않는다`() {
+    fun `재고가_부족하면_CONFLICT가_발생한다`() {
         val userService = mockk<UserService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
@@ -90,6 +90,7 @@ class OrderFacadeTest {
         val command = 주문_생성_커맨드()
         every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
         every { productService.findOrderableSnapshots(listOf(10L)) } returns listOf(상품_스냅샷(productId = 10L))
+        every { orderService.placeOrder(1L, any(), null) } returns 주문_도메인_생성(id = 100L)
         every {
             stockService.decreaseAll(listOf(StockDecreaseCommand(productId = 10L, quantity = 2)))
         } throws CoreException(ErrorType.CONFLICT)
@@ -99,7 +100,26 @@ class OrderFacadeTest {
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
-        verify(exactly = 0) { orderService.placeOrder(any(), any()) }
+        verify(exactly = 1) { orderService.placeOrder(1L, any(), null) }
+    }
+
+    @Test
+    fun `같은_멱등키의_기존_주문이_있으면_기존_주문을_반환한다`() {
+        val userService = mockk<UserService>()
+        val productService = mockk<ProductService>()
+        val stockService = mockk<StockService>()
+        val orderService = mockk<OrderService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val command = 주문_생성_커맨드(idempotencyKey = "order-key-1")
+        every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
+        every { orderService.findByIdempotencyKey("order-key-1") } returns 주문_도메인_생성(id = 100L)
+
+        val info = orderFacade.placeOrder(command)
+
+        assertThat(info.id).isEqualTo(100L)
+        verify(exactly = 0) { productService.findOrderableSnapshots(any()) }
+        verify(exactly = 0) { stockService.decreaseAll(any()) }
+        verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
 
     @Test
@@ -118,7 +138,7 @@ class OrderFacadeTest {
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
         verify(exactly = 0) { productService.findOrderableSnapshots(any()) }
         verify(exactly = 0) { stockService.decreaseAll(any()) }
-        verify(exactly = 0) { orderService.placeOrder(any(), any()) }
+        verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
 
     @Test
@@ -137,6 +157,6 @@ class OrderFacadeTest {
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
         verify(exactly = 0) { stockService.decreaseAll(any()) }
-        verify(exactly = 0) { orderService.placeOrder(any(), any()) }
+        verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
 }

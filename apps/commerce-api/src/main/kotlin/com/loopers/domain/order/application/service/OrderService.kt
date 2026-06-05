@@ -18,12 +18,14 @@ class OrderService(
     fun placeOrder(
         orderedUserId: Long,
         items: List<OrderItemModel>,
+        idempotencyKey: String? = null,
     ): OrderModel =
         try {
             orderRepository.save(
                 OrderModel.create(
                     orderedUserId = orderedUserId,
                     items = items,
+                    idempotencyKey = idempotencyKey,
                 ),
             )
         } catch (e: OrderDomainException) {
@@ -35,4 +37,8 @@ class OrderService(
     @Transactional(readOnly = true)
     fun findById(orderId: Long): OrderModel =
         orderRepository.findById(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
+
+    @Transactional(readOnly = true)
+    fun findByIdempotencyKey(idempotencyKey: String): OrderModel? =
+        orderRepository.findByIdempotencyKey(idempotencyKey)
 }

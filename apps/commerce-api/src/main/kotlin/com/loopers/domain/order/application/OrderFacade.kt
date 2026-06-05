@@ -29,12 +29,17 @@ class OrderFacade(
     @Transactional
     fun placeOrder(command: OrderCreateCommand): OrderInfo {
         userService.findById(command.userId)
+        val idempotencyKey = command.idempotencyKey?.takeIf { it.isNotBlank() }
+        idempotencyKey
+            ?.let { orderService.findByIdempotencyKey(it) }
+            ?.let { return OrderInfo.from(it) }
+
         val orderItems = aggregateItems(command.items)
         val snapshots = productService.findOrderableSnapshots(orderItems.map { it.productId })
         val items = createOrderItems(orderItems, snapshots)
+        val order = orderService.placeOrder(command.userId, items, idempotencyKey)
         stockService.decreaseAll(orderItems.map { StockDecreaseCommand(it.productId, it.quantity) })
-        return orderService.placeOrder(command.userId, items)
-            .let { OrderInfo.from(it) }
+        return OrderInfo.from(order)
     }
 
     private fun aggregateItems(items: List<OrderItemCreateCommand>): List<OrderItemCreateCommand> =

@@ -12,6 +12,8 @@ import jakarta.persistence.Table
 class OrderJpaEntity(
     @Column(name = "ordered_user_id", nullable = false)
     var orderedUserId: Long,
+    @Column(name = "idempotency_key", unique = true)
+    var idempotencyKey: String? = null,
     @Column(name = "total_price", nullable = false)
     var totalPrice: Long,
     @Column(name = "discount_price", nullable = false)
@@ -22,6 +24,7 @@ class OrderJpaEntity(
     fun toDomain(items: List<OrderItemModel>): OrderModel = OrderModel.fromPersisted(
         id = id,
         orderedUserId = orderedUserId,
+        idempotencyKey = idempotencyKey,
         items = items,
         totalPrice = totalPrice,
         discountPrice = discountPrice,
@@ -31,6 +34,7 @@ class OrderJpaEntity(
     companion object {
         fun fromDomain(order: OrderModel): OrderJpaEntity = OrderJpaEntity(
             orderedUserId = order.orderedUserId,
+            idempotencyKey = order.idempotencyKey,
             totalPrice = order.totalPrice.value,
             discountPrice = order.discountPrice.value,
             paymentPrice = order.paymentPrice.value,

@@ -6,6 +6,7 @@ import com.loopers.domain.product.vo.Money
 data class OrderModel(
     val id: Long = 0L,
     val orderedUserId: Long,
+    val idempotencyKey: String? = null,
     val items: List<OrderItemModel>,
     val totalPrice: Money,
     val discountPrice: Money,
@@ -25,6 +26,7 @@ data class OrderModel(
         fun create(
             orderedUserId: Long,
             items: List<OrderItemModel>,
+            idempotencyKey: String? = null,
         ): OrderModel {
             validateUserId(orderedUserId)
             validateItems(items)
@@ -32,6 +34,7 @@ data class OrderModel(
             val discountPrice = Money.of(0)
             return OrderModel(
                 orderedUserId = orderedUserId,
+                idempotencyKey = idempotencyKey,
                 items = items,
                 totalPrice = totalPrice,
                 discountPrice = discountPrice,
@@ -42,6 +45,7 @@ data class OrderModel(
         fun fromPersisted(
             id: Long,
             orderedUserId: Long,
+            idempotencyKey: String? = null,
             items: List<OrderItemModel>,
             totalPrice: Long,
             discountPrice: Long,
@@ -53,6 +57,7 @@ data class OrderModel(
             return OrderModel(
                 id = id,
                 orderedUserId = orderedUserId,
+                idempotencyKey = idempotencyKey,
                 items = items,
                 totalPrice = Money.of(totalPrice),
                 discountPrice = Money.of(discountPrice),

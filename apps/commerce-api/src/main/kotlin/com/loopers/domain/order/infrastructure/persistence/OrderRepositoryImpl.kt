@@ -24,4 +24,12 @@ class OrderRepositoryImpl(
                 order.toDomain(items)
             }
             .orElse(null)
+
+    override fun findByIdempotencyKey(idempotencyKey: String): OrderModel? =
+        orderJpaRepository.findByIdempotencyKey(idempotencyKey)
+            ?.let { order ->
+                val items = orderItemJpaRepository.findByOrderItemIdOrderId(order.id)
+                    .map { it.toDomain() }
+                order.toDomain(items)
+            }
 }

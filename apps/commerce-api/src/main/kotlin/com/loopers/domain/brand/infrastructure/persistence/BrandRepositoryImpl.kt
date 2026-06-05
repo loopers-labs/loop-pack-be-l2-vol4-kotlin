@@ -1,5 +1,6 @@
 package com.loopers.domain.brand.infrastructure.persistence
 
+import com.loopers.domain.brand.exception.BrandNotFoundException
 import com.loopers.domain.brand.model.BrandModel
 import com.loopers.domain.brand.port.BrandRepository
 import org.springframework.stereotype.Component
@@ -12,7 +13,7 @@ class BrandRepositoryImpl(
         val entity = if (brand.id == 0L) {
             BrandJpaEntity.fromDomain(brand)
         } else {
-            brandJpaRepository.findById(brand.id).orElseThrow()
+            brandJpaRepository.findById(brand.id).orElseThrow { BrandNotFoundException(brand.id) }
                 .also { it.updateFrom(brand) }
         }
         return brandJpaRepository.saveAndFlush(entity).toDomain()

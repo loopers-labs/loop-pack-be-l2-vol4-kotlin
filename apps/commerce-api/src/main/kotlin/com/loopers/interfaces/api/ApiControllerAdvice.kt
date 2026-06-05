@@ -3,6 +3,7 @@ package com.loopers.interfaces.api
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
+import com.loopers.domain.brand.exception.BrandNotFoundException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
@@ -28,6 +29,11 @@ class ApiControllerAdvice {
     fun handle(e: CoreException): ResponseEntity<ApiResponse<*>> {
         log.warn("CoreException : {}", e.customMessage ?: e.message, e)
         return failureResponse(errorType = e.errorType, errorMessage = e.customMessage)
+    }
+
+    @ExceptionHandler
+    fun handleNotFound(e: BrandNotFoundException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.NOT_FOUND, errorMessage = e.message)
     }
 
     @ExceptionHandler

@@ -4,6 +4,7 @@ import com.loopers.domain.product.presentation.response.ProductResponse
 import com.loopers.interfaces.api.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.constraints.Min
 
 @Tag(name = "Product API", description = "Loopers 상품 API 입니다.")
 interface ProductApiSpec {
@@ -14,7 +15,9 @@ interface ProductApiSpec {
     fun findProducts(
         brandId: Long?,
         sort: String?,
+        @Min(0)
         page: Int?,
+        @Min(1)
         size: Int?,
     ): ApiResponse<List<ProductResponse>>
 

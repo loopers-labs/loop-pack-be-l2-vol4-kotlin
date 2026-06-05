@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.domain.brand.exception.BrandNotFoundException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -101,6 +102,16 @@ class ApiControllerAdvice {
         }
         val message = (fieldMessages + globalMessages)
             .joinToString("; ")
+            .ifBlank { ErrorType.BAD_REQUEST.message }
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: ConstraintViolationException): ResponseEntity<ApiResponse<*>> {
+        val message = e.constraintViolations
+            .joinToString("; ") { violation ->
+                "'${violation.propertyPath}': ${violation.message}"
+            }
             .ifBlank { ErrorType.BAD_REQUEST.message }
         return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
     }

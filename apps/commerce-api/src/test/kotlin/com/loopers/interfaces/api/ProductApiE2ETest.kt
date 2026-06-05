@@ -143,6 +143,25 @@ class ProductApiE2ETest
         }
 
         @Test
+        fun `상품_목록_페이지_값이_유효하지_않으면_400_BAD_REQUEST를_반환한다`() {
+            val pageResponse = testRestTemplate.exchange(
+                "$ENDPOINT?page=-1",
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                productListResponseType,
+            )
+            val sizeResponse = testRestTemplate.exchange(
+                "$ENDPOINT?size=0",
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                productListResponseType,
+            )
+
+            assertThat(pageResponse.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+            assertThat(sizeResponse.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @Test
         fun `삭제된_상품은_상세_조회에서_404_NOT_FOUND를_반환한다`() {
             val brand = brandService.register(브랜드_등록_커맨드())
             val product = productService.register(상품_등록_커맨드(brandId = brand.id))

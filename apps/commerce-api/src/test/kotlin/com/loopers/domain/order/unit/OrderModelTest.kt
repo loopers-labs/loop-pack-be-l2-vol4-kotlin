@@ -42,6 +42,20 @@ class OrderModelTest {
     }
 
     @Test
+    fun `저장된_주문_ID는_양수여야_한다`() {
+        assertThrows<InvalidOrderException> {
+            OrderModel.fromPersisted(
+                id = 0L,
+                orderedUserId = 1L,
+                items = listOf(주문항목_도메인_생성(orderId = 0L)),
+                totalPrice = 20_000L,
+                discountPrice = 0L,
+                paymentPrice = 20_000L,
+            )
+        }
+    }
+
+    @Test
     fun `주문은_본인_소유인지_판별한다`() {
         val order = OrderModel.create(
             orderedUserId = 1L,

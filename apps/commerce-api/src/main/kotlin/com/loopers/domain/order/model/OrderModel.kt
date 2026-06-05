@@ -51,7 +51,7 @@ data class OrderModel(
             discountPrice: Long,
             paymentPrice: Long,
         ): OrderModel {
-            validateId(id)
+            validatePersistedId(id)
             validateUserId(orderedUserId)
             validateItems(items)
             return OrderModel(
@@ -71,6 +71,12 @@ data class OrderModel(
         private fun validateId(id: Long) {
             if (id < 0) {
                 throw InvalidOrderException("주문 ID는 음수일 수 없습니다.")
+            }
+        }
+
+        private fun validatePersistedId(id: Long) {
+            if (id <= 0) {
+                throw InvalidOrderException("저장된 주문 ID는 양수여야 합니다.")
             }
         }
 

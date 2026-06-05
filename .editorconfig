@@ -16,5 +16,8 @@ ktlint_standard_function-signature = disabled
 ktlint_standard_import-ordering = disabled
 ktlint_standard_indent = disabled
 
-[*Test.kt]
+[{*Test.kt,*Steps.kt}]
 max_line_length = off
+ktlint_standard_function-naming = disabled
+ktlint_standard_property-naming = disabled
+ktlint_standard_backing-property-naming = disabled

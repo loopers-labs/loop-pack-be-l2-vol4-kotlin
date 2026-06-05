@@ -6,59 +6,42 @@ import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class ExampleServiceIntegrationTest @Autowired constructor(
-    private val exampleService: ExampleService,
-    private val exampleJpaRepository: ExampleJpaRepository,
-    private val databaseCleanUp: DatabaseCleanUp,
-) {
-    @AfterEach
-    fun tearDown() {
-        databaseCleanUp.truncateAllTables()
-    }
+class ExampleServiceIntegrationTest
+    @Autowired
+    constructor(
+        private val exampleService: ExampleService,
+        private val exampleJpaRepository: ExampleJpaRepository,
+        private val databaseCleanUp: DatabaseCleanUp,
+    ) {
+        @AfterEach
+        fun tearDown() {
+            databaseCleanUp.truncateAllTables()
+        }
 
-    @DisplayName("예시를 조회할 때,")
-    @Nested
-    inner class Get {
-        @DisplayName("존재하는 예시 ID를 주면, 해당 예시 정보를 반환한다.")
         @Test
-        fun returnsExampleInfo_whenValidIdIsProvided() {
-            // arrange
+        fun `존재하는_예시_ID면_예시_정보를_반환한다`() {
             val exampleModel = exampleJpaRepository.save(ExampleModel(name = "예시 제목", description = "예시 설명"))
 
-            // act
             val result = exampleService.getExample(exampleModel.id)
 
-            // assert
-            assertAll(
-                { assertThat(result).isNotNull() },
-                { assertThat(result.id).isEqualTo(exampleModel.id) },
-                { assertThat(result.name).isEqualTo(exampleModel.name) },
-                { assertThat(result.description).isEqualTo(exampleModel.description) },
-            )
+            assertThat(result).isNotNull()
+            assertThat(result.id).isEqualTo(exampleModel.id)
+            assertThat(result.name).isEqualTo(exampleModel.name)
+            assertThat(result.description).isEqualTo(exampleModel.description)
         }
 
-        @DisplayName("존재하지 않는 예시 ID를 주면, NOT_FOUND 예외가 발생한다.")
         @Test
-        fun throwsException_whenInvalidIdIsProvided() {
-            // arrange
-            val invalidId = 999L // Assuming this ID does not exist
-
-            // act
-            val exception = assertThrows<CoreException> {
-                exampleService.getExample(invalidId)
+        fun `존재하지_않는_예시_ID면_NOT_FOUND가_발생한다`() {
+            val ex = assertThrows<CoreException> {
+                exampleService.getExample(999L)
             }
 
-            // assert
-            assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
     }
-}

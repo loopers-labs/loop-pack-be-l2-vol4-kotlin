@@ -3,11 +3,14 @@ package com.loopers.interfaces.api
 import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
+import com.loopers.domain.brand.exception.BrandNotFoundException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -27,6 +30,11 @@ class ApiControllerAdvice {
     fun handle(e: CoreException): ResponseEntity<ApiResponse<*>> {
         log.warn("CoreException : {}", e.customMessage ?: e.message, e)
         return failureResponse(errorType = e.errorType, errorMessage = e.customMessage)
+    }
+
+    @ExceptionHandler
+    fun handleNotFound(e: BrandNotFoundException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.NOT_FOUND, errorMessage = e.message)
     }
 
     @ExceptionHandler
@@ -82,6 +90,30 @@ class ApiControllerAdvice {
         }
 
         return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = errorMessage)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: MethodArgumentNotValidException): ResponseEntity<ApiResponse<*>> {
+        val fieldMessages = e.bindingResult.fieldErrors.map { fe ->
+            "'${fe.field}': ${fe.defaultMessage ?: "유효하지 않은 값입니다."}"
+        }
+        val globalMessages = e.bindingResult.globalErrors.map { ge ->
+            ge.defaultMessage ?: "유효하지 않은 값입니다."
+        }
+        val message = (fieldMessages + globalMessages)
+            .joinToString("; ")
+            .ifBlank { ErrorType.BAD_REQUEST.message }
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: ConstraintViolationException): ResponseEntity<ApiResponse<*>> {
+        val message = e.constraintViolations
+            .joinToString("; ") { violation ->
+                "'${violation.propertyPath}': ${violation.message}"
+            }
+            .ifBlank { ErrorType.BAD_REQUEST.message }
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
     }
 
     @ExceptionHandler

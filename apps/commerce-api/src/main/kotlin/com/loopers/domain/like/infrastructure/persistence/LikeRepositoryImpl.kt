@@ -13,8 +13,10 @@ class LikeRepositoryImpl(
         productId: Long,
     ): Boolean = likeJpaRepository.existsByIdUserIdAndIdProductId(userId, productId)
 
-    override fun save(like: LikeModel): LikeModel =
-        likeJpaRepository.saveAndFlush(LikeJpaEntity.fromDomain(like)).toDomain()
+    override fun save(like: LikeModel): LikeModel {
+        likeJpaRepository.insertIgnore(like.userId, like.productId)
+        return like
+    }
 
     override fun delete(
         userId: Long,

@@ -18,6 +18,10 @@ class LikeModelTest {
     @Test
     fun `사용자와_상품_ID는_양수여야_한다`() {
         assertThrows<InvalidLikeException> { 좋아요_도메인_생성(userId = 0L) }
+        assertThrows<InvalidLikeException> { 좋아요_도메인_생성(userId = -1L) }
+        assertThrows<InvalidLikeException> { 좋아요_도메인_생성(userId = -100L) }
         assertThrows<InvalidLikeException> { 좋아요_도메인_생성(productId = 0L) }
+        assertThrows<InvalidLikeException> { 좋아요_도메인_생성(productId = -1L) }
+        assertThrows<InvalidLikeException> { 좋아요_도메인_생성(productId = -100L) }
     }
 }

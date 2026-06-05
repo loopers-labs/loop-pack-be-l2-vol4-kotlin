@@ -8,6 +8,9 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 class LikeServiceIntegrationTest
@@ -28,6 +31,33 @@ class LikeServiceIntegrationTest
             likeService.like(userId = 1L, productId = 10L)
 
             assertThat(likeJpaRepository.count()).isEqualTo(1)
+        }
+
+        @Test
+        fun `동시에_같은_상품을_좋아요해도_하나만_저장된다`() {
+            val executor = Executors.newFixedThreadPool(2)
+            val ready = CountDownLatch(2)
+            val start = CountDownLatch(1)
+
+            try {
+                val futures = List(2) {
+                    executor.submit {
+                        ready.countDown()
+                        start.await()
+                        likeService.like(userId = 1L, productId = 10L)
+                    }
+                }
+
+                assertThat(ready.await(1, TimeUnit.SECONDS)).isTrue()
+                start.countDown()
+
+                futures.forEach { future ->
+                    future.get(5, TimeUnit.SECONDS)
+                }
+                assertThat(likeJpaRepository.count()).isEqualTo(1)
+            } finally {
+                executor.shutdownNow()
+            }
         }
 
         @Test

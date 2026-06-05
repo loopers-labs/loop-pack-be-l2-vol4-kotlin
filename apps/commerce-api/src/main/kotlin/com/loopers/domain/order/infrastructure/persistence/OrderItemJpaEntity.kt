@@ -8,13 +8,15 @@ import jakarta.persistence.EmbeddedId
 import jakarta.persistence.Entity
 import jakarta.persistence.PrePersist
 import jakarta.persistence.Table
+import jakarta.persistence.Transient
+import org.springframework.data.domain.Persistable
 import java.time.ZonedDateTime
 
 @Entity
 @Table(name = "order_items")
 class OrderItemJpaEntity(
     @EmbeddedId
-    var id: OrderItemJpaId,
+    private var orderItemId: OrderItemJpaId,
     @Column(nullable = false)
     var quantity: Long,
     @Column(name = "snapshot_product_name", nullable = false)
@@ -23,7 +25,7 @@ class OrderItemJpaEntity(
     var snapshotUnitPrice: Long,
     @Column(name = "line_price", nullable = false)
     var linePrice: Long,
-) {
+) : Persistable<OrderItemJpaId> {
     @Column(name = "created_at", nullable = false, updatable = false)
     lateinit var createdAt: ZonedDateTime
         protected set
@@ -33,9 +35,15 @@ class OrderItemJpaEntity(
         createdAt = ZonedDateTime.now()
     }
 
+    @Transient
+    override fun getId(): OrderItemJpaId = orderItemId
+
+    @Transient
+    override fun isNew(): Boolean = !this::createdAt.isInitialized
+
     fun toDomain(): OrderItemModel = OrderItemModel.snapshotOf(
-        orderId = id.orderId,
-        productId = id.productId,
+        orderId = orderItemId.orderId,
+        productId = orderItemId.productId,
         quantity = Quantity.of(quantity),
         snapshotProductName = snapshotProductName,
         snapshotUnitPrice = Money.of(snapshotUnitPrice),
@@ -43,7 +51,7 @@ class OrderItemJpaEntity(
 
     companion object {
         fun fromDomain(item: OrderItemModel): OrderItemJpaEntity = OrderItemJpaEntity(
-            id = OrderItemJpaId(
+            orderItemId = OrderItemJpaId(
                 orderId = item.orderId,
                 productId = item.productId,
             ),

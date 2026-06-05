@@ -19,7 +19,7 @@ class OrderRepositoryImpl(
     override fun findById(orderId: Long): OrderModel? =
         orderJpaRepository.findById(orderId)
             .map { order ->
-                val items = orderItemJpaRepository.findByIdOrderId(order.id)
+                val items = orderItemJpaRepository.findByOrderItemIdOrderId(order.id)
                     .map { it.toDomain() }
                 order.toDomain(items)
             }

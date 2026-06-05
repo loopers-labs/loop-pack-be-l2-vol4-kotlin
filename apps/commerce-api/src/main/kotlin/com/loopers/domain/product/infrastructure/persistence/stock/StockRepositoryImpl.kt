@@ -20,6 +20,6 @@ class StockRepositoryImpl(
     override fun findByProductId(productId: Long): StockModel? =
         productStockJpaRepository.findById(productId).map { it.toDomain() }.orElse(null)
 
-    override fun findByProductIdsForUpdate(productIds: Set<Long>): List<StockModel> =
+    override fun findByProductIdsForUpdate(productIds: List<Long>): List<StockModel> =
         productStockJpaRepository.findByProductIdsForUpdate(productIds).map { it.toDomain() }
 }

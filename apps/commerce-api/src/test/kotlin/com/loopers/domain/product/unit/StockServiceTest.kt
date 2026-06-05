@@ -34,7 +34,7 @@ class StockServiceTest {
         val stockRepository = mockk<StockRepository>()
         val stockService = StockService(stockRepository)
         val stockSlot = slot<List<StockModel>>()
-        every { stockRepository.findByProductIdsForUpdate(setOf(1L, 2L)) } returns listOf(
+        every { stockRepository.findByProductIdsForUpdate(listOf(1L, 2L)) } returns listOf(
             재고_도메인_생성(productId = 1L, leftStock = 10),
             재고_도메인_생성(productId = 2L, leftStock = 5),
         )
@@ -56,7 +56,7 @@ class StockServiceTest {
         val stockRepository = mockk<StockRepository>()
         val stockService = StockService(stockRepository)
         val stockSlot = slot<List<StockModel>>()
-        every { stockRepository.findByProductIdsForUpdate(setOf(1L)) } returns listOf(
+        every { stockRepository.findByProductIdsForUpdate(listOf(1L)) } returns listOf(
             재고_도메인_생성(productId = 1L, leftStock = 10),
         )
         every { stockRepository.saveAll(capture(stockSlot)) } answers { stockSlot.captured }
@@ -72,10 +72,30 @@ class StockServiceTest {
     }
 
     @Test
+    fun `재고_락은_상품_ID_오름차순으로_요청한다`() {
+        val stockRepository = mockk<StockRepository>()
+        val stockService = StockService(stockRepository)
+        every { stockRepository.findByProductIdsForUpdate(listOf(1L, 2L)) } returns listOf(
+            재고_도메인_생성(productId = 1L, leftStock = 10),
+            재고_도메인_생성(productId = 2L, leftStock = 5),
+        )
+        every { stockRepository.saveAll(any()) } answers { firstArg() }
+
+        val stocks = stockService.decreaseAll(
+            listOf(
+                재고_차감_커맨드(productId = 2L, quantity = 2),
+                재고_차감_커맨드(productId = 1L, quantity = 3),
+            ),
+        )
+
+        assertThat(stocks.map { it.productId }).containsExactly(1L, 2L)
+    }
+
+    @Test
     fun `하나라도_재고가_부족하면_어떤_재고도_저장하지_않는다`() {
         val stockRepository = mockk<StockRepository>()
         val stockService = StockService(stockRepository)
-        every { stockRepository.findByProductIdsForUpdate(setOf(1L, 2L)) } returns listOf(
+        every { stockRepository.findByProductIdsForUpdate(listOf(1L, 2L)) } returns listOf(
             재고_도메인_생성(productId = 1L, leftStock = 10),
             재고_도메인_생성(productId = 2L, leftStock = 2),
         )

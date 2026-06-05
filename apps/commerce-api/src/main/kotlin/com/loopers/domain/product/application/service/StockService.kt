@@ -39,15 +39,17 @@ class StockService(
             return emptyList()
         }
 
+        val productIds = requestedQuantities.keys.sorted()
         val stocksByProductId = stockRepository
-            .findByProductIdsForUpdate(requestedQuantities.keys)
+            .findByProductIdsForUpdate(productIds)
             .associateBy { it.productId }
         if (stocksByProductId.size != requestedQuantities.size) {
             throw CoreException(ErrorType.NOT_FOUND)
         }
 
         val decreasedStocks = try {
-            requestedQuantities.map { (productId, quantity) ->
+            productIds.map { productId ->
+                val quantity = requestedQuantities[productId] ?: throw CoreException(ErrorType.NOT_FOUND)
                 val stock = stocksByProductId[productId] ?: throw CoreException(ErrorType.NOT_FOUND)
                 stock.decrease(quantity)
             }

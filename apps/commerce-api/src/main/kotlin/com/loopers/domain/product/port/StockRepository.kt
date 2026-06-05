@@ -6,5 +6,5 @@ interface StockRepository {
     fun save(stock: StockModel): StockModel
     fun saveAll(stocks: List<StockModel>): List<StockModel>
     fun findByProductId(productId: Long): StockModel?
-    fun findByProductIdsForUpdate(productIds: Set<Long>): List<StockModel>
+    fun findByProductIdsForUpdate(productIds: List<Long>): List<StockModel>
 }

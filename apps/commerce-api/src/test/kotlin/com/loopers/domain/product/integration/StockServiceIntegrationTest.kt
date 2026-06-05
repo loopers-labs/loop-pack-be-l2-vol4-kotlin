@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 class StockServiceIntegrationTest
@@ -55,5 +58,47 @@ class StockServiceIntegrationTest
             val saved = productStockJpaRepository.findById(1L).orElseThrow()
             assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
             assertThat(saved.leftStock).isEqualTo(2)
+        }
+
+        @Test
+        fun `서로_다른_순서의_동시_재고차감도_완료된다`() {
+            stockService.initialize(productId = 1L, leftStock = 10)
+            stockService.initialize(productId = 2L, leftStock = 10)
+            val executor = Executors.newFixedThreadPool(2)
+            val ready = CountDownLatch(2)
+            val start = CountDownLatch(1)
+
+            try {
+                val first = executor.submit {
+                    ready.countDown()
+                    start.await()
+                    stockService.decreaseAll(
+                        listOf(
+                            재고_차감_커맨드(productId = 1L, quantity = 1),
+                            재고_차감_커맨드(productId = 2L, quantity = 1),
+                        ),
+                    )
+                }
+                val second = executor.submit {
+                    ready.countDown()
+                    start.await()
+                    stockService.decreaseAll(
+                        listOf(
+                            재고_차감_커맨드(productId = 2L, quantity = 1),
+                            재고_차감_커맨드(productId = 1L, quantity = 1),
+                        ),
+                    )
+                }
+
+                assertThat(ready.await(1, TimeUnit.SECONDS)).isTrue()
+                start.countDown()
+                first.get(5, TimeUnit.SECONDS)
+                second.get(5, TimeUnit.SECONDS)
+
+                assertThat(productStockJpaRepository.findById(1L).orElseThrow().leftStock).isEqualTo(8)
+                assertThat(productStockJpaRepository.findById(2L).orElseThrow().leftStock).isEqualTo(8)
+            } finally {
+                executor.shutdownNow()
+            }
         }
     }

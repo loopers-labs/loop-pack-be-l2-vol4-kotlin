@@ -8,8 +8,8 @@ import org.springframework.data.repository.query.Param
 
 interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from ProductStockJpaEntity s where s.productId in :productIds")
+    @Query("select s from ProductStockJpaEntity s where s.productId in :productIds order by s.productId")
     fun findByProductIdsForUpdate(
-        @Param("productIds") productIds: Set<Long>,
+        @Param("productIds") productIds: List<Long>,
     ): List<ProductStockJpaEntity>
 }

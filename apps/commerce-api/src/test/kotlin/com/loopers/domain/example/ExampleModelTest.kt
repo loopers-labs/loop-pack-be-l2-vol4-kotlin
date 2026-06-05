@@ -29,9 +29,27 @@ class ExampleModelTest {
     }
 
     @Test
+    fun `이름이_비어있으면_BAD_REQUEST가_발생한다`() {
+        val ex = assertThrows<CoreException> {
+            ExampleModel(name = "", description = "설명")
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+    }
+
+    @Test
     fun `설명이_비어있으면_BAD_REQUEST가_발생한다`() {
         val ex = assertThrows<CoreException> {
             ExampleModel(name = "제목", description = "")
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+    }
+
+    @Test
+    fun `설명이_공백이면_BAD_REQUEST가_발생한다`() {
+        val ex = assertThrows<CoreException> {
+            ExampleModel(name = "제목", description = "   ")
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)

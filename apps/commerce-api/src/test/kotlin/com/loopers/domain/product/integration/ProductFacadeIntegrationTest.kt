@@ -6,6 +6,7 @@ import com.loopers.domain.product.application.ProductFacade
 import com.loopers.domain.product.infrastructure.persistence.product.ProductJpaRepository
 import com.loopers.domain.product.infrastructure.persistence.stock.ProductStockJpaRepository
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
+import com.loopers.domain.product.support.ProductSteps.Companion.상품_수정_커맨드
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -64,5 +65,37 @@ class ProductFacadeIntegrationTest
             assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)
             assertThat(productJpaRepository.count()).isZero()
             assertThat(productStockJpaRepository.count()).isZero()
+        }
+
+        @Test
+        fun `상품_수정_중_예외가_발생하면_기존_값이_유지된다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val product = productFacade.registerProduct(상품_등록_커맨드(brandId = brand.id))
+
+            val ex = assertThrows<CoreException> {
+                productFacade.updateProduct(
+                    productId = product.id,
+                    command = 상품_수정_커맨드(name = "수정 상품", price = -1),
+                )
+            }
+
+            val saved = productJpaRepository.findById(product.id).orElseThrow()
+            assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            assertThat(saved.productName).isEqualTo("기본 상품")
+            assertThat(saved.price).isEqualTo(10_000)
+        }
+
+        @Test
+        fun `상품_삭제_중_예외가_발생하면_기존_상품이_유지된다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val product = productFacade.registerProduct(상품_등록_커맨드(brandId = brand.id))
+
+            val ex = assertThrows<CoreException> {
+                productFacade.deleteProduct(product.id + 1_000)
+            }
+
+            val saved = productJpaRepository.findById(product.id).orElseThrow()
+            assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(saved.deletedAt).isNull()
         }
     }

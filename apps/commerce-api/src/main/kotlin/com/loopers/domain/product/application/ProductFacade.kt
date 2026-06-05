@@ -34,11 +34,13 @@ class ProductFacade(
         return ProductInfo.from(product)
     }
 
+    @Transactional
     fun updateProduct(
         productId: Long,
         command: ProductUpdateCommand,
     ): ProductInfo = productService.update(productId, command).let { ProductInfo.from(it) }
 
+    @Transactional
     fun deleteProduct(productId: Long) {
         productService.softDelete(productId)
     }

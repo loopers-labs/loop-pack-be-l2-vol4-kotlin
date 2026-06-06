@@ -8,7 +8,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import org.hibernate.annotations.SQLRestriction
-import java.time.ZonedDateTime
+import java.time.LocalDateTime
 
 @Entity
 @SQLRestriction("deleted_at IS NULL")
@@ -28,7 +28,7 @@ class CouponTemplateEntity(
     var minOrderAmount: Long,
 
     @Column(name = "expired_at", nullable = false)
-    var expiredAt: ZonedDateTime,
+    var expiredAt: LocalDateTime,
 ) : BaseEntity() {
     fun toDomain(): CouponTemplate = CouponTemplate(
         id = id,

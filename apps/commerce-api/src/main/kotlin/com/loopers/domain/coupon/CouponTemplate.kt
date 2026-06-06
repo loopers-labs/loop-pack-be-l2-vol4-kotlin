@@ -1,6 +1,6 @@
 package com.loopers.domain.coupon
 
-import java.time.ZonedDateTime
+import java.time.LocalDateTime
 
 /**
  * 쿠폰 템플릿 (관리자가 등록하는 쿠폰의 정의).
@@ -12,7 +12,7 @@ data class CouponTemplate(
     val type: CouponType,
     val value: Long,
     val minOrderAmount: Long = 0L,
-    val expiredAt: ZonedDateTime,
+    val expiredAt: LocalDateTime,
 ) {
     init {
         require(name.isNotBlank()) { "쿠폰 이름은 비어 있을 수 없습니다." }
@@ -43,7 +43,7 @@ data class CouponTemplate(
      * - 만료되지 않았고
      * - 최소 주문 금액 조건을 만족하는 경우 true.
      */
-    fun isApplicableTo(orderAmount: Long, now: ZonedDateTime): Boolean {
+    fun isApplicableTo(orderAmount: Long, now: LocalDateTime): Boolean {
         if (now.isAfter(expiredAt)) return false
         return orderAmount >= minOrderAmount
     }
@@ -54,7 +54,7 @@ data class CouponTemplate(
             type: CouponType,
             value: Long,
             minOrderAmount: Long = 0L,
-            expiredAt: ZonedDateTime,
+            expiredAt: LocalDateTime,
         ): CouponTemplate = CouponTemplate(
             name = name,
             type = type,

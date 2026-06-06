@@ -5,17 +5,17 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import java.time.ZonedDateTime
+import java.time.LocalDateTime
 
 class CouponTemplateTest {
-    private val expiredAt = ZonedDateTime.parse("2026-12-31T23:59:59+09:00[Asia/Seoul]")
+    private val expiredAt = LocalDateTime.parse("2026-12-31T23:59:59")
 
     private fun template(
         name: String = "테스트 쿠폰",
         type: CouponType = CouponType.FIXED,
         value: Long = 1_000L,
         minOrderAmount: Long = 0L,
-        expiredAt: ZonedDateTime = this.expiredAt,
+        expiredAt: LocalDateTime = this.expiredAt,
     ): CouponTemplate = CouponTemplate(
         name = name,
         type = type,
@@ -95,7 +95,7 @@ class CouponTemplateTest {
     @DisplayName("isApplicableTo(orderAmount, now)")
     @Nested
     inner class IsApplicableTo {
-        private val now = ZonedDateTime.parse("2026-06-01T12:00:00+09:00[Asia/Seoul]")
+        private val now = LocalDateTime.parse("2026-06-01T12:00:00")
 
         @DisplayName("만료 시각이 지나면 false 를 반환한다.")
         @Test

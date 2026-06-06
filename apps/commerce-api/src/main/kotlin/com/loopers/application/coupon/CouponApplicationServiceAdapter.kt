@@ -1,0 +1,23 @@
+package com.loopers.application.coupon
+
+import com.loopers.domain.coupon.CouponTemplateService
+import com.loopers.interfaces.api.coupon.CouponAdminApplicationServicePort
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+@Service
+class CouponApplicationServiceAdapter(
+    private val couponTemplateService: CouponTemplateService,
+) : CouponAdminApplicationServicePort {
+    @Transactional
+    override fun createCoupon(command: CreateCouponCommand): CouponResult {
+        val couponTemplate = couponTemplateService.create(
+            name = command.name,
+            type = command.type,
+            value = command.value,
+            minOrderAmount = command.minOrderAmount,
+            expiredAt = command.expiredAt,
+        )
+        return CouponResult.from(couponTemplate)
+    }
+}

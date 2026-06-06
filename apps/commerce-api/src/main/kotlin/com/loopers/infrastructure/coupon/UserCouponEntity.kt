@@ -9,7 +9,7 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import org.hibernate.annotations.SQLRestriction
-import java.time.ZonedDateTime
+import java.time.LocalDateTime
 
 @Entity
 @SQLRestriction("deleted_at IS NULL")
@@ -32,10 +32,10 @@ class UserCouponEntity(
     var status: PersistedCouponStatus,
 
     @Column(name = "issued_at", nullable = false)
-    val issuedAt: ZonedDateTime,
+    val issuedAt: LocalDateTime,
 
     @Column(name = "used_at")
-    var usedAt: ZonedDateTime?,
+    var usedAt: LocalDateTime?,
 ) : BaseEntity() {
     fun toDomain(): UserCoupon = UserCoupon(
         id = id,

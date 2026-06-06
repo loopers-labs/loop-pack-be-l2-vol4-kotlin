@@ -7,17 +7,17 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
-import java.time.ZonedDateTime
+import java.time.LocalDateTime
 
 class UserCouponTest {
-    private val issuedAt = ZonedDateTime.parse("2026-06-01T12:00:00+09:00[Asia/Seoul]")
-    private val now = ZonedDateTime.parse("2026-06-02T12:00:00+09:00[Asia/Seoul]")
+    private val issuedAt = LocalDateTime.parse("2026-06-01T12:00:00")
+    private val now = LocalDateTime.parse("2026-06-02T12:00:00")
 
     private fun userCoupon(
         couponTemplateId: Long = 1L,
         userId: Long = 1L,
         status: CouponStatus = CouponStatus.AVAILABLE,
-        usedAt: ZonedDateTime? = null,
+        usedAt: LocalDateTime? = null,
     ): UserCoupon = UserCoupon(
         couponTemplateId = couponTemplateId,
         userId = userId,

@@ -105,6 +105,11 @@ class ApiControllerAdvice {
     }
 
     @ExceptionHandler
+    fun handleBadRequest(e: IllegalArgumentException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = e.message)
+    }
+
+    @ExceptionHandler
     fun handle(e: Throwable): ResponseEntity<ApiResponse<*>> {
         log.error("Exception : {}", e.message, e)
         val errorType = ErrorType.INTERNAL_ERROR

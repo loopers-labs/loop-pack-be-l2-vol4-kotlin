@@ -1,8 +1,11 @@
 package com.loopers.application.coupon
 
+import com.loopers.domain.coupon.CouponStatus
 import com.loopers.domain.coupon.CouponTemplate
 import com.loopers.domain.coupon.CouponTemplateService
 import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.UserCoupon
+import com.loopers.domain.coupon.UserCouponService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -15,6 +18,7 @@ import java.time.LocalDateTime
 class CouponApplicationServiceAdapterTest {
 
     private lateinit var couponTemplateService: CouponTemplateService
+    private lateinit var userCouponService: UserCouponService
     private lateinit var couponApplicationService: CouponApplicationServiceAdapter
 
     private val expiredAt = LocalDateTime.parse("2026-12-31T23:59:59")
@@ -22,7 +26,40 @@ class CouponApplicationServiceAdapterTest {
     @BeforeEach
     fun setUp() {
         couponTemplateService = mockk()
-        couponApplicationService = CouponApplicationServiceAdapter(couponTemplateService)
+        userCouponService = mockk()
+        couponApplicationService = CouponApplicationServiceAdapter(couponTemplateService, userCouponService)
+    }
+
+    @DisplayName("issueCoupon은 템플릿을 조회한 뒤 발급 서비스에 위임하고, 결과를 UserCouponResult로 매핑한다.")
+    @Test
+    fun issueCoupon_delegatesAndMapsResult() {
+        val template = CouponTemplate(
+            id = 4L,
+            name = "1만원 할인",
+            type = CouponType.FIXED,
+            value = 10_000L,
+            minOrderAmount = 30_000L,
+            expiredAt = expiredAt,
+        )
+        val issued = UserCoupon(
+            id = 11L,
+            couponTemplateId = 4L,
+            userId = 9L,
+            status = CouponStatus.AVAILABLE,
+            issuedAt = LocalDateTime.parse("2026-06-07T10:00:00"),
+            usedAt = null,
+        )
+        every { couponTemplateService.getById(4L) } returns template
+        every { userCouponService.issue(template, 9L, any()) } returns issued
+
+        val result = couponApplicationService.issueCoupon(userId = 9L, couponId = 4L)
+
+        assertThat(result.id).isEqualTo(11L)
+        assertThat(result.couponTemplateId).isEqualTo(4L)
+        assertThat(result.userId).isEqualTo(9L)
+        assertThat(result.status).isEqualTo(CouponStatus.AVAILABLE)
+        verify(exactly = 1) { couponTemplateService.getById(4L) }
+        verify(exactly = 1) { userCouponService.issue(template, 9L, any()) }
     }
 
     @DisplayName("createCoupon은 command 값으로 도메인 서비스를 호출하고, 결과를 CouponResult로 매핑한다.")

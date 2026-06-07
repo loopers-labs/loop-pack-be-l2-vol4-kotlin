@@ -3,14 +3,26 @@ package com.loopers.application.coupon
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.coupon.CouponTemplateService
+import com.loopers.domain.coupon.UserCouponService
 import com.loopers.interfaces.api.coupon.CouponAdminApplicationServicePort
+import com.loopers.interfaces.api.coupon.CouponApplicationServicePort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDateTime
 
 @Service
 class CouponApplicationServiceAdapter(
     private val couponTemplateService: CouponTemplateService,
-) : CouponAdminApplicationServicePort {
+    private val userCouponService: UserCouponService,
+) : CouponAdminApplicationServicePort,
+    CouponApplicationServicePort {
+    @Transactional
+    override fun issueCoupon(userId: Long, couponId: Long): UserCouponResult {
+        val template = couponTemplateService.getById(couponId)
+        val userCoupon = userCouponService.issue(template, userId, LocalDateTime.now())
+        return UserCouponResult.from(userCoupon)
+    }
+
     @Transactional
     override fun createCoupon(command: CreateCouponCommand): CouponResult {
         val couponTemplate = couponTemplateService.create(

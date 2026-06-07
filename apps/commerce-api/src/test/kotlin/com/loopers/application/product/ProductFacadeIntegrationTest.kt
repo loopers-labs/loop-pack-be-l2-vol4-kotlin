@@ -172,6 +172,58 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         }
     }
 
+    @DisplayName("상품 수정 시, ")
+    @Nested
+    inner class UpdateProduct {
+        @DisplayName("상품 정보를 수정하고 기존 재고 정보를 함께 반환한다.")
+        @Test
+        fun updateProduct_returnsUpdatedProductWithStock() {
+            // arrange
+            val brand = brandJpaRepository.save(newBrandJpaEntity(name = "Loopers"))
+            val product = saveProductWithStock(brandId = brand.id, stock = 7)
+
+            // act
+            val updated = productFacade.updateProduct(
+                productId = product.id,
+                name = "Loopers Hoodie",
+                description = "따뜻한 후드",
+                price = 30_000L,
+            )
+
+            // assert
+            assertAll(
+                { assertThat(updated.id).isEqualTo(product.id) },
+                { assertThat(updated.name).isEqualTo("Loopers Hoodie") },
+                { assertThat(updated.description).isEqualTo("따뜻한 후드") },
+                { assertThat(updated.price).isEqualTo(30_000L) },
+                { assertThat(updated.stock).isEqualTo(7) },
+            )
+        }
+    }
+
+    @DisplayName("상품 삭제 시, ")
+    @Nested
+    inner class DeleteProduct {
+        @DisplayName("상품과 재고를 함께 soft delete 처리한다.")
+        @Test
+        fun deleteProduct_deletesProductAndStock() {
+            // arrange
+            val brand = brandJpaRepository.save(newBrandJpaEntity(name = "Loopers"))
+            val product = saveProductWithStock(brandId = brand.id, stock = 7)
+
+            // act
+            productFacade.deleteProduct(product.id)
+
+            // assert
+            val deletedProduct = productJpaRepository.findById(product.id).orElseThrow()
+            val activeStock = stockJpaRepository.findByProductIdAndDeletedAtIsNull(product.id)
+            assertAll(
+                { assertThat(deletedProduct.deletedAt).isNotNull() },
+                { assertThat(activeStock).isNull() },
+            )
+        }
+    }
+
     private fun newBrandJpaEntity(
         name: String = "Loopers",
         description: String = "감성 이커머스 브랜드",

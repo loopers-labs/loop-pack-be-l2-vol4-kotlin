@@ -2,6 +2,7 @@ package com.loopers.application.product
 
 import com.loopers.application.brand.BrandInfo
 import com.loopers.domain.product.Product
+import com.loopers.domain.stock.Stock
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 
@@ -16,16 +17,16 @@ data class ProductInfo(
     val soldOut: Boolean,
 ) {
     companion object {
-        fun from(product: Product): ProductInfo {
+        fun from(product: Product, stock: Stock): ProductInfo {
             return ProductInfo(
                 id = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다."),
                 brandId = product.brandId,
                 name = product.name,
                 description = product.description,
                 price = product.price.amount,
-                stock = product.stock.value,
+                stock = stock.quantity,
                 likeCount = product.likeCount,
-                soldOut = product.isSoldOut(),
+                soldOut = stock.isSoldOut(),
             )
         }
     }
@@ -41,7 +42,7 @@ data class ProductSummaryInfo(
     val soldOut: Boolean,
 ) {
     companion object {
-        fun from(product: Product, brandName: String): ProductSummaryInfo {
+        fun from(product: Product, brandName: String, stock: Stock): ProductSummaryInfo {
             return ProductSummaryInfo(
                 id = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다."),
                 brandId = product.brandId,
@@ -49,7 +50,7 @@ data class ProductSummaryInfo(
                 name = product.name,
                 price = product.price.amount,
                 likeCount = product.likeCount,
-                soldOut = product.isSoldOut(),
+                soldOut = stock.isSoldOut(),
             )
         }
     }

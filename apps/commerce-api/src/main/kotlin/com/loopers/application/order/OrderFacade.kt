@@ -1,13 +1,13 @@
 package com.loopers.application.order
 
 import com.loopers.application.product.ProductApplicationService
+import com.loopers.application.stock.StockApplicationService
 import com.loopers.application.user.UserApplicationService
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderItemPrice
 import com.loopers.domain.order.OrderQuantity
 import com.loopers.domain.order.ProductSnapshot
 import com.loopers.domain.product.Product
-import com.loopers.domain.product.StockQuantity
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional
 class OrderFacade(
     private val orderApplicationService: OrderApplicationService,
     private val productApplicationService: ProductApplicationService,
+    private val stockApplicationService: StockApplicationService,
     private val userApplicationService: UserApplicationService,
 ) {
     @Transactional
@@ -27,9 +28,9 @@ class OrderFacade(
             val product = productApplicationService.getProduct(itemCommand.productId)
             val quantity = OrderQuantity(itemCommand.quantity)
 
-            productApplicationService.deductStock(
-                id = product.idOrThrow(),
-                quantity = StockQuantity(quantity.value),
+            stockApplicationService.deduct(
+                productId = product.idOrThrow(),
+                amount = quantity.value,
             )
 
             product.toOrderItem(quantity)

@@ -6,6 +6,9 @@ import com.loopers.domain.common.PageResult
 interface CouponTemplateRepositoryPort {
     fun save(couponTemplate: CouponTemplate): CouponTemplate
     fun findById(id: Long): CouponTemplate?
+
+    /** 주어진 id 집합에 해당하는(삭제되지 않은) 템플릿을 일괄 조회한다. */
+    fun findByIds(ids: Set<Long>): List<CouponTemplate>
     fun findAll(pageRequest: PageRequest): PageResult<CouponTemplate>
 
     /** 템플릿을 삭제하고, 실제로 삭제된 row 수를 반환한다(0이면 미존재 또는 이미 삭제됨). */

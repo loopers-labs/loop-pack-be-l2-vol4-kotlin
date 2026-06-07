@@ -23,6 +23,19 @@ class CouponApplicationServiceAdapter(
         return UserCouponResult.from(userCoupon)
     }
 
+    @Transactional(readOnly = true)
+    override fun getMyCoupons(userId: Long): List<MyCouponResult> {
+        val userCoupons = userCouponService.getByUserId(userId)
+        if (userCoupons.isEmpty()) return emptyList()
+
+        val now = LocalDateTime.now()
+        val templates = couponTemplateService.getByIds(userCoupons.map { it.couponTemplateId }.toSet())
+        return userCoupons.mapNotNull { userCoupon ->
+            val template = templates[userCoupon.couponTemplateId] ?: return@mapNotNull null
+            MyCouponResult.of(userCoupon, template, now)
+        }
+    }
+
     @Transactional
     override fun createCoupon(command: CreateCouponCommand): CouponResult {
         val couponTemplate = couponTemplateService.create(

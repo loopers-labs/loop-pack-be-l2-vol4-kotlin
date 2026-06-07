@@ -15,6 +15,10 @@ class UserCouponService(
         userCouponRepositoryPort.findById(id)
             ?: throw CoreException(ErrorType.NOT_FOUND, "발급된 쿠폰을 찾을 수 없습니다.")
 
+    /** 해당 사용자가 발급받은 쿠폰 전체를 최근 발급순으로 반환한다. */
+    fun getByUserId(userId: Long): List<UserCoupon> =
+        userCouponRepositoryPort.findAllByUserId(userId)
+
     /**
      * 쿠폰 템플릿을 사용자에게 발급한다(AVAILABLE).
      * - 만료된 템플릿은 발급할 수 없다(BAD_REQUEST).

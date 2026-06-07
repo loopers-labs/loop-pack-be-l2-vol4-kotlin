@@ -132,6 +132,47 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
+    @DisplayName("findByIds를 호출할 때, ")
+    @Nested
+    inner class FindByIds {
+        @DisplayName("주어진 id 집합에 해당하는 템플릿만 반환한다(미존재 id는 무시).")
+        @Test
+        fun returnsMatchingTemplates() {
+            val a = couponTemplateRepositoryPort.save(
+                CouponTemplate.create("A", CouponType.FIXED, 1_000L, 0L, expiredAt),
+            )
+            val b = couponTemplateRepositoryPort.save(
+                CouponTemplate.create("B", CouponType.FIXED, 2_000L, 0L, expiredAt),
+            )
+
+            val found = couponTemplateRepositoryPort.findByIds(setOf(a.id, b.id, 9999L))
+
+            assertThat(found.map { it.id }).containsExactlyInAnyOrder(a.id, b.id)
+        }
+
+        @DisplayName("소프트 삭제된 템플릿은 결과에 포함되지 않는다.")
+        @Test
+        fun excludesSoftDeleted() {
+            val a = couponTemplateRepositoryPort.save(
+                CouponTemplate.create("A", CouponType.FIXED, 1_000L, 0L, expiredAt),
+            )
+            val deleted = couponTemplateRepositoryPort.save(
+                CouponTemplate.create("B", CouponType.FIXED, 2_000L, 0L, expiredAt),
+            )
+            couponTemplateRepositoryPort.delete(deleted.id)
+
+            val found = couponTemplateRepositoryPort.findByIds(setOf(a.id, deleted.id))
+
+            assertThat(found.map { it.id }).containsExactly(a.id)
+        }
+
+        @DisplayName("빈 집합으로 호출하면 빈 목록을 반환한다.")
+        @Test
+        fun returnsEmpty_whenIdsEmpty() {
+            assertThat(couponTemplateRepositoryPort.findByIds(emptySet())).isEmpty()
+        }
+    }
+
     @DisplayName("delete를 호출할 때, ")
     @Nested
     inner class Delete {

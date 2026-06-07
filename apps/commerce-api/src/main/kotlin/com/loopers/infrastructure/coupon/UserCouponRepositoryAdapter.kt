@@ -16,4 +16,7 @@ class UserCouponRepositoryAdapter(
 
     override fun existsByUserIdAndCouponTemplateId(userId: Long, couponTemplateId: Long): Boolean =
         userCouponJpaRepository.existsByUserIdAndCouponTemplateId(userId, couponTemplateId)
+
+    override fun findAllByUserId(userId: Long): List<UserCoupon> =
+        userCouponJpaRepository.findAllByUserIdOrderByIdDesc(userId).map { it.toDomain() }
 }

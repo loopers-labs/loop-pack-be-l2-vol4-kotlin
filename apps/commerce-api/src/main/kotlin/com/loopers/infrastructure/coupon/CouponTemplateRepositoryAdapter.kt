@@ -37,6 +37,11 @@ class CouponTemplateRepositoryAdapter(
     override fun findById(id: Long): CouponTemplate? =
         couponTemplateJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
+    override fun findByIds(ids: Set<Long>): List<CouponTemplate> {
+        if (ids.isEmpty()) return emptyList()
+        return couponTemplateJpaRepository.findAllById(ids).map { it.toDomain() }
+    }
+
     override fun delete(id: Long): Int =
         couponTemplateJpaRepository.softDeleteById(id, ZonedDateTime.now())
 

@@ -72,6 +72,37 @@ class UserCouponRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
+    @DisplayName("findAllByUserId를 호출할 때, ")
+    @Nested
+    inner class FindAllByUserId {
+        @DisplayName("해당 사용자의 발급 쿠폰만 최근 발급순(id 내림차순)으로 반환한다.")
+        @Test
+        fun returnsOnlyOwnCouponsInDescOrder() {
+            val first = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 9L, issuedAt = issuedAt),
+            )
+            val second = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 2L, userId = 9L, issuedAt = issuedAt),
+            )
+            // 다른 사용자의 쿠폰
+            userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 8L, issuedAt = issuedAt),
+            )
+
+            val found = userCouponRepositoryPort.findAllByUserId(9L)
+
+            assertThat(found).hasSize(2)
+            assertThat(found.map { it.id }).containsExactly(second.id, first.id)
+            assertThat(found.map { it.userId }).containsOnly(9L)
+        }
+
+        @DisplayName("발급 쿠폰이 없으면 빈 목록을 반환한다.")
+        @Test
+        fun returnsEmpty_whenNoCoupons() {
+            assertThat(userCouponRepositoryPort.findAllByUserId(9L)).isEmpty()
+        }
+    }
+
     @DisplayName("findById를 호출할 때, 존재하지 않으면 null을 반환한다.")
     @Test
     fun findById_returnsNull_whenMissing() {

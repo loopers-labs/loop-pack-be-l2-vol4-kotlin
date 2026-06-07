@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.coupon
 
+import com.loopers.application.coupon.MyCouponResult
 import com.loopers.application.coupon.UserCouponResult
 
 /**
@@ -8,4 +9,7 @@ import com.loopers.application.coupon.UserCouponResult
  */
 interface CouponApplicationServicePort {
     fun issueCoupon(userId: Long, couponId: Long): UserCouponResult
+
+    /** 사용자가 발급받은 쿠폰 목록을 상태(조회 시점 만료 반영)와 함께 반환한다. */
+    fun getMyCoupons(userId: Long): List<MyCouponResult>
 }

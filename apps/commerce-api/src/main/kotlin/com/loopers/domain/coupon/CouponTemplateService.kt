@@ -20,6 +20,10 @@ class CouponTemplateService(
     fun getAll(pageRequest: PageRequest): PageResult<CouponTemplate> =
         couponTemplateRepositoryPort.findAll(pageRequest)
 
+    /** 주어진 id 집합에 해당하는 템플릿을 id → 템플릿 Map 으로 반환한다(삭제/미존재 id는 제외). */
+    fun getByIds(ids: Set<Long>): Map<Long, CouponTemplate> =
+        couponTemplateRepositoryPort.findByIds(ids).associateBy { it.id }
+
     fun create(
         name: String,
         type: CouponType,

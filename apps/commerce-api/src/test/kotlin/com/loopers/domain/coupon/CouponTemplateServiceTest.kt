@@ -132,4 +132,28 @@ class CouponTemplateServiceTest {
             verify(exactly = 0) { couponTemplateRepositoryPort.save(any()) }
         }
     }
+
+    @DisplayName("delete를 호출할 때, ")
+    @Nested
+    inner class Delete {
+        @DisplayName("Repository.delete가 1(삭제됨)을 반환하면, 예외 없이 정상 종료한다.")
+        @Test
+        fun succeeds_whenRowDeleted() {
+            every { couponTemplateRepositoryPort.delete(1L) } returns 1
+
+            couponTemplateService.delete(1L)
+
+            verify(exactly = 1) { couponTemplateRepositoryPort.delete(1L) }
+        }
+
+        @DisplayName("Repository.delete가 0(삭제된 row 없음)을 반환하면, NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFound_whenNoRowDeleted() {
+            every { couponTemplateRepositoryPort.delete(9999L) } returns 0
+
+            val result = assertThrows<CoreException> { couponTemplateService.delete(9999L) }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
 }

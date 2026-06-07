@@ -11,4 +11,5 @@ interface CouponAdminApplicationServicePort {
     fun getCoupons(pageRequest: PageRequest): PageResult<CouponResult>
     fun getCoupon(id: Long): CouponResult
     fun updateCoupon(command: UpdateCouponCommand): CouponResult
+    fun deleteCoupon(id: Long)
 }

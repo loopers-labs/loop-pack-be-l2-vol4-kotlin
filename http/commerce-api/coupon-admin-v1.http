@@ -164,3 +164,18 @@ Content-Type: application/json
   "value": 1000,
   "expiredAt": "2026-12-31T23:59:59"
 }
+
+### 어드민: 쿠폰 템플릿 삭제 — 정상 (200)
+DELETE {{commerce-api}}/api-admin/v1/coupons/1
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 쿠폰 템플릿 삭제 — 미존재 ID (404)
+DELETE {{commerce-api}}/api-admin/v1/coupons/999999
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 쿠폰 템플릿 삭제 — 이미 삭제된 템플릿 재삭제 (404, 멱등 아님)
+DELETE {{commerce-api}}/api-admin/v1/coupons/1
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 쿠폰 템플릿 삭제 — 어드민 헤더 누락 (403)
+DELETE {{commerce-api}}/api-admin/v1/coupons/1

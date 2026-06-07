@@ -95,4 +95,14 @@ class CouponApplicationServiceAdapterTest {
         assertThat(result.expiredAt).isEqualTo(expiredAt)
         verify(exactly = 1) { couponTemplateService.getById(3L) }
     }
+
+    @DisplayName("deleteCoupon은 도메인 서비스의 delete를 id로 위임 호출한다.")
+    @Test
+    fun deleteCoupon_delegatesToService() {
+        every { couponTemplateService.delete(5L) } returns Unit
+
+        couponApplicationService.deleteCoupon(5L)
+
+        verify(exactly = 1) { couponTemplateService.delete(5L) }
+    }
 }

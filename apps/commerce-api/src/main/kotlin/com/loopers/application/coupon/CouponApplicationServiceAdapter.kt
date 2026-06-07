@@ -51,4 +51,9 @@ class CouponApplicationServiceAdapter(
         )
         return CouponResult.from(couponTemplate)
     }
+
+    @Transactional
+    override fun deleteCoupon(id: Long) {
+        couponTemplateService.delete(id)
+    }
 }

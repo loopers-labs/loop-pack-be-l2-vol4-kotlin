@@ -55,4 +55,11 @@ class CouponTemplateService(
         )
         return couponTemplateRepositoryPort.save(updated)
     }
+
+    fun delete(id: Long) {
+        val deletedCount = couponTemplateRepositoryPort.delete(id)
+        if (deletedCount == 0) {
+            throw CoreException(ErrorType.NOT_FOUND, "쿠폰 템플릿을 찾을 수 없습니다.")
+        }
+    }
 }

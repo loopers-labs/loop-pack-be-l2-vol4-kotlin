@@ -9,6 +9,7 @@ import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.PageRequest as SpringPageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
+import java.time.ZonedDateTime
 
 @Component
 class CouponTemplateRepositoryAdapter(
@@ -35,6 +36,9 @@ class CouponTemplateRepositoryAdapter(
 
     override fun findById(id: Long): CouponTemplate? =
         couponTemplateJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
+
+    override fun delete(id: Long): Int =
+        couponTemplateJpaRepository.softDeleteById(id, ZonedDateTime.now())
 
     override fun findAll(pageRequest: PageRequest): PageResult<CouponTemplate> {
         val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.DESC, "id"))

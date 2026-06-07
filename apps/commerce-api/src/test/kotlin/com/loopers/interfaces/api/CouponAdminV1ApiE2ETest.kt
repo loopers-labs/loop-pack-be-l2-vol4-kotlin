@@ -93,6 +93,19 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun delete(
+        id: Long,
+        ldap: String? = ADMIN_LDAP,
+    ): ResponseEntity<ApiResponse<Any>> {
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Any>>() {}
+        return testRestTemplate.exchange(
+            "$ADMIN_COUPON_ENDPOINT/$id",
+            HttpMethod.DELETE,
+            HttpEntity<Void>(headers(ldap = ldap)),
+            responseType,
+        )
+    }
+
     private fun createAndGetId(
         body: Map<String, Any?>,
     ): Long {
@@ -494,6 +507,86 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
                 ),
                 ldap = null,
             )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+    }
+
+    @DisplayName("DELETE /api-admin/v1/coupons/{id}")
+    @Nested
+    inner class DeleteCoupon {
+
+        @DisplayName("어드민이 등록된 템플릿을 삭제하면, 2xx 응답을 받고 이후 단건 조회는 404가 된다.")
+        @Test
+        fun deletesCoupon_andGetReturnsNotFound() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "삭제 대상",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            val deleteResponse = delete(id)
+
+            assertAll(
+                { assertThat(deleteResponse.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(getCoupon(id).statusCode).isEqualTo(HttpStatus.NOT_FOUND) },
+            )
+        }
+
+        @DisplayName("삭제된 템플릿은 목록 조회에서도 제외된다.")
+        @Test
+        fun excludesDeletedFromList() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "삭제 대상",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            delete(id)
+
+            val data = getCoupons().body?.data
+            assertAll(
+                { assertThat(data?.get("items") as? List<*>).isEmpty() },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 id를 삭제하면, 404 NOT_FOUND 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenMissing() {
+            val response = delete(9999L)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("이미 삭제된 템플릿을 다시 삭제하면, 404 NOT_FOUND 응답을 받는다(멱등 아님).")
+        @Test
+        fun returnsNotFound_whenAlreadyDeleted() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "삭제 대상",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+            delete(id)
+
+            val response = delete(id)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenLdapHeaderMissing() {
+            val response = delete(1L, ldap = null)
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }

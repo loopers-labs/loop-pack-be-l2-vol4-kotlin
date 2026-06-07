@@ -5,6 +5,7 @@ import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.common.PageView
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -60,6 +61,16 @@ class CouponAdminController(
         verifyAdmin(ldap)
         val result = couponApplicationService.updateCoupon(request.toCommand(id))
         return ApiResponse.success(CouponAdminV1Dto.CouponResponse.from(result))
+    }
+
+    @DeleteMapping("/{id}")
+    fun deleteCoupon(
+        @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
+        @PathVariable id: Long,
+    ): ApiResponse<Any> {
+        verifyAdmin(ldap)
+        couponApplicationService.deleteCoupon(id)
+        return ApiResponse.success()
     }
 
     private fun verifyAdmin(ldap: String?) {

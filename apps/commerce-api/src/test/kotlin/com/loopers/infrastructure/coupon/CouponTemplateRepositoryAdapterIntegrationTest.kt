@@ -132,6 +132,53 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         }
     }
 
+    @DisplayName("delete를 호출할 때, ")
+    @Nested
+    inner class Delete {
+        @DisplayName("저장된 템플릿을 삭제하면, 1을 반환하고 소프트 삭제되어 더 이상 findById로 조회되지 않는다.")
+        @Test
+        fun softDeletesAndReturnsOne_whenExists() {
+            val saved = couponTemplateRepositoryPort.save(
+                CouponTemplate.create(
+                    name = "삭제 대상",
+                    type = CouponType.FIXED,
+                    value = 1_000L,
+                    minOrderAmount = 0L,
+                    expiredAt = expiredAt,
+                ),
+            )
+
+            val deletedCount = couponTemplateRepositoryPort.delete(saved.id)
+
+            assertThat(deletedCount).isEqualTo(1)
+            assertThat(couponTemplateRepositoryPort.findById(saved.id)).isNull()
+            assertThat(couponTemplateJpaRepository.findById(saved.id)).isEmpty
+        }
+
+        @DisplayName("존재하지 않는 id로 삭제하면, 0을 반환한다.")
+        @Test
+        fun returnsZero_whenMissing() {
+            assertThat(couponTemplateRepositoryPort.delete(9999L)).isEqualTo(0)
+        }
+
+        @DisplayName("이미 삭제된 템플릿을 다시 삭제하면, 0을 반환한다(멱등 아님은 상위 계층에서 NOT_FOUND로 처리).")
+        @Test
+        fun returnsZero_whenAlreadyDeleted() {
+            val saved = couponTemplateRepositoryPort.save(
+                CouponTemplate.create(
+                    name = "삭제 대상",
+                    type = CouponType.FIXED,
+                    value = 1_000L,
+                    minOrderAmount = 0L,
+                    expiredAt = expiredAt,
+                ),
+            )
+            couponTemplateRepositoryPort.delete(saved.id)
+
+            assertThat(couponTemplateRepositoryPort.delete(saved.id)).isEqualTo(0)
+        }
+    }
+
     @DisplayName("findAll을 호출할 때, ")
     @Nested
     inner class FindAll {

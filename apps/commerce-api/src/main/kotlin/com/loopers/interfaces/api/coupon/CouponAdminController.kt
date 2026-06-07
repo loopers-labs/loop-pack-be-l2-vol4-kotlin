@@ -1,12 +1,16 @@
 package com.loopers.interfaces.api.coupon
 
+import com.loopers.domain.common.PageRequest
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.common.PageView
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -14,6 +18,17 @@ import org.springframework.web.bind.annotation.RestController
 class CouponAdminController(
     private val couponApplicationService: CouponAdminApplicationServicePort,
 ) {
+    @GetMapping
+    fun getCoupons(
+        @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
+        @RequestParam(name = "page", defaultValue = "0") page: Int,
+        @RequestParam(name = "size", defaultValue = "20") size: Int,
+    ): ApiResponse<PageView<CouponAdminV1Dto.CouponResponse>> {
+        verifyAdmin(ldap)
+        val result = couponApplicationService.getCoupons(PageRequest(page = page, size = size))
+        return ApiResponse.success(PageView.from(result, CouponAdminV1Dto.CouponResponse::from))
+    }
+
     @PostMapping
     fun createCoupon(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,

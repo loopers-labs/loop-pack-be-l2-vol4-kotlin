@@ -52,6 +52,73 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun getCoupons(
+        page: Int = 0,
+        size: Int = 20,
+        ldap: String? = ADMIN_LDAP,
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "$ADMIN_COUPON_ENDPOINT?page=$page&size=$size",
+            HttpMethod.GET,
+            HttpEntity<Void>(headers(ldap = ldap)),
+            responseType,
+        )
+    }
+
+    @DisplayName("GET /api-admin/v1/coupons")
+    @Nested
+    inner class GetCoupons {
+
+        @DisplayName("등록된 템플릿이 없으면, 빈 목록과 totalElements=0의 페이지를 반환한다.")
+        @Test
+        fun returnsEmptyPage_whenNoTemplates() {
+            val response = getCoupons()
+
+            val data = response.body?.data
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(data?.get("items") as? List<*>).isEmpty() },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("여러 건 등록 후 조회하면, 페이지 크기·총개수가 맞고 최신(id DESC) 순으로 반환한다.")
+        @Test
+        fun returnsPagedCoupons_sortedByIdDesc() {
+            repeat(3) { index ->
+                create(
+                    mapOf(
+                        "name" to "쿠폰 $index",
+                        "type" to "FIXED",
+                        "value" to 1_000,
+                        "expiredAt" to "2026-12-31T23:59:59",
+                    ),
+                )
+            }
+
+            val response = getCoupons(page = 0, size = 2)
+
+            val data = response.body?.data
+            val items = data?.get("items") as? List<*>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(items).hasSize(2) },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(3L) },
+                { assertThat((data?.get("totalPages") as? Number)?.toInt()).isEqualTo(2) },
+                { assertThat((items?.first() as? Map<*, *>)?.get("name")).isEqualTo("쿠폰 2") },
+            )
+        }
+
+        @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenLdapHeaderMissing() {
+            val response = getCoupons(ldap = null)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+    }
+
     @DisplayName("POST /api-admin/v1/coupons")
     @Nested
     inner class CreateCoupon {

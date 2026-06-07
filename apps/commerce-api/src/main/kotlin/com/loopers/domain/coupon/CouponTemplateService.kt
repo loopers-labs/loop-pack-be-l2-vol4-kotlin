@@ -1,5 +1,7 @@
 package com.loopers.domain.coupon
 
+import com.loopers.domain.common.PageRequest
+import com.loopers.domain.common.PageResult
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.time.LocalDateTime
@@ -14,6 +16,9 @@ class CouponTemplateService(
     fun getById(id: Long): CouponTemplate =
         couponTemplateRepositoryPort.findById(id)
             ?: throw CoreException(ErrorType.NOT_FOUND, "쿠폰 템플릿을 찾을 수 없습니다.")
+
+    fun getAll(pageRequest: PageRequest): PageResult<CouponTemplate> =
+        couponTemplateRepositoryPort.findAll(pageRequest)
 
     fun create(
         name: String,

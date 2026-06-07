@@ -1,5 +1,6 @@
 package com.loopers.infrastructure.coupon
 
+import com.loopers.domain.common.PageRequest
 import com.loopers.domain.coupon.CouponTemplate
 import com.loopers.domain.coupon.CouponTemplateRepositoryPort
 import com.loopers.domain.coupon.CouponType
@@ -77,6 +78,49 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsNull_whenMissing() {
             assertThat(couponTemplateRepositoryPort.findById(9999L)).isNull()
+        }
+    }
+
+    @DisplayName("findAll을 호출할 때, ")
+    @Nested
+    inner class FindAll {
+        @DisplayName("등록된 템플릿이 없으면, 빈 목록과 totalElements=0을 반환한다.")
+        @Test
+        fun returnsEmpty_whenNoTemplates() {
+            val result = couponTemplateRepositoryPort.findAll(PageRequest(page = 0, size = 20))
+
+            assertThat(result.items).isEmpty()
+            assertThat(result.totalElements).isEqualTo(0L)
+            assertThat(result.totalPages).isEqualTo(0)
+        }
+
+        @DisplayName("여러 건 등록 후 조회하면, 페이지 크기·총개수가 맞고 id 내림차순으로 정렬된다.")
+        @Test
+        fun returnsPagedAndSortedByIdDesc() {
+            repeat(25) { index ->
+                couponTemplateRepositoryPort.save(
+                    CouponTemplate.create(
+                        name = "쿠폰 $index",
+                        type = CouponType.FIXED,
+                        value = 1_000L,
+                        minOrderAmount = 0L,
+                        expiredAt = expiredAt,
+                    ),
+                )
+            }
+
+            val firstPage = couponTemplateRepositoryPort.findAll(PageRequest(page = 0, size = 20))
+
+            assertThat(firstPage.items).hasSize(20)
+            assertThat(firstPage.totalElements).isEqualTo(25L)
+            assertThat(firstPage.totalPages).isEqualTo(2)
+            val ids = firstPage.items.map { it.id }
+            assertThat(ids).isSortedAccordingTo(Comparator.reverseOrder())
+
+            val secondPage = couponTemplateRepositoryPort.findAll(PageRequest(page = 1, size = 20))
+
+            assertThat(secondPage.items).hasSize(5)
+            assertThat(secondPage.totalElements).isEqualTo(25L)
         }
     }
 }

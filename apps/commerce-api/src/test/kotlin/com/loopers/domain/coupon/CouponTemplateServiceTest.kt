@@ -1,5 +1,7 @@
 package com.loopers.domain.coupon
 
+import com.loopers.domain.common.PageRequest
+import com.loopers.domain.common.PageResult
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import io.mockk.every
@@ -55,6 +57,30 @@ class CouponTemplateServiceTest {
             val result = assertThrows<CoreException> { couponTemplateService.getById(9999L) }
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+    }
+
+    @DisplayName("getAll을 호출할 때, ")
+    @Nested
+    inner class GetAll {
+        @DisplayName("Repository의 findAll 결과(PageResult)를 그대로 반환한다.")
+        @Test
+        fun returnsPageResult_fromRepository() {
+            val pageRequest = PageRequest(page = 0, size = 20)
+            val pageResult = PageResult.of(
+                items = listOf(
+                    CouponTemplate(id = 2L, name = "B", type = CouponType.FIXED, value = 1_000L, expiredAt = expiredAt),
+                    CouponTemplate(id = 1L, name = "A", type = CouponType.RATE, value = 10L, expiredAt = expiredAt),
+                ),
+                pageRequest = pageRequest,
+                totalElements = 2L,
+            )
+            every { couponTemplateRepositoryPort.findAll(pageRequest) } returns pageResult
+
+            val result = couponTemplateService.getAll(pageRequest)
+
+            assertThat(result).isEqualTo(pageResult)
+            verify(exactly = 1) { couponTemplateRepositoryPort.findAll(pageRequest) }
         }
     }
 

@@ -6,6 +6,8 @@ import com.loopers.infrastructure.brand.BrandJpaEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.stock.StockJpaEntity
+import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.paging.PageCondition
@@ -25,6 +27,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
     private val productFacade: ProductFacade,
     private val brandJpaRepository: BrandJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
+    private val stockJpaRepository: StockJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -47,7 +50,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
                 name = "Loopers T-Shirt",
                 description = "매일 입기 좋은 티셔츠",
                 price = 10_000L,
-                stock = 10,
+                initialStock = 10,
             )
 
             // assert
@@ -55,6 +58,8 @@ class ProductFacadeIntegrationTest @Autowired constructor(
                 { assertThat(product.id).isNotNull() },
                 { assertThat(product.brandId).isEqualTo(brand.id) },
                 { assertThat(product.name).isEqualTo("Loopers T-Shirt") },
+                { assertThat(product.stock).isEqualTo(10) },
+                { assertThat(product.soldOut).isFalse() },
             )
         }
 
@@ -68,7 +73,6 @@ class ProductFacadeIntegrationTest @Autowired constructor(
                     name = "Loopers T-Shirt",
                     description = "매일 입기 좋은 티셔츠",
                     price = 10_000L,
-                    stock = 10,
                 )
             }
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -83,7 +87,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         fun getProductDetail() {
             // arrange
             val brand = brandJpaRepository.save(newBrandJpaEntity(name = "Loopers"))
-            val product = productJpaRepository.save(newProductJpaEntity(brandId = brand.id, name = "Loopers T-Shirt"))
+            val product = saveProductWithStock(brandId = brand.id, name = "Loopers T-Shirt", stock = 0)
 
             // act
             val detail = productFacade.getProductDetail(product.id)
@@ -92,6 +96,8 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             assertAll(
                 { assertThat(detail.product.id).isEqualTo(product.id) },
                 { assertThat(detail.product.name).isEqualTo("Loopers T-Shirt") },
+                { assertThat(detail.product.stock).isEqualTo(0) },
+                { assertThat(detail.product.soldOut).isTrue() },
                 { assertThat(detail.brand.id).isEqualTo(brand.id) },
                 { assertThat(detail.brand.name).isEqualTo("Loopers") },
             )
@@ -107,8 +113,8 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             // arrange
             val loopers = brandJpaRepository.save(newBrandJpaEntity(name = "Loopers"))
             val outer = brandJpaRepository.save(newBrandJpaEntity(name = "Outer"))
-            productJpaRepository.save(newProductJpaEntity(brandId = loopers.id, name = "T-Shirt", price = 10_000L))
-            productJpaRepository.save(newProductJpaEntity(brandId = outer.id, name = "Jacket", price = 30_000L))
+            saveProductWithStock(brandId = loopers.id, name = "T-Shirt", price = 10_000L, stock = 0)
+            saveProductWithStock(brandId = outer.id, name = "Jacket", price = 30_000L, stock = 3)
 
             // act
             val result = productFacade.getProducts(
@@ -122,6 +128,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             assertAll(
                 { assertThat(result.items.map { it.name }).containsExactly("T-Shirt", "Jacket") },
                 { assertThat(result.items.map { it.brandName }).containsExactly("Loopers", "Outer") },
+                { assertThat(result.items.map { it.soldOut }).containsExactly(true, false) },
                 { assertThat(result.totalElements).isEqualTo(2L) },
             )
         }
@@ -131,8 +138,8 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         fun getProducts_withSameBrandProducts() {
             // arrange
             val brand = brandJpaRepository.save(newBrandJpaEntity(name = "Loopers"))
-            productJpaRepository.save(newProductJpaEntity(brandId = brand.id, name = "T-Shirt", price = 10_000L))
-            productJpaRepository.save(newProductJpaEntity(brandId = brand.id, name = "Hoodie", price = 20_000L))
+            saveProductWithStock(brandId = brand.id, name = "T-Shirt", price = 10_000L)
+            saveProductWithStock(brandId = brand.id, name = "Hoodie", price = 20_000L)
 
             // act
             val result = productFacade.getProducts(
@@ -180,14 +187,33 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        stock: Int = 10,
         likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        stock = stock,
         likeCount = likeCount,
     )
+
+    private fun saveProductWithStock(
+        brandId: Long,
+        name: String = "Loopers T-Shirt",
+        description: String = "매일 입기 좋은 티셔츠",
+        price: Long = 10_000L,
+        stock: Int = 10,
+        likeCount: Int = 0,
+    ): ProductJpaEntity {
+        val product = productJpaRepository.save(
+            newProductJpaEntity(
+                brandId = brandId,
+                name = name,
+                description = description,
+                price = price,
+                likeCount = likeCount,
+            ),
+        )
+        stockJpaRepository.save(StockJpaEntity(productId = product.id, quantity = stock))
+        return product
+    }
 }

@@ -22,7 +22,6 @@ class ProductTest {
             val name = "Loopers T-Shirt"
             val description = "매일 입기 좋은 티셔츠"
             val price = ProductPrice(10_000L)
-            val stock = Stock(10)
             val likeCount = 3
 
             // act
@@ -31,7 +30,6 @@ class ProductTest {
                 name = name,
                 description = description,
                 price = price,
-                stock = stock,
                 likeCount = likeCount,
             )
 
@@ -41,7 +39,6 @@ class ProductTest {
                 { assertThat(product.name).isEqualTo(name) },
                 { assertThat(product.description).isEqualTo(description) },
                 { assertThat(product.price).isEqualTo(price) },
-                { assertThat(product.stock).isEqualTo(stock) },
                 { assertThat(product.likeCount).isEqualTo(likeCount) },
             )
         }
@@ -87,47 +84,6 @@ class ProductTest {
         }
     }
 
-    @DisplayName("재고 차감 가능 여부 검증 시, ")
-    @Nested
-    inner class ValidateStockDeductible {
-        @DisplayName("재고가 충분하면 예외가 발생하지 않는다.")
-        @Test
-        fun doesNotThrow_whenStockIsEnough() {
-            // arrange
-            val product = newProductWith(stock = Stock(10))
-
-            // act & assert
-            assertDoesNotThrow {
-                product.validateStockDeductible(StockQuantity(3))
-            }
-        }
-
-        @DisplayName("재고와 수량이 같으면 예외가 발생하지 않는다.")
-        @Test
-        fun doesNotThrow_whenStockEqualsQuantity() {
-            // arrange
-            val product = newProductWith(stock = Stock(3))
-
-            // act & assert
-            assertDoesNotThrow {
-                product.validateStockDeductible(StockQuantity(3))
-            }
-        }
-
-        @DisplayName("재고가 부족하면 BAD_REQUEST 예외가 발생한다.")
-        @Test
-        fun throwsBadRequest_whenStockIsInsufficient() {
-            // arrange
-            val product = newProductWith(stock = Stock(2))
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                product.validateStockDeductible(StockQuantity(3))
-            }
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-    }
-
     @DisplayName("좋아요 감소 가능 여부 검증 시, ")
     @Nested
     inner class ValidateLikeCountDecreasable {
@@ -154,36 +110,6 @@ class ProductTest {
                 product.validateLikeCountDecreasable()
             }
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-    }
-
-    @DisplayName("상품 품절 여부 확인 시, ")
-    @Nested
-    inner class IsSoldOut {
-        @DisplayName("재고가 0이면 품절이다.")
-        @Test
-        fun returnsTrue_whenStockIsZero() {
-            // arrange
-            val product = newProductWith(stock = Stock(0))
-
-            // act
-            val result = product.isSoldOut()
-
-            // assert
-            assertThat(result).isTrue()
-        }
-
-        @DisplayName("재고가 1 이상이면 품절이 아니다.")
-        @Test
-        fun returnsFalse_whenStockIsGreaterThanZero() {
-            // arrange
-            val product = newProductWith(stock = Stock(1))
-
-            // act
-            val result = product.isSoldOut()
-
-            // assert
-            assertThat(result).isFalse()
         }
     }
 
@@ -264,36 +190,17 @@ class ProductTest {
         }
     }
 
-    @DisplayName("상품 재고 조정 시, ")
-    @Nested
-    inner class AdjustStock {
-        @DisplayName("재고가 유효하면 상품 재고가 조정된다.")
-        @Test
-        fun adjustStock_whenStockIsValid() {
-            // arrange
-            val product = newProductWith(stock = Stock(10))
-
-            // act
-            product.adjustStock(stock = Stock(5))
-
-            // assert
-            assertThat(product.stock).isEqualTo(Stock(5))
-        }
-    }
-
     private fun newProductWith(
         brandId: Long = 1L,
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: ProductPrice = ProductPrice(10_000L),
-        stock: Stock = Stock(10),
         likeCount: Int = 0,
     ) = Product(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        stock = stock,
         likeCount = likeCount,
     )
 }

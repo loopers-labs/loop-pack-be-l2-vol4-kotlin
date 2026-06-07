@@ -3,8 +3,6 @@ package com.loopers.application.product
 import com.loopers.domain.product.ProductPrice
 import com.loopers.domain.product.ProductSearchCondition
 import com.loopers.domain.product.ProductSortType
-import com.loopers.domain.product.Stock
-import com.loopers.domain.product.StockQuantity
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.support.error.CoreException
@@ -21,9 +19,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.repository.findByIdOrNull
-import java.util.concurrent.Callable
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 
 @SpringBootTest
 class ProductApplicationServiceIntegrationTest @Autowired constructor(
@@ -48,7 +43,6 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
                 name = "Loopers T-Shirt",
                 description = "매일 입기 좋은 티셔츠",
                 price = ProductPrice(10_000L),
-                stock = Stock(10),
             )
 
             // assert
@@ -58,7 +52,6 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
                 { assertThat(product.name).isEqualTo("Loopers T-Shirt") },
                 { assertThat(product.description).isEqualTo("매일 입기 좋은 티셔츠") },
                 { assertThat(product.price).isEqualTo(ProductPrice(10_000L)) },
-                { assertThat(product.stock).isEqualTo(Stock(10)) },
             )
         }
     }
@@ -196,7 +189,6 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
                 name = "Loopers Hoodie",
                 description = "따뜻한 후드",
                 price = ProductPrice(30_000L),
-                stock = Stock(5),
             )
 
             // assert
@@ -205,7 +197,6 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
                 { assertThat(product.name).isEqualTo("Loopers Hoodie") },
                 { assertThat(product.description).isEqualTo("따뜻한 후드") },
                 { assertThat(product.price).isEqualTo(ProductPrice(30_000L)) },
-                { assertThat(product.stock).isEqualTo(Stock(5)) },
             )
         }
     }
@@ -234,46 +225,9 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("상품 재고와 좋아요 수 변경 시, ")
+    @DisplayName("좋아요 수 변경 시, ")
     @Nested
-    inner class ChangeProductState {
-        @DisplayName("재고를 차감하고 복구할 수 있다.")
-        @Test
-        fun deductAndRestoreStock() {
-            // arrange
-            val entity = productJpaRepository.save(newProductJpaEntity(stock = 10))
-
-            // act
-            val deducted = productApplicationService.deductStock(entity.id, StockQuantity(3))
-            val restored = productApplicationService.restoreStock(entity.id, StockQuantity(2))
-
-            // assert
-            assertAll(
-                { assertThat(deducted.stock).isEqualTo(Stock(7)) },
-                { assertThat(restored.stock).isEqualTo(Stock(9)) },
-            )
-        }
-
-        @DisplayName("재고가 1개일 때 동시에 차감 요청이 들어오면 한 번만 성공한다.")
-        @Test
-        fun deductStock_succeedsOnlyOnce_whenConcurrentRequestsExceedStock() {
-            // arrange
-            val entity = productJpaRepository.save(newProductJpaEntity(stock = 1))
-
-            // act
-            val results = runConcurrentlyCatching(10) {
-                productApplicationService.deductStock(entity.id, StockQuantity(1))
-            }
-
-            // assert
-            val updated = productApplicationService.getProduct(entity.id)
-            assertAll(
-                { assertThat(results.count { it.isSuccess }).isEqualTo(1) },
-                { assertThat(results.count { it.isFailure }).isEqualTo(9) },
-                { assertThat(updated.stock).isEqualTo(Stock(0)) },
-            )
-        }
-
+    inner class ChangeLikeCount {
         @DisplayName("좋아요 수를 증가하고 감소할 수 있다.")
         @Test
         fun increaseAndDecreaseLikeCount() {
@@ -288,46 +242,21 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
             assertAll(
                 { assertThat(increased.likeCount).isEqualTo(2) },
                 { assertThat(decreased.likeCount).isEqualTo(1) },
-        )
-    }
-
-    private fun <T> runConcurrentlyCatching(times: Int, task: () -> T): List<Result<T>> {
-        val executor = Executors.newFixedThreadPool(times)
-        val ready = CountDownLatch(times)
-        val start = CountDownLatch(1)
-
-        return try {
-            val futures = (1..times).map {
-                executor.submit(
-                    Callable {
-                        ready.countDown()
-                        start.await()
-                        runCatching { task() }
-                    },
-                )
-            }
-            ready.await()
-            start.countDown()
-            futures.map { it.get() }
-        } finally {
-            executor.shutdownNow()
+            )
         }
     }
-}
 
     private fun newProductJpaEntity(
         brandId: Long = 1L,
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        stock: Int = 10,
         likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        stock = stock,
         likeCount = likeCount,
     )
 }

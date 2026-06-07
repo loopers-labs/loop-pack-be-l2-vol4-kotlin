@@ -1,11 +1,12 @@
 package com.loopers.application.order
 
-import com.loopers.application.product.ProductApplicationService
-import com.loopers.domain.product.Stock
+import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.user.EncodedPassword
 import com.loopers.infrastructure.order.OrderJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.stock.StockJpaEntity
+import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.infrastructure.user.UserJpaEntity
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.support.error.CoreException
@@ -25,8 +26,9 @@ import java.time.LocalDate
 @SpringBootTest
 class OrderFacadeIntegrationTest @Autowired constructor(
     private val orderFacade: OrderFacade,
-    private val productApplicationService: ProductApplicationService,
+    private val stockApplicationService: StockApplicationService,
     private val productJpaRepository: ProductJpaRepository,
+    private val stockJpaRepository: StockJpaRepository,
     private val userJpaRepository: UserJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -44,13 +46,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         fun createOrder_deductsStockAndSavesSnapshot() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(
-                newProductJpaEntity(
-                    name = "Loopers T-Shirt",
-                    price = 10_000L,
-                    stock = 10,
-                ),
-            )
+            val product = saveProductWithStock(name = "Loopers T-Shirt", price = 10_000L, stock = 10)
 
             // act
             val order = orderFacade.createOrder(
@@ -63,7 +59,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             )
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
+            val remainingStock = stockApplicationService.getStock(product.id)
             assertAll(
                 { assertThat(order.userId).isEqualTo(user.id) },
                 { assertThat(order.totalPrice).isEqualTo(30_000L) },
@@ -71,7 +67,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
                 { assertThat(order.items.first().productName).isEqualTo("Loopers T-Shirt") },
                 { assertThat(order.items.first().productPrice).isEqualTo(10_000L) },
                 { assertThat(order.items.first().quantity).isEqualTo(3) },
-                { assertThat(updatedProduct.stock).isEqualTo(Stock(7)) },
+                { assertThat(remainingStock.quantity).isEqualTo(7) },
             )
         }
 
@@ -98,7 +94,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         fun throwsBadRequest_whenStockIsNotEnough() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(stock = 2))
+            val product = saveProductWithStock(stock = 2)
 
             // act & assert
             val result = assertThrows<CoreException> {
@@ -139,8 +135,8 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         fun rollsBackStockDeduction_whenAnyProductFails() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val enoughProduct = productJpaRepository.save(newProductJpaEntity(name = "Enough", stock = 10))
-            val insufficientProduct = productJpaRepository.save(newProductJpaEntity(name = "Insufficient", stock = 1))
+            val enoughProduct = saveProductWithStock(name = "Enough", stock = 10)
+            val insufficientProduct = saveProductWithStock(name = "Insufficient", stock = 1)
 
             // act & assert
             val result = assertThrows<CoreException> {
@@ -155,12 +151,12 @@ class OrderFacadeIntegrationTest @Autowired constructor(
                 )
             }
 
-            val enough = productApplicationService.getProduct(enoughProduct.id)
-            val insufficient = productApplicationService.getProduct(insufficientProduct.id)
+            val enoughStock = stockApplicationService.getStock(enoughProduct.id)
+            val insufficientStock = stockApplicationService.getStock(insufficientProduct.id)
             assertAll(
                 { assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
-                { assertThat(enough.stock).isEqualTo(Stock(10)) },
-                { assertThat(insufficient.stock).isEqualTo(Stock(1)) },
+                { assertThat(enoughStock.quantity).isEqualTo(10) },
+                { assertThat(insufficientStock.quantity).isEqualTo(1) },
                 { assertThat(orderJpaRepository.findAll()).isEmpty() },
             )
         }
@@ -169,7 +165,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         @Test
         fun throwsNotFound_whenUserDoesNotExist() {
             // arrange
-            val product = productJpaRepository.save(newProductJpaEntity())
+            val product = saveProductWithStock()
 
             // act & assert
             val result = assertThrows<CoreException> {
@@ -188,6 +184,27 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         }
     }
 
+    /** product + stock 을 함께 저장하는 테스트 helper */
+    private fun saveProductWithStock(
+        brandId: Long = 1L,
+        name: String = "Loopers T-Shirt",
+        description: String = "매일 입기 좋은 티셔츠",
+        price: Long = 10_000L,
+        stock: Int = 10,
+    ): ProductJpaEntity {
+        val product = productJpaRepository.save(
+            ProductJpaEntity(
+                brandId = brandId,
+                name = name,
+                description = description,
+                price = price,
+                likeCount = 0,
+            ),
+        )
+        stockJpaRepository.save(StockJpaEntity(productId = product.id, quantity = stock))
+        return product
+    }
+
     private fun newUserJpaEntity(
         loginId: String = "seondays",
         password: String = "\$2a\$10\$existingHashedPassword.",
@@ -200,21 +217,5 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         name = name,
         birthDate = birthDate,
         email = email,
-    )
-
-    private fun newProductJpaEntity(
-        brandId: Long = 1L,
-        name: String = "Loopers T-Shirt",
-        description: String = "매일 입기 좋은 티셔츠",
-        price: Long = 10_000L,
-        stock: Int = 10,
-        likeCount: Int = 0,
-    ) = ProductJpaEntity(
-        brandId = brandId,
-        name = name,
-        description = description,
-        price = price,
-        stock = stock,
-        likeCount = likeCount,
     )
 }

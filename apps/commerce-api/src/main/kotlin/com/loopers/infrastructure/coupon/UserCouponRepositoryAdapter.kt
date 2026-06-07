@@ -1,8 +1,12 @@
 package com.loopers.infrastructure.coupon
 
+import com.loopers.domain.common.PageRequest
+import com.loopers.domain.common.PageResult
 import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepositoryPort
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
+import org.springframework.data.domain.PageRequest as SpringPageRequest
 
 @Component
 class UserCouponRepositoryAdapter(
@@ -19,4 +23,14 @@ class UserCouponRepositoryAdapter(
 
     override fun findAllByUserId(userId: Long): List<UserCoupon> =
         userCouponJpaRepository.findAllByUserIdOrderByIdDesc(userId).map { it.toDomain() }
+
+    override fun findAllByCouponTemplateId(couponTemplateId: Long, pageRequest: PageRequest): PageResult<UserCoupon> {
+        val springPageable = SpringPageRequest.of(pageRequest.page, pageRequest.size, Sort.by(Sort.Direction.DESC, "id"))
+        val page = userCouponJpaRepository.findAllByCouponTemplateId(couponTemplateId, springPageable)
+        return PageResult.of(
+            items = page.content.map { it.toDomain() },
+            pageRequest = pageRequest,
+            totalElements = page.totalElements,
+        )
+    }
 }

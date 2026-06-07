@@ -1,5 +1,6 @@
 package com.loopers.infrastructure.coupon
 
+import com.loopers.domain.common.PageRequest
 import com.loopers.domain.coupon.CouponStatus
 import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepositoryPort
@@ -100,6 +101,58 @@ class UserCouponRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsEmpty_whenNoCoupons() {
             assertThat(userCouponRepositoryPort.findAllByUserId(9L)).isEmpty()
+        }
+    }
+
+    @DisplayName("findAllByCouponTemplateId를 호출할 때, ")
+    @Nested
+    inner class FindAllByCouponTemplateId {
+        @DisplayName("해당 템플릿의 발급 내역만 최근 발급순(id 내림차순)으로 페이지 조회한다.")
+        @Test
+        fun returnsOnlyTemplateIssuesInDescOrder() {
+            val first = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 9L, issuedAt = issuedAt),
+            )
+            val second = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 8L, issuedAt = issuedAt),
+            )
+            // 다른 템플릿의 발급 쿠폰
+            userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 2L, userId = 7L, issuedAt = issuedAt),
+            )
+
+            val page = userCouponRepositoryPort.findAllByCouponTemplateId(1L, PageRequest(page = 0, size = 20))
+
+            assertThat(page.totalElements).isEqualTo(2L)
+            assertThat(page.items.map { it.id }).containsExactly(second.id, first.id)
+            assertThat(page.items.map { it.couponTemplateId }).containsOnly(1L)
+        }
+
+        @DisplayName("size보다 발급이 많으면 페이지 단위로 잘라 반환하고 totalElements는 전체 개수다.")
+        @Test
+        fun paginatesByPageAndSize() {
+            (1..3).forEach { userId ->
+                userCouponRepositoryPort.save(
+                    UserCoupon.issue(couponTemplateId = 1L, userId = userId.toLong(), issuedAt = issuedAt),
+                )
+            }
+
+            val firstPage = userCouponRepositoryPort.findAllByCouponTemplateId(1L, PageRequest(page = 0, size = 2))
+            val secondPage = userCouponRepositoryPort.findAllByCouponTemplateId(1L, PageRequest(page = 1, size = 2))
+
+            assertThat(firstPage.totalElements).isEqualTo(3L)
+            assertThat(firstPage.totalPages).isEqualTo(2)
+            assertThat(firstPage.items).hasSize(2)
+            assertThat(secondPage.items).hasSize(1)
+        }
+
+        @DisplayName("발급 내역이 없으면 빈 페이지(totalElements 0)를 반환한다.")
+        @Test
+        fun returnsEmptyPage_whenNoIssues() {
+            val page = userCouponRepositoryPort.findAllByCouponTemplateId(1L, PageRequest(page = 0, size = 20))
+
+            assertThat(page.totalElements).isEqualTo(0L)
+            assertThat(page.items).isEmpty()
         }
     }
 

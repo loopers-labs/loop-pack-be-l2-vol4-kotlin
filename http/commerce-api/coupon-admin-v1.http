@@ -179,3 +179,22 @@ X-Loopers-Ldap: loopers.admin
 
 ### 어드민: 쿠폰 템플릿 삭제 — 어드민 헤더 누락 (403)
 DELETE {{commerce-api}}/api-admin/v1/coupons/1
+
+### 어드민: 발급 내역 조회 — 정상 (발급 있는 템플릿, 첫 페이지)
+GET {{commerce-api}}/api-admin/v1/coupons/1/issues?page=0&size=20
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 발급 내역 조회 — 두 번째 페이지
+GET {{commerce-api}}/api-admin/v1/coupons/1/issues?page=1&size=5
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 발급 내역 조회 — 발급 없는 템플릿 (빈 페이지)
+GET {{commerce-api}}/api-admin/v1/coupons/2/issues?page=0&size=20
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 발급 내역 조회 — 존재하지 않는 템플릿 (404)
+GET {{commerce-api}}/api-admin/v1/coupons/9999/issues?page=0&size=20
+X-Loopers-Ldap: loopers.admin
+
+### 어드민: 발급 내역 조회 — 어드민 헤더 누락 (403)
+GET {{commerce-api}}/api-admin/v1/coupons/1/issues?page=0&size=20

@@ -1,5 +1,8 @@
 package com.loopers.interfaces.api
 
+import com.loopers.application.user.SignupCommand
+import com.loopers.interfaces.api.coupon.CouponApplicationServicePort
+import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -17,10 +20,13 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CouponAdminV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
+    private val userApplicationService: UserApplicationServicePort,
+    private val couponApplicationService: CouponApplicationServicePort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     companion object {
@@ -112,6 +118,37 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         val createResponse = create(body)
         val createdId = ((createResponse.body?.data as? Map<*, *>)?.get("id") as? Number)?.toLong()
         return requireNotNull(createdId) { "쿠폰 생성 후 id를 얻지 못했습니다." }
+    }
+
+    private fun getIssues(
+        couponId: Long,
+        page: Int = 0,
+        size: Int = 20,
+        ldap: String? = ADMIN_LDAP,
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "$ADMIN_COUPON_ENDPOINT/$couponId/issues?page=$page&size=$size",
+            HttpMethod.GET,
+            HttpEntity<Void>(headers(ldap = ldap)),
+            responseType,
+        )
+    }
+
+    private fun signup(loginId: String): Long =
+        userApplicationService.signup(
+            SignupCommand(
+                loginId = loginId,
+                rawPassword = "password1234",
+                name = "테스터",
+                birth = LocalDate.of(2000, 1, 1),
+                email = "$loginId@example.com",
+            ),
+        ).id
+
+    private fun issueTo(loginId: String, couponId: Long) {
+        val userId = signup(loginId)
+        couponApplicationService.issueCoupon(userId = userId, couponId = couponId)
     }
 
     @DisplayName("GET /api-admin/v1/coupons/{id}")
@@ -587,6 +624,90 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsForbidden_whenLdapHeaderMissing() {
             val response = delete(1L, ldap = null)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+    }
+
+    @DisplayName("GET /api-admin/v1/coupons/{couponId}/issues")
+    @Nested
+    inner class GetCouponIssues {
+
+        private fun createTemplate(name: String = "1만원 할인"): Long = createAndGetId(
+            mapOf(
+                "name" to name,
+                "type" to "FIXED",
+                "value" to 10_000,
+                "expiredAt" to "2026-12-31T23:59:59",
+            ),
+        )
+
+        @DisplayName("발급 내역이 있으면, loginId가 매핑된 발급 항목을 최근 발급순(id DESC)으로 페이지 반환한다.")
+        @Test
+        fun returnsIssuesWithLoginId_sortedByIdDesc() {
+            val couponId = createTemplate()
+            issueTo("tester01", couponId)
+            issueTo("tester02", couponId)
+
+            val response = getIssues(couponId)
+
+            val data = response.body?.data
+            val items = data?.get("items") as? List<*>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(items).hasSize(2) },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(2L) },
+                { assertThat((items?.first() as? Map<*, *>)?.get("loginId")).isEqualTo("tester02") },
+                { assertThat((items?.get(1) as? Map<*, *>)?.get("loginId")).isEqualTo("tester01") },
+                { assertThat((items?.first() as? Map<*, *>)?.get("status")).isEqualTo("AVAILABLE") },
+            )
+        }
+
+        @DisplayName("size보다 발급이 많으면, 페이지 단위로 잘라 반환하고 totalElements는 전체 개수다.")
+        @Test
+        fun paginatesIssues() {
+            val couponId = createTemplate()
+            issueTo("tester01", couponId)
+            issueTo("tester02", couponId)
+            issueTo("tester03", couponId)
+
+            val response = getIssues(couponId, page = 0, size = 2)
+
+            val data = response.body?.data
+            assertAll(
+                { assertThat(data?.get("items") as? List<*>).hasSize(2) },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(3L) },
+                { assertThat((data?.get("totalPages") as? Number)?.toInt()).isEqualTo(2) },
+            )
+        }
+
+        @DisplayName("발급 내역이 없는 템플릿이면, 빈 목록과 totalElements=0의 페이지를 반환한다.")
+        @Test
+        fun returnsEmptyPage_whenNoIssues() {
+            val couponId = createTemplate()
+
+            val response = getIssues(couponId)
+
+            val data = response.body?.data
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(data?.get("items") as? List<*>).isEmpty() },
+                { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(0L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 템플릿의 발급 내역을 조회하면, 404 NOT_FOUND 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenTemplateMissing() {
+            val response = getIssues(9999L)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenLdapHeaderMissing() {
+            val response = getIssues(1L, ldap = null)
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }

@@ -1,5 +1,7 @@
 package com.loopers.domain.coupon
 
+import com.loopers.domain.common.PageRequest
+import com.loopers.domain.common.PageResult
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.time.LocalDateTime
@@ -18,6 +20,10 @@ class UserCouponService(
     /** 해당 사용자가 발급받은 쿠폰 전체를 최근 발급순으로 반환한다. */
     fun getByUserId(userId: Long): List<UserCoupon> =
         userCouponRepositoryPort.findAllByUserId(userId)
+
+    /** 해당 쿠폰 템플릿의 발급 내역을 최근 발급순으로 페이지 조회한다. */
+    fun getByCouponTemplateId(couponTemplateId: Long, pageRequest: PageRequest): PageResult<UserCoupon> =
+        userCouponRepositoryPort.findAllByCouponTemplateId(couponTemplateId, pageRequest)
 
     /**
      * 쿠폰 템플릿을 사용자에게 발급한다(AVAILABLE).

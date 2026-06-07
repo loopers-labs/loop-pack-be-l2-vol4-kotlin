@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.coupon
 
+import com.loopers.application.coupon.CouponIssueResult
 import com.loopers.application.coupon.CouponResult
 import com.loopers.application.coupon.CreateCouponCommand
 import com.loopers.application.coupon.UpdateCouponCommand
@@ -12,4 +13,5 @@ interface CouponAdminApplicationServicePort {
     fun getCoupon(id: Long): CouponResult
     fun updateCoupon(command: UpdateCouponCommand): CouponResult
     fun deleteCoupon(id: Long)
+    fun getCouponIssues(couponId: Long, pageRequest: PageRequest): PageResult<CouponIssueResult>
 }

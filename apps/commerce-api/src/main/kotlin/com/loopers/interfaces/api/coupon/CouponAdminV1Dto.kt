@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.coupon
 
+import com.loopers.application.coupon.CouponIssueResult
 import com.loopers.application.coupon.CouponResult
 import com.loopers.application.coupon.CreateCouponCommand
 import com.loopers.application.coupon.UpdateCouponCommand
@@ -58,6 +59,24 @@ class CouponAdminV1Dto {
                 value = result.value,
                 minOrderAmount = result.minOrderAmount,
                 expiredAt = result.expiredAt,
+            )
+        }
+    }
+
+    data class IssueResponse(
+        val id: Long,
+        val loginId: String,
+        val status: CouponStatusResponse,
+        val issuedAt: LocalDateTime,
+        val usedAt: LocalDateTime?,
+    ) {
+        companion object {
+            fun from(result: CouponIssueResult): IssueResponse = IssueResponse(
+                id = result.id,
+                loginId = result.loginId,
+                status = CouponStatusResponse.from(result.status),
+                issuedAt = result.issuedAt,
+                usedAt = result.usedAt,
             )
         }
     }

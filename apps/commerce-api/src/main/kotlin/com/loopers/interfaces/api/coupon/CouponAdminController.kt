@@ -42,6 +42,18 @@ class CouponAdminController(
         return ApiResponse.success(CouponAdminV1Dto.CouponResponse.from(result))
     }
 
+    @GetMapping("/{couponId}/issues")
+    fun getCouponIssues(
+        @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
+        @PathVariable couponId: Long,
+        @RequestParam(name = "page", defaultValue = "0") page: Int,
+        @RequestParam(name = "size", defaultValue = "20") size: Int,
+    ): ApiResponse<PageView<CouponAdminV1Dto.IssueResponse>> {
+        verifyAdmin(ldap)
+        val result = couponApplicationService.getCouponIssues(couponId, PageRequest(page = page, size = size))
+        return ApiResponse.success(PageView.from(result, CouponAdminV1Dto.IssueResponse::from))
+    }
+
     @PostMapping
     fun createCoupon(
         @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,

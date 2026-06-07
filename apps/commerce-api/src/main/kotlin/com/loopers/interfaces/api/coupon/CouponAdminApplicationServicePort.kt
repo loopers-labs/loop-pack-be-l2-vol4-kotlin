@@ -8,4 +8,5 @@ import com.loopers.domain.common.PageResult
 interface CouponAdminApplicationServicePort {
     fun createCoupon(command: CreateCouponCommand): CouponResult
     fun getCoupons(pageRequest: PageRequest): PageResult<CouponResult>
+    fun getCoupon(id: Long): CouponResult
 }

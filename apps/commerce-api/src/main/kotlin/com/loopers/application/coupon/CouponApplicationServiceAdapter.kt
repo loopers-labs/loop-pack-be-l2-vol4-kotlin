@@ -32,4 +32,10 @@ class CouponApplicationServiceAdapter(
             totalElements = page.totalElements,
         )
     }
+
+    @Transactional(readOnly = true)
+    override fun getCoupon(id: Long): CouponResult {
+        val couponTemplate = couponTemplateService.getById(id)
+        return CouponResult.from(couponTemplate)
+    }
 }

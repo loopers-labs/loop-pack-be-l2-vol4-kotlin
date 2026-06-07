@@ -66,6 +66,68 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun getCoupon(
+        id: Long,
+        ldap: String? = ADMIN_LDAP,
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "$ADMIN_COUPON_ENDPOINT/$id",
+            HttpMethod.GET,
+            HttpEntity<Void>(headers(ldap = ldap)),
+            responseType,
+        )
+    }
+
+    @DisplayName("GET /api-admin/v1/coupons/{id}")
+    @Nested
+    inner class GetCoupon {
+
+        @DisplayName("등록된 템플릿을 단건 조회하면, 해당 템플릿의 전체 필드를 반환한다.")
+        @Test
+        fun returnsCoupon_whenExists() {
+            val createResponse = create(
+                mapOf(
+                    "name" to "1만원 할인",
+                    "type" to "FIXED",
+                    "value" to 10_000,
+                    "minOrderAmount" to 30_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+            val createdId = ((createResponse.body?.data as? Map<*, *>)?.get("id") as? Number)?.toLong()
+            assertThat(createdId).isNotNull()
+
+            val response = getCoupon(requireNotNull(createdId))
+
+            val data = response.body?.data
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat((data?.get("id") as? Number)?.toLong()).isEqualTo(createdId) },
+                { assertThat(data?.get("name")).isEqualTo("1만원 할인") },
+                { assertThat(data?.get("type")).isEqualTo("FIXED") },
+                { assertThat((data?.get("value") as? Number)?.toLong()).isEqualTo(10_000L) },
+                { assertThat((data?.get("minOrderAmount") as? Number)?.toLong()).isEqualTo(30_000L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 id로 조회하면, 404 NOT_FOUND 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenMissing() {
+            val response = getCoupon(9999L)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenLdapHeaderMissing() {
+            val response = getCoupon(1L, ldap = null)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+    }
+
     @DisplayName("GET /api-admin/v1/coupons")
     @Nested
     inner class GetCoupons {

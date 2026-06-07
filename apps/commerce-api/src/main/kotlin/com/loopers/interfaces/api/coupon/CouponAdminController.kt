@@ -6,6 +6,7 @@ import com.loopers.interfaces.api.common.PageView
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
@@ -27,6 +28,16 @@ class CouponAdminController(
         verifyAdmin(ldap)
         val result = couponApplicationService.getCoupons(PageRequest(page = page, size = size))
         return ApiResponse.success(PageView.from(result, CouponAdminV1Dto.CouponResponse::from))
+    }
+
+    @GetMapping("/{id}")
+    fun getCoupon(
+        @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
+        @PathVariable id: Long,
+    ): ApiResponse<CouponAdminV1Dto.CouponResponse> {
+        verifyAdmin(ldap)
+        val result = couponApplicationService.getCoupon(id)
+        return ApiResponse.success(CouponAdminV1Dto.CouponResponse.from(result))
     }
 
     @PostMapping

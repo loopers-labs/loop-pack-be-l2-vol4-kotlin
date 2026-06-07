@@ -77,6 +77,7 @@ class ProductFacade(
         )
     }
 
+    @Transactional
     fun updateProduct(
         productId: Long,
         name: String,
@@ -93,7 +94,9 @@ class ProductFacade(
         return ProductInfo.from(product, stock)
     }
 
+    @Transactional
     fun deleteProduct(productId: Long) {
         productApplicationService.deleteProduct(productId)
+        stockApplicationService.deleteStock(productId)
     }
 }

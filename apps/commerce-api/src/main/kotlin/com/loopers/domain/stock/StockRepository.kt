@@ -10,4 +10,6 @@ interface StockRepository {
     fun deductIfEnough(productId: Long, amount: Int): Boolean
 
     fun restore(productId: Long, amount: Int): Boolean
+
+    fun deleteByProductId(productId: Long)
 }

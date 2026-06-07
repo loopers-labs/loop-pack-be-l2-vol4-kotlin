@@ -35,4 +35,9 @@ class StockRepositoryImpl(
     override fun restore(productId: Long, amount: Int): Boolean {
         return stockJpaRepository.restore(productId = productId, amount = amount) == 1
     }
+
+    override fun deleteByProductId(productId: Long) {
+        stockJpaRepository.findByProductIdAndDeletedAtIsNull(productId)
+            ?.delete()
+    }
 }

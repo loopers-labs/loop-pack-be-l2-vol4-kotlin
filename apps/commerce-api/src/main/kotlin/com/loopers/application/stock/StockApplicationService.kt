@@ -45,4 +45,10 @@ class StockApplicationService(
             throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다. productId=$productId")
         }
     }
+
+    @Transactional
+    fun deleteStock(productId: Long) {
+        getStock(productId)
+        stockRepository.deleteByProductId(productId)
+    }
 }

@@ -104,3 +104,63 @@ Content-Type: application/json
   "value": 1000,
   "expiredAt": "2026-12-31T23:59:59"
 }
+
+### 어드민: 쿠폰 템플릿 수정 — 정상 (전체 교체, type 변경 포함)
+PUT {{commerce-api}}/api-admin/v1/coupons/1
+Content-Type: application/json
+X-Loopers-Ldap: loopers.admin
+
+{
+  "name": "변경된 30% 할인",
+  "type": "RATE",
+  "value": 30,
+  "minOrderAmount": 50000,
+  "expiredAt": "2027-06-30T23:59:59"
+}
+
+### 어드민: 쿠폰 템플릿 수정 — 존재하지 않는 id (404)
+PUT {{commerce-api}}/api-admin/v1/coupons/9999
+Content-Type: application/json
+X-Loopers-Ldap: loopers.admin
+
+{
+  "name": "유령 쿠폰",
+  "type": "FIXED",
+  "value": 1000,
+  "expiredAt": "2026-12-31T23:59:59"
+}
+
+### 어드민: 쿠폰 템플릿 수정 — 잘못된 type (400)
+PUT {{commerce-api}}/api-admin/v1/coupons/1
+Content-Type: application/json
+X-Loopers-Ldap: loopers.admin
+
+{
+  "name": "잘못된 타입",
+  "type": "PERCENT",
+  "value": 10,
+  "expiredAt": "2026-12-31T23:59:59"
+}
+
+### 어드민: 쿠폰 템플릿 수정 — RATE 할인율 범위 초과 (400)
+PUT {{commerce-api}}/api-admin/v1/coupons/1
+Content-Type: application/json
+X-Loopers-Ldap: loopers.admin
+
+{
+  "name": "할인율 초과",
+  "type": "RATE",
+  "value": 150,
+  "expiredAt": "2026-12-31T23:59:59"
+}
+
+### 어드민: 쿠폰 템플릿 수정 — 어드민 헤더 누락 (403)
+PUT {{commerce-api}}/api-admin/v1/coupons/1
+Content-Type: application/json
+
+{
+  "name": "권한 없음",
+  "type": "FIXED",
+  "value": 1000,
+  "expiredAt": "2026-12-31T23:59:59"
+}

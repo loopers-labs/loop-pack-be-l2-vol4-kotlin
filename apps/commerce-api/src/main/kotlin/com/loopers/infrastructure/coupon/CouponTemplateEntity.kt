@@ -30,6 +30,20 @@ class CouponTemplateEntity(
     @Column(name = "expired_at", nullable = false)
     var expiredAt: LocalDateTime,
 ) : BaseEntity() {
+    fun update(
+        name: String,
+        type: PersistedCouponType,
+        discountValue: Long,
+        minOrderAmount: Long,
+        expiredAt: LocalDateTime,
+    ) {
+        this.name = name
+        this.type = type
+        this.discountValue = discountValue
+        this.minOrderAmount = minOrderAmount
+        this.expiredAt = expiredAt
+    }
+
     fun toDomain(): CouponTemplate = CouponTemplate(
         id = id,
         name = name,

@@ -8,6 +8,7 @@ import com.loopers.support.error.ErrorType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
@@ -47,6 +48,17 @@ class CouponAdminController(
     ): ApiResponse<CouponAdminV1Dto.CouponResponse> {
         verifyAdmin(ldap)
         val result = couponApplicationService.createCoupon(request.toCommand())
+        return ApiResponse.success(CouponAdminV1Dto.CouponResponse.from(result))
+    }
+
+    @PutMapping("/{id}")
+    fun updateCoupon(
+        @RequestHeader(name = "X-Loopers-Ldap", required = false) ldap: String?,
+        @PathVariable id: Long,
+        @RequestBody request: CouponAdminV1Dto.UpdateCouponRequest,
+    ): ApiResponse<CouponAdminV1Dto.CouponResponse> {
+        verifyAdmin(ldap)
+        val result = couponApplicationService.updateCoupon(request.toCommand(id))
         return ApiResponse.success(CouponAdminV1Dto.CouponResponse.from(result))
     }
 

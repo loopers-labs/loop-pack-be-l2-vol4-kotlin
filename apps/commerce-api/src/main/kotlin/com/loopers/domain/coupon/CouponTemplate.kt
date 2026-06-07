@@ -48,6 +48,24 @@ data class CouponTemplate(
         return orderAmount >= minOrderAmount
     }
 
+    /**
+     * 쿠폰 템플릿을 수정한다(전체 교체). 변경된 값으로 불변식을 재검증한다.
+     * type 변경(FIXED↔RATE)을 허용하며, value 는 변경된 type 기준으로 검증된다.
+     */
+    fun update(
+        name: String,
+        type: CouponType,
+        value: Long,
+        minOrderAmount: Long,
+        expiredAt: LocalDateTime,
+    ): CouponTemplate = copy(
+        name = name,
+        type = type,
+        value = value,
+        minOrderAmount = minOrderAmount,
+        expiredAt = expiredAt,
+    )
+
     companion object {
         fun create(
             name: String,

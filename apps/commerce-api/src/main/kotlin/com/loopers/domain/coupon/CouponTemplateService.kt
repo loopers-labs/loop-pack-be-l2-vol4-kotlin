@@ -36,4 +36,23 @@ class CouponTemplateService(
         )
         return couponTemplateRepositoryPort.save(couponTemplate)
     }
+
+    fun update(
+        id: Long,
+        name: String,
+        type: CouponType,
+        value: Long,
+        minOrderAmount: Long,
+        expiredAt: LocalDateTime,
+    ): CouponTemplate {
+        val existing = getById(id)
+        val updated = existing.update(
+            name = name,
+            type = type,
+            value = value,
+            minOrderAmount = minOrderAmount,
+            expiredAt = expiredAt,
+        )
+        return couponTemplateRepositoryPort.save(updated)
+    }
 }

@@ -79,6 +79,28 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun update(
+        id: Long,
+        body: Map<String, Any?>,
+        ldap: String? = ADMIN_LDAP,
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "$ADMIN_COUPON_ENDPOINT/$id",
+            HttpMethod.PUT,
+            HttpEntity(body, headers(ldap = ldap)),
+            responseType,
+        )
+    }
+
+    private fun createAndGetId(
+        body: Map<String, Any?>,
+    ): Long {
+        val createResponse = create(body)
+        val createdId = ((createResponse.body?.data as? Map<*, *>)?.get("id") as? Number)?.toLong()
+        return requireNotNull(createdId) { "쿠폰 생성 후 id를 얻지 못했습니다." }
+    }
+
     @DisplayName("GET /api-admin/v1/coupons/{id}")
     @Nested
     inner class GetCoupon {
@@ -320,6 +342,158 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
             )
 
             val response = create(body, ldap = "wrong.user")
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        }
+    }
+
+    @DisplayName("PUT /api-admin/v1/coupons/{id}")
+    @Nested
+    inner class UpdateCoupon {
+
+        @DisplayName("어드민이 유효한 값으로 수정하면, 모든 필드가 교체되고 id는 유지된다.")
+        @Test
+        fun updatesAllFields_andKeepsId() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "원본 쿠폰",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "minOrderAmount" to 0,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            val response = update(
+                id,
+                mapOf(
+                    "name" to "변경된 쿠폰",
+                    "type" to "RATE",
+                    "value" to 30,
+                    "minOrderAmount" to 50_000,
+                    "expiredAt" to "2027-06-30T23:59:59",
+                ),
+            )
+
+            val data = response.body?.data
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat((data?.get("id") as? Number)?.toLong()).isEqualTo(id) },
+                { assertThat(data?.get("name")).isEqualTo("변경된 쿠폰") },
+                { assertThat(data?.get("type")).isEqualTo("RATE") },
+                { assertThat((data?.get("value") as? Number)?.toLong()).isEqualTo(30L) },
+                { assertThat((data?.get("minOrderAmount") as? Number)?.toLong()).isEqualTo(50_000L) },
+            )
+        }
+
+        @DisplayName("수정 결과는 단건 조회에도 반영된다.")
+        @Test
+        fun reflectsInGet() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "원본 쿠폰",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            update(
+                id,
+                mapOf(
+                    "name" to "수정됨",
+                    "type" to "FIXED",
+                    "value" to 2_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            val data = getCoupon(id).body?.data
+            assertAll(
+                { assertThat(data?.get("name")).isEqualTo("수정됨") },
+                { assertThat((data?.get("value") as? Number)?.toLong()).isEqualTo(2_000L) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 id를 수정하면, 404 NOT_FOUND 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenMissing() {
+            val response = update(
+                9999L,
+                mapOf(
+                    "name" to "유령",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("type 값이 FIXED/RATE가 아니면, 400 BAD_REQUEST 응답을 받는다.")
+        @Test
+        fun returnsBadRequest_whenInvalidType() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "원본",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            val response = update(
+                id,
+                mapOf(
+                    "name" to "원본",
+                    "type" to "PERCENT",
+                    "value" to 10,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("RATE 할인율이 1~100 범위를 벗어나면, 400 BAD_REQUEST 응답을 받는다.")
+        @Test
+        fun returnsBadRequest_whenRateOutOfRange() {
+            val id = createAndGetId(
+                mapOf(
+                    "name" to "원본",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            val response = update(
+                id,
+                mapOf(
+                    "name" to "원본",
+                    "type" to "RATE",
+                    "value" to 150,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenLdapHeaderMissing() {
+            val response = update(
+                1L,
+                mapOf(
+                    "name" to "권한 없음",
+                    "type" to "FIXED",
+                    "value" to 1_000,
+                    "expiredAt" to "2026-12-31T23:59:59",
+                ),
+                ldap = null,
+            )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }

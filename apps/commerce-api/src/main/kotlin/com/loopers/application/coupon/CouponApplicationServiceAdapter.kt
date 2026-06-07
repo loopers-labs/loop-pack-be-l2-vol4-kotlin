@@ -38,4 +38,17 @@ class CouponApplicationServiceAdapter(
         val couponTemplate = couponTemplateService.getById(id)
         return CouponResult.from(couponTemplate)
     }
+
+    @Transactional
+    override fun updateCoupon(command: UpdateCouponCommand): CouponResult {
+        val couponTemplate = couponTemplateService.update(
+            id = command.id,
+            name = command.name,
+            type = command.type,
+            value = command.value,
+            minOrderAmount = command.minOrderAmount,
+            expiredAt = command.expiredAt,
+        )
+        return CouponResult.from(couponTemplate)
+    }
 }

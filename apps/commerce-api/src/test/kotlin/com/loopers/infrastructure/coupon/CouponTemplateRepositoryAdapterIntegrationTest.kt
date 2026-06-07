@@ -69,6 +69,57 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
             assertThat(found?.minOrderAmount).isEqualTo(10_000L)
             assertThat(found?.expiredAt).isEqualTo(expiredAt)
         }
+
+        @DisplayName("id가 있는 템플릿을 저장하면, 새 행이 아니라 기존 행이 UPDATE된다.")
+        @Test
+        fun updatesInPlace_whenIdExists() {
+            val saved = couponTemplateRepositoryPort.save(
+                CouponTemplate.create(
+                    name = "원본",
+                    type = CouponType.FIXED,
+                    value = 1_000L,
+                    minOrderAmount = 0L,
+                    expiredAt = expiredAt,
+                ),
+            )
+            val newExpiredAt = LocalDateTime.parse("2027-06-30T23:59:59")
+
+            val updated = couponTemplateRepositoryPort.save(
+                saved.update(
+                    name = "변경",
+                    type = CouponType.RATE,
+                    value = 25L,
+                    minOrderAmount = 50_000L,
+                    expiredAt = newExpiredAt,
+                ),
+            )
+
+            assertThat(updated.id).isEqualTo(saved.id)
+            assertThat(couponTemplateJpaRepository.count()).isEqualTo(1L)
+            val found = couponTemplateRepositoryPort.findById(saved.id)
+            assertThat(found?.name).isEqualTo("변경")
+            assertThat(found?.type).isEqualTo(CouponType.RATE)
+            assertThat(found?.value).isEqualTo(25L)
+            assertThat(found?.minOrderAmount).isEqualTo(50_000L)
+            assertThat(found?.expiredAt).isEqualTo(newExpiredAt)
+        }
+
+        @DisplayName("존재하지 않는 id로 save하면, NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFound_whenUpdatingMissingId() {
+            val phantom = CouponTemplate(
+                id = 9999L,
+                name = "유령",
+                type = CouponType.FIXED,
+                value = 1_000L,
+                minOrderAmount = 0L,
+                expiredAt = expiredAt,
+            )
+
+            org.junit.jupiter.api.assertThrows<com.loopers.support.error.CoreException> {
+                couponTemplateRepositoryPort.save(phantom)
+            }
+        }
     }
 
     @DisplayName("findById를 호출할 때, ")

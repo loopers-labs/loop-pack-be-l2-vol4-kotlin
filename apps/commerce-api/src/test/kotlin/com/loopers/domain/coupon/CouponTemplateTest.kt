@@ -92,6 +92,68 @@ class CouponTemplateTest {
         }
     }
 
+    @DisplayName("update(...) 전체 교체")
+    @Nested
+    inner class Update {
+        @DisplayName("모든 필드를 교체한 새 인스턴스를 반환하고 id 는 유지한다.")
+        @Test
+        fun replacesAllFields() {
+            val origin = CouponTemplate(
+                id = 7L,
+                name = "원본",
+                type = CouponType.FIXED,
+                value = 1_000L,
+                minOrderAmount = 0L,
+                expiredAt = expiredAt,
+            )
+            val newExpiredAt = LocalDateTime.parse("2027-01-01T00:00:00")
+
+            val updated = origin.update(
+                name = "변경",
+                type = CouponType.RATE,
+                value = 30L,
+                minOrderAmount = 5_000L,
+                expiredAt = newExpiredAt,
+            )
+
+            assertThat(updated.id).isEqualTo(7L)
+            assertThat(updated.name).isEqualTo("변경")
+            assertThat(updated.type).isEqualTo(CouponType.RATE)
+            assertThat(updated.value).isEqualTo(30L)
+            assertThat(updated.minOrderAmount).isEqualTo(5_000L)
+            assertThat(updated.expiredAt).isEqualTo(newExpiredAt)
+        }
+
+        @DisplayName("FIXED→RATE 로 바꿀 때 변경된 type 기준으로 불변식을 재검증한다.")
+        @Test
+        fun revalidatesRateRangeOnTypeChange() {
+            val origin = template(type = CouponType.FIXED, value = 1_000L)
+
+            assertThrows<IllegalArgumentException> {
+                origin.update(
+                    name = "변경",
+                    type = CouponType.RATE,
+                    value = 101L,
+                    minOrderAmount = 0L,
+                    expiredAt = expiredAt,
+                )
+            }
+        }
+
+        @DisplayName("이름이 비거나 값이 0 이하로 바뀌면 실패한다.")
+        @Test
+        fun rejectsInvalidUpdate() {
+            val origin = template()
+
+            assertThrows<IllegalArgumentException> {
+                origin.update(name = " ", type = CouponType.FIXED, value = 1_000L, minOrderAmount = 0L, expiredAt = expiredAt)
+            }
+            assertThrows<IllegalArgumentException> {
+                origin.update(name = "변경", type = CouponType.FIXED, value = 0L, minOrderAmount = 0L, expiredAt = expiredAt)
+            }
+        }
+    }
+
     @DisplayName("isApplicableTo(orderAmount, now)")
     @Nested
     inner class IsApplicableTo {

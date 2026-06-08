@@ -46,6 +46,38 @@ class UserCouponRepositoryAdapterIntegrationTest @Autowired constructor(
             assertThat(found?.issuedAt).isEqualTo(issuedAt)
             assertThat(found?.usedAt).isNull()
         }
+
+        @DisplayName("기존 쿠폰을 use 후 저장하면 같은 행을 UPDATE 한다(중복 행 INSERT 하지 않음).")
+        @Test
+        fun updatesInPlace_whenExistingCoupon() {
+            val saved = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 9L, issuedAt = issuedAt),
+            )
+            val usedAt = LocalDateTime.parse("2026-06-08T10:00:00")
+
+            val updated = userCouponRepositoryPort.save(saved.use(usedAt))
+
+            assertThat(updated.id).isEqualTo(saved.id)
+            assertThat(userCouponJpaRepository.count()).isEqualTo(1L)
+            val found = userCouponRepositoryPort.findById(saved.id)
+            assertThat(found?.status).isEqualTo(CouponStatus.USED)
+            assertThat(found?.usedAt).isEqualTo(usedAt)
+        }
+
+        @DisplayName("use 후 restore 로 저장하면 AVAILABLE 로 되돌아가고 usedAt 이 비워진다.")
+        @Test
+        fun restoresInPlace() {
+            val saved = userCouponRepositoryPort.save(
+                UserCoupon.issue(couponTemplateId = 1L, userId = 9L, issuedAt = issuedAt),
+            )
+            val used = userCouponRepositoryPort.save(saved.use(LocalDateTime.parse("2026-06-08T10:00:00")))
+
+            val restored = userCouponRepositoryPort.save(used.restore())
+
+            assertThat(userCouponJpaRepository.count()).isEqualTo(1L)
+            assertThat(restored.status).isEqualTo(CouponStatus.AVAILABLE)
+            assertThat(userCouponRepositoryPort.findById(saved.id)?.usedAt).isNull()
+        }
     }
 
     @DisplayName("existsByUserIdAndCouponTemplateId를 호출할 때, ")

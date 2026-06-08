@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.order
 
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.order.AppliedCoupon
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderItems
@@ -73,6 +74,42 @@ class OrderRepositoryAdapterIntegrationTest @Autowired constructor(
             assertThat(reloaded?.totalAmount).isEqualTo(5_000L)
             assertThat(reloaded?.items?.size).isEqualTo(2)
             assertThat(reloaded?.items?.productIds()).containsExactlyInAnyOrder(1L, 2L)
+        }
+
+        @DisplayName("쿠폰 스냅샷(appliedCoupon)이 JSON 컬럼으로 저장되고 그대로 복원된다.")
+        @Test
+        fun roundTripsCouponSnapshot() {
+            val appliedCoupon = AppliedCoupon(
+                issuedCouponId = 42L,
+                couponName = "5천원 할인",
+                couponType = "FIXED",
+                couponValue = 5_000L,
+                discountAmount = 5_000L,
+            )
+            val base = Order.create(
+                userId = 7L,
+                items = OrderItems(listOf(item(productId = 1L, quantity = 1, snapshotPrice = 10_000L))),
+                appliedCoupon = appliedCoupon,
+                orderedAt = ZonedDateTime.parse("2026-05-01T10:00:00+09:00[Asia/Seoul]"),
+            )
+
+            val saved = orderRepositoryPort.save(base)
+            val reloaded = orderRepositoryPort.findById(saved.id)
+
+            assertThat(reloaded?.appliedCoupon).isEqualTo(appliedCoupon)
+            assertThat(reloaded?.discountAmount).isEqualTo(5_000L)
+            assertThat(reloaded?.getActualAmount()).isEqualTo(5_000L)
+        }
+
+        @DisplayName("쿠폰 미적용 주문은 appliedCoupon 이 null 로 복원된다.")
+        @Test
+        fun couponSnapshotNull_whenNoCoupon() {
+            val saved = saveOrder(items = listOf(item(productId = 1L, snapshotPrice = 1_000L)))
+
+            val reloaded = orderRepositoryPort.findById(saved.id)
+
+            assertThat(reloaded?.appliedCoupon).isNull()
+            assertThat(reloaded?.discountAmount).isEqualTo(0L)
         }
 
         @DisplayName("id가 부여된 Order를 다시 저장하면 status가 UPDATE 되고 OrderItem 은 그대로 유지된다.")

@@ -10,10 +10,12 @@ import java.time.ZonedDateTime
 class OrderV1Dto {
     data class CreateOrderRequest(
         val items: List<CreateOrderItemRequest>,
+        val couponId: Long? = null,
     ) {
         fun toCommand(userId: Long): CreateOrderCommand = CreateOrderCommand(
             userId = userId,
             items = items.map { CreateOrderItemCommand(productId = it.productId, quantity = it.quantity) },
+            couponId = couponId,
         )
     }
 

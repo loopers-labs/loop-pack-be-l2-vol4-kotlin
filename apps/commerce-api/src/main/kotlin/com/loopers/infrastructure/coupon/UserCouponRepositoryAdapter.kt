@@ -4,6 +4,8 @@ import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepositoryPort
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 import org.springframework.data.domain.PageRequest as SpringPageRequest
@@ -12,8 +14,16 @@ import org.springframework.data.domain.PageRequest as SpringPageRequest
 class UserCouponRepositoryAdapter(
     private val userCouponJpaRepository: UserCouponJpaRepository,
 ) : UserCouponRepositoryPort {
-    override fun save(userCoupon: UserCoupon): UserCoupon =
-        userCouponJpaRepository.save(UserCouponEntity.from(userCoupon)).toDomain()
+    override fun save(userCoupon: UserCoupon): UserCoupon {
+        if (userCoupon.id == 0L) {
+            return userCouponJpaRepository.save(UserCouponEntity.from(userCoupon)).toDomain()
+        }
+        val existing = userCouponJpaRepository.findById(userCoupon.id)
+            .orElseThrow { CoreException(ErrorType.NOT_FOUND, "발급된 쿠폰을 찾을 수 없습니다.") }
+        existing.status = PersistedCouponStatus.from(userCoupon.status)
+        existing.usedAt = userCoupon.usedAt
+        return userCouponJpaRepository.save(existing).toDomain()
+    }
 
     override fun findById(id: Long): UserCoupon? =
         userCouponJpaRepository.findById(id).map { it.toDomain() }.orElse(null)

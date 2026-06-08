@@ -1,9 +1,11 @@
 package com.loopers.infrastructure.order
 
+import com.loopers.domain.order.AppliedCoupon
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderItems
 import com.loopers.persistence.BaseEntity
 import jakarta.persistence.Column
+import jakarta.persistence.Convert
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -37,6 +39,10 @@ class OrderEntity(
 
     @Column(name = "ordered_at", nullable = false)
     val orderedAt: ZonedDateTime,
+
+    @Convert(converter = AppliedCouponConverter::class)
+    @Column(name = "coupon_snapshot", columnDefinition = "TEXT")
+    val appliedCoupon: AppliedCoupon?,
 ) : BaseEntity() {
 
     fun updateStatus(next: OrderStatusType) {
@@ -51,6 +57,7 @@ class OrderEntity(
         usedPoint = usedPoint,
         orderedAt = orderedAt,
         items = OrderItems(items.map { it.toDomain() }),
+        appliedCoupon = appliedCoupon,
     )
 
     companion object {
@@ -60,6 +67,7 @@ class OrderEntity(
             totalAmount = domain.totalAmount,
             usedPoint = domain.usedPoint,
             orderedAt = domain.orderedAt,
+            appliedCoupon = domain.appliedCoupon,
         )
     }
 }

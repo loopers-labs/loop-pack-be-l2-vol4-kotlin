@@ -3,6 +3,7 @@ package com.loopers.application.order
 data class CreateOrderCommand(
     val userId: Long,
     val items: List<CreateOrderItemCommand>,
+    val couponId: Long? = null,
 )
 
 data class CreateOrderItemCommand(

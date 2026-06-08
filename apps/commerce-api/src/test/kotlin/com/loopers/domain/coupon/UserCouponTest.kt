@@ -85,6 +85,31 @@ class UserCouponTest {
         }
     }
 
+    @DisplayName("restore()")
+    @Nested
+    inner class Restore {
+        @DisplayName("USED 에서 AVAILABLE 로 되돌리고 usedAt 을 비운다.")
+        @Test
+        fun restoresFromUsed() {
+            val used = userCoupon(status = CouponStatus.USED, usedAt = now)
+
+            val restored = used.restore()
+
+            assertThat(restored.status).isEqualTo(CouponStatus.AVAILABLE)
+            assertThat(restored.usedAt).isNull()
+            assertThat(used.status).isEqualTo(CouponStatus.USED)
+        }
+
+        @DisplayName("USED 가 아닌 상태(AVAILABLE/EXPIRED)에서는 예외를 던진다.")
+        @ParameterizedTest
+        @EnumSource(value = CouponStatus::class, names = ["AVAILABLE", "EXPIRED"])
+        fun rejectsWhenNotUsed(status: CouponStatus) {
+            val coupon = userCoupon(status = status, usedAt = null)
+
+            assertThrows<IllegalArgumentException> { coupon.restore() }
+        }
+    }
+
     @DisplayName("expireIfExpired(expiredAt, now)")
     @Nested
     inner class ExpireIfExpired {

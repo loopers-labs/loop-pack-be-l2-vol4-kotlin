@@ -35,6 +35,17 @@ data class UserCoupon(
     }
 
     /**
+     * 사용 완료(USED) 쿠폰을 다시 사용 가능(AVAILABLE)으로 되돌린다.
+     * 주문 결제 실패 등으로 쿠폰 사용을 취소(보상)할 때 사용한다. USED 상태에서만 가능.
+     */
+    fun restore(): UserCoupon {
+        require(status == CouponStatus.USED) {
+            "사용 완료 상태에서만 복원할 수 있습니다: $status"
+        }
+        return copy(status = CouponStatus.AVAILABLE, usedAt = null)
+    }
+
+    /**
      * 현재 시각 기준으로 만료 여부를 확인해, 만료되었으면 EXPIRED 로 전이한 쿠폰을 반환한다.
      * AVAILABLE 이면서 [expiredAt] 을 지난 경우에만 전이하고, 그 외에는 그대로 반환한다(멱등, 예외 없음).
      */

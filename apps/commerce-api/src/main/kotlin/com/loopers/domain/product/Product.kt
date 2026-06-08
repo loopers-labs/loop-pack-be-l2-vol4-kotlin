@@ -27,10 +27,6 @@ class Product(
         validate(brandId = brandId, name = name, description = description, likeCount = likeCount)
     }
 
-    fun validateLikeCountDecreasable() {
-        if (likeCount <= 0) throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수가 될 수 없습니다.")
-    }
-
     fun rename(name: String) {
         validateName(name)
         this.name = name

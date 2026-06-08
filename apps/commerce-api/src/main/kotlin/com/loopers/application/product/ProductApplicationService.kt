@@ -71,10 +71,7 @@ class ProductApplicationService(
 
     @Transactional
     fun decreaseLikeCount(id: Long): Product {
-        val product = getProduct(id)
-        product.validateLikeCountDecreasable()
-
-        if (!productRepository.decreaseLikeCount(id)) {
+        if (!productRepository.decreaseLikeCountIfPositive(id)) {
             throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수가 될 수 없습니다.")
         }
         return getProduct(id)

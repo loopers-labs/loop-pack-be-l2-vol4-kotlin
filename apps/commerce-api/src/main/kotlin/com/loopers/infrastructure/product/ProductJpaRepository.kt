@@ -26,5 +26,5 @@ interface ProductJpaRepository : JpaRepository<ProductJpaEntity, Long> {
         where p.id = :id and p.deletedAt is null and p.likeCount > 0
         """,
     )
-    fun decreaseLikeCount(@Param("id") id: Long): Int
+    fun decreaseLikeCountIfPositive(@Param("id") id: Long): Int
 }

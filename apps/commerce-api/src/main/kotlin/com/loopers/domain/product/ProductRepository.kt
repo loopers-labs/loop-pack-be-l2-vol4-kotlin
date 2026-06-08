@@ -11,7 +11,7 @@ interface ProductRepository {
 
     fun increaseLikeCount(id: Long): Boolean
 
-    fun decreaseLikeCount(id: Long): Boolean
+    fun decreaseLikeCountIfPositive(id: Long): Boolean
 
     fun delete(id: Long)
 }

@@ -33,8 +33,8 @@ class ProductRepositoryImpl(
         return productJpaRepository.increaseLikeCount(id) == 1
     }
 
-    override fun decreaseLikeCount(id: Long): Boolean {
-        return productJpaRepository.decreaseLikeCount(id) == 1
+    override fun decreaseLikeCountIfPositive(id: Long): Boolean {
+        return productJpaRepository.decreaseLikeCountIfPositive(id) == 1
     }
 
     override fun delete(id: Long) {

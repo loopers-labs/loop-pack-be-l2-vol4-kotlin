@@ -12,10 +12,40 @@ import java.time.LocalDateTime
  */
 class UserCouponService(
     private val userCouponRepositoryPort: UserCouponRepositoryPort,
+    private val couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
 ) {
     fun getById(id: Long): UserCoupon =
         userCouponRepositoryPort.findById(id)
             ?: throw CoreException(ErrorType.NOT_FOUND, "발급된 쿠폰을 찾을 수 없습니다.")
+
+    /**
+     * 발급 쿠폰을 주문에 사용한다. 검증 분기를 모두 통과하면 USED 로 전이해 저장하고 [CouponUsage] 를 반환한다.
+     * - 미존재 → NOT_FOUND
+     * - 타 사용자 소유 → FORBIDDEN
+     * - AVAILABLE 이 아님(USED/EXPIRED) → BAD_REQUEST
+     * - 만료/최소 주문 금액 미달 → BAD_REQUEST
+     */
+    fun useForOrder(couponId: Long, userId: Long, orderAmount: Long, now: LocalDateTime): CouponUsage {
+        val coupon = getById(couponId)
+        if (!coupon.belongsTo(userId)) {
+            throw CoreException(ErrorType.FORBIDDEN, "본인의 쿠폰만 사용할 수 있습니다.")
+        }
+        if (coupon.status != CouponStatus.AVAILABLE) {
+            throw CoreException(ErrorType.BAD_REQUEST, "사용할 수 없는 쿠폰입니다: ${coupon.status}")
+        }
+        val template = couponTemplateRepositoryPort.findById(coupon.couponTemplateId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "쿠폰 템플릿을 찾을 수 없습니다.")
+        if (!template.isApplicableTo(orderAmount, now)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "적용할 수 없는 쿠폰입니다(만료 또는 최소 주문 금액 미달).")
+        }
+        val discount = template.calculateDiscount(orderAmount)
+        val used = userCouponRepositoryPort.save(coupon.use(now))
+        return CouponUsage(usedCoupon = used, template = template, discount = discount)
+    }
+
+    /** 사용 완료된 쿠폰을 다시 사용 가능(AVAILABLE)으로 복원한다(결제 실패 보상 등). */
+    fun restore(couponId: Long): UserCoupon =
+        userCouponRepositoryPort.save(getById(couponId).restore())
 
     /** 해당 사용자가 발급받은 쿠폰 전체를 최근 발급순으로 반환한다. */
     fun getByUserId(userId: Long): List<UserCoupon> =

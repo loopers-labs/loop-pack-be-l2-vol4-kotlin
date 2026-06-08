@@ -14,6 +14,8 @@ class CouponConfig {
         CouponTemplateService(couponTemplateRepositoryPort)
 
     @Bean
-    fun userCouponService(userCouponRepositoryPort: UserCouponRepositoryPort): UserCouponService =
-        UserCouponService(userCouponRepositoryPort)
+    fun userCouponService(
+        userCouponRepositoryPort: UserCouponRepositoryPort,
+        couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
+    ): UserCouponService = UserCouponService(userCouponRepositoryPort, couponTemplateRepositoryPort)
 }

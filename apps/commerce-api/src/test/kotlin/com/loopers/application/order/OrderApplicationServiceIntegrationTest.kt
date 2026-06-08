@@ -5,6 +5,12 @@ import com.loopers.application.user.SignupCommand
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.common.PageRequest
+import com.loopers.domain.coupon.CouponStatus
+import com.loopers.domain.coupon.CouponTemplate
+import com.loopers.domain.coupon.CouponTemplateRepositoryPort
+import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.UserCoupon
+import com.loopers.domain.coupon.UserCouponRepositoryPort
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.stock.StockRepositoryPort
 import com.loopers.interfaces.api.order.OrderAdminApplicationServicePort
@@ -27,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZonedDateTime
 
 @SpringBootTest
@@ -38,6 +45,8 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
     private val productAdminApplicationService: ProductAdminApplicationServicePort,
     private val brandRepositoryPort: BrandRepositoryPort,
     private val stockRepositoryPort: StockRepositoryPort,
+    private val couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
+    private val userCouponRepositoryPort: UserCouponRepositoryPort,
     private val fakePaymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -68,6 +77,26 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
     private fun saveProduct(brandId: Long, name: String = "p", price: Long = 1_000L, quantity: Int = 10): Long =
         productAdminApplicationService.createProduct(
             CreateProductCommand(name = name, price = price, description = "d", brandId = brandId, quantity = quantity),
+        ).id
+
+    private fun saveCouponTemplate(
+        type: CouponType = CouponType.FIXED,
+        value: Long = 5_000L,
+        minOrderAmount: Long = 0L,
+        expiredAt: LocalDateTime = LocalDateTime.now().plusDays(1),
+    ): Long = couponTemplateRepositoryPort.save(
+        CouponTemplate.create(
+            name = "테스트 쿠폰",
+            type = type,
+            value = value,
+            minOrderAmount = minOrderAmount,
+            expiredAt = expiredAt,
+        ),
+    ).id
+
+    private fun issueCoupon(templateId: Long, userId: Long): Long =
+        userCouponRepositoryPort.save(
+            UserCoupon.issue(couponTemplateId = templateId, userId = userId, issuedAt = LocalDateTime.now()),
         ).id
 
     @DisplayName("createOrder")
@@ -178,6 +207,151 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
 
             val result = assertThrows<CoreException> {
                 orderApplicationService.createOrder(CreateOrderCommand(userId = userId, items = emptyList()))
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
+
+    @DisplayName("createOrder + 쿠폰")
+    @Nested
+    inner class CreateOrderWithCoupon {
+        @DisplayName("쿠폰 적용 주문이 성공하면 쿠폰이 USED 로 전이되고 금액 스냅샷(할인/최종)이 기록된다.")
+        @Test
+        fun appliesCouponAndMarksUsed() {
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+            val templateId = saveCouponTemplate(type = CouponType.FIXED, value = 5_000L)
+            val couponId = issueCoupon(templateId, userId)
+
+            val detail = orderApplicationService.createOrder(
+                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
+            )
+
+            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_COMPLETED)
+            assertThat(detail.totalAmount).isEqualTo(10_000L)
+            assertThat(detail.discountAmount).isEqualTo(5_000L)
+            assertThat(detail.actualAmount).isEqualTo(5_000L)
+            assertThat(detail.appliedCoupon?.issuedCouponId).isEqualTo(couponId)
+            assertThat(detail.appliedCoupon?.couponType).isEqualTo("FIXED")
+            assertThat(userCouponRepositoryPort.findById(couponId)?.status).isEqualTo(CouponStatus.USED)
+            assertThat(fakePaymentGateway.invocations.first().amount).isEqualTo(5_000L)
+        }
+
+        @DisplayName("정률 쿠폰은 주문 금액 비율로 할인된다.")
+        @Test
+        fun appliesRateCoupon() {
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+            val templateId = saveCouponTemplate(type = CouponType.RATE, value = 10L)
+            val couponId = issueCoupon(templateId, userId)
+
+            val detail = orderApplicationService.createOrder(
+                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 2)), couponId = couponId),
+            )
+
+            assertThat(detail.totalAmount).isEqualTo(20_000L)
+            assertThat(detail.discountAmount).isEqualTo(2_000L)
+            assertThat(detail.actualAmount).isEqualTo(18_000L)
+        }
+
+        @DisplayName("결제 실패 시 쿠폰이 AVAILABLE 로 복원되고 재고도 복원되며 주문은 CANCELLED 된다.")
+        @Test
+        fun restoresCouponAndStock_whenPaymentFails() {
+            fakePaymentGateway.alwaysSucceeds = false
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+            val templateId = saveCouponTemplate(type = CouponType.FIXED, value = 5_000L)
+            val couponId = issueCoupon(templateId, userId)
+
+            val detail = orderApplicationService.createOrder(
+                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 2)), couponId = couponId),
+            )
+
+            assertThat(detail.status).isEqualTo(OrderStatus.CANCELLED)
+            assertThat(userCouponRepositoryPort.findById(couponId)?.status).isEqualTo(CouponStatus.AVAILABLE)
+            assertThat(userCouponRepositoryPort.findById(couponId)?.usedAt).isNull()
+            assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
+        }
+
+        @DisplayName("타 유저 소유 쿠폰으로 주문하면 FORBIDDEN 이고 재고/쿠폰은 그대로다(롤백).")
+        @Test
+        fun throwsForbidden_whenOtherUserCoupon() {
+            val owner = signup(loginId = "owner01")
+            val stranger = signup(loginId = "stranger01")
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+            val templateId = saveCouponTemplate()
+            val ownerCoupon = issueCoupon(templateId, owner)
+
+            val result = assertThrows<CoreException> {
+                orderApplicationService.createOrder(
+                    CreateOrderCommand(userId = stranger, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = ownerCoupon),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.FORBIDDEN)
+            assertThat(userCouponRepositoryPort.findById(ownerCoupon)?.status).isEqualTo(CouponStatus.AVAILABLE)
+            assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
+            assertThat(fakePaymentGateway.invocations).isEmpty()
+        }
+
+        @DisplayName("이미 사용된 쿠폰으로 주문하면 BAD_REQUEST 이다.")
+        @Test
+        fun throwsBadRequest_whenAlreadyUsed() {
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+            val templateId = saveCouponTemplate()
+            val couponId = issueCoupon(templateId, userId)
+            // 1차 주문으로 쿠폰 소진
+            orderApplicationService.createOrder(
+                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
+            )
+
+            val result = assertThrows<CoreException> {
+                orderApplicationService.createOrder(
+                    CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
+        @DisplayName("존재하지 않는 쿠폰으로 주문하면 NOT_FOUND 이고 재고는 그대로다(롤백).")
+        @Test
+        fun throwsNotFound_whenCouponMissing() {
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
+
+            val result = assertThrows<CoreException> {
+                orderApplicationService.createOrder(
+                    CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = 9999L),
+                )
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
+            assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
+            assertThat(fakePaymentGateway.invocations).isEmpty()
+        }
+
+        @DisplayName("최소 주문 금액 미달 쿠폰이면 BAD_REQUEST 이다.")
+        @Test
+        fun throwsBadRequest_whenBelowMinOrderAmount() {
+            val userId = signup()
+            val brandId = saveBrand()
+            val p1 = saveProduct(brandId = brandId, name = "p1", price = 1_000L, quantity = 5)
+            val templateId = saveCouponTemplate(minOrderAmount = 50_000L)
+            val couponId = issueCoupon(templateId, userId)
+
+            val result = assertThrows<CoreException> {
+                orderApplicationService.createOrder(
+                    CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
+                )
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)

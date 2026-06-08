@@ -10,6 +10,9 @@
 - `users.password`는 인코딩된 비밀번호를 저장하며, 평문 비밀번호는 저장하지 않는다.
 - 사용자는 `role` 컬럼으로 일반 사용자와 어드민을 구분하며, 별도 권한 테이블은 두지 않는다.
 - soft delete는 공통 `deleted_at` 컬럼으로 표현한다.
+- 재고는 상품 카탈로그 정보와 분리해 `stocks` 테이블에서 관리한다.
+- `stocks.product_id`는 상품별 재고를 식별하는 논리 참조이며, 한 상품은 하나의 재고 행을 가진다.
+- 상품 삭제 시 상품과 재고는 같은 유스케이스 트랜잭션에서 함께 soft delete한다.
 - 좋아요는 `(user_id, product_id)` 조합의 중복을 허용하지 않는다.
 - `likes`는 취소 후 재등록 시 기존 레코드의 `deleted_at`을 null로 복구한다.
 - 주문 상품은 원본 상품 ID와 주문 시점 상품 스냅샷을 함께 저장한다.
@@ -50,9 +53,17 @@ erDiagram
         BIGINT brand_id "INDEX"
         VARCHAR name
         BIGINT price
-        INT stock
         INT like_count
         TEXT description
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
+    stocks {
+        BIGINT id PK
+        BIGINT product_id "INDEX, UK"
+        INT quantity
         DATETIME created_at
         DATETIME updated_at
         DATETIME deleted_at
@@ -91,6 +102,7 @@ erDiagram
     }
 
     brands ||--o{ products : ""
+    products ||--|| stocks : ""
     users ||--o{ likes : ""
     products ||--o{ likes : ""
     users ||--o{ orders : ""

@@ -18,6 +18,7 @@
 | `User` | 상품 좋아요와 주문을 수행하는 사용자 |
 | `Brand` | 상품을 소유하거나 대표하는 브랜드 |
 | `Product` | 사용자가 조회하고 주문할 수 있는 판매 상품 |
+| `Stock` | 상품별 주문 가능 재고 수량 |
 | `Like` | 사용자가 특정 상품에 표시한 관심 상태 |
 | `Order` | 사용자의 주문 요청과 결제 이후 상태를 관리하는 주문 |
 | `OrderItem` | 주문에 포함된 개별 상품 항목 |
@@ -39,8 +40,9 @@
 
 ### 3.1 상품/브랜드/좋아요 모델
 
-상품은 브랜드에 속하고, 좋아요는 사용자와 상품 사이의 관심 상태를 표현한다.
-`Product.likeCount`는 `likes_desc` 정렬을 위한 집계 값으로, `Like` 등록/취소와 함께 변경된다.
+상품은 브랜드에 속하고, 재고는 상품 ID를 기준으로 별도 애그리거트에서 관리한다.
+좋아요는 사용자와 상품 사이의 관심 상태를 표현한다.
+`Product.likeCount`는 `likes_desc` 정렬을 위한 집계 값으로, `Like` 등록/취소 결과에 따라 원자적으로 변경된다.
 `Brand.softDelete()`는 하위 상품 연쇄 소프트 딜리트 정책의 출발점이다.
 
 ```mermaid
@@ -67,13 +69,16 @@ classDiagram
     class Product {
         <<Entity>>
         Long price
-        Int stock
         Int likeCount
-        decreaseStock(quantity)
-        restoreStock(quantity)
+        softDelete()
+    }
+
+    class Stock {
+        <<Entity>>
+        Long productId
+        Int quantity
+        validateDeductible(amount)
         isSoldOut() Boolean
-        increaseLikeCount()
-        decreaseLikeCount()
         softDelete()
     }
 
@@ -81,11 +86,12 @@ classDiagram
         <<Entity>>
         User user
         Product product
-        cancel()
-        restore()
+        canCancel() Boolean
+        canActivate() Boolean
     }
 
     Product "0..*" --> "1" Brand : 브랜드
+    Stock "1" --> "1" Product : 재고 대상
     Like "0..*" --> "1" User : 사용자
     Like "0..*" --> "1" Product : 상품
     User --> UserRole : 권한

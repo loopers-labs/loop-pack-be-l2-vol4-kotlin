@@ -244,6 +244,24 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
                 { assertThat(decreased.likeCount).isEqualTo(1) },
             )
         }
+
+        @DisplayName("좋아요 수가 0이면 감소하지 않고 BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsBadRequest_whenLikeCountIsZero() {
+            // arrange
+            val entity = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+
+            // act & assert
+            val result = assertThrows<CoreException> {
+                productApplicationService.decreaseLikeCount(entity.id)
+            }
+            val product = productApplicationService.getProduct(entity.id)
+
+            assertAll(
+                { assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
+                { assertThat(product.likeCount).isEqualTo(0) },
+            )
+        }
     }
 
     private fun newProductJpaEntity(

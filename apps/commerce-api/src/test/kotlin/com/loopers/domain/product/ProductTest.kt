@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 
 class ProductTest {
@@ -79,35 +78,6 @@ class ProductTest {
             // act & assert
             val result = assertThrows<CoreException> {
                 newProductWith(likeCount = -1)
-            }
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-    }
-
-    @DisplayName("좋아요 감소 가능 여부 검증 시, ")
-    @Nested
-    inner class ValidateLikeCountDecreasable {
-        @DisplayName("좋아요 수가 0보다 크면 예외가 발생하지 않는다.")
-        @Test
-        fun doesNotThrow_whenLikeCountIsPositive() {
-            // arrange
-            val product = newProductWith(likeCount = 1)
-
-            // act & assert
-            assertDoesNotThrow {
-                product.validateLikeCountDecreasable()
-            }
-        }
-
-        @DisplayName("좋아요 수가 0이면 BAD_REQUEST 예외가 발생한다.")
-        @Test
-        fun throwsBadRequest_whenLikeCountIsZero() {
-            // arrange
-            val product = newProductWith(likeCount = 0)
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                product.validateLikeCountDecreasable()
             }
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }

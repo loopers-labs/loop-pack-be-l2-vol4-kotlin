@@ -16,6 +16,8 @@
 - 좋아요는 `(user_id, product_id)` 조합의 중복을 허용하지 않는다.
 - `likes`는 취소 후 재등록 시 기존 레코드의 `deleted_at`을 null로 복구한다.
 - 주문 상품은 원본 상품 ID와 주문 시점 상품 스냅샷을 함께 저장한다.
+- 쿠폰 정책 원본은 `coupons`에 저장하고, 사용자에게 발급된 쿠폰 1장은 `user_coupons`에 저장한다.
+- 동일한 쿠폰 정책은 한 사용자에게 여러 장 발급될 수 있으므로 `user_coupons.user_id + coupon_id`에는 unique constraint를 두지 않는다.
 - 결제 이력 테이블은 두지 않고, 외부 결제 결과는 주문 상태에 반영한다.
 - 주문 상태는 현재 설계 범위에서 `PENDING_PAYMENT`, `PAID`, `PAYMENT_FAILED`만 사용하며, 별도 상태 테이블은 두지 않는다.
 
@@ -101,10 +103,32 @@ erDiagram
         DATETIME deleted_at
     }
 
+    coupons {
+        BIGINT id PK
+        VARCHAR name
+        VARCHAR policy_type
+        BIGINT policy_value
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
+    user_coupons {
+        BIGINT id PK
+        BIGINT user_id "INDEX"
+        BIGINT coupon_id "INDEX"
+        DATETIME used_at
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
     brands ||--o{ products : ""
     products ||--|| stocks : ""
     users ||--o{ likes : ""
     products ||--o{ likes : ""
+    users ||--o{ user_coupons : ""
+    coupons ||--o{ user_coupons : ""
     users ||--o{ orders : ""
     orders ||--|{ order_items : ""
     products ||--o{ order_items : ""

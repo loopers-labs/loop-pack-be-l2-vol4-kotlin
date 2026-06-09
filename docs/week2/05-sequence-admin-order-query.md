@@ -13,13 +13,13 @@ sequenceDiagram
     actor Admin as 관리자
     participant AdminOrderController as AdminOrderController
     participant AdminOrderFacade as AdminOrderFacade
-    participant OrderService as OrderService
+    participant OrderService as OrderService (application)
     participant OrderRepo as OrderRepository
 
     alt 주문 목록 조회
         Admin->>AdminOrderController: GET /api-admin/v1/orders?page&size
         AdminOrderController->>AdminOrderFacade: getOrders(page, size)
-        AdminOrderFacade->>OrderService: getAdminOrders(page, size)
+        AdminOrderFacade->>OrderService: getOrders(page, size)
         OrderService->>OrderRepo: findAll(page, size)
         OrderRepo-->>OrderService: order summaries
         OrderService-->>AdminOrderFacade: list result
@@ -28,7 +28,7 @@ sequenceDiagram
     else 주문 상세 조회
         Admin->>AdminOrderController: GET /api-admin/v1/orders/{orderId}
         AdminOrderController->>AdminOrderFacade: getOrderDetail(orderId)
-        AdminOrderFacade->>OrderService: getAdminOrderDetail(orderId)
+        AdminOrderFacade->>OrderService: getOrderDetail(orderId)
         OrderService->>OrderRepo: findDetailByOrderId(orderId)
         OrderRepo-->>OrderService: order detail with snapshots
         OrderService-->>AdminOrderFacade: detail result
@@ -40,5 +40,6 @@ sequenceDiagram
 ## 3. Key Points
 
 - 관리자 주문 조회는 사용자 소유권 검증 없이 전체 주문을 조회할 수 있다.
+- `AdminOrderFacade`가 관리자 주문 조회 유스케이스의 진입점이 되고, `OrderService`(application)가 repository interface 를 통해 주문 스냅샷을 읽는다.
 - 그래도 읽는 데이터는 주문 시점 스냅샷을 기준으로 해야 하므로, 사용자 조회와 같은 정합성 원칙을 공유한다.
 - 운영 관점 필터와 페이징은 별도 조회 모델로 최적화할 수 있다.

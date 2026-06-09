@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -43,6 +45,13 @@ class ApiControllerAdvice {
         val name = e.parameterName
         val type = e.parameterType
         val message = "필수 요청 파라미터 '$name' (타입: $type)가 누락되었습니다."
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: MissingRequestHeaderException): ResponseEntity<ApiResponse<*>> {
+        val name = e.headerName
+        val message = "필수 요청 헤더 '$name'가 누락되었습니다."
         return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = message)
     }
 
@@ -102,6 +111,12 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handleNotFound(e: NoResourceFoundException): ResponseEntity<ApiResponse<*>> {
         return failureResponse(errorType = ErrorType.NOT_FOUND)
+    }
+
+    @ExceptionHandler
+    fun handleConflict(e: DataIntegrityViolationException): ResponseEntity<ApiResponse<*>> {
+        log.warn("DataIntegrityViolationException : {}", e.message, e)
+        return failureResponse(errorType = ErrorType.CONFLICT)
     }
 
     @ExceptionHandler

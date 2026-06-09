@@ -13,7 +13,7 @@ sequenceDiagram
     actor User as 사용자
     participant LikeController as LikeController
     participant LikeFacade as LikeFacade
-    participant LikeService as LikeService
+    participant LikeService as LikeService (application)
     participant LikeRepo as LikeRepository
 
     alt 좋아요 등록
@@ -46,5 +46,6 @@ sequenceDiagram
 ## 3. Key Points
 
 - 좋아요 명령의 의미는 "좋아요 상태로 만든다 / 좋아요 아님 상태로 만든다"이다. 현재 상태를 맞히는 것이 목적이지, 행 수 자체가 목적이 아니다.
+- `LikeFacade`가 좋아요 명령 유스케이스의 진입점이고, `LikeService`(application)가 repository interface 를 통해 저장 상태를 변경한다.
 - `(member_id, product_id)` unique 제약은 멱등성을 단순하게 보장하는 핵심 장치다.
 - 삭제 결과가 0건이어도 오류로 보지 않으므로, 클라이언트는 안전하게 재시도할 수 있다.

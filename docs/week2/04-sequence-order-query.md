@@ -13,7 +13,7 @@ sequenceDiagram
     actor User as 사용자
     participant OrderController as OrderController
     participant OrderFacade as OrderFacade
-    participant OrderService as OrderService
+    participant OrderService as OrderService (application)
     participant OrderRepo as OrderRepository
 
     alt 주문 목록 조회
@@ -40,5 +40,6 @@ sequenceDiagram
 ## 3. Key Points
 
 - 주문 조회는 로그인 사용자 기준으로만 허용된다. 조회 모델에서도 사용자 경계가 먼저 적용돼야 한다.
+- `OrderFacade`가 사용자 주문 조회 유스케이스의 진입점이 되고, `OrderService`(application)가 repository interface 를 통해 주문 스냅샷을 읽는다.
 - 주문 상세는 현재 상품 테이블을 다시 조합하는 것이 아니라, 주문 시점 스냅샷을 기준으로 응답해야 한다.
 - 조회는 단순하지만, 쓰기 모델의 스냅샷 전략을 읽기 모델이 그대로 반영해야 한다.

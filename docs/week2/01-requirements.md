@@ -8,7 +8,7 @@
 | 제외 범위 | 회원가입, 내 정보 조회 | 현재 반복적으로 합의한 제외 도메인이기 때문 | 별도 Member/Identity 문서로 확장 가능 |
 | 좋아요 멱등성 | `Like(member_id, product_id)` 복합키로 동일 사용자의 동일 상품 좋아요를 단일 상태로 보장. 중복 `POST`, 이미 없는 상태의 `DELETE` 모두 성공 | 구현 단순성, 명령의 의도를 "원하는 상태로 수렴"으로 유지 | 추후 idempotency key, 이벤트 기반 보완 가능 |
 | 회원 모델 | `Member`는 이번 문서에서 식별자 참조만 사용 | 회원 도메인 경계가 이번 범위 밖이기 때문 | 인증/권한/프로필 도메인으로 분리 가능 |
-| 재고 모델 | `Product`가 `stockQuantity`를 직접 가짐 | 현재 정책이 재고 확인과 차감으로 제한됨 | 예약 재고, 입고, 창고별 재고가 생기면 `Inventory` 분리 가능 |
+| 재고 모델 | `Inventory`를 `Product`와 분리해 `productId` 기준 1:1로 관리 | 재고는 읽기/쓰기 빈도와 동시성 요구가 커서 상품 정보와 분리하는 편이 확장에 유리하기 때문 | 예약 재고, 입고, 창고별 재고, 재고 이력으로 확장 가능 |
 | 주문 성공 기준 | 주문 항목 전체 재고가 충분할 때만 주문 성공 | 정합성이 가장 명확하고 단순함 | 부분 주문, 분할 주문 정책으로 확장 가능 |
 | 주문 실패 처리 | 재고 부족 시 주문은 그냥 실패. 실패 주문 이력은 남기지 않음 | 현재 범위에서 가장 단순한 실패 모델 | 실패 이력, 재시도, 보상 전략 추가 가능 |
 | 결제/외부 연동 | 현재는 실제 결제 도메인과 외부 연동을 만들지 않음 | 미정 정책을 미리 구현하지 않기 위해서 | `PaymentGateway` 포트, `OrderCompleted` 이벤트로 확장 |
@@ -57,14 +57,14 @@
 | --- | --- | --- | --- | --- |
 | 브랜드 정보를 확인한다 | `GET /api/v1/brands/{brandId}` | `brandId` | 브랜드 기본 정보 반환 | soft delete 된 브랜드는 조회 대상에서 제외 |
 | 상품 목록을 둘러본다 | `GET /api/v1/products` | `brandId`, `sort`, `page`, `size` | 페이지 단위 상품 목록 반환 | soft delete 된 상품/브랜드는 조회 대상에서 제외 |
-| 특정 상품의 상세를 본다 | `GET /api/v1/products/{productId}` | `productId` | 상품 상세 정보 반환 | soft delete 된 상품은 조회 대상에서 제외 |
+| 특정 상품의 상세를 본다 | `GET /api/v1/products/{productId}` | `productId` | 상품 상세 정보 반환 | soft delete 된 상품/브랜드는 조회 대상에서 제외 |
 
 #### 상품 목록 조회 파라미터
 
 | 파라미터 | 예시 | 의미 | 비고 |
 | --- | --- | --- | --- |
 | `brandId` | `1` | 특정 브랜드 상품만 조회 | 선택 |
-| `sort` | `latest` | 정렬 기준 | `latest`는 필수 지원, `price_asc`, `likes_desc`는 선택 구현 |
+| `sort` | `latest` | 정렬 기준 | `latest`, `price_asc`, `likes_desc` 지원 |
 | `page` | `0` | 페이지 번호 | 기본값 0 |
 | `size` | `20` | 페이지 크기 | 기본값 20 |
 
@@ -73,8 +73,18 @@
 | 구분 | 포함 정보 |
 | --- | --- |
 | 브랜드 | 브랜드 ID, 이름, 소개 문구, 대표 이미지/로고 |
-| 상품 목록 | 상품 ID, 브랜드명, 상품명, 판매가, 대표 이미지, 좋아요 여부, 좋아요 수 또는 정렬에 필요한 요약 정보 |
-| 상품 상세 | 상품 ID, 브랜드명, 상품명, 판매가, 재고 상태, 상세 설명, 이미지 목록, 좋아요 여부 |
+| 상품 목록 | 상품 ID, 브랜드 ID, 브랜드명, 상품명, 판매가, 대표 이미지, 좋아요 수 |
+| 상품 상세 | 상품 ID, 상품명, 판매가, 상세 설명, 대표 이미지, 브랜드 정보, 좋아요 수 |
+
+#### 상품 목록 조회 구현 정책
+
+| 항목 | 내용 |
+| --- | --- |
+| 정렬 방식 | `latest`는 `product.created_at desc`, `price_asc`는 `product.price asc`, `likes_desc`는 `product_stat.like_count desc` 기준 |
+| 조회 방식 | 상품 목록은 `Product + Brand + ProductStat`을 QueryDSL projection 으로 조회한다 |
+| 좋아요 수 | 상품별 좋아요 수는 `ProductStat.likeCount`로 관리하며, 값이 없으면 0으로 해석한다 |
+| 응답 구조 | 목록 응답은 `ApiResponse<PageResponse<ProductSummaryResponse>>` 형태로 감싼다. `PageResponse` 안에서 `data`와 `meta`를 분리한다 |
+| 재고 노출 | 고객용 상품 목록/상세에는 재고 수량을 노출하지 않는다. 재고는 주문/관리자 상품 작업에서 별도 모델로 다룬다 |
 
 ### 3.3 좋아요
 
@@ -121,7 +131,7 @@
 | 부분 주문 | 지원하지 않음 |
 | 실패 주문 저장 | 저장하지 않음 |
 | 주문 스냅샷 | 주문 시점의 상품명, 브랜드명, 판매가를 주문 항목에 스냅샷으로 저장 |
-| 재고 차감 시점 | 주문 생성 트랜잭션 내부에서 즉시 차감 |
+| 재고 차감 시점 | 주문 생성 트랜잭션 내부에서 `Inventory`를 즉시 차감 |
 | 주문 상태 | 현재 저장되는 주문은 `COMPLETED`만 사용 |
 | 결제 모델 | 현재 구현하지 않음. 향후 주문 완료 이후 외부 결제 연동 포인트 추가 가능 |
 
@@ -136,7 +146,7 @@
 | 브랜드를 삭제한다 | `DELETE /api-admin/v1/brands/{brandId}` | `brandId` | 브랜드 삭제 처리 | 해당 브랜드와 소속 상품을 soft delete 처리 |
 | 등록된 상품 목록을 본다 | `GET /api-admin/v1/products?page=0&size=20&brandId={brandId}` | `page`, `size`, `brandId` | 상품 목록 반환 | 관리자 인증 필요 |
 | 특정 상품 상세를 본다 | `GET /api-admin/v1/products/{productId}` | `productId` | 상품 상세 반환 | 관리자 인증 필요 |
-| 상품을 등록한다 | `POST /api-admin/v1/products` | 상품 기본 정보, `brandId` | 새 상품 생성 | 상품의 브랜드는 반드시 기존 브랜드여야 함 |
+| 상품을 등록한다 | `POST /api-admin/v1/products` | 상품 기본 정보, `brandId`, 초기 재고 | 새 상품과 재고가 함께 생성된다 | 상품의 브랜드는 반드시 기존 브랜드여야 함 |
 | 상품 정보를 수정한다 | `PUT /api-admin/v1/products/{productId}` | `productId`, 수정 정보 | 상품 정보 변경 | 상품의 브랜드는 수정할 수 없음 |
 | 상품을 삭제한다 | `DELETE /api-admin/v1/products/{productId}` | `productId` | 상품 삭제 처리 | soft delete 처리 |
 
@@ -147,7 +157,7 @@
 | 브랜드 삭제 정책 | 브랜드 삭제 시 해당 브랜드와 소속 상품을 함께 soft delete 처리해야 한다 |
 | 상품 등록 정책 | 존재하는 브랜드에만 상품을 등록할 수 있다 |
 | 상품 수정 정책 | 상품의 `brandId`는 변경할 수 없다 |
-| 조회 모델 정책 | 고객용 조회는 `isDeleted = false` 데이터만 노출하고, 관리자용 조회는 운영 정책에 따라 삭제 여부를 구분해 볼 수 있다 |
+| 조회 모델 정책 | 고객용 조회와 관리자용 조회 모두 기본적으로 `isDeleted = false` 데이터만 노출한다 |
 
 ### 3.6 관리자 주문 관리
 
@@ -178,7 +188,7 @@
 
 | Bounded Context | 핵심 책임 | 대표 모델 | 비고 |
 | --- | --- | --- | --- |
-| Catalog | 브랜드/상품 정보 제공, 상품 판매 가능 상태 제공, 관리자 Catalog 운영 | `Brand`, `Product` | 재고는 `Product` 내부 상태 |
+| Catalog | 브랜드/상품 정보 제공, 상품 판매 가능 상태 제공, 관리자 Catalog 운영 | `Brand`, `Product`, `ProductStat` | 재고는 주문/관리자 상품 작업에서 `Inventory`로 분리해 다룬다 |
 | Engagement | 사용자의 상품 선호 상태 관리 | `Like` | 조인 성격의 단순한 쓰기 모델 |
 | Ordering | 주문 생성, 주문 스냅샷 보존, 관리자 주문 조회 | `Order`, `OrderItem` | 성공 주문만 저장 |
 | Identity Reference | 사용자 식별자 참조 | `MemberId` | 도메인 상세는 제외 |
@@ -187,7 +197,7 @@
 
 | 도메인 | 상태 변화 | 설명 |
 | --- | --- | --- |
-| Product | `stockQuantity` 감소 | 주문 성공 시 주문 수량만큼 차감 |
+| Inventory | `quantity` 감소 | 주문 성공 시 주문 수량만큼 차감 |
 | Brand/Product | `isDeleted` 변경 | 관리자 삭제 시 soft delete 처리 |
 | Like | 생성 / 삭제 | 사용자의 좋아요 상태가 원하는 상태로 수렴 |
 | Order | 생성 후 `COMPLETED` 저장 | 주문 성공 시점의 결과를 스냅샷으로 보존 |
@@ -197,8 +207,8 @@
 
 | 리스크 | 왜 문제인가 | 현재 선택 | 대안 |
 | --- | --- | --- | --- |
-| `Product`에 재고 책임 집중 | 상품 정보와 재고 정책이 함께 커질 수 있음 | 단순성 우선 | 입고/예약/창고 요구가 생기면 `Inventory` 분리 |
-| 좋아요 수 정렬 확장 | `likes_desc`는 집계 비용이 커질 수 있음 | 기본은 조회 시 조합 | 캐시/집계 테이블/비동기 projection |
+| `Product`와 `Inventory` 동시 갱신 | 상품 생성/조회/주문에서 조합 지점이 늘어난다 | 재고를 분리해 책임과 동시성 경계를 명확히 한다 | 단순성이 더 중요하면 `Product` 내부 상태로 합칠 수 있음 |
+| 좋아요 수 정렬 확장 | `likes_desc`는 집계 비용이 커질 수 있음 | `product_stat.like_count` 기준 조회 projection 사용 | 캐시/비동기 projection 고도화 |
 | 주문 실패 이력 부재 | 운영 분석이나 재시도 UX가 어려울 수 있음 | 현재는 저장하지 않음 | 실패 주문 로그/이벤트 저장 |
 | 결제 미모델링 | 결제 도입 시 주문 상태 전이가 늘어남 | 현재는 포트만 고려 | `PaymentGateway`, `Payment` Aggregate, Saga/Orchestration |
 | 타 사용자 좋아요 비공개 | 소셜 확장 시 URI/정책이 다시 바뀔 수 있음 | 내 좋아요만 허용 | 공개 프로필/팔로우 정책 추가 |
@@ -209,7 +219,7 @@
 
 | 영역 | 구현 포인트 |
 | --- | --- |
-| Catalog 조회 | 브랜드 조회, 상품 목록/상세 조회, 기본 정렬(`latest`) |
+| Catalog 조회 | 브랜드 조회, 상품 목록/상세 조회, `latest`, `price_asc`, `likes_desc` 정렬 |
 | Admin Catalog | 브랜드/상품 목록/상세/등록/수정/삭제 |
 | Like 명령 | unique 제약 기반 `POST`/`DELETE` 멱등 처리 |
 | Like 조회 | 로그인 사용자 기준 좋아요 목록 조회 |
@@ -223,7 +233,7 @@
 | --- | --- |
 | 실제 결제 승인/취소 | 외부 시스템, 상태 전이, 실패 정책이 미정 |
 | 부분 주문/분할 주문 | 주문 성공 기준이 바뀌므로 도메인 경계에 영향 |
-| 재고 이력/입고/예약 재고 | `Inventory` 분리 여부를 먼저 결정해야 함 |
+| 재고 이력/입고/예약 재고 | 재고는 `Inventory`로 분리할 예정이지만 세부 정책과 하위 모델이 아직 미정 |
 | 좋아요 수 실시간 랭킹 | 읽기 모델/비동기 집계 전략이 추가로 필요 |
 | 오류 응답 계약의 세부 HTTP status | 현재 문서는 도메인 정책 중심이며 API 에러 스펙 합의가 추가로 필요 |
 

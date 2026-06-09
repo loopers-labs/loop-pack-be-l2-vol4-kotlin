@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.order
 
 import com.loopers.application.order.OrderFacade
 import com.loopers.interfaces.api.ApiResponse
+import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -10,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import java.time.LocalDateTime
+import java.time.LocalDate
 import java.time.ZoneId
 
 @RestController
@@ -36,16 +37,20 @@ class OrderV1Controller(
     override fun getOrders(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") password: String,
-        @RequestParam startAt: String,
-        @RequestParam endAt: String,
+        @RequestParam
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+        startAt: LocalDate,
+        @RequestParam
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+        endAt: LocalDate,
     ): ApiResponse<List<OrderV1Dto.OrderSummaryResponse>> {
         val zoneId = ZoneId.systemDefault()
 
         return orderFacade.getOrders(
             loginId = loginId,
             rawPassword = password,
-            startAt = LocalDateTime.parse(startAt).atZone(zoneId),
-            endAt = LocalDateTime.parse(endAt).atZone(zoneId),
+            startAt = startAt.atStartOfDay(zoneId),
+            endAt = endAt.plusDays(1).atStartOfDay(zoneId).minusNanos(1),
         ).map(OrderV1Dto.OrderSummaryResponse::from)
             .let(ApiResponse.Companion::success)
     }

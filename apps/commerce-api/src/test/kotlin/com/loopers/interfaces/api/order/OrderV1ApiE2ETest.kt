@@ -30,6 +30,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
+import java.time.LocalDate
 import java.time.ZonedDateTime
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -175,7 +176,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
             createOrder(memberId = otherMember.id, orderedAt = now, totalAmount = 30_000L)
 
             val response = testRestTemplate.exchange(
-                ordersUrl(startAt = now.minusDays(2), endAt = now.plusDays(1)),
+                ordersUrl(startAt = now.minusDays(2).toLocalDate(), endAt = now.plusDays(1).toLocalDate()),
                 HttpMethod.GET,
                 HttpEntity<Unit>(createAuthHeaders()),
                 object : ParameterizedTypeReference<ApiResponse<List<OrderV1Dto.OrderSummaryResponse>>>() {},
@@ -195,7 +196,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val now = ZonedDateTime.now()
 
             val response = testRestTemplate.exchange(
-                ordersUrl(startAt = now.minusDays(1), endAt = now.plusDays(1)),
+                ordersUrl(startAt = now.minusDays(1).toLocalDate(), endAt = now.plusDays(1).toLocalDate()),
                 HttpMethod.GET,
                 HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
                 object : ParameterizedTypeReference<ApiResponse<List<OrderV1Dto.OrderSummaryResponse>>>() {},
@@ -337,8 +338,8 @@ class OrderV1ApiE2ETest @Autowired constructor(
         return jdbcTemplate.queryForObject("select count(*) from order_item", Long::class.java) ?: 0L
     }
 
-    private fun ordersUrl(startAt: ZonedDateTime, endAt: ZonedDateTime): String {
-        return "$ORDERS_ENDPOINT?startAt=${startAt.toLocalDateTime()}&endAt=${endAt.toLocalDateTime()}"
+    private fun ordersUrl(startAt: LocalDate, endAt: LocalDate): String {
+        return "$ORDERS_ENDPOINT?startAt=$startAt&endAt=$endAt"
     }
 
     private companion object {

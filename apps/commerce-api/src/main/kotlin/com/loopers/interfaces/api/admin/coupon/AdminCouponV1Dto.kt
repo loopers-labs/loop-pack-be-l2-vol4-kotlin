@@ -3,8 +3,6 @@ package com.loopers.interfaces.api.admin.coupon
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.application.coupon.dto.CouponInfo
 import com.loopers.domain.coupon.DiscountType
-import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.ZonedDateTime
 
 class AdminCouponV1Dto {
@@ -13,7 +11,7 @@ class AdminCouponV1Dto {
         val type: DiscountType,
         val value: Long,
         val minOrderAmount: Long?,
-        val expiredAt: LocalDateTime,
+        val expiredAt: ZonedDateTime,
     ) {
         fun toCommand(): CouponCreateCommand {
             return CouponCreateCommand(
@@ -21,7 +19,7 @@ class AdminCouponV1Dto {
                 type,
                 value,
                 minOrderAmount,
-                expiredAt.atZone(ZoneId.systemDefault()),
+                expiredAt,
             )
         }
     }

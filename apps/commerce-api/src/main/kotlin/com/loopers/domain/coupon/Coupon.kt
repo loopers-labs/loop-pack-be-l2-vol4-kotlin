@@ -49,7 +49,7 @@ class Coupon(
             throw CoreException(ErrorType.BAD_REQUEST, "Name must not be blank.")
         }
         if (minOrderAmount != null && minOrderAmount < 0L) {
-            throw CoreException(ErrorType.BAD_REQUEST, "Minimum order amount must be greater than zero.")
+            throw CoreException(ErrorType.BAD_REQUEST, "MinimumOrderAmount cannot be less than zero.")
         }
         if (!expiredAt.isAfter(ZonedDateTime.now())) {
             throw CoreException(ErrorType.BAD_REQUEST, "Coupon expiration time must be in the future.")

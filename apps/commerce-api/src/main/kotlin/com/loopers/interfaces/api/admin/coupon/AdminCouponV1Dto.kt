@@ -27,6 +27,7 @@ class AdminCouponV1Dto {
     data class CouponResponse(
         val couponId: Long,
         val name: String,
+        val type: DiscountType,
         val value: Long,
         val minOrderAmount: Long?,
         val expiredAt: ZonedDateTime,
@@ -36,6 +37,7 @@ class AdminCouponV1Dto {
                 return CouponResponse(
                     info.couponId,
                     info.name,
+                    info.type,
                     info.value,
                     info.minOrderAmount,
                     info.expiredAt,

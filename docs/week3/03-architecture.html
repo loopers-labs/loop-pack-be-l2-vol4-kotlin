@@ -224,7 +224,7 @@
 
 <div style="margin:16px 0;padding:16px 20px;border:2px solid #B45309;background:#FFFBEB;border-radius:8px;color:#1c1917;line-height:1.6">
   <strong style="color:#B45309">⚠️ 정정 (최신 결정 · 본 배너가 본문보다 우선)</strong>
-  <p style="margin:8px 0 4px">아래 본문의 일부 표·다이어그램은 초기 설계 시점 기준이라 다음과 충돌할 수 있습니다. 충돌 시 <strong>이 배너 + <code>docs/week3/04-domain-feature-plan.md</code></strong>가 정답입니다.</p>
+  <p style="margin:8px 0 4px">아래 본문의 일부 표·다이어그램은 초기 설계 시점 기준이라 다음과 충돌할 수 있습니다. 충돌 시 <strong>이 배너</strong>가 정답입니다.</p>
   <ul style="margin:6px 0 0;padding-left:20px">
     <li><strong>과제 범위</strong>: domain + 경량 application + repository(인터페이스+구현) + 단위테스트. <strong>API · Controller · E2E · Admin 엔드포인트 · 웹 DTO(<code>*V1Dto</code>) · 인증 필터 · HTTP status 매핑은 범위 밖</strong> (본문 §3 패키지 트리의 <code>interfaces/</code>·<code>config/SecurityConfig</code>·필터, §5~7의 Controller/Facade/시퀀스 Filter는 학습용 일반 예시로만 본다).</li>
     <li><strong>Value Object 3개뿐</strong>: <code>BrandName</code> · <code>ProductName</code> · <code>Money</code>. <strong><code>LikeCount</code>·<code>Quantity</code>는 VO 아님</strong> → 엔티티 필드 + 도메인 메서드(<code>Product.likeCount: Long</code> + <code>like()/unlike()</code>, <code>Inventory.quantity: Long</code> + <code>decrease()/increase()</code>). <strong><code>Price</code> VO 없음</strong> → <code>Money</code>(shared kernel <code>com.loopers.domain.shared</code>)로 통합, Product 가격·Order 금액 공용.</li>
@@ -971,8 +971,7 @@
 
   <div class="info">
     <div class="label">참조</div>
-    상세 결정 배경: <code>docs/week3/00-plan.md</code> · <code>docs/week3/01-checklist.md</code> ·
-    <code>docs/week3/02-ddd-concepts.html</code> (개념 가이드) ·
+    상세 결정 배경: <code>docs/study/02-ddd-concepts.html</code> (개념 가이드) ·
     <code>docs/week2/01-requirements.md</code> (요구사항 SSOT) ·
     <code>CLAUDE.md</code> §2~§13
   </div>

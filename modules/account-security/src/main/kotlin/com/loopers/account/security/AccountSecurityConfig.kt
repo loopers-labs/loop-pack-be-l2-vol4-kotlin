@@ -26,8 +26,13 @@ class AccountSecurityConfig(
                 it
                     .requestMatchers(HttpMethod.POST, USERS_PATH).permitAll()
                     .requestMatchers(ACTUATOR_PATH, SWAGGER_UI_PATH, API_DOCS_PATH).permitAll()
+                    .requestMatchers(ADMIN_PATH).authenticated()
                     .anyRequest().authenticated()
             }
+            .addFilterBefore(
+                AdminLdapAuthenticationFilter(accountService, accountAuthenticationEntryPoint),
+                UsernamePasswordAuthenticationFilter::class.java,
+            )
             .addFilterBefore(
                 AccountHeaderAuthenticationFilter(accountService, accountAuthenticationEntryPoint),
                 UsernamePasswordAuthenticationFilter::class.java,
@@ -39,5 +44,6 @@ class AccountSecurityConfig(
         private const val ACTUATOR_PATH = "/actuator/**"
         private const val SWAGGER_UI_PATH = "/swagger-ui/**"
         private const val API_DOCS_PATH = "/v3/api-docs/**"
+        private const val ADMIN_PATH = "/api-admin/v1/**"
     }
 }

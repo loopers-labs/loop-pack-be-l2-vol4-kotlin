@@ -21,7 +21,8 @@ class AccountHeaderAuthenticationFilter(
         return (request.method == HttpMethod.POST.name() && path == USERS_PATH) ||
             path.startsWith(ACTUATOR_PATH_PREFIX) ||
             path.startsWith(SWAGGER_UI_PATH_PREFIX) ||
-            path.startsWith(API_DOCS_PATH_PREFIX)
+            path.startsWith(API_DOCS_PATH_PREFIX) ||
+            path.startsWith(ADMIN_PATH_PREFIX)
     }
 
     override fun doFilterInternal(
@@ -92,6 +93,7 @@ class AccountHeaderAuthenticationFilter(
         private const val ACTUATOR_PATH_PREFIX = "/actuator"
         private const val SWAGGER_UI_PATH_PREFIX = "/swagger-ui"
         private const val API_DOCS_PATH_PREFIX = "/v3/api-docs"
+        private const val ADMIN_PATH_PREFIX = "/api-admin/v1/"
     }
 }
 

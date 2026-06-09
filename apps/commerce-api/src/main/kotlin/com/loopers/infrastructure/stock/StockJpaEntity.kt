@@ -25,7 +25,7 @@ class StockJpaEntity(
     var quantity: Int = quantity
         protected set
 
-    fun apply(stock: Stock) {
+    fun updateFrom(stock: Stock) {
         quantity = stock.quantity
     }
 

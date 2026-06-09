@@ -11,7 +11,7 @@ class CouponRepositoryImpl(
     override fun save(coupon: Coupon): Coupon {
         val entity = coupon.id
             ?.let { id -> couponJpaRepository.findByIdAndDeletedAtIsNull(id) }
-            ?.also { it.apply(coupon) }
+            ?.also { it.updateFrom(coupon) }
             ?: CouponJpaEntity.from(coupon)
 
         return couponJpaRepository.save(entity).toDomain()

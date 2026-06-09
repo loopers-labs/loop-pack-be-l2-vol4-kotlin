@@ -12,7 +12,7 @@ class StockRepositoryImpl(
     override fun save(stock: Stock): Stock {
         val entity = stock.id
             ?.let { id -> stockJpaRepository.findByIdOrNull(id) }
-            ?.also { it.apply(stock) }
+            ?.also { it.updateFrom(stock) }
             ?: StockJpaEntity.from(stock)
 
         return stockJpaRepository.save(entity).toDomain()

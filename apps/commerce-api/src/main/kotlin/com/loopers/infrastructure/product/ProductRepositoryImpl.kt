@@ -14,7 +14,7 @@ class ProductRepositoryImpl(
     override fun save(product: Product): Product {
         val entity = product.id
             ?.let { productJpaRepository.findByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(product) }
+            ?.also { it.updateFrom(product) }
             ?: ProductJpaEntity.from(product)
 
         return productJpaRepository.save(entity).toDomain()

@@ -44,7 +44,7 @@ class OrderJpaEntity(
     val items: List<OrderItemJpaEntity>
         get() = _items.toList()
 
-    fun apply(order: Order) {
+    fun updateFrom(order: Order) {
         status = order.status
         totalPrice = order.totalPrice.amount
     }

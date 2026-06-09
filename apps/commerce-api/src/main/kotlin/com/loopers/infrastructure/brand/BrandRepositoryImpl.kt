@@ -11,7 +11,7 @@ class BrandRepositoryImpl(
     override fun save(brand: Brand): Brand {
         val entity = brand.id
             ?.let { brandJpaRepository.findByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(brand) }
+            ?.also { it.updateFrom(brand) }
             ?: BrandJpaEntity.from(brand)
 
         return brandJpaRepository.save(entity).toDomain()

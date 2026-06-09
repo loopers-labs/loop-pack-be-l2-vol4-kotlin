@@ -36,7 +36,7 @@ class CouponJpaEntity(
         },
     )
 
-    fun apply(coupon: Coupon) {
+    fun updateFrom(coupon: Coupon) {
         this.name = coupon.name
     }
 

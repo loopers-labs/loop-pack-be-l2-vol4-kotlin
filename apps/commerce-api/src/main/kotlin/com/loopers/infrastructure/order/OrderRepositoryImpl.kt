@@ -11,7 +11,7 @@ class OrderRepositoryImpl(
     override fun save(order: Order): Order {
         val entity = order.id
             ?.let { orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(order) }
+            ?.also { it.updateFrom(order) }
             ?: OrderJpaEntity.from(order)
 
         return orderJpaRepository.save(entity).toDomain()

@@ -22,7 +22,7 @@ class UserRepositoryImpl(
     override fun save(user: User): User {
         val entity = user.id
             ?.let { userJpaRepository.findByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(user) }
+            ?.also { it.updateFrom(user) }
             ?: UserJpaEntity.from(user)
 
         return userJpaRepository.save(entity).toDomain()

@@ -42,7 +42,7 @@ class ProductJpaEntity(
     var likeCount: Int = likeCount
         protected set
 
-    fun apply(product: Product) {
+    fun updateFrom(product: Product) {
         name = product.name
         description = product.description
         price = product.price.amount

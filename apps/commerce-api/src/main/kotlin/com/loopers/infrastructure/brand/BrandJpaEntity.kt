@@ -25,7 +25,7 @@ class BrandJpaEntity(
     var logoImageUrl: String? = logoImageUrl
         protected set
 
-    fun apply(brand: Brand) {
+    fun updateFrom(brand: Brand) {
         name = brand.name
         description = brand.description
         logoImageUrl = brand.logoImageUrl

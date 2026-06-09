@@ -4,15 +4,18 @@ import com.loopers.domain.BaseEntity
 import com.loopers.domain.coupon.DiscountType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.time.ZonedDateTime
 
 @Entity
 @Table(name = "coupon")
 class CouponEntity(
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, unique = true)
     var name: String,
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
     var type: DiscountType,
 

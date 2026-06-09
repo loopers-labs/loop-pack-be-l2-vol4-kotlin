@@ -61,7 +61,6 @@ class Coupon(
                     throw CoreException(ErrorType.BAD_REQUEST, "Fixed discount amount must be greater than zero.")
                 }
             }
-
             DiscountType.RATE -> {
                 if (discountValue !in 1..100) {
                     throw CoreException(ErrorType.BAD_REQUEST, "Rate discount must be between 1 and 100.")

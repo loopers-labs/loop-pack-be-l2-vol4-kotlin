@@ -23,7 +23,7 @@ class ProductEntity(
     @Column(name = "brand_id", nullable = false)
     var brandId: Long,
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     var name: String,
 
     @Column(nullable = false)

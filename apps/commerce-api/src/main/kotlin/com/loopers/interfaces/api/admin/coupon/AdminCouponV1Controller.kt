@@ -1,0 +1,25 @@
+package com.loopers.interfaces.api.admin.coupon
+
+import com.loopers.application.admin.coupon.AdminCouponFacade
+import com.loopers.interfaces.api.ApiResponse
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+@RestController
+@RequestMapping("/api-admin/v1/coupons")
+class AdminCouponV1Controller(
+    private val couponFacade: AdminCouponFacade,
+) : AdminCouponV1ApiSpec {
+    @PostMapping
+    override fun createCoupon(
+        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestBody request: AdminCouponV1Dto.CreateCouponRequest,
+    ): ApiResponse<AdminCouponV1Dto.CouponResponse> {
+        return couponFacade.createCoupon(request.toCommand())
+            .let(AdminCouponV1Dto.CouponResponse::from)
+            .let { ApiResponse.success(it) }
+    }
+}

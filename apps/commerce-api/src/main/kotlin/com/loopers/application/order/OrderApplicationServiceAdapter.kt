@@ -14,6 +14,7 @@ import com.loopers.interfaces.api.order.OrderAdminApplicationServicePort
 import com.loopers.interfaces.api.order.OrderApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -33,7 +34,12 @@ class OrderApplicationServiceAdapter(
      * 외부 결제 호출이 DB 트랜잭션을 점유하지 않도록 경계를 분리한다.
      */
     override fun createOrder(command: CreateOrderCommand): OrderDetail {
-        val pending = orderPlacement.place(command)
+        // 쿠폰 낙관적 락 충돌은 place 의 트랜잭션 커밋(flush) 시점에 발생하므로 트랜잭션 경계 밖인 여기서 잡는다.
+        val pending = try {
+            orderPlacement.place(command)
+        } catch (e: OptimisticLockingFailureException) {
+            throw CoreException(ErrorType.CONFLICT, "다른 주문에서 이미 사용된 쿠폰입니다. 다시 시도해 주세요.")
+        }
         val paymentResult = paymentGateway.requestPayment(orderId = pending.id, amount = pending.getActualAmount())
         val finalized = orderPlacement.finalize(orderId = pending.id, paymentResult = paymentResult)
         return OrderDetail.from(finalized)

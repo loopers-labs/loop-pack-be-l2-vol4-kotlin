@@ -2,7 +2,6 @@ package com.loopers.infrastructure.coupon
 
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponRepository
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
 @Component
@@ -11,8 +10,8 @@ class CouponRepositoryImpl(
 ) : CouponRepository {
     override fun save(coupon: Coupon): Coupon {
         val entity = coupon.id
-            ?.let { id -> couponJpaRepository.findByIdOrNull(id) }
-            ?.also { it.updateName(coupon) }
+            ?.let { id -> couponJpaRepository.findByIdAndDeletedAtIsNull(id) }
+            ?.also { it.apply(coupon) }
             ?: CouponJpaEntity.from(coupon)
 
         return couponJpaRepository.save(entity).toDomain()

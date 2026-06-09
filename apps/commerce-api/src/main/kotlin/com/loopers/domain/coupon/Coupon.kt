@@ -17,6 +17,11 @@ class Coupon(
 
     fun discountOf(targetAmount: DiscountAmount): DiscountAmount = policy.discountOf(targetAmount)
 
+    fun rename(newName: String) {
+        validateName(newName)
+        this.name = newName
+    }
+
     companion object {
         private fun validateName(name: String) {
             if (name.isBlank()) throw CoreException(ErrorType.BAD_REQUEST, "쿠폰명은 비어있을 수 없습니다.")

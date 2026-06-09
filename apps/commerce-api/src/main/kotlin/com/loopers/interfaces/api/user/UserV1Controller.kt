@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.user
 
 import com.loopers.application.user.UserFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.support.LoopersHeaders
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
@@ -26,9 +27,11 @@ class UserV1Controller(
 
     @GetMapping("/me")
     override fun getMe(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
     ): ApiResponse<UserV1Dto.GetMeResponse> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         return userFacade.getMe(loginId, password)
             .let { UserV1Dto.GetMeResponse.from(it) }
             .let { ApiResponse.success(it) }
@@ -36,10 +39,12 @@ class UserV1Controller(
 
     @PutMapping("/password")
     override fun updatePassword(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @RequestBody request: UserV1Dto.UpdatePasswordRequest,
     ): ApiResponse<Any> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         userFacade.updatePassword(
             loginId = loginId,
             rawPassword = password,

@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.admin.brand
 import com.loopers.application.admin.brand.AdminBrandFacade
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import com.loopers.interfaces.support.LoopersHeaders
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -21,10 +22,12 @@ class AdminBrandV1Controller(
 ) : AdminBrandV1ApiSpec {
     @GetMapping
     override fun getBrands(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PageResponse<AdminBrandV1Dto.BrandResponse>> {
+        LoopersHeaders.validateAdmin(adminId)
+
         return adminBrandFacade.getBrands(page = page, size = size)
             .map(AdminBrandV1Dto.BrandResponse::from)
             .let { PageResponse.from(it) }
@@ -33,9 +36,11 @@ class AdminBrandV1Controller(
 
     @GetMapping("/{brandId}")
     override fun getBrand(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @PathVariable brandId: Long,
     ): ApiResponse<AdminBrandV1Dto.BrandResponse> {
+        LoopersHeaders.validateAdmin(adminId)
+
         return adminBrandFacade.getBrand(brandId)
             .let(AdminBrandV1Dto.BrandResponse::from)
             .let { ApiResponse.success(it) }
@@ -43,9 +48,11 @@ class AdminBrandV1Controller(
 
     @PostMapping
     override fun createBrand(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @RequestBody request: AdminBrandV1Dto.CreateBrandRequest,
     ): ApiResponse<AdminBrandV1Dto.BrandResponse> {
+        LoopersHeaders.validateAdmin(adminId)
+
         return adminBrandFacade.createBrand(request.toCommand())
             .let(AdminBrandV1Dto.BrandResponse::from)
             .let { ApiResponse.success(it) }
@@ -53,10 +60,12 @@ class AdminBrandV1Controller(
 
     @PutMapping("/{brandId}")
     override fun updateBrand(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @PathVariable brandId: Long,
         @RequestBody request: AdminBrandV1Dto.UpdateBrandRequest,
     ): ApiResponse<AdminBrandV1Dto.BrandResponse> {
+        LoopersHeaders.validateAdmin(adminId)
+
         return adminBrandFacade.updateBrand(brandId = brandId, command = request.toCommand())
             .let(AdminBrandV1Dto.BrandResponse::from)
             .let { ApiResponse.success(it) }
@@ -64,9 +73,11 @@ class AdminBrandV1Controller(
 
     @DeleteMapping("/{brandId}")
     override fun deleteBrand(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @PathVariable brandId: Long,
     ): ApiResponse<Any> {
+        LoopersHeaders.validateAdmin(adminId)
+
         adminBrandFacade.deleteBrand(brandId)
         return ApiResponse.success()
     }

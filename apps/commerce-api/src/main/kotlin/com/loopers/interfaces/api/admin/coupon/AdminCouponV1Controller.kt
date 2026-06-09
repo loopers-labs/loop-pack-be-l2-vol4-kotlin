@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.admin.coupon
 
 import com.loopers.application.admin.coupon.AdminCouponFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.support.LoopersHeaders
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
@@ -15,9 +16,11 @@ class AdminCouponV1Controller(
 ) : AdminCouponV1ApiSpec {
     @PostMapping
     override fun createCoupon(
-        @RequestHeader("X-Loopers-Ldap") adminId: String,
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
         @RequestBody request: AdminCouponV1Dto.CreateCouponRequest,
     ): ApiResponse<AdminCouponV1Dto.CouponResponse> {
+        LoopersHeaders.validateAdmin(adminId)
+
         return couponFacade.createCoupon(request.toCommand())
             .let(AdminCouponV1Dto.CouponResponse::from)
             .let { ApiResponse.success(it) }

@@ -81,6 +81,22 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("관리자 식별 헤더 값이 유효하지 않으면 쿠폰 등록에 실패한다")
+        @Test
+        fun returnsUnauthorized_whenAdminHeaderValueIsInvalid() {
+            val response = testRestTemplate.exchange(
+                COUPONS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(createCouponRequest(), createAdminHeaders(adminId = "admin")),
+                object : ParameterizedTypeReference<ApiResponse<AdminCouponV1Dto.CouponResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
+                { assertThat(couponJpaRepository.findAll()).isEmpty() },
+            )
+        }
+
         @DisplayName("이미 존재하는 쿠폰명으로 쿠폰 등록 요청 시 실패한다")
         @Test
         fun returnsConflict_whenCouponNameAlreadyExists() {
@@ -138,9 +154,9 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
         )
     }
 
-    private fun createAdminHeaders(): HttpHeaders {
+    private fun createAdminHeaders(adminId: String = "loopers.admin"): HttpHeaders {
         return HttpHeaders().apply {
-            set("X-Loopers-Ldap", "admin")
+            set("X-Loopers-Ldap", adminId)
             contentType = MediaType.APPLICATION_JSON
         }
     }

@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.order
 
 import com.loopers.application.order.OrderFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.support.LoopersHeaders
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -21,10 +22,12 @@ class OrderV1Controller(
 ) : OrderV1ApiSpec {
     @PostMapping
     override fun placeOrder(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @RequestBody request: OrderV1Dto.CreateOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         return orderFacade.placeOrder(
             loginId = loginId,
             rawPassword = password,
@@ -35,8 +38,8 @@ class OrderV1Controller(
 
     @GetMapping
     override fun getOrders(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @RequestParam
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         startAt: LocalDate,
@@ -44,6 +47,8 @@ class OrderV1Controller(
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         endAt: LocalDate,
     ): ApiResponse<List<OrderV1Dto.OrderSummaryResponse>> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         val zoneId = ZoneId.systemDefault()
 
         return orderFacade.getOrders(
@@ -57,10 +62,12 @@ class OrderV1Controller(
 
     @GetMapping("/{orderId}")
     override fun getOrder(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @PathVariable orderId: Long,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         return orderFacade.getOrder(
             loginId = loginId,
             rawPassword = password,

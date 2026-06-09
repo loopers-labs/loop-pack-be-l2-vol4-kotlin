@@ -124,7 +124,7 @@ class AdminOrderV1ApiE2ETest @Autowired constructor(
 
     private fun createAdminHeaders(): HttpHeaders {
         return HttpHeaders().apply {
-            set("X-Loopers-Ldap", "admin")
+            set("X-Loopers-Ldap", "loopers.admin")
         }
     }
 

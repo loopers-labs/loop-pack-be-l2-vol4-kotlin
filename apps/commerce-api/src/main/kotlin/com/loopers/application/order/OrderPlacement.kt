@@ -62,7 +62,9 @@ class OrderPlacement(
             )
         }
 
-        orderItems.forEach { stockService.decrease(productId = it.productId, quantity = it.quantity) }
+        // 비관적 락 획득 순서를 productId 오름차순으로 고정해 다중 상품 주문 간 데드락을 방지한다.
+        orderItems.sortedBy { it.productId }
+            .forEach { stockService.decrease(productId = it.productId, quantity = it.quantity) }
 
         val created = orderService.save(
             Order.create(userId = command.userId, items = OrderItems(orderItems), appliedCoupon = appliedCoupon),

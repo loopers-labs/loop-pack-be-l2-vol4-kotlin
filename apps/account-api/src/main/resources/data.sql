@@ -1,6 +1,6 @@
 -- admin 계정 1개 seed
 --   loginId = loopersadmin  (점 미허용 CredentialIdentifier regex `^[A-Za-z0-9]+$` 통과 위함)
---   password = Admin@Loop2026 (BCrypt 해시 박음, sanity는 BCryptSeedHashVerificationTest 참조)
+--   password = BCrypt 해시로만 저장 (평문은 저장소에 남기지 않음 — 로컬 테스트용 평문은 BCryptSeedHashVerificationTest 참조)
 -- 주의: X-Loopers-Ldap 헤더 값은 명세 그대로 "loopers.admin" — LoginId와 별개 식별자.
 -- local profile에서만 실행 (test profile은 spring.sql.init.mode=never로 차단).
 -- ddl-auto=create이므로 매 부팅 시 drop+create 후 본 INSERT 재실행 — idempotent 보장 불필요.

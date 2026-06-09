@@ -20,7 +20,7 @@ class LikeRepositoryAdapter(
 
     override fun save(like: Like): Like {
         val saved = likeJpaRepository.save(LikeEntity.from(like))
-        val likeCount = likeCountJpaRepository.findByProductId(like.productId)
+        val likeCount = likeCountJpaRepository.findByProductIdForUpdate(like.productId)
             ?: LikeCountEntity(productId = like.productId, count = 0)
         likeCount.increment()
         likeCountJpaRepository.save(likeCount)
@@ -34,7 +34,7 @@ class LikeRepositoryAdapter(
         val entity = likeJpaRepository.findById(like.id)
             .orElseThrow { CoreException(ErrorType.NOT_FOUND, "좋아요를 찾을 수 없습니다.") }
         likeJpaRepository.delete(entity)
-        likeCountJpaRepository.findByProductId(like.productId)?.also {
+        likeCountJpaRepository.findByProductIdForUpdate(like.productId)?.also {
             it.decrement()
             likeCountJpaRepository.save(it)
         }

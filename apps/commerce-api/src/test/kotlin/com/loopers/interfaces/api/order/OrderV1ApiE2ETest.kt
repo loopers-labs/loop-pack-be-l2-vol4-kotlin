@@ -38,6 +38,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class OrderV1ApiE2ETest @Autowired constructor(
@@ -286,6 +289,57 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 response = response,
                 productId = product.id,
                 couponIssue = couponIssue,
+            )
+        }
+
+        @DisplayName("동일한 쿠폰으로 동시에 주문해도 쿠폰은 한 번만 사용된다")
+        @Test
+        fun usesCouponIssueOnlyOnce_whenOrdersAreConcurrent() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 20L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 1_000L,
+                minOrderAmount = 10_000L,
+            )
+            val couponIssue = createCouponIssue(memberId = member.id, coupon = coupon)
+            val executor = Executors.newFixedThreadPool(CONCURRENT_ORDER_COUNT)
+            val startLatch = java.util.concurrent.CountDownLatch(1)
+
+            val futures = (1..CONCURRENT_ORDER_COUNT).map {
+                executor.submit(
+                    Callable {
+                    startLatch.await()
+                    testRestTemplate.exchange(
+                        ORDERS_ENDPOINT,
+                        HttpMethod.POST,
+                        HttpEntity(
+                            OrderV1Dto.CreateOrderRequest(
+                                items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 1L)),
+                                couponId = couponIssue.id,
+                            ),
+                            createAuthHeaders(),
+                        ),
+                        object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+                    )
+                    },
+                )
+            }
+
+            startLatch.countDown()
+            val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
+            executor.shutdown()
+
+            val usedCoupon = couponIssueJpaRepository.findById(couponIssue.id).orElseThrow()
+            assertAll(
+                { assertThat(responses.count { it.statusCode == HttpStatus.OK }).isEqualTo(1) },
+                { assertThat(responses.count { it.statusCode == HttpStatus.BAD_REQUEST }).isEqualTo(CONCURRENT_ORDER_COUNT - 1) },
+                { assertThat(orderJpaRepository.findAll()).hasSize(1) },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(19L) },
+                { assertThat(usedCoupon.status).isEqualTo(CouponIssueStatus.USED) },
+                { assertThat(usedCoupon.usedAt).isNotNull() },
             )
         }
 
@@ -600,5 +654,6 @@ class OrderV1ApiE2ETest @Autowired constructor(
         private const val ORDERS_ENDPOINT = "/api/v1/orders"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
+        private const val CONCURRENT_ORDER_COUNT = 10
     }
 }

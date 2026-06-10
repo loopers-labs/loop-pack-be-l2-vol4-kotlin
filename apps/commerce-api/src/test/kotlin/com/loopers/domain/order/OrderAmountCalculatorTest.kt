@@ -9,8 +9,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 
 class OrderAmountCalculatorTest {
-    private val calculator = OrderAmountCalculator()
-
     @DisplayName("주문 금액 계산 시, ")
     @Nested
     inner class Calculate {
@@ -24,7 +22,7 @@ class OrderAmountCalculatorTest {
             )
 
             // act
-            val amounts = calculator.calculate(items = items)
+            val amounts = OrderAmountCalculator.calculate(items = items)
 
             // assert
             assertAll(
@@ -42,7 +40,7 @@ class OrderAmountCalculatorTest {
             val coupon = Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L))
 
             // act
-            val amounts = calculator.calculate(items = items, coupon = coupon)
+            val amounts = OrderAmountCalculator.calculate(items = items, coupon = coupon)
 
             // assert
             assertAll(
@@ -60,7 +58,7 @@ class OrderAmountCalculatorTest {
             val coupon = Coupon(name = "10% 할인", policy = DiscountPolicy.Rate(10))
 
             // act
-            val amounts = calculator.calculate(items = items, coupon = coupon)
+            val amounts = OrderAmountCalculator.calculate(items = items, coupon = coupon)
 
             // assert
             assertAll(

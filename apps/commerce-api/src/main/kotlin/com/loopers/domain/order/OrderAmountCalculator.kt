@@ -3,7 +3,7 @@ package com.loopers.domain.order
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.DiscountAmount
 
-class OrderAmountCalculator {
+object OrderAmountCalculator {
     fun calculate(
         items: List<OrderItem>,
         coupon: Coupon? = null,

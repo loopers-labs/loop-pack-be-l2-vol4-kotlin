@@ -10,7 +10,9 @@ data class OrderInfo(
     val id: Long,
     val userId: Long,
     val status: OrderStatus,
-    val totalPrice: Long,
+    val totalAmount: Long,
+    val discountAmount: Long,
+    val paymentAmount: Long,
     val items: List<OrderItemInfo>,
 ) {
     companion object {
@@ -19,7 +21,9 @@ data class OrderInfo(
                 id = order.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "주문 ID가 존재하지 않습니다."),
                 userId = order.userId,
                 status = order.status,
-                totalPrice = order.totalPrice.amount,
+                totalAmount = order.totalAmount.amount,
+                discountAmount = order.discountAmount.amount,
+                paymentAmount = order.paymentAmount.amount,
                 items = order.items.map { OrderItemInfo.from(it) },
             )
         }

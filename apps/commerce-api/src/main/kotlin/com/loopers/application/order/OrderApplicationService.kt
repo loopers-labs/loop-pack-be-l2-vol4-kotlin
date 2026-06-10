@@ -1,6 +1,7 @@
 package com.loopers.application.order
 
 import com.loopers.domain.order.Order
+import com.loopers.domain.order.OrderAmounts
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderRepository
 import com.loopers.support.error.CoreException
@@ -13,11 +14,16 @@ class OrderApplicationService(
     private val orderRepository: OrderRepository,
 ) {
     @Transactional
-    fun createOrder(userId: Long, items: List<OrderItem>): Order {
+    fun createOrder(
+        userId: Long,
+        items: List<OrderItem>,
+        amounts: OrderAmounts,
+    ): Order {
         return orderRepository.save(
             Order(
                 userId = userId,
                 items = items,
+                amounts = amounts,
             ),
         )
     }

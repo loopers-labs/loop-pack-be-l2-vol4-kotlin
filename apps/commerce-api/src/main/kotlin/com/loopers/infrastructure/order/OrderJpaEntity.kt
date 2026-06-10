@@ -2,6 +2,8 @@ package com.loopers.infrastructure.order
 
 import com.loopers.domain.BaseEntity
 import com.loopers.domain.order.Order
+import com.loopers.domain.order.OrderAmount
+import com.loopers.domain.order.OrderAmounts
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderStatus
 import jakarta.persistence.CascadeType
@@ -24,7 +26,9 @@ import jakarta.persistence.Table
 class OrderJpaEntity(
     userId: Long,
     status: OrderStatus,
-    totalPrice: Long,
+    totalAmount: Long,
+    discountAmount: Long,
+    paymentAmount: Long,
 ) : BaseEntity() {
     @Column(name = "user_id", nullable = false)
     val userId: Long = userId
@@ -35,7 +39,15 @@ class OrderJpaEntity(
         protected set
 
     @Column(name = "total_amount", nullable = false)
-    var totalPrice: Long = totalPrice
+    var totalAmount: Long = totalAmount
+        protected set
+
+    @Column(name = "discount_amount", nullable = false)
+    var discountAmount: Long = discountAmount
+        protected set
+
+    @Column(name = "payment_amount", nullable = false)
+    var paymentAmount: Long = paymentAmount
         protected set
 
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
@@ -46,7 +58,9 @@ class OrderJpaEntity(
 
     fun updateFrom(order: Order) {
         status = order.status
-        totalPrice = order.totalPrice.amount
+        totalAmount = order.totalAmount.amount
+        discountAmount = order.discountAmount.amount
+        paymentAmount = order.paymentAmount.amount
     }
 
     fun addItem(orderItem: OrderItem) {
@@ -68,6 +82,11 @@ class OrderJpaEntity(
             userId = userId,
             items = items.map { it.toDomain() },
             status = status,
+            amounts = OrderAmounts(
+                totalAmount = OrderAmount(totalAmount),
+                discountAmount = OrderAmount(discountAmount),
+                paymentAmount = OrderAmount(paymentAmount),
+            ),
         )
     }
 
@@ -76,7 +95,9 @@ class OrderJpaEntity(
             val orderEntity = OrderJpaEntity(
                 userId = order.userId,
                 status = order.status,
-                totalPrice = order.totalPrice.amount,
+                totalAmount = order.totalAmount.amount,
+                discountAmount = order.discountAmount.amount,
+                paymentAmount = order.paymentAmount.amount,
             )
             order.items.forEach { orderEntity.addItem(it) }
             return orderEntity

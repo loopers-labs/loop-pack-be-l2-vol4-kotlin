@@ -8,13 +8,15 @@ class Order(
     val userId: Long,
     items: List<OrderItem>,
     status: OrderStatus = OrderStatus.PENDING_PAYMENT,
+    amounts: OrderAmounts,
 ) {
     val items: List<OrderItem> = items.toList()
     var status: OrderStatus = status
         private set
 
-    val totalPrice: OrderAmount
-        get() = items.fold(OrderAmount.ZERO) { acc, item -> acc + item.totalPrice }
+    val totalAmount: OrderAmount = amounts.totalAmount
+    val discountAmount: OrderAmount = amounts.discountAmount
+    val paymentAmount: OrderAmount = amounts.paymentAmount
 
     init {
         validate(userId = userId, items = items)

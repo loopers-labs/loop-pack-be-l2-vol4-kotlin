@@ -2,6 +2,7 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueRepository
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.DiscountType
@@ -113,6 +114,14 @@ class CouponServiceTest {
     }
 
     private class FakeCouponIssueRepository : CouponIssueRepository {
+        override fun save(issue: CouponIssue): CouponIssue {
+            return issue
+        }
+
+        override fun findById(issueId: Long): CouponIssue? {
+            return null
+        }
+
         override fun existsByCouponId(couponId: Long): Boolean {
             return false
         }

@@ -1,8 +1,10 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.domain.coupon.DiscountType
+import com.loopers.infrastructure.coupon.CouponEntity
 import com.loopers.infrastructure.coupon.CouponJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -138,6 +140,76 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api-admin/v1/coupons")
+    @Nested
+    inner class GetCoupons {
+        @DisplayName("등록된 쿠폰 템플릿 목록을 페이지로 조회한다")
+        @Test
+        fun returnsCouponPage() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+            couponJpaRepository.save(createCouponEntity(name = "삭제된 쿠폰", isDeleted = true))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<AdminCouponV1Dto.CouponResponse>>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.data).hasSize(1) },
+                { assertThat(response.body?.data?.data?.get(0)?.couponId).isEqualTo(coupon.id) },
+                { assertThat(response.body?.data?.data?.get(0)?.name).isEqualTo(coupon.name) },
+                { assertThat(response.body?.data?.data?.get(0)?.type).isEqualTo(coupon.type) },
+                { assertThat(response.body?.data?.data?.get(0)?.value).isEqualTo(coupon.discountValue) },
+                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(1L) },
+            )
+        }
+    }
+
+    @DisplayName("GET /api-admin/v1/coupons/{couponId}")
+    @Nested
+    inner class GetCoupon {
+        @DisplayName("등록된 쿠폰 템플릿 상세를 조회한다")
+        @Test
+        fun returnsCoupon() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminCouponV1Dto.CouponResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
+                { assertThat(response.body?.data?.name).isEqualTo(coupon.name) },
+                { assertThat(response.body?.data?.type).isEqualTo(coupon.type) },
+                { assertThat(response.body?.data?.value).isEqualTo(coupon.discountValue) },
+                { assertThat(response.body?.data?.minOrderAmount).isEqualTo(coupon.minOrderAmount) },
+                { assertThat(response.body?.data?.expiredAt?.toInstant()).isEqualTo(coupon.expiredAt.toInstant()) },
+            )
+        }
+
+        @DisplayName("삭제된 쿠폰 템플릿은 상세 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenCouponIsDeleted() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "삭제된 쿠폰", isDeleted = true))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminCouponV1Dto.CouponResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createCouponRequest(
         name: String = "신규가입 10% 할인",
         type: DiscountType = DiscountType.RATE,
@@ -151,6 +223,24 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+        )
+    }
+
+    private fun createCouponEntity(
+        name: String = "신규가입 10% 할인",
+        type: DiscountType = DiscountType.RATE,
+        discountValue: Long = 10L,
+        minOrderAmount: Long? = 10_000L,
+        expiredAt: ZonedDateTime = ZonedDateTime.parse("2026-12-31T23:59:59+09:00"),
+        isDeleted: Boolean = false,
+    ): CouponEntity {
+        return CouponEntity(
+            name = name,
+            type = type,
+            discountValue = discountValue,
+            minOrderAmount = minOrderAmount,
+            expiredAt = expiredAt,
+            isDeleted = isDeleted,
         )
     }
 

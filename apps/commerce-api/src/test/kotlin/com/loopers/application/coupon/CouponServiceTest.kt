@@ -7,6 +7,9 @@ import com.loopers.domain.coupon.DiscountType
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -59,6 +62,19 @@ class CouponServiceTest {
     private class FakeCouponRepository : CouponRepository {
         val coupons = mutableListOf<Coupon>()
         private var sequence = 1L
+
+        override fun findById(couponId: Long): Coupon? {
+            return coupons.find { it.id == couponId }
+        }
+
+        override fun findDisplayable(page: Int, size: Int): Page<Coupon> {
+            val pageRequest = PageRequest.of(page, size)
+            return PageImpl(
+                coupons.filterNot(Coupon::isDeleted),
+                pageRequest,
+                coupons.count { !it.isDeleted }.toLong(),
+            )
+        }
 
         override fun save(coupon: Coupon): Coupon {
             val saved = if (coupon.id == 0L) {

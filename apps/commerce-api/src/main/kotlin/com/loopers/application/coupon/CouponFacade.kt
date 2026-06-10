@@ -2,6 +2,7 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.application.coupon.dto.CouponInfo
+import com.loopers.application.coupon.dto.CouponIssueInfo
 import com.loopers.application.coupon.dto.CouponUpdateCommand
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
@@ -18,6 +19,11 @@ class CouponFacade(
     fun getCoupons(page: Int, size: Int): Page<CouponInfo> {
         return couponService.getCoupons(page = page, size = size)
             .map(CouponInfo::from)
+    }
+
+    fun getCouponIssues(couponId: Long, page: Int, size: Int): Page<CouponIssueInfo> {
+        return couponService.getCouponIssues(couponId = couponId, page = page, size = size)
+            .map(CouponIssueInfo::from)
     }
 
     fun createCoupon(command: CouponCreateCommand): CouponInfo {

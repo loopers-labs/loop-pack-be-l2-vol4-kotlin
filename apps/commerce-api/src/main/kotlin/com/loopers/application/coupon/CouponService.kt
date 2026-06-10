@@ -3,6 +3,7 @@ package com.loopers.application.coupon
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.application.coupon.dto.CouponUpdateCommand
 import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueRepository
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.support.error.CoreException
@@ -31,6 +32,12 @@ class CouponService(
     @Transactional(readOnly = true)
     fun getCoupons(page: Int, size: Int): Page<Coupon> {
         return couponRepository.findDisplayable(page = page, size = size)
+    }
+
+    @Transactional(readOnly = true)
+    fun getCouponIssues(couponId: Long, page: Int, size: Int): Page<CouponIssue> {
+        val coupon = getCoupon(couponId)
+        return couponIssueRepository.findAllByCouponId(couponId = coupon.id, page = page, size = size)
     }
 
     @Transactional

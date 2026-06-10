@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.CouponIssueDisplayStatus
 import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.infrastructure.coupon.CouponEntity
 import com.loopers.infrastructure.coupon.CouponIssueEntity
@@ -336,6 +337,80 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api-admin/v1/coupons/{couponId}/issues")
+    @Nested
+    inner class GetCouponIssues {
+        @DisplayName("특정 쿠폰의 발급 내역을 페이지로 조회한다")
+        @Test
+        fun returnsCouponIssuePage() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+            val availableIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = 1L,
+                    expiredAt = ZonedDateTime.parse("2099-12-31T23:59:59+09:00"),
+                ),
+            )
+            val expiredIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = 2L,
+                    expiredAt = ZonedDateTime.parse("2000-12-31T23:59:59+09:00"),
+                ),
+            )
+            val usedIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = 3L,
+                    status = CouponIssueStatus.USED,
+                    expiredAt = ZonedDateTime.parse("2000-12-31T23:59:59+09:00"),
+                    usedAt = ZonedDateTime.parse("2000-12-01T10:00:00+09:00"),
+                ),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}/issues?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<AdminCouponV1Dto.CouponIssueResponse>>>() {},
+            )
+
+            val issues = response.body?.data?.data.orEmpty()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(issues).hasSize(3) },
+                { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(3L) },
+                {
+                    assertThat(issues)
+                        .extracting<Long> { it.issueId }
+                        .containsExactlyInAnyOrder(availableIssue.id, expiredIssue.id, usedIssue.id)
+                },
+                {
+                    assertThat(issues.associate { it.issueId to it.status })
+                        .containsEntry(availableIssue.id, CouponIssueDisplayStatus.AVAILABLE)
+                        .containsEntry(expiredIssue.id, CouponIssueDisplayStatus.EXPIRED)
+                        .containsEntry(usedIssue.id, CouponIssueDisplayStatus.USED)
+                },
+            )
+        }
+
+        @DisplayName("삭제된 쿠폰 템플릿의 발급 내역은 조회할 수 없다")
+        @Test
+        fun returnsNotFound_whenCouponIsDeleted() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "삭제된 쿠폰", isDeleted = true))
+            couponIssueJpaRepository.save(createCouponIssueEntity(coupon = coupon, memberId = 1L))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}/issues?page=0&size=20",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<PageResponse<AdminCouponV1Dto.CouponIssueResponse>>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createCouponRequest(
         name: String = "신규가입 10% 할인",
         type: DiscountType = DiscountType.RATE,
@@ -373,16 +448,19 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
     private fun createCouponIssueEntity(
         coupon: CouponEntity,
         memberId: Long,
+        status: CouponIssueStatus = CouponIssueStatus.AVAILABLE,
+        expiredAt: ZonedDateTime = coupon.expiredAt,
+        usedAt: ZonedDateTime? = null,
     ): CouponIssueEntity {
         return CouponIssueEntity(
             memberId = memberId,
             couponId = coupon.id,
-            status = CouponIssueStatus.AVAILABLE,
+            status = status,
             type = coupon.type,
             discountValue = coupon.discountValue,
             minOrderAmount = coupon.minOrderAmount,
-            expiredAt = coupon.expiredAt,
-            usedAt = null,
+            expiredAt = expiredAt,
+            usedAt = usedAt,
         )
     }
 

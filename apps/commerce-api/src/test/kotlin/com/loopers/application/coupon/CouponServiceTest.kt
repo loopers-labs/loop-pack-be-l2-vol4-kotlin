@@ -122,6 +122,10 @@ class CouponServiceTest {
             return null
         }
 
+        override fun findAllByCouponId(couponId: Long, page: Int, size: Int): Page<CouponIssue> {
+            return PageImpl(emptyList(), PageRequest.of(page, size), 0)
+        }
+
         override fun existsByCouponId(couponId: Long): Boolean {
             return false
         }

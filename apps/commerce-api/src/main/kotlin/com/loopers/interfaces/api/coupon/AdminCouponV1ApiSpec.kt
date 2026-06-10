@@ -27,6 +27,17 @@ interface AdminCouponV1ApiSpec {
     ): ApiResponse<AdminCouponV1Dto.CouponResponse>
 
     @Operation(
+        summary = "관리자 쿠폰 발급 내역 조회",
+        description = "관리자가 특정 쿠폰 템플릿의 발급 내역을 페이지로 조회합니다.",
+    )
+    fun getCouponIssues(
+        adminId: String,
+        couponId: Long,
+        page: Int,
+        size: Int,
+    ): ApiResponse<PageResponse<AdminCouponV1Dto.CouponIssueResponse>>
+
+    @Operation(
         summary = "관리자 쿠폰 템플릿 등록",
         description = "관리자가 쿠폰 템플릿을 등록합니다. 정액(FIXED)/정률(RATE) 타입 지정.)",
     )

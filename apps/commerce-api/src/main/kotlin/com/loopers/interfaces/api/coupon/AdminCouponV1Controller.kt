@@ -46,6 +46,21 @@ class AdminCouponV1Controller(
             .let { ApiResponse.success(it) }
     }
 
+    @GetMapping("/{couponId}/issues")
+    override fun getCouponIssues(
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
+        @PathVariable couponId: Long,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): ApiResponse<PageResponse<AdminCouponV1Dto.CouponIssueResponse>> {
+        LoopersHeaders.validateAdmin(adminId)
+
+        return couponFacade.getCouponIssues(couponId = couponId, page = page, size = size)
+            .map(AdminCouponV1Dto.CouponIssueResponse::from)
+            .let { PageResponse.from(it) }
+            .let { ApiResponse.success(it) }
+    }
+
     @PostMapping
     override fun createCoupon(
         @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,

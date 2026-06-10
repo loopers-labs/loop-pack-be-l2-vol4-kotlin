@@ -2,6 +2,9 @@ package com.loopers.infrastructure.coupon
 
 import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
@@ -18,6 +21,19 @@ class CouponIssueRepositoryImpl(
     override fun findById(issueId: Long): CouponIssue? {
         return couponIssueJpaRepository.findByIdOrNull(issueId)
             ?.let(CouponIssueMapper::toDomain)
+    }
+
+    override fun findAllByCouponId(couponId: Long, page: Int, size: Int): Page<CouponIssue> {
+        val pageable = PageRequest.of(
+            page,
+            size,
+            Sort.by(
+                Sort.Order.desc("createdAt"),
+                Sort.Order.desc("id"),
+            ),
+        )
+        return couponIssueJpaRepository.findAllByCouponId(couponId, pageable)
+            .map(CouponIssueMapper::toDomain)
     }
 
     override fun existsByCouponId(couponId: Long): Boolean {

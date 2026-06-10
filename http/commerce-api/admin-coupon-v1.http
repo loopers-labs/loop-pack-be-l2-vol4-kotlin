@@ -10,3 +10,7 @@ Content-Type: application/json
   "minOrderAmount": 10000,
   "expiredAt": "2026-12-31T23:59:59+09:00"
 }
+
+### 관리자 쿠폰 발급 내역 조회
+GET {{commerce-api}}/api-admin/v1/coupons/1/issues?page=0&size=20
+X-Loopers-Ldap: loopers.admin

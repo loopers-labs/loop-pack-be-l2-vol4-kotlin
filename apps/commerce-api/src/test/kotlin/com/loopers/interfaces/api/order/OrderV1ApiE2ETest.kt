@@ -185,6 +185,110 @@ class OrderV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("다른 회원의 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
+        @Test
+        fun returnsBadRequest_whenCouponIssueBelongsToOtherMember() {
+            createMember()
+            val otherMember = createMember(loginId = "other123")
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 3_000L,
+                minOrderAmount = 10_000L,
+            )
+            val couponIssue = createCouponIssue(memberId = otherMember.id, coupon = coupon)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertFailedCouponOrderDidNotMutate(
+                response = response,
+                productId = product.id,
+                couponIssue = couponIssue,
+            )
+        }
+
+        @DisplayName("만료된 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
+        @Test
+        fun returnsBadRequest_whenCouponIssueIsExpired() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 3_000L,
+                minOrderAmount = 10_000L,
+                expiredAt = ZonedDateTime.now().minusDays(1),
+            )
+            val couponIssue = createCouponIssue(memberId = member.id, coupon = coupon)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertFailedCouponOrderDidNotMutate(
+                response = response,
+                productId = product.id,
+                couponIssue = couponIssue,
+            )
+        }
+
+        @DisplayName("최소 주문 금액을 만족하지 못한 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
+        @Test
+        fun returnsBadRequest_whenOrderAmountIsLessThanCouponMinimum() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 3_000L,
+                minOrderAmount = 30_000L,
+            )
+            val couponIssue = createCouponIssue(memberId = member.id, coupon = coupon)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertFailedCouponOrderDidNotMutate(
+                response = response,
+                productId = product.id,
+                couponIssue = couponIssue,
+            )
+        }
+
         @DisplayName("재고가 부족하면 주문을 저장하지 않고 재고를 차감하지 않는다")
         @Test
         fun returnsConflict_whenInventoryIsInsufficient() {
@@ -471,6 +575,21 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
     private fun countOrderItems(): Long {
         return jdbcTemplate.queryForObject("select count(*) from order_item", Long::class.java) ?: 0L
+    }
+
+    private fun assertFailedCouponOrderDidNotMutate(
+        response: org.springframework.http.ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>>,
+        productId: Long,
+        couponIssue: CouponIssueEntity,
+    ) {
+        val unchangedCoupon = couponIssueJpaRepository.findById(couponIssue.id).orElseThrow()
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+            { assertThat(orderJpaRepository.findAll()).isEmpty() },
+            { assertThat(inventoryJpaRepository.findByProductId(productId)?.quantity).isEqualTo(10L) },
+            { assertThat(unchangedCoupon.status).isEqualTo(couponIssue.status) },
+            { assertThat(unchangedCoupon.usedAt).isEqualTo(couponIssue.usedAt) },
+        )
     }
 
     private fun ordersUrl(startAt: LocalDate, endAt: LocalDate): String {

@@ -143,6 +143,48 @@ class OrderV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("이미 사용된 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
+        @Test
+        fun returnsBadRequest_whenCouponIssueIsAlreadyUsed() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 3_000L,
+                minOrderAmount = 10_000L,
+            )
+            val couponIssue = createCouponIssue(
+                memberId = member.id,
+                coupon = coupon,
+                status = CouponIssueStatus.USED,
+                usedAt = ZonedDateTime.now().minusDays(1),
+            )
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            val unchangedCoupon = couponIssueJpaRepository.findById(couponIssue.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(10L) },
+                { assertThat(unchangedCoupon.status).isEqualTo(CouponIssueStatus.USED) },
+                { assertThat(unchangedCoupon.usedAt).isEqualTo(couponIssue.usedAt) },
+            )
+        }
+
         @DisplayName("재고가 부족하면 주문을 저장하지 않고 재고를 차감하지 않는다")
         @Test
         fun returnsConflict_whenInventoryIsInsufficient() {
@@ -372,6 +414,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
         memberId: Long,
         coupon: CouponEntity,
         status: CouponIssueStatus = CouponIssueStatus.AVAILABLE,
+        usedAt: ZonedDateTime? = null,
     ): CouponIssueEntity {
         return couponIssueJpaRepository.save(
             CouponIssueEntity(
@@ -382,7 +425,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 discountValue = coupon.discountValue,
                 minOrderAmount = coupon.minOrderAmount,
                 expiredAt = coupon.expiredAt,
-                usedAt = null,
+                usedAt = usedAt,
             ),
         )
     }

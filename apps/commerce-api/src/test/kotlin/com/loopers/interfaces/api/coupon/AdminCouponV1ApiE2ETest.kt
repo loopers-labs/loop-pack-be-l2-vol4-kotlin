@@ -283,6 +283,59 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("DELETE /api-admin/v1/coupons/{couponId}")
+    @Nested
+    inner class DeleteCoupon {
+        @DisplayName("등록된 쿠폰 템플릿을 삭제하고 기존 발급 쿠폰은 유지한다")
+        @Test
+        fun deletesCouponAndKeepsIssuedCoupons() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+            couponIssueJpaRepository.save(createCouponIssueEntity(coupon = coupon, memberId = 1L))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            val deletedCoupon = couponJpaRepository.findById(coupon.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(deletedCoupon.isDeleted).isTrue() },
+                { assertThat(couponIssueJpaRepository.findAll()).hasSize(1) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 쿠폰 템플릿은 삭제할 수 없다")
+        @Test
+        fun returnsNotFound_whenCouponDoesNotExist() {
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/999",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("이미 삭제된 쿠폰 템플릿은 삭제할 수 없다")
+        @Test
+        fun returnsNotFound_whenCouponIsDeleted() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "삭제된 쿠폰", isDeleted = true))
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.DELETE,
+                HttpEntity<Unit>(createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+    }
+
     private fun createCouponRequest(
         name: String = "신규가입 10% 할인",
         type: DiscountType = DiscountType.RATE,

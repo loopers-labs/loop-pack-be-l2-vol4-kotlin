@@ -29,4 +29,8 @@ class CouponFacade(
         return couponService.updateCoupon(couponId = couponId, command = command)
             .let(CouponInfo::from)
     }
+
+    fun deleteCoupon(couponId: Long) {
+        couponService.deleteCoupon(couponId)
+    }
 }

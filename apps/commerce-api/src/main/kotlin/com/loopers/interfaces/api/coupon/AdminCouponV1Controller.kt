@@ -4,6 +4,7 @@ import com.loopers.application.coupon.CouponFacade
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import com.loopers.interfaces.support.LoopersHeaders
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -68,5 +69,16 @@ class AdminCouponV1Controller(
         return couponFacade.updateCoupon(couponId = couponId, command = request.toCommand())
             .let(AdminCouponV1Dto.CouponResponse::from)
             .let { ApiResponse.success(it) }
+    }
+
+    @DeleteMapping("/{couponId}")
+    override fun deleteCoupon(
+        @RequestHeader(LoopersHeaders.ADMIN_LDAP) adminId: String,
+        @PathVariable couponId: Long,
+    ): ApiResponse<Any> {
+        LoopersHeaders.validateAdmin(adminId)
+
+        couponFacade.deleteCoupon(couponId)
+        return ApiResponse.success()
     }
 }

@@ -70,4 +70,11 @@ class CouponService(
 
         return couponRepository.update(coupon)
     }
+
+    @Transactional
+    fun deleteCoupon(couponId: Long) {
+        val coupon = getCoupon(couponId)
+        coupon.delete()
+        couponRepository.update(coupon)
+    }
 }

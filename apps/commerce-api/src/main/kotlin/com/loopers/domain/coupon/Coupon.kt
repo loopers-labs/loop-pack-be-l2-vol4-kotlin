@@ -63,6 +63,10 @@ class Coupon(
         this.expiredAt = expiredAt
     }
 
+    fun delete() {
+        isDeleted = true
+    }
+
     private fun validate(
         name: String,
         type: DiscountType,

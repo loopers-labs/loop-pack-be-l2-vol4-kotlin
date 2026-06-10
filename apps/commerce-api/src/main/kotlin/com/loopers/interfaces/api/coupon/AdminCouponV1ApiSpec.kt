@@ -44,4 +44,13 @@ interface AdminCouponV1ApiSpec {
         couponId: Long,
         request: AdminCouponV1Dto.UpdateCouponRequest,
     ): ApiResponse<AdminCouponV1Dto.CouponResponse>
+
+    @Operation(
+        summary = "관리자 쿠폰 템플릿 삭제",
+        description = "관리자가 쿠폰 템플릿을 삭제합니다.",
+    )
+    fun deleteCoupon(
+        adminId: String,
+        couponId: Long,
+    ): ApiResponse<Any>
 }

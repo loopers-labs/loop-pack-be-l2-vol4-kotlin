@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/api/v1/coupons")
+@RequestMapping("/api/v1")
 class CouponV1Controller(
     private val couponFacade: CouponFacade,
 ) : CouponV1ApiSpec {
-    @PostMapping("/{couponId}/issue")
+    @PostMapping("/coupons/{couponId}/issue")
     override fun issueCoupon(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
         @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,

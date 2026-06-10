@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface CouponIssueJpaRepository : JpaRepository<CouponIssueEntity, Long> {
+    fun findAllByMemberIdOrderByCreatedAtDescIdDesc(memberId: Long): List<CouponIssueEntity>
+
     fun findAllByCouponId(couponId: Long, pageable: Pageable): Page<CouponIssueEntity>
 
     fun existsByCouponId(couponId: Long): Boolean

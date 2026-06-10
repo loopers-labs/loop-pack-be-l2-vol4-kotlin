@@ -22,6 +22,15 @@ interface UserV1ApiSpec {
     ): ApiResponse<UserV1Dto.GetMeResponse>
 
     @Operation(
+        summary = "내 쿠폰 목록 조회",
+        description = "로그인 ID와 비밀번호 헤더로 내가 보유한 쿠폰 목록을 조회합니다.",
+    )
+    fun getMyCoupons(
+        loginId: String,
+        password: String,
+    ): ApiResponse<List<UserV1Dto.CouponIssueResponse>>
+
+    @Operation(
         summary = "비밀번호 수정",
         description = "로그인 ID와 기존 비밀번호 헤더로 인증한 뒤 새 비밀번호로 수정합니다.",
     )

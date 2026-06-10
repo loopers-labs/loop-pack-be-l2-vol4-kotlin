@@ -41,6 +41,11 @@ class CouponService(
         return couponIssueRepository.findAllByCouponId(couponId = coupon.id, page = page, size = size)
     }
 
+    @Transactional(readOnly = true)
+    fun getCouponIssuesByMemberId(memberId: Long): List<CouponIssue> {
+        return couponIssueRepository.findAllByMemberId(memberId)
+    }
+
     @Transactional
     fun issueCoupon(memberId: Long, couponId: Long): CouponIssue {
         val coupon = getCoupon(couponId)

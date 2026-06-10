@@ -5,11 +5,13 @@ import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.DiscountType
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.coupon.CouponEntity
+import com.loopers.infrastructure.coupon.CouponIssueEntity
 import com.loopers.infrastructure.coupon.CouponIssueJpaRepository
 import com.loopers.infrastructure.coupon.CouponJpaRepository
 import com.loopers.infrastructure.member.MemberEntity
 import com.loopers.infrastructure.member.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.user.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -148,6 +150,81 @@ class CouponV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/users/me/coupons")
+    @Nested
+    inner class GetMyCoupons {
+        @DisplayName("로그인한 회원의 쿠폰 목록을 상태와 함께 조회한다")
+        @Test
+        fun returnsMyCoupons() {
+            val member = createMember()
+            val otherMember = createMember(loginId = "other123")
+            val coupon = couponJpaRepository.save(createCouponEntity())
+            val availableIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = member.id,
+                    expiredAt = ZonedDateTime.parse("2099-12-31T23:59:59+09:00"),
+                ),
+            )
+            val expiredIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = member.id,
+                    expiredAt = ZonedDateTime.parse("2000-01-01T00:00:00+09:00"),
+                ),
+            )
+            val usedIssue = couponIssueJpaRepository.save(
+                createCouponIssueEntity(
+                    coupon = coupon,
+                    memberId = member.id,
+                    status = CouponIssueStatus.USED,
+                    expiredAt = ZonedDateTime.parse("2099-12-31T23:59:59+09:00"),
+                    usedAt = ZonedDateTime.parse("2026-01-01T00:00:00+09:00"),
+                ),
+            )
+            couponIssueJpaRepository.save(createCouponIssueEntity(coupon = coupon, memberId = otherMember.id))
+
+            val response = testRestTemplate.exchange(
+                MY_COUPONS_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<List<UserV1Dto.CouponIssueResponse>>>() {},
+            )
+
+            val issues = response.body?.data.orEmpty()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(issues).hasSize(3) },
+                {
+                    assertThat(issues)
+                        .extracting<Long> { it.issueId }
+                        .containsExactlyInAnyOrder(availableIssue.id, expiredIssue.id, usedIssue.id)
+                },
+                {
+                    assertThat(issues.associate { it.issueId to it.status })
+                        .containsEntry(availableIssue.id, CouponIssueDisplayStatus.AVAILABLE)
+                        .containsEntry(expiredIssue.id, CouponIssueDisplayStatus.EXPIRED)
+                        .containsEntry(usedIssue.id, CouponIssueDisplayStatus.USED)
+                },
+            )
+        }
+
+        @DisplayName("인증 정보가 올바르지 않으면 내 쿠폰 목록을 조회할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenCredentialsAreInvalid() {
+            createMember()
+
+            val response = testRestTemplate.exchange(
+                MY_COUPONS_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
+                object : ParameterizedTypeReference<ApiResponse<List<UserV1Dto.CouponIssueResponse>>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+    }
+
     private fun createMember(
         loginId: String = LOGIN_ID,
         password: String = RAW_PASSWORD,
@@ -181,6 +258,25 @@ class CouponV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun createCouponIssueEntity(
+        coupon: CouponEntity,
+        memberId: Long,
+        status: CouponIssueStatus = CouponIssueStatus.AVAILABLE,
+        expiredAt: ZonedDateTime = coupon.expiredAt,
+        usedAt: ZonedDateTime? = null,
+    ): CouponIssueEntity {
+        return CouponIssueEntity(
+            memberId = memberId,
+            couponId = coupon.id,
+            status = status,
+            type = coupon.type,
+            discountValue = coupon.discountValue,
+            minOrderAmount = coupon.minOrderAmount,
+            expiredAt = expiredAt,
+            usedAt = usedAt,
+        )
+    }
+
     private fun createAuthHeaders(
         loginId: String = LOGIN_ID,
         password: String = RAW_PASSWORD,
@@ -193,6 +289,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
 
     private companion object {
         private const val COUPONS_ENDPOINT = "/api/v1/coupons"
+        private const val MY_COUPONS_ENDPOINT = "/api/v1/users/me/coupons"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
     }

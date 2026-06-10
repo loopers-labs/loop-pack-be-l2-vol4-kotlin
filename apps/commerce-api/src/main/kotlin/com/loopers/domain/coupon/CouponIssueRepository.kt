@@ -7,6 +7,8 @@ interface CouponIssueRepository {
 
     fun findById(issueId: Long): CouponIssue?
 
+    fun findAllByMemberId(memberId: Long): List<CouponIssue>
+
     fun findAllByCouponId(couponId: Long, page: Int, size: Int): Page<CouponIssue>
 
     fun existsByCouponId(couponId: Long): Boolean

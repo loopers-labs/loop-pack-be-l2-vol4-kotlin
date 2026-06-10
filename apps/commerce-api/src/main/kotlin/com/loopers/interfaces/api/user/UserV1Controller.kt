@@ -37,6 +37,18 @@ class UserV1Controller(
             .let { ApiResponse.success(it) }
     }
 
+    @GetMapping("/me/coupons")
+    override fun getMyCoupons(
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
+    ): ApiResponse<List<UserV1Dto.CouponIssueResponse>> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
+        return userFacade.getMyCoupons(loginId = loginId, rawPassword = password)
+            .map(UserV1Dto.CouponIssueResponse::from)
+            .let { ApiResponse.success(it) }
+    }
+
     @PutMapping("/password")
     override fun updatePassword(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,

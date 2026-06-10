@@ -23,6 +23,11 @@ class CouponIssueRepositoryImpl(
             ?.let(CouponIssueMapper::toDomain)
     }
 
+    override fun findAllByMemberId(memberId: Long): List<CouponIssue> {
+        return couponIssueJpaRepository.findAllByMemberIdOrderByCreatedAtDescIdDesc(memberId)
+            .map(CouponIssueMapper::toDomain)
+    }
+
     override fun findAllByCouponId(couponId: Long, page: Int, size: Int): Page<CouponIssue> {
         val pageable = PageRequest.of(
             page,

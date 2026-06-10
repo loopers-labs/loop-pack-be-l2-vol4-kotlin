@@ -4,6 +4,10 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.brand.BrandEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
+import com.loopers.infrastructure.coupon.CouponEntity
+import com.loopers.infrastructure.coupon.CouponIssueEntity
+import com.loopers.infrastructure.coupon.CouponIssueJpaRepository
+import com.loopers.infrastructure.coupon.CouponJpaRepository
 import com.loopers.infrastructure.inventory.InventoryEntity
 import com.loopers.infrastructure.inventory.InventoryJpaRepository
 import com.loopers.infrastructure.member.MemberEntity
@@ -15,6 +19,8 @@ import com.loopers.infrastructure.product.ProductEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.domain.coupon.CouponIssueStatus
+import com.loopers.domain.coupon.DiscountType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -40,6 +46,8 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private val brandJpaRepository: BrandJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
     private val inventoryJpaRepository: InventoryJpaRepository,
+    private val couponJpaRepository: CouponJpaRepository,
+    private val couponIssueJpaRepository: CouponIssueJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -88,6 +96,50 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 { assertThat(countOrderItems()).isEqualTo(2) },
                 { assertThat(inventoryJpaRepository.findByProductId(firstProduct.id)?.quantity).isEqualTo(8L) },
                 { assertThat(inventoryJpaRepository.findByProductId(secondProduct.id)?.quantity).isEqualTo(2L) },
+            )
+        }
+
+        @DisplayName("사용 가능한 정액 쿠폰을 적용하면 할인 금액을 반영하고 쿠폰을 사용 처리한다")
+        @Test
+        fun placesOrderWithFixedCoupon() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.FIXED,
+                discountValue = 3_000L,
+                minOrderAmount = 10_000L,
+            )
+            val couponIssue = createCouponIssue(memberId = member.id, coupon = coupon)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            val savedOrder = orderJpaRepository.findAll().single()
+            val usedCoupon = couponIssueJpaRepository.findById(couponIssue.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.originalAmount).isEqualTo(20_000L) },
+                { assertThat(response.body?.data?.discountAmount).isEqualTo(3_000L) },
+                { assertThat(response.body?.data?.totalAmount).isEqualTo(17_000L) },
+                { assertThat(savedOrder.originalAmount).isEqualTo(20_000L) },
+                { assertThat(savedOrder.discountAmount).isEqualTo(3_000L) },
+                { assertThat(savedOrder.totalAmount).isEqualTo(17_000L) },
+                { assertThat(savedOrder.couponIssueId).isEqualTo(couponIssue.id) },
+                { assertThat(usedCoupon.status).isEqualTo(CouponIssueStatus.USED) },
+                { assertThat(usedCoupon.usedAt).isNotNull() },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(8L) },
             )
         }
 
@@ -298,6 +350,43 @@ class OrderV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private fun createCoupon(
+        type: DiscountType,
+        discountValue: Long,
+        minOrderAmount: Long? = null,
+        expiredAt: ZonedDateTime = ZonedDateTime.now().plusDays(30),
+    ): CouponEntity {
+        return couponJpaRepository.save(
+            CouponEntity(
+                name = "coupon-${System.nanoTime()}",
+                type = type,
+                discountValue = discountValue,
+                minOrderAmount = minOrderAmount,
+                expiredAt = expiredAt,
+                isDeleted = false,
+            ),
+        )
+    }
+
+    private fun createCouponIssue(
+        memberId: Long,
+        coupon: CouponEntity,
+        status: CouponIssueStatus = CouponIssueStatus.AVAILABLE,
+    ): CouponIssueEntity {
+        return couponIssueJpaRepository.save(
+            CouponIssueEntity(
+                memberId = memberId,
+                couponId = coupon.id,
+                status = status,
+                type = coupon.type,
+                discountValue = coupon.discountValue,
+                minOrderAmount = coupon.minOrderAmount,
+                expiredAt = coupon.expiredAt,
+                usedAt = null,
+            ),
+        )
+    }
+
     private fun createOrder(
         memberId: Long,
         orderedAt: ZonedDateTime = ZonedDateTime.now(),
@@ -308,6 +397,9 @@ class OrderV1ApiE2ETest @Autowired constructor(
             memberId = memberId,
             status = OrderStatus.COMPLETED,
             totalAmount = totalAmount,
+            originalAmount = totalAmount,
+            discountAmount = 0L,
+            couponIssueId = null,
             orderedAt = orderedAt,
         )
         order.addItem(

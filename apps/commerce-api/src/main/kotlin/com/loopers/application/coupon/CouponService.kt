@@ -46,6 +46,16 @@ class CouponService(
         return couponIssueRepository.findAllByMemberId(memberId)
     }
 
+    @Transactional(readOnly = true)
+    fun getCouponIssue(couponIssueId: Long): CouponIssue {
+        return couponIssueRepository.findById(couponIssueId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon issue not found.")
+    }
+
+    fun saveCouponIssue(couponIssue: CouponIssue): CouponIssue {
+        return couponIssueRepository.save(couponIssue)
+    }
+
     @Transactional
     fun issueCoupon(memberId: Long, couponId: Long): CouponIssue {
         val coupon = getCoupon(couponId)

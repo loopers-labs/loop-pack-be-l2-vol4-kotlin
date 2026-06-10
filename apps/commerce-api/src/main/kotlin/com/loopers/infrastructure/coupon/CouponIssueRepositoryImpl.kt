@@ -2,6 +2,8 @@ package com.loopers.infrastructure.coupon
 
 import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -13,6 +15,15 @@ class CouponIssueRepositoryImpl(
     private val couponIssueJpaRepository: CouponIssueJpaRepository,
 ) : CouponIssueRepository {
     override fun save(issue: CouponIssue): CouponIssue {
+        if (issue.id > 0L) {
+            val entity = couponIssueJpaRepository.findByIdOrNull(issue.id)
+                ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon issue not found.")
+
+            entity.update(issue)
+            return couponIssueJpaRepository.save(entity)
+                .let(CouponIssueMapper::toDomain)
+        }
+
         return CouponIssueMapper.toEntity(issue)
             .let(couponIssueJpaRepository::save)
             .let(CouponIssueMapper::toDomain)

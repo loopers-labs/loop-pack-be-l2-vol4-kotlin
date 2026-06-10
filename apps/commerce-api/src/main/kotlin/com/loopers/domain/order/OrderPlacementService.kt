@@ -1,6 +1,7 @@
 package com.loopers.domain.order
 
 import com.loopers.domain.brand.Brand
+import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.inventory.Inventory
 import com.loopers.domain.order.dto.OrderPlacementItem
 import com.loopers.domain.order.dto.OrderPlacementResult
@@ -17,6 +18,7 @@ class OrderPlacementService {
         products: List<Product>,
         brands: List<Brand>,
         inventories: List<Inventory>,
+        couponIssue: CouponIssue? = null,
     ): OrderPlacementResult {
         if (items.isEmpty()) {
             throw CoreException(ErrorType.BAD_REQUEST, "Order items must not be empty.")
@@ -51,10 +53,18 @@ class OrderPlacementService {
                 quantity = item.quantity,
             )
         }
+        val originalAmount = orderItems.sumOf { it.totalAmount }
+        val discountAmount = couponIssue?.use(memberId = memberId, orderAmount = originalAmount) ?: 0L
 
         return OrderPlacementResult(
-            order = Order.createCompleted(memberId = memberId, items = orderItems),
+            order = Order.createCompleted(
+                memberId = memberId,
+                items = orderItems,
+                discountAmount = discountAmount,
+                couponIssueId = couponIssue?.id,
+            ),
             inventories = inventories,
+            couponIssue = couponIssue,
         )
     }
 }

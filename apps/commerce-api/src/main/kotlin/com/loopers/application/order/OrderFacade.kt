@@ -1,6 +1,7 @@
 package com.loopers.application.order
 
 import com.loopers.application.brand.BrandService
+import com.loopers.application.coupon.CouponService
 import com.loopers.application.inventory.InventoryService
 import com.loopers.application.order.dto.OrderCreateCommand
 import com.loopers.application.order.dto.OrderInfo
@@ -21,6 +22,7 @@ class OrderFacade(
     private val productService: ProductService,
     private val brandService: BrandService,
     private val inventoryService: InventoryService,
+    private val couponService: CouponService,
     private val orderPlacementService: OrderPlacementService,
 ) {
     @Transactional
@@ -37,15 +39,18 @@ class OrderFacade(
         val products = productService.getProducts(productIds)
         val brands = brandService.getBrands(products.map { it.brandId })
         val inventories = inventoryService.getInventoriesForUpdate(productIds)
+        val couponIssue = command.couponId?.let(couponService::getCouponIssue)
         val result = orderPlacementService.place(
             memberId = user.id,
             items = requestedItems,
             products = products,
             brands = brands,
             inventories = inventories,
+            couponIssue = couponIssue,
         )
 
         inventoryService.updateInventories(result.inventories)
+        result.couponIssue?.let(couponService::saveCouponIssue)
         return orderService.save(result.order)
             .let(OrderInfo::from)
     }

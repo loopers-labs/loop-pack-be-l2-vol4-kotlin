@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.coupon
 
 import com.loopers.domain.BaseEntity
+import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.DiscountType
 import jakarta.persistence.Column
@@ -38,4 +39,15 @@ class CouponIssueEntity(
 
     @Column(name = "used_at")
     var usedAt: ZonedDateTime?,
-) : BaseEntity()
+) : BaseEntity() {
+    fun update(issue: CouponIssue) {
+        memberId = issue.memberId
+        couponId = issue.couponId
+        status = issue.status
+        type = issue.type
+        discountValue = issue.discountValue
+        minOrderAmount = issue.minOrderAmount
+        expiredAt = issue.expiredAt
+        usedAt = issue.usedAt
+    }
+}

@@ -67,4 +67,33 @@ class CouponTest {
             assertThat(discount).isEqualTo(DiscountAmount(1_000L))
         }
     }
+
+    @DisplayName("쿠폰 이름 변경 시, ")
+    @Nested
+    inner class Rename {
+        @DisplayName("유효한 이름이면 정상적으로 변경된다.")
+        @Test
+        fun rename_whenNameIsValid() {
+            // arrange
+            val coupon = Coupon(name = "초기 이름", policy = DiscountPolicy.FixedAmount(1_000L))
+
+            // act
+            coupon.rename("새 이름")
+
+            // assert
+            assertThat(coupon.name).isEqualTo("새 이름")
+        }
+
+        @DisplayName("빈 이름으로 변경하려고 하면 BAD_REQUEST 예외가 발생한다.")
+        @ParameterizedTest
+        @ValueSource(strings = ["", " ", "   "])
+        fun throwsBadRequest_whenNameIsBlank(blankName: String) {
+            // arrange
+            val coupon = Coupon(name = "초기 이름", policy = DiscountPolicy.FixedAmount(1_000L))
+
+            // act & assert
+            val result = assertThrows<CoreException> { coupon.rename(blankName) }
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+    }
 }

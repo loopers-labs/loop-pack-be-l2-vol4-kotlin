@@ -71,51 +71,25 @@ class CouponRepositoryImplIntegrationTest @Autowired constructor(
             )
         }
 
-        @DisplayName("기존 쿠폰의 이름 변경을 반영한다.")
+        @DisplayName("id를 가진 쿠폰의 이름을 변경 후 save 하면 기존 row 의 name 만 갱신되고 정책은 유지된다.")
         @Test
-        fun save_updatesExistingCouponName() {
+        fun save_updatesNameAndKeepsPolicy_whenExistingCoupon() {
             // arrange
             val saved = couponRepository.save(
                 Coupon(name = "초기 이름", policy = DiscountPolicy.FixedAmount(1_000L)),
             )
-            val renamed = Coupon(
-                id = saved.id,
-                name = "변경된 이름",
-                policy = DiscountPolicy.FixedAmount(1_000L),
-            )
+            saved.rename("변경된 이름")
 
             // act
-            val result = couponRepository.save(renamed)
-
-            // assert
-            val entity = couponJpaRepository.findByIdAndDeletedAtIsNull(saved.id!!)
-            assertAll(
-                { assertThat(result.name).isEqualTo("변경된 이름") },
-                { assertThat(entity?.name).isEqualTo("변경된 이름") },
-            )
-        }
-
-        @DisplayName("기존 쿠폰 저장 시 정책은 변경하지 않고 이름만 반영한다.")
-        @Test
-        fun save_updatesNameOnlyAndKeepsPolicyImmutable() {
-            // arrange
-            val saved = couponRepository.save(
-                Coupon(name = "초기 이름", policy = DiscountPolicy.FixedAmount(1_000L)),
-            )
-            val changed = Coupon(
-                id = saved.id,
-                name = "변경된 이름",
-                policy = DiscountPolicy.Rate(50),
-            )
-
-            // act
-            val result = couponRepository.save(changed)
+            val result = couponRepository.save(saved)
 
             // assert
             val entity = couponJpaRepository.findByIdAndDeletedAtIsNull(saved.id!!)
             val policy = result.policy
             assertAll(
+                { assertThat(result.id).isEqualTo(saved.id) },
                 { assertThat(result.name).isEqualTo("변경된 이름") },
+                { assertThat(entity?.name).isEqualTo("변경된 이름") },
                 { assertThat(policy).isInstanceOf(DiscountPolicy.FixedAmount::class.java) },
                 { assertThat((policy as DiscountPolicy.FixedAmount).amount).isEqualTo(1_000L) },
                 { assertThat(entity?.policyType).isEqualTo(DiscountPolicy.Type.FIXED_AMOUNT) },

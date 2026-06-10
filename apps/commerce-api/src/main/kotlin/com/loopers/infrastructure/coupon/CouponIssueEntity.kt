@@ -1,7 +1,7 @@
 package com.loopers.infrastructure.coupon
 
 import com.loopers.domain.BaseEntity
-import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.DiscountType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -11,10 +11,17 @@ import jakarta.persistence.Table
 import java.time.ZonedDateTime
 
 @Entity
-@Table(name = "coupon")
-class CouponEntity(
-    @Column(name = "name", nullable = false, unique = true)
-    var name: String,
+@Table(name = "coupon_issue")
+class CouponIssueEntity(
+    @Column(name = "member_id", nullable = false)
+    var memberId: Long,
+
+    @Column(name = "coupon_id", nullable = false)
+    var couponId: Long,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    var status: CouponIssueStatus,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
@@ -29,15 +36,6 @@ class CouponEntity(
     @Column(name = "expired_at", nullable = false)
     var expiredAt: ZonedDateTime,
 
-    @Column(name = "is_deleted", nullable = false)
-    var isDeleted: Boolean,
-) : BaseEntity() {
-    fun update(coupon: Coupon) {
-        name = coupon.name
-        type = coupon.type
-        discountValue = coupon.discountValue
-        minOrderAmount = coupon.minOrderAmount
-        expiredAt = coupon.expiredAt
-        isDeleted = coupon.isDeleted
-    }
-}
+    @Column(name = "used_at")
+    var usedAt: ZonedDateTime?,
+) : BaseEntity()

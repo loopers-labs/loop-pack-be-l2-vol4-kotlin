@@ -7,13 +7,16 @@ import java.time.ZonedDateTime
 class Coupon(
     val id: Long = 0L,
     name: String,
-    val type: DiscountType,
+    type: DiscountType,
     discountValue: Long,
     minOrderAmount: Long?,
     expiredAt: ZonedDateTime,
     isDeleted: Boolean = false,
 ) {
     var name: String = name
+        private set
+
+    var type: DiscountType = type
         private set
 
     var discountValue: Long = discountValue
@@ -36,6 +39,28 @@ class Coupon(
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
         )
+    }
+
+    fun update(
+        name: String,
+        type: DiscountType,
+        discountValue: Long,
+        minOrderAmount: Long?,
+        expiredAt: ZonedDateTime,
+    ) {
+        validate(
+            name = name,
+            type = type,
+            discountValue = discountValue,
+            minOrderAmount = minOrderAmount,
+            expiredAt = expiredAt,
+        )
+
+        this.name = name
+        this.type = type
+        this.discountValue = discountValue
+        this.minOrderAmount = minOrderAmount
+        this.expiredAt = expiredAt
     }
 
     private fun validate(

@@ -9,5 +9,9 @@ interface CouponRepository {
 
     fun save(coupon: Coupon): Coupon
 
+    fun update(coupon: Coupon): Coupon
+
     fun existsByName(name: String): Boolean
+
+    fun existsByNameAndIdNot(name: String, couponId: Long): Boolean
 }

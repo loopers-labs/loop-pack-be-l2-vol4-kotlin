@@ -1,7 +1,9 @@
 package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
+import com.loopers.application.coupon.dto.CouponUpdateCommand
 import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponIssueRepository
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -12,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class CouponService(
     private val couponRepository: CouponRepository,
+    private val couponIssueRepository: CouponIssueRepository,
 ) {
     @Transactional(readOnly = true)
     fun getCoupon(couponId: Long): Coupon {
@@ -43,5 +46,28 @@ class CouponService(
             minOrderAmount = command.minOrderAmount,
             expiredAt = command.expiredAt,
         ).let(couponRepository::save)
+    }
+
+    @Transactional
+    fun updateCoupon(couponId: Long, command: CouponUpdateCommand): Coupon {
+        val coupon = getCoupon(couponId)
+
+        if (couponRepository.existsByNameAndIdNot(name = command.name, couponId = coupon.id)) {
+            throw CoreException(ErrorType.CONFLICT, "Duplicated coupon name already exists.")
+        }
+
+        if (couponIssueRepository.existsByCouponId(coupon.id)) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Issued coupon template cannot be updated.")
+        }
+
+        coupon.update(
+            name = command.name,
+            type = command.type,
+            discountValue = command.discountValue,
+            minOrderAmount = command.minOrderAmount,
+            expiredAt = command.expiredAt,
+        )
+
+        return couponRepository.update(coupon)
     }
 }

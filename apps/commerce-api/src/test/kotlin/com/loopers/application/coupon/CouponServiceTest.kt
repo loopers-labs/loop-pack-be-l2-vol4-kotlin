@@ -2,6 +2,7 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponIssueRepository
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.DiscountType
 import com.loopers.support.error.CoreException
@@ -25,7 +26,7 @@ class CouponServiceTest {
         @Test
         fun savesCoupon_whenCommandIsValid() {
             val couponRepository = FakeCouponRepository()
-            val couponService = CouponService(couponRepository)
+            val couponService = CouponService(couponRepository, FakeCouponIssueRepository())
             val command = createCommand()
 
             val result = couponService.createCoupon(command)
@@ -44,7 +45,7 @@ class CouponServiceTest {
         @Test
         fun throwsConflict_whenCouponNameAlreadyExists() {
             val couponRepository = FakeCouponRepository()
-            val couponService = CouponService(couponRepository)
+            val couponService = CouponService(couponRepository, FakeCouponIssueRepository())
             val command = createCommand()
             couponService.createCoupon(command)
 
@@ -96,8 +97,24 @@ class CouponServiceTest {
             return saved
         }
 
+        override fun update(coupon: Coupon): Coupon {
+            coupons.removeIf { it.id == coupon.id }
+            coupons.add(coupon)
+            return coupon
+        }
+
         override fun existsByName(name: String): Boolean {
             return coupons.any { it.name == name }
+        }
+
+        override fun existsByNameAndIdNot(name: String, couponId: Long): Boolean {
+            return coupons.any { it.name == name && it.id != couponId }
+        }
+    }
+
+    private class FakeCouponIssueRepository : CouponIssueRepository {
+        override fun existsByCouponId(couponId: Long): Boolean {
+            return false
         }
     }
 

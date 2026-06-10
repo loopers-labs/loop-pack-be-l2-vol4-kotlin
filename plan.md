@@ -1,9 +1,9 @@
 - [x] 1. Add admin coupon template list/detail query APIs
   - [x] GET /api-admin/v1/coupons returns non-deleted coupon templates as a page
   - [x] GET /api-admin/v1/coupons/{couponId} returns a non-deleted coupon template detail
-- [ ] 2. Add admin coupon template update API
-  - [ ] Allow full update when no issue history exists
-  - [ ] Allow only name update when issue history exists
+- [x] 2. Add admin coupon template update API
+  - [x] Allow full update when no issue history exists
+  - [x] Allow only name update when issue history exists
 - [ ] 3. Add admin coupon template soft delete API
   - [ ] Soft delete template only
   - [ ] Keep existing coupon issues usable

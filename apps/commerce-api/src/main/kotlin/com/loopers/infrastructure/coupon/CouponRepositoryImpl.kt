@@ -43,7 +43,24 @@ class CouponRepositoryImpl(
         }
     }
 
+    override fun update(coupon: Coupon): Coupon {
+        val entity = couponJpaRepository.findByIdOrNull(coupon.id)
+            ?.also { it.update(coupon) }
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon not found.")
+
+        return try {
+            couponJpaRepository.save(entity)
+                .let(CouponMapper::toDomain)
+        } catch (e: DataIntegrityViolationException) {
+            throw CoreException(ErrorType.CONFLICT, "Coupon already exists.")
+        }
+    }
+
     override fun existsByName(name: String): Boolean {
         return couponJpaRepository.existsByName(name)
+    }
+
+    override fun existsByNameAndIdNot(name: String, couponId: Long): Boolean {
+        return couponJpaRepository.existsByNameAndIdNot(name = name, id = couponId)
     }
 }

@@ -2,6 +2,7 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.application.coupon.dto.CouponInfo
+import com.loopers.application.coupon.dto.CouponUpdateCommand
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
 
@@ -21,6 +22,11 @@ class CouponFacade(
 
     fun createCoupon(command: CouponCreateCommand): CouponInfo {
         return couponService.createCoupon(command)
+            .let(CouponInfo::from)
+    }
+
+    fun updateCoupon(couponId: Long, command: CouponUpdateCommand): CouponInfo {
+        return couponService.updateCoupon(couponId = couponId, command = command)
             .let(CouponInfo::from)
     }
 }

@@ -8,4 +8,6 @@ interface CouponJpaRepository : JpaRepository<CouponEntity, Long> {
     fun findAllByIsDeletedFalse(pageable: Pageable): Page<CouponEntity>
 
     fun existsByName(name: String): Boolean
+
+    fun existsByNameAndIdNot(name: String, id: Long): Boolean
 }

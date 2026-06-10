@@ -34,4 +34,14 @@ interface AdminCouponV1ApiSpec {
         adminId: String,
         request: AdminCouponV1Dto.CreateCouponRequest,
     ): ApiResponse<AdminCouponV1Dto.CouponResponse>
+
+    @Operation(
+        summary = "관리자 쿠폰 템플릿 수정",
+        description = "관리자가 쿠폰 템플릿을 수정합니다.",
+    )
+    fun updateCoupon(
+        adminId: String,
+        couponId: Long,
+        request: AdminCouponV1Dto.UpdateCouponRequest,
+    ): ApiResponse<AdminCouponV1Dto.CouponResponse>
 }

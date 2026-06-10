@@ -1,7 +1,10 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.infrastructure.coupon.CouponEntity
+import com.loopers.infrastructure.coupon.CouponIssueEntity
+import com.loopers.infrastructure.coupon.CouponIssueJpaRepository
 import com.loopers.infrastructure.coupon.CouponJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
@@ -27,6 +30,7 @@ import java.time.ZonedDateTime
 class AdminCouponV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val couponJpaRepository: CouponJpaRepository,
+    private val couponIssueJpaRepository: CouponIssueJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -210,6 +214,75 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("PUT /api-admin/v1/coupons/{couponId}")
+    @Nested
+    inner class UpdateCoupon {
+        @DisplayName("발급 이력이 없는 쿠폰 템플릿은 전체 정보를 수정한다")
+        @Test
+        fun updatesCoupon_whenCouponHasNoIssueHistory() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+            val request = AdminCouponV1Dto.UpdateCouponRequest(
+                name = "신규가입 3000원 할인",
+                type = DiscountType.FIXED,
+                value = 3_000L,
+                minOrderAmount = 20_000L,
+                expiredAt = ZonedDateTime.parse("2027-12-31T23:59:59+09:00"),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminCouponV1Dto.CouponResponse>>() {},
+            )
+
+            val updatedCoupon = couponJpaRepository.findById(coupon.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
+                { assertThat(response.body?.data?.name).isEqualTo(request.name) },
+                { assertThat(response.body?.data?.type).isEqualTo(request.type) },
+                { assertThat(response.body?.data?.value).isEqualTo(request.value) },
+                { assertThat(response.body?.data?.minOrderAmount).isEqualTo(request.minOrderAmount) },
+                { assertThat(response.body?.data?.expiredAt?.toInstant()).isEqualTo(request.expiredAt.toInstant()) },
+                { assertThat(updatedCoupon.name).isEqualTo(request.name) },
+                { assertThat(updatedCoupon.type).isEqualTo(request.type) },
+                { assertThat(updatedCoupon.discountValue).isEqualTo(request.value) },
+                { assertThat(updatedCoupon.minOrderAmount).isEqualTo(request.minOrderAmount) },
+                { assertThat(updatedCoupon.expiredAt.toInstant()).isEqualTo(request.expiredAt.toInstant()) },
+            )
+        }
+
+        @DisplayName("발급 이력이 있는 쿠폰 템플릿은 수정할 수 없다")
+        @Test
+        fun returnsBadRequest_whenCouponHasIssueHistory() {
+            val coupon = couponJpaRepository.save(createCouponEntity(name = "신규가입 10% 할인"))
+            couponIssueJpaRepository.save(createCouponIssueEntity(coupon = coupon, memberId = 1L))
+            val request = AdminCouponV1Dto.UpdateCouponRequest(
+                name = "신규가입 할인",
+                type = coupon.type,
+                value = coupon.discountValue,
+                minOrderAmount = coupon.minOrderAmount,
+                expiredAt = coupon.expiredAt,
+            )
+
+            val response = testRestTemplate.exchange(
+                "$COUPONS_ENDPOINT/${coupon.id}",
+                HttpMethod.PUT,
+                HttpEntity(request, createAdminHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<AdminCouponV1Dto.CouponResponse>>() {},
+            )
+
+            val unchangedCoupon = couponJpaRepository.findById(coupon.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(unchangedCoupon.name).isEqualTo(coupon.name) },
+                { assertThat(unchangedCoupon.type).isEqualTo(coupon.type) },
+                { assertThat(unchangedCoupon.discountValue).isEqualTo(coupon.discountValue) },
+            )
+        }
+    }
+
     private fun createCouponRequest(
         name: String = "신규가입 10% 할인",
         type: DiscountType = DiscountType.RATE,
@@ -241,6 +314,22 @@ class AdminCouponV1ApiE2ETest @Autowired constructor(
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
             isDeleted = isDeleted,
+        )
+    }
+
+    private fun createCouponIssueEntity(
+        coupon: CouponEntity,
+        memberId: Long,
+    ): CouponIssueEntity {
+        return CouponIssueEntity(
+            memberId = memberId,
+            couponId = coupon.id,
+            status = CouponIssueStatus.AVAILABLE,
+            type = coupon.type,
+            discountValue = coupon.discountValue,
+            minOrderAmount = coupon.minOrderAmount,
+            expiredAt = coupon.expiredAt,
+            usedAt = null,
         )
     }
 

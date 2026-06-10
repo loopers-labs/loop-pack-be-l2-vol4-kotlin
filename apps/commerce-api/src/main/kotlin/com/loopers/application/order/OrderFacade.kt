@@ -36,10 +36,10 @@ class OrderFacade(
             OrderPlacementItem(productId = item.productId, quantity = item.quantity)
         }
         val productIds = requestedItems.map { it.productId }
+        val couponIssue = command.couponId?.let(couponService::getCouponIssueForUpdate)
         val products = productService.getProducts(productIds)
         val brands = brandService.getBrands(products.map { it.brandId })
         val inventories = inventoryService.getInventoriesForUpdate(productIds)
-        val couponIssue = command.couponId?.let(couponService::getCouponIssue)
         val result = orderPlacementService.place(
             memberId = user.id,
             items = requestedItems,

@@ -34,6 +34,11 @@ class CouponIssueRepositoryImpl(
             ?.let(CouponIssueMapper::toDomain)
     }
 
+    override fun findByIdForUpdate(issueId: Long): CouponIssue? {
+        return couponIssueJpaRepository.findByIdForUpdate(issueId)
+            ?.let(CouponIssueMapper::toDomain)
+    }
+
     override fun findAllByMemberId(memberId: Long): List<CouponIssue> {
         return couponIssueJpaRepository.findAllByMemberIdOrderByCreatedAtDescIdDesc(memberId)
             .map(CouponIssueMapper::toDomain)

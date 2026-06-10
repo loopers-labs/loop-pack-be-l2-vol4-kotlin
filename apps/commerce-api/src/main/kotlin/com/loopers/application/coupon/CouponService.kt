@@ -52,6 +52,12 @@ class CouponService(
             ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon issue not found.")
     }
 
+    @Transactional
+    fun getCouponIssueForUpdate(couponIssueId: Long): CouponIssue {
+        return couponIssueRepository.findByIdForUpdate(couponIssueId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon issue not found.")
+    }
+
     fun saveCouponIssue(couponIssue: CouponIssue): CouponIssue {
         return couponIssueRepository.save(couponIssue)
     }

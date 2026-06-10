@@ -122,6 +122,10 @@ class CouponServiceTest {
             return null
         }
 
+        override fun findByIdForUpdate(issueId: Long): CouponIssue? {
+            return findById(issueId)
+        }
+
         override fun findAllByMemberId(memberId: Long): List<CouponIssue> {
             return emptyList()
         }

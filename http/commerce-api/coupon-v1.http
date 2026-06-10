@@ -1,0 +1,4 @@
+### 쿠폰 발급
+POST {{commerce-api}}/api/v1/coupons/1/issue
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!

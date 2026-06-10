@@ -1,13 +1,10 @@
 package com.loopers.domain.coupon
 
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertThrows
 import java.time.ZonedDateTime
 
 class CouponTest {
@@ -37,55 +34,54 @@ class CouponTest {
                 { assertThat(coupon.isDeleted).isFalse() },
             )
         }
+    }
 
-        @DisplayName("쿠폰명이 비어 있으면 생성할 수 없다")
+    @DisplayName("Coupon 재구성")
+    @Nested
+    inner class Restore {
+        @DisplayName("만료된 쿠폰도 도메인 객체로 재구성할 수 있다")
         @Test
-        fun throwsBadRequest_whenNameIsBlank() {
-            val result = assertThrows<CoreException> {
-                createCoupon(name = " ")
-            }
+        fun restoresExpiredCoupon() {
+            val expiredAt = ZonedDateTime.parse("2000-01-01T00:00:00+09:00")
 
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            val coupon = createCoupon(expiredAt = expiredAt)
+
+            assertThat(coupon.expiredAt).isEqualTo(expiredAt)
+        }
+    }
+
+    @DisplayName("쿠폰 유효성")
+    @Nested
+    inner class Valid {
+        @DisplayName("쿠폰이 삭제되지 않았고 만료 전이면 유효하다")
+        @Test
+        fun returnsTrue_whenCouponIsNotDeletedAndNotExpired() {
+            val coupon = createCoupon(expiredAt = ZonedDateTime.parse("2099-12-31T23:59:59+09:00"))
+
+            val result = coupon.isValid()
+
+            assertThat(result).isTrue()
         }
 
-        @DisplayName("최소 주문 금액이 음수이면 생성할 수 없다")
+        @DisplayName("쿠폰이 삭제되었으면 유효하지 않다")
         @Test
-        fun throwsBadRequest_whenMinOrderAmountIsNegative() {
-            val result = assertThrows<CoreException> {
-                createCoupon(minOrderAmount = -1L)
-            }
+        fun returnsFalse_whenCouponIsDeleted() {
+            val coupon = createCoupon(expiredAt = ZonedDateTime.parse("2099-12-31T23:59:59+09:00"))
+            coupon.delete()
 
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            val result = coupon.isValid()
+
+            assertThat(result).isFalse()
         }
 
-        @DisplayName("만료일이 현재 시각 이후가 아니면 생성할 수 없다")
+        @DisplayName("쿠폰이 만료되었으면 유효하지 않다")
         @Test
-        fun throwsBadRequest_whenExpiredAtIsNotFuture() {
-            val result = assertThrows<CoreException> {
-                createCoupon(expiredAt = ZonedDateTime.parse("2000-01-01T00:00:00+09:00"))
-            }
+        fun returnsFalse_whenCouponIsExpired() {
+            val coupon = createCoupon(expiredAt = ZonedDateTime.parse("2000-01-01T00:00:00+09:00"))
 
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
+            val result = coupon.isValid()
 
-        @DisplayName("정액 쿠폰 할인 금액이 0 이하이면 생성할 수 없다")
-        @Test
-        fun throwsBadRequest_whenFixedDiscountValueIsNotPositive() {
-            val result = assertThrows<CoreException> {
-                createCoupon(type = DiscountType.FIXED, discountValue = 0L)
-            }
-
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-
-        @DisplayName("정률 쿠폰 할인율이 1에서 100 사이가 아니면 생성할 수 없다")
-        @Test
-        fun throwsBadRequest_whenRateDiscountValueIsOutOfRange() {
-            val result = assertThrows<CoreException> {
-                createCoupon(type = DiscountType.RATE, discountValue = 101L)
-            }
-
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+            assertThat(result).isFalse()
         }
     }
 

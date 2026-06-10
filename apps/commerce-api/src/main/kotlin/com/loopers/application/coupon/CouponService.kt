@@ -5,6 +5,7 @@ import com.loopers.application.coupon.dto.CouponUpdateCommand
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponIssue
 import com.loopers.domain.coupon.CouponIssueRepository
+import com.loopers.domain.coupon.CouponPolicy
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -41,10 +42,30 @@ class CouponService(
     }
 
     @Transactional
+    fun issueCoupon(memberId: Long, couponId: Long): CouponIssue {
+        val coupon = getCoupon(couponId)
+
+        if (!coupon.isValid()) {
+            throw CoreException(ErrorType.BAD_REQUEST, "This coupon is not valid. : $couponId")
+        }
+
+        return CouponIssue.issue(memberId = memberId, coupon = coupon)
+            .let(couponIssueRepository::save)
+    }
+
+    @Transactional
     fun createCoupon(command: CouponCreateCommand): Coupon {
         if (couponRepository.existsByName(command.name)) {
             throw CoreException(ErrorType.CONFLICT, "Coupon name already exists.")
         }
+
+        CouponPolicy.validate(
+            name = command.name,
+            type = command.type,
+            discountValue = command.discountValue,
+            minOrderAmount = command.minOrderAmount,
+            expiredAt = command.expiredAt,
+        )
 
         return Coupon(
             name = command.name,
@@ -66,6 +87,14 @@ class CouponService(
         if (couponIssueRepository.existsByCouponId(coupon.id)) {
             throw CoreException(ErrorType.BAD_REQUEST, "Issued coupon template cannot be updated.")
         }
+
+        CouponPolicy.validate(
+            name = command.name,
+            type = command.type,
+            discountValue = command.discountValue,
+            minOrderAmount = command.minOrderAmount,
+            expiredAt = command.expiredAt,
+        )
 
         coupon.update(
             name = command.name,

@@ -38,4 +38,22 @@ class CouponIssue(
 
         return CouponIssueDisplayStatus.AVAILABLE
     }
+
+    companion object {
+        fun issue(
+            memberId: Long,
+            coupon: Coupon,
+        ): CouponIssue {
+            return CouponIssue(
+                memberId = memberId,
+                couponId = coupon.id,
+                status = CouponIssueStatus.AVAILABLE,
+                type = coupon.type,
+                discountValue = coupon.discountValue,
+                minOrderAmount = coupon.minOrderAmount,
+                expiredAt = coupon.expiredAt,
+                usedAt = null,
+            )
+        }
+    }
 }

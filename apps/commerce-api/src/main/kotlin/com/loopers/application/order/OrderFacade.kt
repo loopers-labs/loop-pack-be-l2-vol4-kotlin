@@ -9,6 +9,7 @@ import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
 import com.loopers.domain.order.OrderPlacementService
 import com.loopers.domain.order.dto.OrderPlacementItem
+import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -74,5 +75,15 @@ class OrderFacade(
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
 
         return orderService.getOrder(memberId = user.id, orderId = orderId)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrdersForAdmin(page: Int, size: Int): Page<OrderSummaryInfo> {
+        return orderService.getOrders(page = page, size = size)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrderForAdmin(orderId: Long): OrderInfo {
+        return orderService.getOrder(orderId)
     }
 }

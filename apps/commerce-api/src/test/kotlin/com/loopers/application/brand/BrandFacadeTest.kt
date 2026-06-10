@@ -1,7 +1,12 @@
 package com.loopers.application.brand
 
+import com.loopers.application.product.ProductService
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.product.Product
+import com.loopers.domain.product.ProductRepository
+import com.loopers.domain.product.ProductSort
+import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.fixture.product.ProductBrandFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -22,7 +27,7 @@ class BrandFacadeTest {
         @Test
         fun returnsBrandInfo_whenBrandExists() {
             val brandRepository = FakeBrandRepository()
-            val brandFacade = BrandFacade(BrandService(brandRepository))
+            val brandFacade = createFacade(brandRepository)
             brandRepository.save(ProductBrandFixture.createBrand(id = 1L, name = "loopers"))
 
             val result = brandFacade.getBrand(1L)
@@ -34,7 +39,7 @@ class BrandFacadeTest {
         @Test
         fun throwsNotFound_whenBrandIsDeleted() {
             val brandRepository = FakeBrandRepository()
-            val brandFacade = BrandFacade(BrandService(brandRepository))
+            val brandFacade = createFacade(brandRepository)
             brandRepository.save(ProductBrandFixture.createBrand(id = 1L, isDeleted = true))
 
             val result = assertThrows<CoreException> {
@@ -84,5 +89,58 @@ class BrandFacadeTest {
             brands.add(brand)
             return brand
         }
+    }
+
+    private class FakeProductRepository : ProductRepository {
+        override fun findById(productId: Long): Product? {
+            return null
+        }
+
+        override fun findAllByIds(productIds: Collection<Long>): List<Product> {
+            return emptyList()
+        }
+
+        override fun findAllByBrandId(brandId: Long): List<Product> {
+            return emptyList()
+        }
+
+        override fun findDisplayableSummaries(
+            brandId: Long?,
+            sort: ProductSort,
+            page: Int,
+            size: Int,
+        ): Page<ProductSummary> {
+            return PageImpl(emptyList(), PageRequest.of(page, size), 0)
+        }
+
+        override fun save(product: Product): Product {
+            return product
+        }
+
+        override fun existsByBrandIdAndName(brandId: Long, name: String): Boolean {
+            return false
+        }
+
+        override fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean {
+            return false
+        }
+
+        override fun update(product: Product): Product {
+            return product
+        }
+
+        override fun updateAll(products: Collection<Product>): List<Product> {
+            return products.toList()
+        }
+    }
+
+    private fun createFacade(
+        brandRepository: FakeBrandRepository,
+        productRepository: FakeProductRepository = FakeProductRepository(),
+    ): BrandFacade {
+        return BrandFacade(
+            brandService = BrandService(brandRepository),
+            productService = ProductService(productRepository),
+        )
     }
 }

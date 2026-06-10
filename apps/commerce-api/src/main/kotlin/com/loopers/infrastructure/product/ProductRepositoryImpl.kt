@@ -5,6 +5,8 @@ import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSearchCondition
 import com.loopers.support.paging.PageResult
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class ProductRepositoryImpl(
@@ -29,10 +31,12 @@ class ProductRepositoryImpl(
         return productQueryRepository.findAll(condition)
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun increaseLikeCount(id: Long): Boolean {
         return productJpaRepository.increaseLikeCount(id) == 1
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun decreaseLikeCountIfPositive(id: Long): Boolean {
         return productJpaRepository.decreaseLikeCountIfPositive(id) == 1
     }

@@ -2,11 +2,14 @@ package com.loopers.infrastructure.like
 
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 
 @Repository
 class LikeCommandRepositoryImpl(
     private val entityManager: EntityManager,
 ) : LikeCommandRepository {
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun createIfAbsent(userId: Long, productId: Long): Int {
         return entityManager.createNativeQuery(
             """
@@ -29,6 +32,7 @@ class LikeCommandRepositoryImpl(
             .executeUpdate()
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun restoreIfCanceled(userId: Long, productId: Long): Int {
         return entityManager.createNativeQuery(
             """
@@ -45,6 +49,7 @@ class LikeCommandRepositoryImpl(
             .executeUpdate()
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun cancelIfActive(userId: Long, productId: Long): Int {
         return entityManager.createNativeQuery(
             """

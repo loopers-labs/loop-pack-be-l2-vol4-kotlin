@@ -4,6 +4,8 @@ import com.loopers.domain.stock.Stock
 import com.loopers.domain.stock.StockRepository
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class StockRepositoryImpl(
@@ -28,10 +30,12 @@ class StockRepositoryImpl(
             .map { it.toDomain() }
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun deductIfEnough(productId: Long, amount: Int): Boolean {
         return stockJpaRepository.deductIfEnough(productId = productId, amount = amount) == 1
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
     override fun restore(productId: Long, amount: Int): Boolean {
         return stockJpaRepository.restore(productId = productId, amount = amount) == 1
     }

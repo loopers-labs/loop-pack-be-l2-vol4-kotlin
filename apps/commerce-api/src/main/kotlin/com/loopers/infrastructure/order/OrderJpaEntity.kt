@@ -25,6 +25,7 @@ import jakarta.persistence.Table
 )
 class OrderJpaEntity(
     userId: Long,
+    userCouponId: Long?,
     status: OrderStatus,
     totalAmount: Long,
     discountAmount: Long,
@@ -32,6 +33,9 @@ class OrderJpaEntity(
 ) : BaseEntity() {
     @Column(name = "user_id", nullable = false)
     val userId: Long = userId
+
+    @Column(name = "user_coupon_id")
+    val userCouponId: Long? = userCouponId
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -80,6 +84,7 @@ class OrderJpaEntity(
         return Order(
             id = id,
             userId = userId,
+            userCouponId = userCouponId,
             items = items.map { it.toDomain() },
             status = status,
             amounts = OrderAmounts(
@@ -94,6 +99,7 @@ class OrderJpaEntity(
         fun from(order: Order): OrderJpaEntity {
             val orderEntity = OrderJpaEntity(
                 userId = order.userId,
+                userCouponId = order.userCouponId,
                 status = order.status,
                 totalAmount = order.totalAmount.amount,
                 discountAmount = order.discountAmount.amount,

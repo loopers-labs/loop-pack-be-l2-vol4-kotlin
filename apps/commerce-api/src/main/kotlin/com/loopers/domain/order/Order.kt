@@ -6,6 +6,7 @@ import com.loopers.support.error.ErrorType
 class Order(
     val id: Long? = null,
     val userId: Long,
+    val userCouponId: Long? = null,
     items: List<OrderItem>,
     status: OrderStatus = OrderStatus.PENDING_PAYMENT,
     amounts: OrderAmounts,
@@ -19,7 +20,7 @@ class Order(
     val paymentAmount: OrderAmount = amounts.paymentAmount
 
     init {
-        validate(userId = userId, items = items)
+        validate(userId = userId, userCouponId = userCouponId, items = items)
     }
 
     fun markPaid() {
@@ -39,8 +40,11 @@ class Order(
     }
 
     companion object {
-        private fun validate(userId: Long, items: List<OrderItem>) {
+        private fun validate(userId: Long, userCouponId: Long?, items: List<OrderItem>) {
             if (userId <= 0) throw CoreException(ErrorType.BAD_REQUEST, "유효하지 않은 유저 ID 입니다.")
+            if (userCouponId != null && userCouponId <= 0) {
+                throw CoreException(ErrorType.BAD_REQUEST, "유효하지 않은 발급 쿠폰 ID 입니다.")
+            }
             if (items.isEmpty()) throw CoreException(ErrorType.BAD_REQUEST, "주문 상품은 최소 1개 이상이어야 합니다.")
         }
     }

@@ -9,6 +9,7 @@ import com.loopers.support.error.ErrorType
 data class OrderInfo(
     val id: Long,
     val userId: Long,
+    val userCouponId: Long?,
     val status: OrderStatus,
     val totalAmount: Long,
     val discountAmount: Long,
@@ -20,6 +21,7 @@ data class OrderInfo(
             return OrderInfo(
                 id = order.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "주문 ID가 존재하지 않습니다."),
                 userId = order.userId,
+                userCouponId = order.userCouponId,
                 status = order.status,
                 totalAmount = order.totalAmount.amount,
                 discountAmount = order.discountAmount.amount,

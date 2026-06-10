@@ -16,12 +16,14 @@ class OrderApplicationService(
     @Transactional
     fun createOrder(
         userId: Long,
+        userCouponId: Long? = null,
         items: List<OrderItem>,
         amounts: OrderAmounts,
     ): Order {
         return orderRepository.save(
             Order(
                 userId = userId,
+                userCouponId = userCouponId,
                 items = items,
                 amounts = amounts,
             ),

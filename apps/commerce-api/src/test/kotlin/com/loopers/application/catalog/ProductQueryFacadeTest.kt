@@ -2,7 +2,6 @@ package com.loopers.application.catalog
 
 import com.loopers.application.catalog.port.CatalogProductQueryPort
 import com.loopers.application.catalog.port.LikeProductQueryPort
-import com.loopers.application.catalog.port.OrderReservationQueryPort
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -15,7 +14,6 @@ class ProductQueryFacadeTest {
         val facade = ProductQueryFacade(
             catalogProductQueryPort = FakeCatalogProductQueryPort(),
             likeProductQueryPort = FakeLikeProductQueryPort(likedProductIds = setOf(1L)),
-            orderReservationQueryPort = FakeOrderReservationQueryPort(activeReservedQuantity = 0),
         )
 
         val result = facade.getProducts(sort = ProductSort.LATEST, page = 0, size = 20, userId = 7L)
@@ -31,13 +29,12 @@ class ProductQueryFacadeTest {
         )
     }
 
-    @DisplayName("상품 상세는 Order 활성 예약 수량을 반영해 soldOut 을 계산한다.")
+    @DisplayName("상품 상세는 예약 재고 수량을 반영해 soldOut 을 계산한다.")
     @Test
-    fun getProductDetailComposesReservedQuantityForSoldOut() {
+    fun getProductDetailComposesReservedStockForSoldOut() {
         val facade = ProductQueryFacade(
             catalogProductQueryPort = FakeCatalogProductQueryPort(),
             likeProductQueryPort = FakeLikeProductQueryPort(likedProductIds = emptySet()),
-            orderReservationQueryPort = FakeOrderReservationQueryPort(activeReservedQuantity = 5),
         )
 
         val result = facade.getProductDetail(productId = 1L, userId = null)
@@ -56,7 +53,6 @@ class ProductQueryFacadeTest {
         val facade = ProductQueryFacade(
             catalogProductQueryPort = FakeCatalogProductQueryPort(),
             likeProductQueryPort = null,
-            orderReservationQueryPort = null,
         )
 
         val result = facade.getProducts(sort = ProductSort.LATEST, page = 0, size = 20, userId = 7L)
@@ -67,13 +63,13 @@ class ProductQueryFacadeTest {
     private class FakeCatalogProductQueryPort : CatalogProductQueryPort {
         override fun findDisplayableProducts(sort: ProductSort, page: Int, size: Int): List<CatalogInfo.ProductDisplayRow> =
             listOf(
-                CatalogInfo.ProductDisplayRow(1L, "Air Max", 1L, "Nike", 129000, 10, 3),
-                CatalogInfo.ProductDisplayRow(2L, "Sold Out", 1L, "Nike", 99000, 2, 0),
+                CatalogInfo.ProductDisplayRow(1L, "Air Max", 1L, "Nike", 129000, 10, 3, 0),
+                CatalogInfo.ProductDisplayRow(2L, "Sold Out", 1L, "Nike", 99000, 2, 3, 3),
             )
 
         override fun findDisplayableProductDetail(productId: Long): CatalogInfo.ProductDetailRow? =
             CatalogInfo.ProductDetailRow(
-                product = CatalogInfo.ProductDisplayRow(productId, "Air Max", 1L, "Nike", 129000, 10, 5),
+                product = CatalogInfo.ProductDisplayRow(productId, "Air Max", 1L, "Nike", 129000, 10, 5, 5),
                 detailImages = listOf("https://cdn.example.com/air-max.png"),
             )
     }
@@ -83,9 +79,5 @@ class ProductQueryFacadeTest {
             likedProductIds.intersect(productIds.toSet())
 
         override fun isLiked(userId: Long, productId: Long): Boolean = likedProductIds.contains(productId)
-    }
-
-    private class FakeOrderReservationQueryPort(private val activeReservedQuantity: Int) : OrderReservationQueryPort {
-        override fun getActiveReservedQuantity(productId: Long): Int = activeReservedQuantity
     }
 }

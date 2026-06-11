@@ -18,7 +18,7 @@ class CatalogProductQueryDao(
         validatePage(page, size)
         val query = entityManager.createQuery(
             """
-            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity
+            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity, stock.reservedQuantity
               from Product p, Brand b, ProductStats stats, ProductStock stock
              where p.deletedAt is null
                and p.status = :productStatus
@@ -46,6 +46,7 @@ class CatalogProductQueryDao(
                 price = values[4] as Long,
                 likeCount = values[5] as Long,
                 stockQuantity = values[6] as Int,
+                reservedQuantity = values[7] as Int,
             )
         }
     }
@@ -59,7 +60,7 @@ class CatalogProductQueryDao(
         validatePage(page, size)
         val query = entityManager.createQuery(
             """
-            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity
+            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity, stock.reservedQuantity
               from Product p, Brand b, ProductStats stats, ProductStock stock
              where b.id = :brandId
                and p.deletedAt is null
@@ -89,6 +90,7 @@ class CatalogProductQueryDao(
                 price = values[4] as Long,
                 likeCount = values[5] as Long,
                 stockQuantity = values[6] as Int,
+                reservedQuantity = values[7] as Int,
             )
         }
     }
@@ -112,7 +114,7 @@ class CatalogProductQueryDao(
     private fun findDisplayableProductsById(productId: Long): CatalogInfo.ProductDisplayRow? {
         val query = entityManager.createQuery(
             """
-            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity
+            select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity, stock.reservedQuantity
               from Product p, Brand b, ProductStats stats, ProductStock stock
              where p.id = :productId
                and p.deletedAt is null
@@ -139,6 +141,7 @@ class CatalogProductQueryDao(
                 price = values[4] as Long,
                 likeCount = values[5] as Long,
                 stockQuantity = values[6] as Int,
+                reservedQuantity = values[7] as Int,
             )
         }
     }

@@ -21,7 +21,7 @@ class CartCatalogAdapter(
             productName = productName,
             brandName = brandName,
             price = price,
-            stockQuantity = stockQuantity,
-            orderable = true,
+            stockQuantity = availableQuantity,
+            orderable = availableQuantity > 0,
         )
 }

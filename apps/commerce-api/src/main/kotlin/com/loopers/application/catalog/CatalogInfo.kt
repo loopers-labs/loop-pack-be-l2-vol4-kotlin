@@ -46,7 +46,11 @@ class CatalogInfo {
         val price: Long,
         val likeCount: Long,
         val stockQuantity: Int,
-    )
+        val reservedQuantity: Int,
+    ) {
+        val availableQuantity: Int
+            get() = stockQuantity - reservedQuantity
+    }
 
     data class ProductDetailRow(
         val product: ProductDisplayRow,

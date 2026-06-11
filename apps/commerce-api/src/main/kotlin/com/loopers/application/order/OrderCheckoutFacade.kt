@@ -33,7 +33,7 @@ class OrderCheckoutFacade(
         return when (order.status) {
             OrderStatus.COMPLETED -> orderApplicationService.getDetail(order.id)
             OrderStatus.PAYMENT_PENDING -> approvePending(command, order)
-            OrderStatus.FAILED,
+            OrderStatus.FAILED -> retryFailedCompletion(order.id)
             OrderStatus.EXPIRED,
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
@@ -92,6 +92,42 @@ class OrderCheckoutFacade(
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
             -> throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")
+        }
+    }
+
+    private fun retryFailedCompletion(orderId: Long): OrderInfo.Detail {
+        val payment = paymentApplicationService.recordVerifyRequested(orderId)
+        val pgResult = paymentGateway.verify(
+            PaymentCommand.Verify(
+                orderId = orderId,
+                paymentRequestId = payment.paymentRequestId,
+                paymentKey = payment.paymentKey,
+                pgTransactionId = payment.pgTransactionId,
+                amount = payment.requestedAmount,
+            ),
+        )
+        if (!pgResult.success || pgResult.pgTransactionId == null || pgResult.approvedAmount == null) {
+            paymentApplicationService.recordVerifyFailed(
+                orderId = orderId,
+                pgStatus = pgResult.pgStatus,
+                failureReason = pgResult.failureReason ?: "PG 검증에 실패했습니다.",
+                rawResponseSummary = pgResult.rawResponseSummary,
+            )
+            throw CoreException(ErrorType.BAD_REQUEST, pgResult.failureReason ?: "결제 검증에 실패했습니다.")
+        }
+        paymentApplicationService.recordVerifySucceeded(
+            orderId = orderId,
+            pgTransactionId = pgResult.pgTransactionId,
+            approvedAmount = pgResult.approvedAmount,
+            pgStatus = pgResult.pgStatus,
+            rawResponseSummary = pgResult.rawResponseSummary,
+        )
+
+        return runCatching {
+            paymentCompletionApplicationService.completeFailed(orderId)
+        }.getOrElse { throwable ->
+            paymentCompletionApplicationService.incrementRetryFailure(orderId, throwable.message ?: throwable.javaClass.simpleName)
+            throw throwable
         }
     }
 

@@ -21,6 +21,8 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.jdbc.core.JdbcTemplate
+import java.sql.Timestamp
 import java.time.LocalDateTime
 
 @SpringBootTest
@@ -31,6 +33,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     private val stockReservationJpaRepository: StockReservationJpaRepository,
     private val paymentJpaRepository: PaymentJpaRepository,
     private val paymentGateway: FakePaymentGateway,
+    private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -209,6 +212,71 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
             { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
             { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
             { assertThat(payment.status).isEqualTo(PaymentStatus.COMPLETION_FAILED) },
+        )
+    }
+
+    @Test
+    fun failedCompletionCanRetryAfterReservationExpiresWhenPgVerifySucceeds() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        stock.reservedQuantity = 0
+        productStockJpaRepository.saveAndFlush(stock)
+        assertThrows<CoreException> {
+            facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
+        }
+        stock.reservedQuantity = 2
+        productStockJpaRepository.saveAndFlush(stock)
+        expireReservation(checkout.orderId)
+
+        val retried = facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "ignored-on-retry"))
+
+        val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        assertAll(
+            { assertThat(retried.status).isEqualTo(OrderStatus.COMPLETED) },
+            { assertThat(order.status).isEqualTo(OrderStatus.COMPLETED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.APPROVED) },
+            { assertThat(payment.completionRetryCount).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
+            { assertThat(paymentGateway.transactionActiveDuringVerify).containsExactly(false) },
+        )
+    }
+
+    @Test
+    fun failedCompletionRetryFailureIncrementsCountAndStopsAtThree() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        stock.reservedQuantity = 0
+        productStockJpaRepository.saveAndFlush(stock)
+        assertThrows<CoreException> {
+            facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
+        }
+
+        repeat(3) {
+            assertThrows<CoreException> {
+                facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "ignored-on-retry"))
+            }
+        }
+        val ex = assertThrows<CoreException> {
+            facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "ignored-on-retry"))
+        }
+
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        assertAll(
+            { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.COMPLETION_FAILED) },
+            { assertThat(payment.completionRetryCount).isEqualTo(3) },
+        )
+    }
+
+    private fun expireReservation(orderId: Long) {
+        jdbcTemplate.update(
+            "update orders set reservation_expires_at = ? where id = ?",
+            Timestamp.valueOf(LocalDateTime.now().minusMinutes(1)),
+            orderId,
         )
     }
 

@@ -2,6 +2,7 @@ package com.loopers.application.order
 
 import com.loopers.application.payment.PaymentApplicationService
 import com.loopers.domain.order.OrderCancelReason
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -11,6 +12,8 @@ class PaymentCompletionApplicationService(
     private val stockApplicationService: StockApplicationService,
     private val paymentApplicationService: PaymentApplicationService,
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     fun completePaymentPending(orderId: Long): OrderInfo.Detail {
         stockApplicationService.confirmAndDeduct(orderId)
@@ -63,7 +66,24 @@ class PaymentCompletionApplicationService(
 
     @Transactional
     fun incrementRetryFailure(orderId: Long, reason: String): OrderInfo.Detail {
-        paymentApplicationService.incrementCompletionRetryFailure(orderId, reason)
+        val payment = paymentApplicationService.incrementCompletionRetryFailure(orderId, reason)
+        if (payment.completionRetryCount >= 3) {
+            val reservations = stockApplicationService.findInProgress(orderId)
+            val productQuantities = reservations
+                .groupBy { it.productId }
+                .mapValues { entry -> entry.value.sumOf { it.quantity } }
+            logger.error(
+                "payment completion retry stopped orderId={} paymentId={} pgProvider={} pgTransactionId={} reservationIds={} productQuantities={} reason={} retryCount={}",
+                orderId,
+                payment.paymentId,
+                payment.pgProvider,
+                payment.pgTransactionId,
+                reservations.map { it.id },
+                productQuantities,
+                reason,
+                payment.completionRetryCount,
+            )
+        }
         return orderApplicationService.getDetail(orderId)
     }
 }

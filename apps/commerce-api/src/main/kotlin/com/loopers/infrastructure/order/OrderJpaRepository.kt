@@ -14,16 +14,14 @@ interface OrderJpaRepository : JpaRepository<Order, Long> {
     @Query(
         """
         update OrderEntity orderEntity
-           set orderEntity.status = :nextStatus,
-               orderEntity.paymentTransactionId = :paymentTransactionId
+           set orderEntity.status = :nextStatus
          where orderEntity.id = :orderId
            and orderEntity.status = :currentStatus
            and orderEntity.deletedAt is null
         """,
     )
-    fun completePaymentPending(
+    fun updateStatus(
         @Param("orderId") orderId: Long,
-        @Param("paymentTransactionId") paymentTransactionId: String,
         @Param("currentStatus") currentStatus: OrderStatus,
         @Param("nextStatus") nextStatus: OrderStatus,
     ): Int
@@ -42,22 +40,6 @@ interface OrderJpaRepository : JpaRepository<Order, Long> {
     fun cancelByCurrentStatus(
         @Param("orderId") orderId: Long,
         @Param("cancelReason") cancelReason: OrderCancelReason,
-        @Param("currentStatus") currentStatus: OrderStatus,
-        @Param("nextStatus") nextStatus: OrderStatus,
-    ): Int
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-        """
-        update OrderEntity orderEntity
-           set orderEntity.status = :nextStatus
-         where orderEntity.id = :orderId
-           and orderEntity.status = :currentStatus
-           and orderEntity.deletedAt is null
-        """,
-    )
-    fun startShippingCompleted(
-        @Param("orderId") orderId: Long,
         @Param("currentStatus") currentStatus: OrderStatus,
         @Param("nextStatus") nextStatus: OrderStatus,
     ): Int

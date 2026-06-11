@@ -25,7 +25,7 @@ class OrderInfo {
                 userId = order.userId,
                 status = order.status,
                 reservationExpiresAt = order.reservationExpiresAt,
-                paymentTransactionId = order.paymentTransactionId,
+                paymentTransactionId = null,
                 cancelReason = order.cancelReason,
                 deliveryAddress = order.deliveryAddress,
                 deliveryRequest = order.deliveryRequest,

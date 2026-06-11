@@ -54,9 +54,35 @@ class OrderApplicationService(
             .map { order -> OrderInfo.Detail.from(order, orderRepository.findItemsByOrderId(order.id)) }
 
     @Transactional
-    fun completePayment(orderId: Long, paymentTransactionId: String): OrderInfo.Detail {
-        val updatedCount = orderRepository.completePaymentPending(orderId, paymentTransactionId)
-        requireUpdated(updatedCount)
+    fun completePayment(orderId: Long, paymentTransactionId: String): OrderInfo.Detail = completePaymentPending(orderId)
+
+    @Transactional
+    fun completePaymentPending(orderId: Long): OrderInfo.Detail {
+        requireUpdated(orderRepository.completeFromPaymentPending(orderId))
+        return getDetail(orderId)
+    }
+
+    @Transactional
+    fun completeFailed(orderId: Long): OrderInfo.Detail {
+        requireUpdated(orderRepository.completeFromFailed(orderId))
+        return getDetail(orderId)
+    }
+
+    @Transactional
+    fun markCompletionFailed(orderId: Long): OrderInfo.Detail {
+        requireUpdated(orderRepository.markCompletionFailed(orderId))
+        return getDetail(orderId)
+    }
+
+    @Transactional
+    fun markCompletedAsFailed(orderId: Long): OrderInfo.Detail {
+        requireUpdated(orderRepository.markCompletedAsFailed(orderId))
+        return getDetail(orderId)
+    }
+
+    @Transactional
+    fun expirePaymentPending(orderId: Long): OrderInfo.Detail {
+        requireUpdated(orderRepository.expirePaymentPending(orderId))
         return getDetail(orderId)
     }
 
@@ -71,6 +97,12 @@ class OrderApplicationService(
     fun cancelCompleted(orderId: Long, reason: OrderCancelReason): OrderInfo.Detail {
         val updatedCount = orderRepository.cancelCompleted(orderId, reason)
         requireUpdated(updatedCount)
+        return getDetail(orderId)
+    }
+
+    @Transactional
+    fun cancelFailedByOperator(orderId: Long, reason: OrderCancelReason): OrderInfo.Detail {
+        requireUpdated(orderRepository.cancelFailedByOperator(orderId, reason))
         return getDetail(orderId)
     }
 

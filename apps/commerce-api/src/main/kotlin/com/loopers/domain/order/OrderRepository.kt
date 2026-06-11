@@ -13,11 +13,21 @@ interface OrderRepository {
 
     fun findByProductId(productId: Long): List<Order>
 
-    fun completePaymentPending(orderId: Long, paymentTransactionId: String): Int
+    fun completeFromPaymentPending(orderId: Long): Int
+
+    fun completeFromFailed(orderId: Long): Int
+
+    fun markCompletionFailed(orderId: Long): Int
+
+    fun markCompletedAsFailed(orderId: Long): Int
+
+    fun expirePaymentPending(orderId: Long): Int
 
     fun cancelPaymentPending(orderId: Long, reason: OrderCancelReason): Int
 
     fun cancelCompleted(orderId: Long, reason: OrderCancelReason): Int
+
+    fun cancelFailedByOperator(orderId: Long, reason: OrderCancelReason): Int
 
     fun startShippingCompleted(orderId: Long): Int
 

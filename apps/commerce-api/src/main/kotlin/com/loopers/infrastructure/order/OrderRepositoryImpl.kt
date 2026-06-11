@@ -30,13 +30,20 @@ class OrderRepositoryImpl(
         return orderJpaRepository.findAllById(orderIds).sortedBy { it.id }
     }
 
-    override fun completePaymentPending(orderId: Long, paymentTransactionId: String): Int =
-        orderJpaRepository.completePaymentPending(
-            orderId = orderId,
-            paymentTransactionId = paymentTransactionId,
-            currentStatus = OrderStatus.PAYMENT_PENDING,
-            nextStatus = OrderStatus.COMPLETED,
-        )
+    override fun completeFromPaymentPending(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING, OrderStatus.COMPLETED)
+
+    override fun completeFromFailed(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.FAILED, OrderStatus.COMPLETED)
+
+    override fun markCompletionFailed(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING, OrderStatus.FAILED)
+
+    override fun markCompletedAsFailed(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.COMPLETED, OrderStatus.FAILED)
+
+    override fun expirePaymentPending(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING, OrderStatus.EXPIRED)
 
     override fun cancelPaymentPending(orderId: Long, reason: OrderCancelReason): Int =
         orderJpaRepository.cancelByCurrentStatus(
@@ -54,12 +61,16 @@ class OrderRepositoryImpl(
             nextStatus = OrderStatus.CANCELED,
         )
 
-    override fun startShippingCompleted(orderId: Long): Int =
-        orderJpaRepository.startShippingCompleted(
+    override fun cancelFailedByOperator(orderId: Long, reason: OrderCancelReason): Int =
+        orderJpaRepository.cancelByCurrentStatus(
             orderId = orderId,
-            currentStatus = OrderStatus.COMPLETED,
-            nextStatus = OrderStatus.SHIPPING_STARTED,
+            cancelReason = reason,
+            currentStatus = OrderStatus.FAILED,
+            nextStatus = OrderStatus.CANCELED,
         )
+
+    override fun startShippingCompleted(orderId: Long): Int =
+        orderJpaRepository.updateStatus(orderId, OrderStatus.COMPLETED, OrderStatus.SHIPPING_STARTED)
 
     override fun findExpiredPaymentPending(now: LocalDateTime): List<Order> =
         orderJpaRepository.findAllByStatusAndReservationExpiresAtBefore(OrderStatus.PAYMENT_PENDING, now)

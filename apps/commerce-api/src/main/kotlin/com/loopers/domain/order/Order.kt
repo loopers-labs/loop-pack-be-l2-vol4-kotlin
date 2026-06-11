@@ -32,9 +32,6 @@ class Order(
     @Column(name = "status", nullable = false, length = 30)
     var status: OrderStatus = OrderStatus.PAYMENT_PENDING,
 
-    @Column(name = "payment_transaction_id", length = 100)
-    var paymentTransactionId: String? = null,
-
     @Enumerated(EnumType.STRING)
     @Column(name = "cancel_reason", length = 30)
     var cancelReason: OrderCancelReason? = null,
@@ -50,16 +47,6 @@ class Order(
         }
         status = OrderStatus.COMPLETED
     }
-
-    fun complete(paymentTransactionId: String) {
-        if (paymentTransactionId.isBlank()) {
-            throw CoreException(ErrorType.BAD_REQUEST, "결제 식별자는 비어있을 수 없습니다.")
-        }
-        this.paymentTransactionId = paymentTransactionId
-        complete()
-    }
-
-    fun recordPaymentFailure() = Unit
 
     fun markCompletionFailed() {
         if (status != OrderStatus.PAYMENT_PENDING && status != OrderStatus.FAILED) {

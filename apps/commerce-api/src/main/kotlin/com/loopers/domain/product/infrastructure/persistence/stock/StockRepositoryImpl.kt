@@ -17,7 +17,7 @@ class StockRepositoryImpl(
 
     override fun saveAll(stocks: List<StockModel>): List<StockModel> = stocks.map { save(it) }
 
-    override fun findByProductId(productId: Long): StockModel? =
+    override fun findByProductIdOrNull(productId: Long): StockModel? =
         productStockJpaRepository.findById(productId).map { it.toDomain() }.orElse(null)
 
     override fun findByProductIdsForUpdate(productIds: List<Long>): List<StockModel> =

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component
 class ExampleRepositoryImpl(
     private val exampleJpaRepository: ExampleJpaRepository,
 ) : ExampleRepository {
-    override fun find(id: Long): ExampleModel? {
+    override fun findByIdOrNull(id: Long): ExampleModel? {
         return exampleJpaRepository.findByIdOrNull(id)
     }
 }

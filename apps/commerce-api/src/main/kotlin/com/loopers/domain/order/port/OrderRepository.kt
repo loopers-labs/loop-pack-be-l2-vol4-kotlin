@@ -5,8 +5,8 @@ import java.time.ZonedDateTime
 
 interface OrderRepository {
     fun save(order: OrderModel): OrderModel
-    fun findById(orderId: Long): OrderModel?
-    fun findByIdempotencyKey(idempotencyKey: String): OrderModel?
+    fun findByIdOrNull(orderId: Long): OrderModel?
+    fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel?
     fun findByOrderedUserId(
         orderedUserId: Long,
         startAt: ZonedDateTime?,

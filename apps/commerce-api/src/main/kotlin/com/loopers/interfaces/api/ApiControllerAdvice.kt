@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.JsonMappingException
 import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.domain.brand.exception.BrandNotFoundException
+import com.loopers.domain.coupon.exception.CouponConflictException
+import com.loopers.domain.coupon.exception.CouponDomainException
+import com.loopers.domain.coupon.exception.CouponNotOwnedException
+import com.loopers.domain.coupon.exception.InvalidCouponException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.validation.ConstraintViolationException
@@ -35,6 +39,26 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handleNotFound(e: BrandNotFoundException): ResponseEntity<ApiResponse<*>> {
         return failureResponse(errorType = ErrorType.NOT_FOUND, errorMessage = e.message)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: InvalidCouponException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = e.message)
+    }
+
+    @ExceptionHandler
+    fun handleNotFound(e: CouponNotOwnedException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.NOT_FOUND, errorMessage = e.message)
+    }
+
+    @ExceptionHandler
+    fun handleConflict(e: CouponConflictException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.CONFLICT, errorMessage = e.message)
+    }
+
+    @ExceptionHandler
+    fun handleBadRequest(e: CouponDomainException): ResponseEntity<ApiResponse<*>> {
+        return failureResponse(errorType = ErrorType.BAD_REQUEST, errorMessage = e.message)
     }
 
     @ExceptionHandler

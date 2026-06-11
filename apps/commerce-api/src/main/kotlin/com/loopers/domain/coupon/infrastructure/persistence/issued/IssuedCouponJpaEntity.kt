@@ -10,12 +10,14 @@ import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.LocalDateTime
 
+const val ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT = "uk_issued_coupons_user_template"
+
 @Entity
 @Table(
     name = "issued_coupons",
     uniqueConstraints = [
         UniqueConstraint(
-            name = "uk_issued_coupons_user_template",
+            name = ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT,
             columnNames = ["user_id", "coupon_template_id"],
         ),
     ],

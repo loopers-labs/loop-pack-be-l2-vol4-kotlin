@@ -39,7 +39,7 @@ class UserServiceTest {
         val passwordEncoder = mockk<PasswordEncoder>()
         val userService = UserService(userRepository, passwordEncoder)
         val encodedPassword = "encoded-current-password"
-        every { userRepository.findByIdForUpdate(1L) } returns 저장된_회원_도메인_생성(
+        every { userRepository.findByIdForUpdateOrNull(1L) } returns 저장된_회원_도메인_생성(
             id = 1L,
             encodedPassword = encodedPassword,
         )

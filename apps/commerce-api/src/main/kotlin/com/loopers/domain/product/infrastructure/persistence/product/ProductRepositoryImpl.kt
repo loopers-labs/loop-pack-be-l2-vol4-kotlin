@@ -29,7 +29,7 @@ class ProductRepositoryImpl(
 
     override fun saveAll(products: List<ProductModel>): List<ProductModel> = products.map { save(it) }
 
-    override fun findById(productId: Long): ProductModel? =
+    override fun findByIdOrNull(productId: Long): ProductModel? =
         productJpaRepository.findById(productId).map { it.toDomain() }.orElse(null)
 
     override fun findAllByIds(productIds: Collection<Long>): List<ProductModel> =

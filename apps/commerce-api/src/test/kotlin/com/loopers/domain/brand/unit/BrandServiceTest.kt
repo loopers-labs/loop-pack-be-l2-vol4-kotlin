@@ -36,13 +36,13 @@ class BrandServiceTest {
     fun `삭제된_브랜드_조회는_NOT_FOUND가_발생한다`() {
         val brandRepository = mockk<BrandRepository>()
         val brandService = BrandService(brandRepository)
-        every { brandRepository.findById(기본_브랜드_ID) } returns 브랜드_도메인_생성(
+        every { brandRepository.findByIdOrNull(기본_브랜드_ID) } returns 브랜드_도메인_생성(
             id = 기본_브랜드_ID,
             deletedAtOrNull = ZonedDateTime.now(),
         )
 
         val ex = assertThrows<CoreException> {
-            brandService.findById(기본_브랜드_ID)
+            brandService.getById(기본_브랜드_ID)
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -57,7 +57,7 @@ class BrandServiceTest {
             브랜드_도메인_생성(id = 2L, name = "둘째 브랜드"),
         )
 
-        val brands = brandService.findByIds(setOf(1L, 2L))
+        val brands = brandService.getByIds(setOf(1L, 2L))
 
         assertThat(brands.map { it.id }).containsExactly(1L, 2L)
         assertThat(brands.map { it.name.value }).containsExactly("첫 브랜드", "둘째 브랜드")
@@ -72,7 +72,7 @@ class BrandServiceTest {
         )
 
         val ex = assertThrows<CoreException> {
-            brandService.findByIds(setOf(1L, 2L))
+            brandService.getByIds(setOf(1L, 2L))
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)

@@ -20,10 +20,17 @@ class CouponTemplateRepositoryImpl(
         return couponTemplateJpaRepository.saveAndFlush(entity).toDomain()
     }
 
-    override fun findById(templateId: Long): CouponTemplateModel? =
+    override fun findByIdOrNull(templateId: Long): CouponTemplateModel? =
         couponTemplateJpaRepository.findById(templateId)
             .map { it.toDomain() }
             .orElse(null)
+
+    override fun findAllByIds(templateIds: Set<Long>): List<CouponTemplateModel> {
+        if (templateIds.isEmpty()) {
+            return emptyList()
+        }
+        return couponTemplateJpaRepository.findAllById(templateIds).map { it.toDomain() }
+    }
 
     override fun findAll(page: Int, size: Int): List<CouponTemplateModel> {
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"))

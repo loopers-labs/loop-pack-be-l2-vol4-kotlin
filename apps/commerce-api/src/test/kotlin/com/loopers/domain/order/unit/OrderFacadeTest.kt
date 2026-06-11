@@ -39,8 +39,8 @@ class OrderFacadeTest {
                 주문항목_생성_커맨드(productId = 20L, quantity = 1),
             ),
         )
-        every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
-        every { productService.findOrderableSnapshots(listOf(10L, 20L)) } returns listOf(
+        every { userService.getById(1L) } returns 회원_도메인_생성(id = 1L)
+        every { productService.getOrderableSnapshots(listOf(10L, 20L)) } returns listOf(
             상품_스냅샷(productId = 10L, unitPrice = 10_000),
             상품_스냅샷(productId = 20L, productName = "보조 상품", unitPrice = 5_000),
         )
@@ -70,8 +70,8 @@ class OrderFacadeTest {
         assertThat(info.paymentPrice).isEqualTo(25_000)
         assertThat(info.items.map { it.productId }).containsExactly(10L, 20L)
         verifySequence {
-            userService.findById(1L)
-            productService.findOrderableSnapshots(listOf(10L, 20L))
+            userService.getById(1L)
+            productService.getOrderableSnapshots(listOf(10L, 20L))
             stockService.decreaseAll(
                 listOf(
                     StockDecreaseCommand(productId = 10L, quantity = 2),
@@ -91,8 +91,8 @@ class OrderFacadeTest {
         val couponService = mockk<CouponService>()
         val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드()
-        every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
-        every { productService.findOrderableSnapshots(listOf(10L)) } returns listOf(상품_스냅샷(productId = 10L))
+        every { userService.getById(1L) } returns 회원_도메인_생성(id = 1L)
+        every { productService.getOrderableSnapshots(listOf(10L)) } returns listOf(상품_스냅샷(productId = 10L))
         every {
             stockService.decreaseAll(listOf(StockDecreaseCommand(productId = 10L, quantity = 2)))
         } throws CoreException(ErrorType.CONFLICT)
@@ -114,13 +114,13 @@ class OrderFacadeTest {
         val couponService = mockk<CouponService>()
         val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드(idempotencyKey = "order-key-1")
-        every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
-        every { orderService.findByIdempotencyKey("order-key-1") } returns 주문_도메인_생성(id = 100L)
+        every { userService.getById(1L) } returns 회원_도메인_생성(id = 1L)
+        every { orderService.findByIdempotencyKeyOrNull("order-key-1") } returns 주문_도메인_생성(id = 100L)
 
         val info = orderFacade.placeOrder(command)
 
         assertThat(info.id).isEqualTo(100L)
-        verify(exactly = 0) { productService.findOrderableSnapshots(any()) }
+        verify(exactly = 0) { productService.getOrderableSnapshots(any()) }
         verify(exactly = 0) { stockService.decreaseAll(any()) }
         verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
@@ -133,14 +133,14 @@ class OrderFacadeTest {
         val orderService = mockk<OrderService>()
         val couponService = mockk<CouponService>()
         val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
-        every { userService.findById(1L) } throws CoreException(ErrorType.NOT_FOUND)
+        every { userService.getById(1L) } throws CoreException(ErrorType.NOT_FOUND)
 
         val ex = assertThrows<CoreException> {
             orderFacade.placeOrder(주문_생성_커맨드())
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
-        verify(exactly = 0) { productService.findOrderableSnapshots(any()) }
+        verify(exactly = 0) { productService.getOrderableSnapshots(any()) }
         verify(exactly = 0) { stockService.decreaseAll(any()) }
         verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
@@ -153,8 +153,8 @@ class OrderFacadeTest {
         val orderService = mockk<OrderService>()
         val couponService = mockk<CouponService>()
         val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
-        every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
-        every { productService.findOrderableSnapshots(listOf(10L)) } throws CoreException(ErrorType.NOT_FOUND)
+        every { userService.getById(1L) } returns 회원_도메인_생성(id = 1L)
+        every { productService.getOrderableSnapshots(listOf(10L)) } throws CoreException(ErrorType.NOT_FOUND)
 
         val ex = assertThrows<CoreException> {
             orderFacade.placeOrder(주문_생성_커맨드())

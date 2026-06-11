@@ -25,7 +25,7 @@ class ProductFacade(
 ) {
     @Transactional
     fun registerProduct(command: ProductRegisterCommand): ProductInfo {
-        brandService.findById(command.brandId)
+        brandService.getById(command.brandId)
         val product = productService.register(command)
         stockService.initialize(
             productId = product.id,
@@ -46,8 +46,8 @@ class ProductFacade(
     }
 
     fun getProduct(productId: Long): ProductDetailInfo {
-        val product = productService.findById(productId)
-        val brand = brandService.findById(product.brandId)
+        val product = productService.getById(productId)
+        val brand = brandService.getById(product.brandId)
         val likeCount = likeService.countByProductId(product.id)
         return ProductDetailInfo.from(product, brand, likeCount)
     }
@@ -58,7 +58,7 @@ class ProductFacade(
     private fun List<ProductModel>.toSummaryInfos(
         likeCounts: Map<Long, Long> = likeService.countByProductIds(map { it.id }.toSet()),
     ): List<ProductSummaryInfo> {
-        val brandsById = brandService.findByIds(map { it.brandId }.toSet())
+        val brandsById = brandService.getByIds(map { it.brandId }.toSet())
             .associateBy { it.id }
         return map { product ->
             val brand = brandsById[product.brandId] ?: throw CoreException(ErrorType.NOT_FOUND)

@@ -78,6 +78,27 @@ class OrderApiE2ETest
             assertThat(savedStock.leftStock).isEqualTo(4)
         }
 
+        @Test
+        fun `타인의_발급_쿠폰으로_주문하면_404_NOT_FOUND를_반환하고_재고를_차감하지_않는다`() {
+            userService.signUp(사용자_회원가입())
+            userService.signUp(사용자_회원가입(loginId = "other1234", email = "other@example.com"))
+            val productId = registerProduct(price = 10_000, initialStock = 5)
+            val issuedCouponId = issueCoupon(
+                templateId = createRateTemplate(value = 10, minOrderAmount = 0),
+                headers = authHeaders(loginId = "other1234"),
+            )
+
+            val response = placeOrder(
+                productId = productId,
+                quantity = 1,
+                issuedCouponId = issuedCouponId,
+            )
+            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            assertThat(savedStock.leftStock).isEqualTo(5)
+        }
+
         private fun registerProduct(price: Long, initialStock: Long): Long {
             val brand = brandService.register(브랜드_등록_커맨드())
             return productFacade.registerProduct(
@@ -108,11 +129,14 @@ class OrderApiE2ETest
             return response.body?.data?.number("id") ?: error("쿠폰 템플릿 생성 실패")
         }
 
-        private fun issueCoupon(templateId: Long): Long {
+        private fun issueCoupon(
+            templateId: Long,
+            headers: HttpHeaders = authHeaders(),
+        ): Long {
             val response = testRestTemplate.exchange(
                 "/api/v1/coupons/$templateId/issue",
                 HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
+                HttpEntity<Unit>(headers),
                 mapResponseType,
             )
             return response.body?.data?.number("id") ?: error("쿠폰 발급 실패")
@@ -165,10 +189,13 @@ class OrderApiE2ETest
         private fun Map<String, Any?>.number(key: String): Long =
             (get(key) as Number).toLong()
 
-        private fun authHeaders(): HttpHeaders {
+        private fun authHeaders(
+            loginId: String = 기본_로그인_ID,
+            rawPassword: String = 기본_비밀번호,
+        ): HttpHeaders {
             val headers = HttpHeaders()
-            headers.set("X-Loopers-LoginId", 기본_로그인_ID)
-            headers.set("X-Loopers-LoginPw", 기본_비밀번호)
+            headers.set("X-Loopers-LoginId", loginId)
+            headers.set("X-Loopers-LoginPw", rawPassword)
             return headers
         }
 

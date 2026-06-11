@@ -41,12 +41,12 @@ class OrderService(
         }
 
     @Transactional(readOnly = true)
-    fun findById(orderId: Long): OrderModel =
-        orderRepository.findById(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
+    fun getById(orderId: Long): OrderModel =
+        orderRepository.findByIdOrNull(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
 
     @Transactional(readOnly = true)
-    fun findByIdempotencyKey(idempotencyKey: String): OrderModel? =
-        orderRepository.findByIdempotencyKey(idempotencyKey)
+    fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel? =
+        orderRepository.findByIdempotencyKeyOrNull(idempotencyKey)
 
     @Transactional(readOnly = true)
     fun findByOrderedUserId(

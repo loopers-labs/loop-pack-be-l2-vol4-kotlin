@@ -9,19 +9,23 @@ class InvalidCouponException(
     message: String,
 ) : CouponDomainException(message)
 
+open class CouponConflictException(
+    message: String,
+    cause: Throwable? = null,
+) : CouponDomainException(message, cause)
+
 class CouponNotIssuableException(
     message: String,
-) : CouponDomainException(message)
+) : CouponConflictException(message)
 
 class CouponNotUsableException(
     message: String,
-) : CouponDomainException(message)
+) : CouponConflictException(message)
 
-class CouponNotOwnedException(
-    issuedCouponId: Long,
-    userId: Long,
-) : CouponDomainException("발급 쿠폰 소유자가 아닙니다. issuedCouponId=$issuedCouponId, userId=$userId")
+class CouponNotOwnedException : CouponDomainException("발급 쿠폰을 찾을 수 없습니다.")
 
-class IssuedCouponNotAvailableException(
-    issuedCouponId: Long,
-) : CouponDomainException("사용 가능한 발급 쿠폰이 아닙니다. issuedCouponId=$issuedCouponId")
+class IssuedCouponNotAvailableException : CouponConflictException("사용 가능한 발급 쿠폰이 아닙니다.")
+
+class DuplicateIssuedCouponException(
+    cause: Throwable? = null,
+) : CouponConflictException("이미 발급받은 쿠폰입니다.", cause)

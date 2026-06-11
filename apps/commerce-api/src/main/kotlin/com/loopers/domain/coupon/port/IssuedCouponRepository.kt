@@ -7,7 +7,7 @@ interface IssuedCouponRepository {
 
     fun existsByUserIdAndTemplateId(userId: Long, templateId: Long): Boolean
 
-    fun findByIdForUpdate(issuedCouponId: Long): IssuedCouponModel?
+    fun findByIdForUpdateOrNull(issuedCouponId: Long): IssuedCouponModel?
 
     fun findByUserId(userId: Long): List<IssuedCouponModel>
 

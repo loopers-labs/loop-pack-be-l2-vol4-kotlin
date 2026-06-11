@@ -39,7 +39,7 @@ class ProductService(
         productId: Long,
         command: ProductUpdateCommand,
     ): ProductModel {
-        val product = findById(productId)
+        val product = getById(productId)
         return try {
             productRepository.save(
                 product
@@ -53,7 +53,7 @@ class ProductService(
 
     @Transactional
     fun softDelete(productId: Long): ProductModel {
-        val product = findById(productId)
+        val product = getById(productId)
         return productRepository.save(product.delete())
     }
 
@@ -65,8 +65,8 @@ class ProductService(
     }
 
     @Transactional(readOnly = true)
-    fun findById(productId: Long): ProductModel {
-        val product = productRepository.findById(productId) ?: throwNotFound()
+    fun getById(productId: Long): ProductModel {
+        val product = productRepository.findByIdOrNull(productId) ?: throwNotFound()
         if (product.deletedAtOrNull != null) {
             throwNotFound()
         }
@@ -74,7 +74,7 @@ class ProductService(
     }
 
     @Transactional(readOnly = true)
-    fun findOrderableSnapshots(productIds: List<Long>): List<ProductSnapshotInfo> {
+    fun getOrderableSnapshots(productIds: List<Long>): List<ProductSnapshotInfo> {
         val productsById = productRepository.findAllByIds(productIds).associateBy { it.id }
         return productIds.map { productId ->
             val product = productsById[productId] ?: throwNotFound()

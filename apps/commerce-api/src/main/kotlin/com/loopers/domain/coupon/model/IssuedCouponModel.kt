@@ -38,13 +38,13 @@ data class IssuedCouponModel(
     fun requireOwnedBy(userId: Long) {
         validateUserId(userId)
         if (this.userId != userId) {
-            throw CouponNotOwnedException(id, userId)
+            throw CouponNotOwnedException()
         }
     }
 
     fun requireAvailable() {
         if (status != IssuedCouponStatus.AVAILABLE) {
-            throw IssuedCouponNotAvailableException(id)
+            throw IssuedCouponNotAvailableException()
         }
     }
 

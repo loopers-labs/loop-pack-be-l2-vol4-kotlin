@@ -32,14 +32,14 @@ class OrderFacade(
 ) {
     @Transactional
     fun placeOrder(command: OrderCreateCommand): OrderInfo {
-        userService.findById(command.userId)
+        userService.getById(command.userId)
         val idempotencyKey = command.idempotencyKey?.takeIf { it.isNotBlank() }
         idempotencyKey
-            ?.let { orderService.findByIdempotencyKey(it) }
+            ?.let { orderService.findByIdempotencyKeyOrNull(it) }
             ?.let { return OrderInfo.from(it) }
 
         val orderItems = aggregateItems(command.items)
-        val snapshots = productService.findOrderableSnapshots(orderItems.map { it.productId })
+        val snapshots = productService.getOrderableSnapshots(orderItems.map { it.productId })
         val items = createOrderItems(orderItems, snapshots)
         val totalPrice = Money.of(items.sumOf { it.linePrice.value })
         val discountPrice = command.issuedCouponId
@@ -100,7 +100,7 @@ class OrderFacade(
         startAt: LocalDate?,
         endAt: LocalDate?,
     ): List<OrderInfo> {
-        userService.findById(userId)
+        userService.getById(userId)
         return orderService.findByOrderedUserId(
             orderedUserId = userId,
             startAt = startAt?.atStartOfDay(DEFAULT_ZONE),
@@ -110,8 +110,8 @@ class OrderFacade(
 
     @Transactional(readOnly = true)
     fun findMyOrder(userId: Long, orderId: Long): OrderInfo {
-        userService.findById(userId)
-        val order = orderService.findById(orderId)
+        userService.getById(userId)
+        val order = orderService.getById(orderId)
         if (!order.belongsTo(userId)) {
             throw CoreException(ErrorType.NOT_FOUND)
         }
@@ -124,7 +124,7 @@ class OrderFacade(
 
     @Transactional(readOnly = true)
     fun findAdminOrder(orderId: Long): OrderInfo =
-        OrderInfo.from(orderService.findById(orderId))
+        OrderInfo.from(orderService.getById(orderId))
 
     companion object {
         private val DEFAULT_ZONE: ZoneId = ZoneId.systemDefault()

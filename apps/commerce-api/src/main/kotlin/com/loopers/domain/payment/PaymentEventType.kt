@@ -1,0 +1,16 @@
+package com.loopers.domain.payment
+
+enum class PaymentEventType {
+    REQUEST_CREATED,
+    APPROVE_REQUESTED,
+    APPROVE_SUCCEEDED,
+    APPROVE_FAILED,
+    VERIFY_REQUESTED,
+    VERIFY_SUCCEEDED,
+    VERIFY_FAILED,
+    CANCEL_REQUESTED,
+    CANCEL_SUCCEEDED,
+    CANCEL_FAILED,
+    COMPLETION_FAILED,
+    EXPIRED,
+}

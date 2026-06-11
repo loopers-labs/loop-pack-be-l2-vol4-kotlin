@@ -5,6 +5,7 @@ import com.loopers.coupon.application.CouponCreateCommand
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
 import java.time.LocalDateTime
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestAttribute
 import org.springframework.web.bind.annotation.RequestBody
@@ -20,7 +21,18 @@ class CouponController(
         @RequestBody couponCreateRequest: CouponCreateRequest,
         @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
     ) = couponService.create(couponCreateRequest.toCommand(requestAccountId))
+
+    @PostMapping("/api-admin/v1/coupons/{couponId}/grant")
+    fun grantCoupon(
+        @PathVariable couponId: Long,
+        @RequestBody couponGrantRequest: CouponGrantRequest,
+        @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
+    ) = couponService.grant(couponId, couponGrantRequest.userId, requestAccountId)
 }
+
+data class CouponGrantRequest(
+    val userId: Long,
+)
 
 data class CouponCreateRequest(
     val couponName: String,

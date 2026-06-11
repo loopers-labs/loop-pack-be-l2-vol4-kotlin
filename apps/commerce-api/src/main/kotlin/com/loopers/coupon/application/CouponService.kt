@@ -1,11 +1,18 @@
 package com.loopers.coupon.application
 
+import com.loopers.account.domain.error.AccountErrorCode
+import com.loopers.account.infrastructure.AccountRepository
 import com.loopers.coupon.domain.Coupon
 import com.loopers.coupon.domain.CouponErrorCode
 import com.loopers.coupon.domain.CouponRepository
 import com.loopers.coupon.domain.CouponType
+import com.loopers.coupon.domain.UserCoupon
+import com.loopers.coupon.domain.UserCouponGrantedType
+import com.loopers.coupon.domain.UserCouponRepository
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
+import com.loopers.support.error.ConflictException
+import com.loopers.support.error.NotFoundException
 import java.time.LocalDateTime
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class CouponService(
     val couponRepository: CouponRepository,
+    val userCouponRepository: UserCouponRepository,
+    val accountRepository: AccountRepository,
 ) {
     @Transactional
     fun create(couponCreateCommand: CouponCreateCommand) {
@@ -29,6 +38,29 @@ class CouponService(
         )
 
         couponRepository.save(coupon)
+    }
+
+    @Transactional
+    fun grant(couponId: Long, userId: Long, grantedBy: Long) {
+        val coupon = couponRepository.findById(couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        if (coupon.isExpired(LocalDateTime.now())) {
+            throw BadRequestException(CouponErrorCode.EXPIRED)
+        }
+        accountRepository.findById(userId)
+            ?: throw NotFoundException(AccountErrorCode.ACCOUNT_NOT_FOUND)
+        if (userCouponRepository.existsByUserIdAndCouponId(userId, couponId)) {
+            throw ConflictException(CouponErrorCode.ALREADY_GRANTED)
+        }
+
+        userCouponRepository.save(
+            UserCoupon(
+                userId = userId,
+                couponId = couponId,
+                grantedType = UserCouponGrantedType.ADMIN,
+                grantedBy = grantedBy,
+            ),
+        )
     }
 }
 

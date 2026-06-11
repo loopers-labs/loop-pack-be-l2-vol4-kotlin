@@ -104,7 +104,6 @@ class CartCheckoutFacadeTest {
             userId = 1L,
             status = OrderStatus.PAYMENT_PENDING,
             reservationExpiresAt = expiresAt,
-            paymentTransactionId = null,
             cancelReason = null as OrderCancelReason?,
             deliveryAddress = "서울시 강남구",
             deliveryRequest = "문 앞",

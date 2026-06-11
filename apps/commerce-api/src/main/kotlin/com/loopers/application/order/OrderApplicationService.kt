@@ -54,9 +54,6 @@ class OrderApplicationService(
             .map { order -> OrderInfo.Detail.from(order, orderRepository.findItemsByOrderId(order.id)) }
 
     @Transactional
-    fun completePayment(orderId: Long, paymentTransactionId: String): OrderInfo.Detail = completePaymentPending(orderId)
-
-    @Transactional
     fun completePaymentPending(orderId: Long): OrderInfo.Detail {
         requireUpdated(orderRepository.completeFromPaymentPending(orderId))
         return getDetail(orderId)

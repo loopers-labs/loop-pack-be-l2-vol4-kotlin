@@ -1,7 +1,6 @@
 package com.loopers.application.order
 
 import com.loopers.domain.catalog.ProductStock
-import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.order.StockReservationStatus

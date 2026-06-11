@@ -28,7 +28,13 @@ class PaymentApplicationService(
                 requestedAmount = requestedAmount,
             ),
         )
-        appendEvent(payment, PaymentEventType.REQUEST_CREATED, pgStatus = null, failureReason = null, rawResponseSummary = "payment request created")
+        appendEvent(
+            payment,
+            PaymentEventType.REQUEST_CREATED,
+            pgStatus = null,
+            failureReason = null,
+            rawResponseSummary = "payment request created",
+        )
         return PaymentInfo.from(payment)
     }
 
@@ -36,7 +42,13 @@ class PaymentApplicationService(
     fun recordApproveRequested(orderId: Long, paymentKey: String): PaymentInfo {
         val payment = getPaymentForUpdate(orderId)
         payment.recordApproveRequested(paymentKey)
-        appendEvent(payment, PaymentEventType.APPROVE_REQUESTED, pgStatus = null, failureReason = null, rawResponseSummary = "approve requested")
+        appendEvent(
+            payment,
+            PaymentEventType.APPROVE_REQUESTED,
+            pgStatus = null,
+            failureReason = null,
+            rawResponseSummary = "approve requested",
+        )
         return PaymentInfo.from(payment)
     }
 

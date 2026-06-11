@@ -2,15 +2,11 @@ package com.loopers.infrastructure.payment
 
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Component
-class FakePaymentGateway :
-    com.loopers.application.order.PaymentGateway,
-    PaymentGateway {
+class FakePaymentGateway : PaymentGateway {
     private var failNextApproval: Boolean = false
     private var failNextVerify: Boolean = false
     private var failNextCancel: Boolean = false
@@ -18,20 +14,6 @@ class FakePaymentGateway :
     val transactionActiveDuringApprove: MutableList<Boolean> = mutableListOf()
     val transactionActiveDuringVerify: MutableList<Boolean> = mutableListOf()
     val transactionActiveDuringCancel: MutableList<Boolean> = mutableListOf()
-
-    override fun approve(
-        command: com.loopers.application.order.PaymentGateway.ApproveCommand,
-    ): com.loopers.application.order.PaymentGateway.Approval {
-        if (failNextApproval) {
-            failNextApproval = false
-            throw CoreException(ErrorType.BAD_REQUEST, "결제 승인에 실패했습니다.")
-        }
-        return com.loopers.application.order.PaymentGateway.Approval(paymentTransactionId = "payment-${command.orderId}")
-    }
-
-    override fun cancel(paymentTransactionId: String) {
-        canceledTransactionIds.add(paymentTransactionId)
-    }
 
     override fun approve(command: PaymentCommand.Approve): PaymentGateway.PgResult {
         transactionActiveDuringApprove.add(TransactionSynchronizationManager.isActualTransactionActive())

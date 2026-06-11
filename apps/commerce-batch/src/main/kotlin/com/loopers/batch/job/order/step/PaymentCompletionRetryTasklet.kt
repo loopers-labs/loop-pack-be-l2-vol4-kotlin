@@ -159,7 +159,8 @@ class PaymentCompletionRetryTasklet(
             .groupBy { (it["product_id"] as Number).toLong() }
             .mapValues { entry -> entry.value.sumOf { (it["quantity"] as Number).toInt() } }
         logger.error(
-            "payment completion retry stopped orderId={} paymentId={} pgProvider={} pgTransactionId={} reservationIds={} productQuantities={} reason={} retryCount={}",
+            "payment completion retry stopped orderId={} paymentId={} pgProvider={} pgTransactionId={} " +
+                "reservationIds={} productQuantities={} reason={} retryCount={}",
             orderId,
             payment["id"],
             payment["pg_provider"],

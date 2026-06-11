@@ -61,23 +61,6 @@ class StockApplicationService(
     fun findInProgress(orderId: Long): List<StockReservation> =
         stockReservationRepository.findByOrderIdAndStatus(orderId, StockReservationStatus.IN_PROGRESS)
 
-    @Transactional
-    fun cancelActive(orderId: Long, expectedCount: Int) {
-        val reservations = findInProgress(orderId)
-        if (reservations.size != expectedCount) {
-            throw CoreException(ErrorType.CONFLICT, "예약 상태가 변경되어 요청을 처리할 수 없습니다.")
-        }
-        cancelInProgress(orderId)
-    }
-
-    @Transactional(readOnly = true)
-    fun countActive(orderId: Long): Int = findInProgress(orderId).size
-
-    @Transactional
-    fun restoreConfirmed(orderId: Long) {
-        cancelCompletedAndRestore(orderId)
-    }
-
     private fun mergeItems(items: List<OrderCommand.CheckoutItem>): Map<Long, Int> =
         items.groupBy { it.productId }
             .mapValues { entry -> entry.value.sumOf { it.quantity } }

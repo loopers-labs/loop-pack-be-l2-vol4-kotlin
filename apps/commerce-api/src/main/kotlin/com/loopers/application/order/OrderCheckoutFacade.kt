@@ -77,7 +77,10 @@ class OrderCheckoutFacade(
         return runCatching {
             paymentCompletionApplicationService.completePaymentPending(order.id)
         }.getOrElse { throwable ->
-            paymentCompletionApplicationService.markCompletionFailed(order.id, throwable.message ?: throwable.javaClass.simpleName)
+            paymentCompletionApplicationService.markCompletionFailed(
+                order.id,
+                throwable.message ?: throwable.javaClass.simpleName,
+            )
             throw throwable
         }
     }
@@ -126,7 +129,10 @@ class OrderCheckoutFacade(
         return runCatching {
             paymentCompletionApplicationService.completeFailed(orderId)
         }.getOrElse { throwable ->
-            paymentCompletionApplicationService.incrementRetryFailure(orderId, throwable.message ?: throwable.javaClass.simpleName)
+            paymentCompletionApplicationService.incrementRetryFailure(
+                orderId,
+                throwable.message ?: throwable.javaClass.simpleName,
+            )
             throw throwable
         }
     }
@@ -153,9 +159,16 @@ class OrderCheckoutFacade(
         }
 
         return runCatching {
-            paymentCompletionApplicationService.cancelCompletedAfterPgSuccess(orderId, pgResult.pgStatus, pgResult.rawResponseSummary)
+            paymentCompletionApplicationService.cancelCompletedAfterPgSuccess(
+                orderId,
+                pgResult.pgStatus,
+                pgResult.rawResponseSummary,
+            )
         }.getOrElse { throwable ->
-            paymentCompletionApplicationService.markCompletedCancelRecoveryFailed(orderId, throwable.message ?: throwable.javaClass.simpleName)
+            paymentCompletionApplicationService.markCompletedCancelRecoveryFailed(
+                orderId,
+                throwable.message ?: throwable.javaClass.simpleName,
+            )
             throw throwable
         }
     }

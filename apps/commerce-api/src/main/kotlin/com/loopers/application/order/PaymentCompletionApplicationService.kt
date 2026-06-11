@@ -73,7 +73,8 @@ class PaymentCompletionApplicationService(
                 .groupBy { it.productId }
                 .mapValues { entry -> entry.value.sumOf { it.quantity } }
             logger.error(
-                "payment completion retry stopped orderId={} paymentId={} pgProvider={} pgTransactionId={} reservationIds={} productQuantities={} reason={} retryCount={}",
+                "payment completion retry stopped orderId={} paymentId={} pgProvider={} pgTransactionId={} " +
+                    "reservationIds={} productQuantities={} reason={} retryCount={}",
                 orderId,
                 payment.paymentId,
                 payment.pgProvider,

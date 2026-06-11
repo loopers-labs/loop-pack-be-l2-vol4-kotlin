@@ -203,7 +203,6 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             { assertThat(retriedPayment.body?.data?.status).isEqualTo(OrderStatus.COMPLETED) },
             { assertThat(duplicatePayment.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(duplicatePayment.body?.data?.status).isEqualTo(OrderStatus.COMPLETED) },
-            { assertThat(duplicatePayment.body?.data?.paymentTransactionId).isEqualTo(retriedPayment.body?.data?.paymentTransactionId) },
             { assertThat(stockQuantity(product.productId)).isEqualTo(1) },
             {
                 assertThat(stockReservationJpaRepository.findAllByOrderId(checkout.body?.data?.orderId!!)).allMatch {

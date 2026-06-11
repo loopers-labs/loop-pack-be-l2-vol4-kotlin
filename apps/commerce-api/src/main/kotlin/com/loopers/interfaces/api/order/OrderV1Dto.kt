@@ -77,8 +77,6 @@ class OrderV1Dto {
         val orderId: Long,
         val status: OrderStatus,
         val reservationExpiresAt: LocalDateTime,
-        // Legacy field kept nullable while payment projection responses are introduced.
-        val paymentTransactionId: String?,
         val cancelReason: OrderCancelReason?,
         val deliveryAddress: String,
         val deliveryRequest: String,
@@ -90,7 +88,6 @@ class OrderV1Dto {
                 orderId = info.orderId,
                 status = info.status,
                 reservationExpiresAt = info.reservationExpiresAt,
-                paymentTransactionId = info.paymentTransactionId,
                 cancelReason = info.cancelReason,
                 deliveryAddress = info.deliveryAddress,
                 deliveryRequest = info.deliveryRequest,

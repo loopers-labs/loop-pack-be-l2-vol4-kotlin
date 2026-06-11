@@ -1,0 +1,24 @@
+package com.loopers.brand.infrastructure
+
+import com.loopers.brand.domain.Brand
+import com.loopers.brand.domain.BrandStatus
+import org.springframework.data.domain.Limit
+import org.springframework.data.domain.ScrollPosition
+import org.springframework.data.domain.Sort
+import org.springframework.data.domain.Window
+import org.springframework.data.jpa.repository.JpaRepository
+
+interface BrandJpaRepository : JpaRepository<Brand, Long> {
+    fun existsByNameValue(name: String): Boolean
+
+    fun existsByNameValueAndIdNot(name: String, id: Long): Boolean
+
+    fun findByIdAndStatusNot(id: Long, status: BrandStatus): Brand?
+
+    fun findByStatusNot(
+        status: BrandStatus,
+        scrollPosition: ScrollPosition,
+        limit: Limit,
+        sort: Sort,
+    ): Window<Brand>
+}

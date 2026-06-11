@@ -8,4 +8,12 @@ interface ProductStockRepository {
     fun lockAllByProductIds(productIds: Collection<Long>): List<ProductStock>
 
     fun deductIfEnough(productId: Long, quantity: Int): Boolean
+
+    fun reserveIfAvailable(productId: Long, quantity: Int): Boolean
+
+    fun confirmReserved(productId: Long, quantity: Int): Boolean
+
+    fun releaseReserved(productId: Long, quantity: Int): Boolean
+
+    fun restoreActualStock(productId: Long, quantity: Int): Boolean
 }

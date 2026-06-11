@@ -15,10 +15,16 @@ class ProductStock(
 
     @Column(name = "stock_quantity", nullable = false)
     var stockQuantity: Int,
+
+    @Column(name = "reserved_quantity", nullable = false)
+    var reservedQuantity: Int = 0,
 ) : BaseEntity() {
     init {
         if (stockQuantity < 0) throw CoreException(ErrorType.BAD_REQUEST, "재고 수량은 0 미만일 수 없습니다.")
+        if (reservedQuantity < 0) throw CoreException(ErrorType.BAD_REQUEST, "예약 재고 수량은 0 미만일 수 없습니다.")
     }
+
+    fun availableQuantity(): Int = stockQuantity - reservedQuantity
 
     fun add(quantity: Int) {
         validatePositive(quantity)

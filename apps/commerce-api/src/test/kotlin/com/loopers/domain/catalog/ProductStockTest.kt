@@ -9,6 +9,25 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 
 class ProductStockTest {
+    @Test
+    fun initialReservedQuantityDefaultsToZero() {
+        val stock = ProductStock(productId = 1L, stockQuantity = 10)
+
+        assertAll(
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(stock.availableQuantity()).isEqualTo(10) },
+        )
+    }
+
+    @Test
+    fun reservedQuantityCannotBeNegative() {
+        val ex = assertThrows<CoreException> {
+            ProductStock(productId = 1L, stockQuantity = 10, reservedQuantity = -1)
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+    }
+
     @DisplayName("ProductStock 은 실제 재고 수량만 증가시킨다.")
     @Test
     fun addStockIncreasesStockQuantity() {

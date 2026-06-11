@@ -81,6 +81,34 @@ class FakeProductStockRepository : ProductStockRepository {
         stock.deduct(quantity)
         return true
     }
+
+    override fun reserveIfAvailable(productId: Long, quantity: Int): Boolean {
+        val stock = findByProductId(productId) ?: return false
+        if (stock.availableQuantity() < quantity) return false
+        stock.reservedQuantity += quantity
+        return true
+    }
+
+    override fun confirmReserved(productId: Long, quantity: Int): Boolean {
+        val stock = findByProductId(productId) ?: return false
+        if (stock.stockQuantity < quantity || stock.reservedQuantity < quantity) return false
+        stock.stockQuantity -= quantity
+        stock.reservedQuantity -= quantity
+        return true
+    }
+
+    override fun releaseReserved(productId: Long, quantity: Int): Boolean {
+        val stock = findByProductId(productId) ?: return false
+        if (stock.reservedQuantity < quantity) return false
+        stock.reservedQuantity -= quantity
+        return true
+    }
+
+    override fun restoreActualStock(productId: Long, quantity: Int): Boolean {
+        val stock = findByProductId(productId) ?: return false
+        stock.restore(quantity)
+        return true
+    }
 }
 
 class FakeProductStatsRepository : ProductStatsRepository {

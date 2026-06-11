@@ -23,7 +23,7 @@ interface ProductStockJpaRepository : JpaRepository<ProductStock, Long> {
     )
     fun findAllByProductIdInForUpdate(@Param("productIds") productIds: Collection<Long>): List<ProductStock>
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         """
         update ProductStock stock
@@ -34,6 +34,67 @@ interface ProductStockJpaRepository : JpaRepository<ProductStock, Long> {
         """,
     )
     fun deductIfEnough(
+        @Param("productId") productId: Long,
+        @Param("quantity") quantity: Int,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update ProductStock stock
+           set stock.reservedQuantity = stock.reservedQuantity + :quantity
+         where stock.productId = :productId
+           and stock.deletedAt is null
+           and stock.stockQuantity - stock.reservedQuantity >= :quantity
+        """,
+    )
+    fun reserveIfAvailable(
+        @Param("productId") productId: Long,
+        @Param("quantity") quantity: Int,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update ProductStock stock
+           set stock.stockQuantity = stock.stockQuantity - :quantity,
+               stock.reservedQuantity = stock.reservedQuantity - :quantity
+         where stock.productId = :productId
+           and stock.deletedAt is null
+           and stock.stockQuantity >= :quantity
+           and stock.reservedQuantity >= :quantity
+        """,
+    )
+    fun confirmReserved(
+        @Param("productId") productId: Long,
+        @Param("quantity") quantity: Int,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update ProductStock stock
+           set stock.reservedQuantity = stock.reservedQuantity - :quantity
+         where stock.productId = :productId
+           and stock.deletedAt is null
+           and stock.reservedQuantity >= :quantity
+        """,
+    )
+    fun releaseReserved(
+        @Param("productId") productId: Long,
+        @Param("quantity") quantity: Int,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update ProductStock stock
+           set stock.stockQuantity = stock.stockQuantity + :quantity
+         where stock.productId = :productId
+           and stock.deletedAt is null
+        """,
+    )
+    fun restoreActualStock(
         @Param("productId") productId: Long,
         @Param("quantity") quantity: Int,
     ): Int

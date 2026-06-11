@@ -22,7 +22,7 @@ class InventoryService(
             return emptyList()
         }
 
-        return inventoryRepository.findAllByProductIdsForUpdate(productIds)
+        return inventoryRepository.findAllByProductIdsForUpdate(productIds.distinct().sorted())
     }
 
     @Transactional

@@ -343,6 +343,49 @@ class OrderV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("동일한 상품에 대해 여러 주문이 동시에 요청되어도 재고는 성공한 주문 수만큼만 차감된다")
+        @Test
+        fun deductsInventoryOnlyForSuccessfulOrders_whenOrdersAreConcurrent() {
+            val members = (1..CONCURRENT_ORDER_COUNT).map { index ->
+                createMember(loginId = "loopers$index")
+            }
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = CONCURRENT_ORDER_STOCK)
+            val executor = Executors.newFixedThreadPool(CONCURRENT_ORDER_COUNT)
+            val startLatch = java.util.concurrent.CountDownLatch(1)
+
+            val futures = members.map { member ->
+                executor.submit(
+                    Callable {
+                        startLatch.await()
+                        testRestTemplate.exchange(
+                            ORDERS_ENDPOINT,
+                            HttpMethod.POST,
+                            HttpEntity(
+                                OrderV1Dto.CreateOrderRequest(
+                                    items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 1L)),
+                                ),
+                                createAuthHeaders(loginId = member.loginId),
+                            ),
+                            object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+                        )
+                    },
+                )
+            }
+
+            startLatch.countDown()
+            val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
+            executor.shutdown()
+
+            assertAll(
+                { assertThat(responses.count { it.statusCode == HttpStatus.OK }).isEqualTo(CONCURRENT_ORDER_STOCK.toInt()) },
+                { assertThat(responses.count { it.statusCode == HttpStatus.CONFLICT }).isEqualTo(CONCURRENT_ORDER_COUNT - CONCURRENT_ORDER_STOCK.toInt()) },
+                { assertThat(orderJpaRepository.findAll()).hasSize(CONCURRENT_ORDER_STOCK.toInt()) },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(0L) },
+            )
+        }
+
         @DisplayName("재고가 부족하면 주문을 저장하지 않고 재고를 차감하지 않는다")
         @Test
         fun returnsConflict_whenInventoryIsInsufficient() {
@@ -655,5 +698,6 @@ class OrderV1ApiE2ETest @Autowired constructor(
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
         private const val CONCURRENT_ORDER_COUNT = 10
+        private const val CONCURRENT_ORDER_STOCK = 5L
     }
 }

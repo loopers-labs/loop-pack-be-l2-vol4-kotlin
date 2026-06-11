@@ -35,7 +35,7 @@ class OrderFacade(
         val requestedItems = command.items.map { item ->
             OrderPlacementItem(productId = item.productId, quantity = item.quantity)
         }
-        val productIds = requestedItems.map { it.productId }
+        val productIds = requestedItems.map { it.productId }.distinct().sorted()
         val couponIssue = command.couponId?.let(couponService::getCouponIssueForUpdate)
         val products = productService.getProducts(productIds)
         val brands = brandService.getBrands(products.map { it.brandId })

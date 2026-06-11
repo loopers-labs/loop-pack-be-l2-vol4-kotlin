@@ -27,6 +27,9 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class LikeV1ApiE2ETest @Autowired constructor(
@@ -94,6 +97,44 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(productLikeJpaRepository.findAll()).hasSize(1) },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
+            )
+        }
+
+        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요를 요청해도 좋아요 수가 정상 반영된다")
+        @Test
+        fun countsLikes_whenRequestsAreConcurrent() {
+            val members = (1..CONCURRENT_LIKE_COUNT).map { index ->
+                createMember(loginId = "like$index")
+            }
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 0L))
+            val executor = Executors.newFixedThreadPool(CONCURRENT_LIKE_COUNT)
+            val startLatch = java.util.concurrent.CountDownLatch(1)
+
+            val futures = members.map { member ->
+                executor.submit(
+                    Callable {
+                        startLatch.await()
+                        testRestTemplate.exchange(
+                            "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                            HttpMethod.POST,
+                            HttpEntity<Unit>(createAuthHeaders(loginId = member.loginId)),
+                            object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+                        )
+                    },
+                )
+            }
+
+            startLatch.countDown()
+            val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
+            executor.shutdown()
+
+            val productStat = productStatJpaRepository.findByProductId(product.id)
+            assertAll(
+                { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
+                { assertThat(productLikeJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
+                { assertThat(productStat?.likeCount).isEqualTo(CONCURRENT_LIKE_COUNT.toLong()) },
             )
         }
 
@@ -193,6 +234,47 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
+            )
+        }
+
+        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요 취소를 요청해도 좋아요 수가 정상 반영된다")
+        @Test
+        fun countsUnlikes_whenRequestsAreConcurrent() {
+            val members = (1..CONCURRENT_LIKE_COUNT).map { index ->
+                createMember(loginId = "unlike$index")
+            }
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = CONCURRENT_LIKE_COUNT.toLong()))
+            members.forEach { member ->
+                productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+            }
+            val executor = Executors.newFixedThreadPool(CONCURRENT_LIKE_COUNT)
+            val startLatch = java.util.concurrent.CountDownLatch(1)
+
+            val futures = members.map { member ->
+                executor.submit(
+                    Callable {
+                        startLatch.await()
+                        testRestTemplate.exchange(
+                            "$PRODUCTS_ENDPOINT/${product.id}/likes",
+                            HttpMethod.DELETE,
+                            HttpEntity<Unit>(createAuthHeaders(loginId = member.loginId)),
+                            object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+                        )
+                    },
+                )
+            }
+
+            startLatch.countDown()
+            val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
+            executor.shutdown()
+
+            val productStat = productStatJpaRepository.findByProductId(product.id)
+            assertAll(
+                { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
+                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(productStat?.likeCount).isEqualTo(0L) },
             )
         }
 
@@ -406,5 +488,6 @@ class LikeV1ApiE2ETest @Autowired constructor(
         private const val USERS_ENDPOINT = "/api/v1/users"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
+        private const val CONCURRENT_LIKE_COUNT = 10
     }
 }

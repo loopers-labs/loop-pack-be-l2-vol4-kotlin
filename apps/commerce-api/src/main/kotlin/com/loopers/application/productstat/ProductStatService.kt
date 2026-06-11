@@ -13,6 +13,11 @@ class ProductStatService(
             ?: emptyStat(productId)
     }
 
+    fun getProductStatForUpdate(productId: Long): ProductStat {
+        return productStatRepository.findByProductIdForUpdate(productId)
+            ?: emptyStat(productId)
+    }
+
     fun getProductStats(productIds: Collection<Long>): List<ProductStat> {
         if (productIds.isEmpty()) {
             return emptyList()

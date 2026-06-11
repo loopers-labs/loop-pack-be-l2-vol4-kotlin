@@ -583,6 +583,10 @@ class ProductFacadeAdminTest {
             return productStats.find { it.productId == productId }
         }
 
+        override fun findByProductIdForUpdate(productId: Long): ProductStat? {
+            return findByProductId(productId)
+        }
+
         override fun findAllByProductIds(productIds: Collection<Long>): List<ProductStat> {
             return productStats.filter { it.productId in productIds }
         }

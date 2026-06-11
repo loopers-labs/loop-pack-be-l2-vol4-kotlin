@@ -1,4 +1,4 @@
-package com.loopers.account.security
+package com.loopers.account.infrastructure.security
 
 import com.loopers.account.application.AccountAuthenticateCommand
 import com.loopers.account.application.AccountService

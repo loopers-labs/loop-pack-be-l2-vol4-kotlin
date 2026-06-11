@@ -1,6 +1,9 @@
-package com.loopers.account.security
+package com.loopers.config.security
 
 import com.loopers.account.application.AccountService
+import com.loopers.account.infrastructure.security.AccountAuthenticationEntryPoint
+import com.loopers.account.infrastructure.security.AccountHeaderAuthenticationFilter
+import com.loopers.account.infrastructure.security.AdminLdapAuthenticationFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod

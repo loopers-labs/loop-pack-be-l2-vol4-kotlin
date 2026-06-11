@@ -10,8 +10,8 @@ import com.loopers.account.domain.vo.AccountName
 import com.loopers.account.domain.vo.CredentialIdentifier
 import com.loopers.account.domain.vo.CredentialSecret
 import com.loopers.account.domain.vo.Email
-import com.loopers.account.persistence.AccountCredentialRepository
-import com.loopers.account.persistence.AccountRepository
+import com.loopers.account.infrastructure.AccountCredentialRepository
+import com.loopers.account.infrastructure.AccountRepository
 import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.CommonErrorCode
 import com.loopers.support.error.ConflictException

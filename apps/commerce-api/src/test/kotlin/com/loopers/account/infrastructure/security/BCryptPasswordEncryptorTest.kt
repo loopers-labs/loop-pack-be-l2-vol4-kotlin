@@ -1,4 +1,4 @@
-package com.loopers.account.security
+package com.loopers.account.infrastructure.security
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName

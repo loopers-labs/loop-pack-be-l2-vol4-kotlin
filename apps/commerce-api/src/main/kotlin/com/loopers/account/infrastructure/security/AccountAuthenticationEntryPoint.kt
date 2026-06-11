@@ -1,4 +1,4 @@
-package com.loopers.account.security
+package com.loopers.account.infrastructure.security
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.interfaces.api.ApiResponseWriter

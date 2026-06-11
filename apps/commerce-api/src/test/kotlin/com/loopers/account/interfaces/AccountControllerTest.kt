@@ -1,9 +1,9 @@
-package com.loopers.account.api
+package com.loopers.account.interfaces
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.account.application.AccountCreateCommand
 import com.loopers.account.application.AccountService
-import com.loopers.account.security.AccountAuthenticationAttributes
+import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes
 import com.loopers.support.DatabaseCleanup
 import java.time.LocalDate
 import org.junit.jupiter.api.BeforeEach

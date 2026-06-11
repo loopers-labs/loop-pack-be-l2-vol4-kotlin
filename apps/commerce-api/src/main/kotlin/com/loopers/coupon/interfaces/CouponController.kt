@@ -1,6 +1,6 @@
 package com.loopers.coupon.interfaces
 
-import com.loopers.account.security.AccountAuthenticationAttributes.ACCOUNT_ID
+import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
 import java.time.LocalDateTime

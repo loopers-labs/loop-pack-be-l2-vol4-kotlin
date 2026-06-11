@@ -1,4 +1,4 @@
-package com.loopers.account.persistence
+package com.loopers.account.infrastructure
 
 import com.loopers.account.domain.AccountCredential
 import com.loopers.account.domain.CredentialMethod

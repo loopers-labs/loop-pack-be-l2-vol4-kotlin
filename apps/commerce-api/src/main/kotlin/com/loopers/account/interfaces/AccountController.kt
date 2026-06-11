@@ -1,10 +1,10 @@
-package com.loopers.account.api
+package com.loopers.account.interfaces
 
 import com.loopers.account.application.AccountCreateCommand
 import com.loopers.account.application.AccountMeInfo
 import com.loopers.account.application.AccountPasswordChangeCommand
 import com.loopers.account.application.AccountService
-import com.loopers.account.security.AccountAuthenticationAttributes
+import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes
 import java.time.LocalDate
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping

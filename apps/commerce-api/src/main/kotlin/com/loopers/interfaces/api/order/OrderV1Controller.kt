@@ -50,8 +50,9 @@ class OrderV1Controller(
     override fun pay(
         @CurrentUser user: User,
         @PathVariable orderId: Long,
+        @RequestBody @Valid request: OrderV1Dto.PayRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> =
-        orderCheckoutFacade.pay(OrderCommand.Pay(orderId))
+        orderCheckoutFacade.pay(request.toCommand(orderId))
             .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
 

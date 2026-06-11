@@ -4,6 +4,8 @@ import com.loopers.domain.user.User
 import com.loopers.interfaces.api.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import org.springframework.web.bind.annotation.RequestBody
 
 @Tag(name = "Order V1 API", description = "Loopers 주문 API 입니다.")
 interface OrderV1ApiSpec {
@@ -14,7 +16,11 @@ interface OrderV1ApiSpec {
     fun checkout(user: User, request: OrderV1Dto.CheckoutRequest): ApiResponse<OrderV1Dto.OrderResponse>
 
     @Operation(summary = "주문 결제", description = "결제를 승인하고 예약을 확정한 뒤 실제 재고를 차감합니다.")
-    fun pay(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>
+    fun pay(
+        user: User,
+        orderId: Long,
+        @RequestBody @Valid request: OrderV1Dto.PayRequest,
+    ): ApiResponse<OrderV1Dto.OrderResponse>
 
     @Operation(summary = "주문 취소", description = "배송 시작 전 주문을 취소합니다.")
     fun cancel(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>

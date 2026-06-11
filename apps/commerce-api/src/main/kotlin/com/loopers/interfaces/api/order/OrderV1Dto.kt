@@ -63,10 +63,21 @@ class OrderV1Dto {
         )
     }
 
+    data class PayRequest(
+        @field:NotBlank
+        val paymentKey: String,
+    ) {
+        fun toCommand(orderId: Long): OrderCommand.Pay = OrderCommand.Pay(
+            orderId = orderId,
+            paymentKey = paymentKey,
+        )
+    }
+
     data class OrderResponse(
         val orderId: Long,
         val status: OrderStatus,
         val reservationExpiresAt: LocalDateTime,
+        // Legacy field kept nullable while payment projection responses are introduced.
         val paymentTransactionId: String?,
         val cancelReason: OrderCancelReason?,
         val deliveryAddress: String,

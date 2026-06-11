@@ -151,7 +151,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             { assertThat(stockQuantity(product.productId)).isEqualTo(1) },
             { assertThat(activeReservedQuantity(product.productId)).isEqualTo(1) },
             { assertThat(consumerTwoCheckout.statusCode).isEqualTo(HttpStatus.OK) },
-            { assertThat(consumerOneCheckout.statusCode).isEqualTo(HttpStatus.CONFLICT) },
+            { assertThat(consumerOneCheckout.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
         )
     }
 
@@ -237,7 +237,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             { assertThat(activeReservedQuantity(cancelProduct.productId)).isEqualTo(1) },
             { assertThat(checkoutAfterCancel.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(paymentGateway.canceledTransactionIds).isEmpty() },
-            { assertThat(orderJpaRepository.findById(expiringOrder.body?.data?.orderId!!).orElseThrow().status).isEqualTo(OrderStatus.CANCELED) },
+            { assertThat(orderJpaRepository.findById(expiringOrder.body?.data?.orderId!!).orElseThrow().status).isEqualTo(OrderStatus.EXPIRED) },
             { assertThat(checkoutAfterExpiry.statusCode).isEqualTo(HttpStatus.OK) },
         )
     }
@@ -468,7 +468,11 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
         )
 
     private fun pay(loginId: String, orderId: Long): ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> =
-        post("/api/v1/orders/$orderId/payment", null, authHeaders(loginId))
+        post(
+            "/api/v1/orders/$orderId/payment",
+            mapOf("paymentKey" to "payment-key-$orderId"),
+            authHeaders(loginId),
+        )
 
     private fun cancel(loginId: String, orderId: Long): ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> =
         post("/api/v1/orders/$orderId/cancel", null, authHeaders(loginId))

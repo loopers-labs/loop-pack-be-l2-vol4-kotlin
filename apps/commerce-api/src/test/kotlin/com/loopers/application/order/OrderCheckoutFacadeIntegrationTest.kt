@@ -140,7 +140,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         paymentGateway.failNextApproval()
 
         val ex = assertThrows<CoreException> {
-            facade.pay(OrderCommand.Pay(checkout.orderId))
+            facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
         }
 
         val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()

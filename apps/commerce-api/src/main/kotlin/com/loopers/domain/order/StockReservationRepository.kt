@@ -5,11 +5,11 @@ interface StockReservationRepository {
 
     fun findByOrderId(orderId: Long): List<StockReservation>
 
-    fun sumActiveQuantityByProductId(productId: Long): Int
+    fun findByOrderIdAndStatus(orderId: Long, status: StockReservationStatus): List<StockReservation>
 
-    fun sumActiveQuantityByProductIdForUpdate(productId: Long): Int
-
-    fun cancelActiveByOrderId(orderId: Long): Int
-
-    fun confirmActiveByOrderId(orderId: Long): Int
+    fun transitionByOrderId(
+        orderId: Long,
+        currentStatus: StockReservationStatus,
+        nextStatus: StockReservationStatus,
+    ): Int
 }

@@ -10,30 +10,35 @@ import org.springframework.stereotype.Component
 class CatalogOrderStockAdapter(
     private val productStockRepository: ProductStockRepository,
 ) : CatalogStockPort {
-    override fun lockStocks(productIds: Collection<Long>): List<CatalogStockPort.StockRow> {
-        return productStockRepository.lockAllByProductIds(productIds)
-            .map { CatalogStockPort.StockRow(productId = it.productId, stockQuantity = it.stockQuantity) }
-    }
-
-    override fun deductAll(quantitiesByProductId: Map<Long, Int>) {
-        val stocks = productStockRepository.lockAllByProductIds(quantitiesByProductId.keys)
-            .associateBy { it.productId }
-        if (stocks.keys != quantitiesByProductId.keys) {
-            throw CoreException(ErrorType.NOT_FOUND, "상품 재고를 찾을 수 없습니다.")
-        }
+    override fun reserveAll(quantitiesByProductId: Map<Long, Int>) {
         quantitiesByProductId.toSortedMap().forEach { (productId, quantity) ->
-            stocks.getValue(productId).deduct(quantity)
+            if (!productStockRepository.reserveIfAvailable(productId, quantity)) {
+                throw CoreException(ErrorType.CONFLICT, "재고가 부족합니다.")
+            }
         }
     }
 
-    override fun restoreAll(quantitiesByProductId: Map<Long, Int>) {
-        val stocks = productStockRepository.lockAllByProductIds(quantitiesByProductId.keys)
-            .associateBy { it.productId }
-        if (stocks.keys != quantitiesByProductId.keys) {
-            throw CoreException(ErrorType.NOT_FOUND, "상품 재고를 찾을 수 없습니다.")
-        }
+    override fun confirmReservedAll(quantitiesByProductId: Map<Long, Int>) {
         quantitiesByProductId.toSortedMap().forEach { (productId, quantity) ->
-            stocks.getValue(productId).restore(quantity)
+            if (!productStockRepository.confirmReserved(productId, quantity)) {
+                throw CoreException(ErrorType.CONFLICT, "예약 재고 확정에 실패했습니다.")
+            }
+        }
+    }
+
+    override fun releaseReservedAll(quantitiesByProductId: Map<Long, Int>) {
+        quantitiesByProductId.toSortedMap().forEach { (productId, quantity) ->
+            if (!productStockRepository.releaseReserved(productId, quantity)) {
+                throw CoreException(ErrorType.CONFLICT, "예약 재고 반환에 실패했습니다.")
+            }
+        }
+    }
+
+    override fun restoreActualAll(quantitiesByProductId: Map<Long, Int>) {
+        quantitiesByProductId.toSortedMap().forEach { (productId, quantity) ->
+            if (!productStockRepository.restoreActualStock(productId, quantity)) {
+                throw CoreException(ErrorType.CONFLICT, "실재고 복구에 실패했습니다.")
+            }
         }
     }
 }

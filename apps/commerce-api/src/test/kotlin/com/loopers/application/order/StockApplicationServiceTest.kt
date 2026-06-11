@@ -29,7 +29,7 @@ class StockApplicationServiceTest @Autowired constructor(
     }
 
     @Test
-    fun reserveAllCreatesActiveReservationsWhenActualStockMinusActiveReservationsIsEnough() {
+    fun reserveAllCreatesInProgressReservationsAndIncreasesReservedQuantity() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         productStockJpaRepository.save(ProductStock(productId = 20L, stockQuantity = 3))
 
@@ -42,10 +42,15 @@ class StockApplicationServiceTest @Autowired constructor(
         )
 
         val reservations = stockReservationJpaRepository.findAllByOrderId(1L)
+        val firstStock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val secondStock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(20L)!!
         assertAll(
             { assertThat(reservations).hasSize(2) },
-            { assertThat(reservations.map { it.productId }).containsExactlyInAnyOrder(10L, 20L) },
             { assertThat(reservations).allMatch { it.status == StockReservationStatus.IN_PROGRESS } },
+            { assertThat(firstStock.stockQuantity).isEqualTo(5) },
+            { assertThat(firstStock.reservedQuantity).isEqualTo(1) },
+            { assertThat(secondStock.stockQuantity).isEqualTo(3) },
+            { assertThat(secondStock.reservedQuantity).isEqualTo(2) },
         )
     }
 
@@ -68,7 +73,7 @@ class StockApplicationServiceTest @Autowired constructor(
     }
 
     @Test
-    fun confirmAndDeductChangesReservationToConfirmedAndDecreasesCatalogStock() {
+    fun confirmAndDeductChangesReservationToCompletedAndDecreasesActualAndReservedStock() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         stockApplicationService.reserveAll(
             orderId = 1L,
@@ -81,7 +86,66 @@ class StockApplicationServiceTest @Autowired constructor(
         val reservation = stockReservationJpaRepository.findAllByOrderId(1L).single()
         assertAll(
             { assertThat(stock.stockQuantity).isEqualTo(3) },
+            { assertThat(stock.reservedQuantity).isZero() },
             { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
+        )
+    }
+
+    @Test
+    fun cancelInProgressReleasesReservedQuantityAndCancelsReservation() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        stockApplicationService.reserveAll(
+            orderId = 1L,
+            items = listOf(OrderCommand.CheckoutItem(10L, "상품A", "브랜드A", 1000L, 2)),
+        )
+
+        stockApplicationService.cancelInProgress(orderId = 1L)
+
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(1L).single()
+        assertAll(
+            { assertThat(stock.stockQuantity).isEqualTo(5) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED) },
+        )
+    }
+
+    @Test
+    fun expireInProgressReleasesReservedQuantityAndExpiresReservation() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        stockApplicationService.reserveAll(
+            orderId = 1L,
+            items = listOf(OrderCommand.CheckoutItem(10L, "상품A", "브랜드A", 1000L, 2)),
+        )
+
+        stockApplicationService.expireInProgress(orderId = 1L)
+
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(1L).single()
+        assertAll(
+            { assertThat(stock.stockQuantity).isEqualTo(5) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.EXPIRED) },
+        )
+    }
+
+    @Test
+    fun cancelCompletedRestoresActualStockAndCancelsCompletedReservation() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        stockApplicationService.reserveAll(
+            orderId = 1L,
+            items = listOf(OrderCommand.CheckoutItem(10L, "상품A", "브랜드A", 1000L, 2)),
+        )
+        stockApplicationService.confirmAndDeduct(orderId = 1L)
+
+        stockApplicationService.cancelCompletedAndRestore(orderId = 1L)
+
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(1L).single()
+        assertAll(
+            { assertThat(stock.stockQuantity).isEqualTo(5) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED) },
         )
     }
 }

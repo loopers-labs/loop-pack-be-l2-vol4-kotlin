@@ -512,7 +512,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             ?: error("Stock not found: $productId")
 
     private fun activeReservedQuantity(productId: Long): Int =
-        stockReservationJpaRepository.sumQuantityByProductIdAndStatus(productId, StockReservationStatus.IN_PROGRESS).toInt()
+        productStockJpaRepository.findByProductIdAndDeletedAtIsNull(productId)?.reservedQuantity ?: 0
 
     private fun productStats(productId: Long): ProductStats =
         productStatsJpaRepository.findByProductIdAndDeletedAtIsNull(productId)

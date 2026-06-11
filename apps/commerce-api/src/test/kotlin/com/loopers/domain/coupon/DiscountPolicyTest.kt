@@ -7,7 +7,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 
-
 class DiscountPolicyTest {
     @ParameterizedTest
     @MethodSource("discountCases")
@@ -15,7 +14,6 @@ class DiscountPolicyTest {
     fun giveAppropriateTest(type: CouponType, value: Long, price: Money, expectedMoney: Money) {
         Assertions.assertThat(DiscountPolicy.calculateDiscount(couponType = type, value = value, price)).isEqualTo(expectedMoney)
     }
-
 
     companion object {
         @JvmStatic

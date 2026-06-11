@@ -19,9 +19,7 @@ class CouponController(
         @RequestBody couponIssueRequest: CouponIssueRequest,
         @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
     ) {
-
     }
-
 }
 
 data class CouponIssueRequest(
@@ -29,6 +27,5 @@ data class CouponIssueRequest(
     val expiredAt: LocalDateTime,
     val couponType: CouponType,
     val value: Long,
-    val minOrderAmount: Long
+    val minOrderAmount: Long,
 )
-

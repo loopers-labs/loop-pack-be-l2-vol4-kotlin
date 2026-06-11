@@ -12,4 +12,3 @@ object DiscountPolicy {
         return Money(minOf(raw, price.amount))
     }
 }
-

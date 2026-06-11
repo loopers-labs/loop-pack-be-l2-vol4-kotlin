@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 4 · 개요 — 쿠폰 · 트랜잭션 · 동시성</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers Round 4 · Week 4</span>
+      <h1 class="title">쿠폰 · 트랜잭션 · 동시성<br><span class="hl">작업 지도</span></h1>
+      <p class="lede">이번 주 핵심은 <b>주문 시 재고·쿠폰·주문의 정합성을 트랜잭션으로 보장</b>하고 <b>동시성 이슈를 제어</b>하는 것입니다. 구현은 직접 손코딩하며 확인하고, 이 문서는 <b>참고용 지도</b>입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">MUST-HAVE</span><span class="v">트랜잭션 · Lock · 동시성 테스트 · 쿠폰</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Spring Boot 3.4 · Kotlin · JPA</span></div>
+        <div class="chip"><span class="k">BRANCH</span><span class="v">feature/week4-order</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a class="cur" href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-checklist.html"><span class="n">01</span>체크리스트</a>
+    <a href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="04-coupon-class-sequence.html"><span class="n">04</span>클래스·플로우</a>
+    <a href="05-build-order.html"><span class="n">05</span>빌드 순서</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">과제 한눈에</a></li>
+      <li><a href="#s2">현재 코드 베이스라인</a></li>
+      <li><a href="#s3">이번 작업 5묶음</a></li>
+      <li><a href="#s4">진행 순서 · 문서 안내</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">QUEST</p><h2 class="sec">과제 한눈에</h2></div>
+    </div>
+    <p class="lead">주문 한 건에 재고 차감 · 쿠폰 사용 · 주문 저장이 묶입니다. 하나라도 실패하면 전부 롤백, 동시에 들어와도 정확해야 합니다.</p>
+
+    <div class="note key"><span class="tag">MUST-HAVE</span><strong>DB 트랜잭션 · Lock · 동시성 테스트 · 쿠폰</strong> — 이 4가지는 이번 주에 무조건 가져갑니다.</div>
+
+    <h3>쿠폰 규칙 (요약)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>내용</th><th>제약</th></tr></thead>
+        <tbody>
+          <tr><td>종류</td><td>정액 <span class="term">FIXED</span> / 정률 <span class="term">RATE</span></td><td>각 할인 계산 분리</td></tr>
+          <tr><td>적용</td><td>주문 1건당 1장</td><td>NULLABLE (미적용 가능)</td></tr>
+          <tr><td>조건</td><td>최소 주문 금액(<span class="term">minOrderAmount</span>) 이상</td><td>미달 시 사용 불가</td></tr>
+          <tr><td>사용</td><td>성공 시 즉시 <span class="term">USED</span></td><td>재사용 불가 (1회성)</td></tr>
+          <tr><td>실패 조건</td><td>없음·이미 사용·만료·타 유저 소유</td><td>→ 주문 실패</td></tr>
+          <tr><td>스냅샷</td><td>적용 전 금액 · 할인 금액 · 최종 결제 금액</td><td>모두 주문에 기록</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">동시성 검증 3종</span>① 같은 쿠폰 여러 기기 동시 주문 → <strong>1회만 사용</strong> · ② 같은 상품 동시 주문 → <strong>재고 정확 차감</strong> · ③ 같은 상품 동시 좋아요 → <strong>like_count 정확</strong>.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">BASELINE</p><h2 class="sec">현재 코드 베이스라인</h2></div>
+    </div>
+    <p class="lead">week3에서 도메인·영속성 레이어는 만들어졌지만, <strong>HTTP 컨트롤러는 통째로 없고 쿠폰은 0%</strong>입니다. 동시성 일부는 이미 깔려 있습니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 00">
+        <svg viewBox="0 0 720 210" role="img" aria-label="레이어 구조 — interfaces는 application을 호출, application은 domain을 호출, infrastructure는 domain을 구현. coupon은 이번 주 신규 추가.">
+          <defs>
+            <marker id="ov1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <text class="svg-l" x="360" y="30" text-anchor="middle" fill="#6B7684">의존 방향 — domain 은 아무것도 의존하지 않는다</text>
+
+          <!-- interfaces (없음) -->
+          <rect x="18" y="62" width="150" height="98" rx="16" fill="#F2F4F6" stroke="#F04452" stroke-width="1.3" stroke-dasharray="5 4"/>
+          <text class="svg-t" x="93" y="92" text-anchor="middle" fill="#4E5968">interfaces</text>
+          <text class="svg-s" x="93" y="113" text-anchor="middle" fill="#C9303C">없음</text>
+          <text class="svg-s" x="93" y="130" text-anchor="middle" fill="#8B95A1">컨트롤러</text>
+          <text class="svg-s" x="93" y="146" text-anchor="middle" fill="#8B95A1">전부 미구현</text>
+
+          <!-- application -->
+          <rect x="196" y="62" width="150" height="98" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="271" y="92" text-anchor="middle" fill="#333D4B">application</text>
+          <text class="svg-s" x="271" y="113" text-anchor="middle" fill="#6B7684">order · like</text>
+          <text class="svg-s" x="271" y="130" text-anchor="middle" fill="#6B7684">brand · product</text>
+          <text class="svg-s" x="271" y="146" text-anchor="middle" fill="#0A8F5B">+ coupon *</text>
+
+          <!-- domain (핵심) -->
+          <rect x="374" y="62" width="150" height="98" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.5"/>
+          <text class="svg-t" x="449" y="92" text-anchor="middle" fill="#1B64DA">domain</text>
+          <text class="svg-s" x="449" y="113" text-anchor="middle" fill="#3182F6">order · inventory</text>
+          <text class="svg-s" x="449" y="130" text-anchor="middle" fill="#3182F6">like · product</text>
+          <text class="svg-s" x="449" y="146" text-anchor="middle" fill="#0A8F5B">+ coupon *</text>
+
+          <!-- infrastructure -->
+          <rect x="552" y="62" width="150" height="98" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="627" y="92" text-anchor="middle" fill="#333D4B">infra</text>
+          <text class="svg-s" x="627" y="113" text-anchor="middle" fill="#6B7684">JPA adapters</text>
+          <text class="svg-s" x="627" y="130" text-anchor="middle" fill="#6B7684">비관락 (재고)</text>
+          <text class="svg-s" x="627" y="146" text-anchor="middle" fill="#0A8F5B">+ coupon *</text>
+
+          <!-- arrows -->
+          <line x1="168" y1="111" x2="194" y2="111" stroke="#8B95A1" stroke-width="2" marker-end="url(#ov1)"/>
+          <line x1="346" y1="111" x2="372" y2="111" stroke="#3182F6" stroke-width="2" marker-end="url(#ov1)"/>
+          <line x1="552" y1="111" x2="526" y2="111" stroke="#15C47E" stroke-width="2" marker-end="url(#ov1)"/>
+          <text class="svg-l" x="589" y="180" text-anchor="middle" fill="#0A8F5B">구현(역전)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 0.</b> 레이어 의존 방향. <b>interfaces 전무</b>, <b>coupon(*)</b> 은 각 레이어에 이번 주 신규 추가.</figcaption>
+    </figure>
+
+    <h3>이미 깔린 것 vs 새로 할 것</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>영역</th><th>현재 상태</th><th>이번 주</th></tr></thead>
+        <tbody>
+          <tr><td>재고 동시성</td><td>PESSIMISTIC_WRITE 적용됨</td><td>검증 테스트 + 락 타임아웃</td></tr>
+          <tr><td>like_count</td><td>원자 UPDATE 적용됨</td><td>검증 테스트만</td></tr>
+          <tr><td>쿠폰</td><td>0% (전무)</td><td>도메인·관리자 발행/지급·사용 신규</td></tr>
+          <tr><td>주문</td><td>재고 차감까지 구현</td><td>쿠폰 통합 + 금액 스냅샷</td></tr>
+          <tr><td>비동기</td><td>SimpleAsyncTaskExecutor</td><td>bounded 풀 + 예외 핸들러</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">SCOPE</p><h2 class="sec">이번 작업 5묶음</h2></div>
+    </div>
+    <p class="lead">쿠폰을 중심으로 묶고, 동시성과 직결된 백로그를 흡수합니다. 자세한 내용은 01·02 문서에 있습니다.</p>
+
+    <div class="note key"><span class="tag">A · 쿠폰 도메인 + 주문 통합</span>발급(소유)·사용 도메인, 주문에 쿠폰 적용(검증·할인·USED·금액 스냅샷), 단일 트랜잭션 원자성.</div>
+    <div class="note"><span class="tag">B · 동시성 테스트 3종</span>쿠폰 1회 / 재고 정확 / like_count 정확. Testcontainers MySQL.</div>
+    <div class="note"><span class="tag">C · 발행·지급·조회 API</span>관리자 <span class="term">POST /api-admin/v1/coupons</span> · 지급 <span class="term">.../{id}/grant</span> · 사용자 <span class="term">GET /users/me/coupons</span>. interfaces 레이어 신규.</div>
+    <div class="note"><span class="tag">D · CodeRabbit 백로그 18건</span>이번 PR에 전부 포함. #6·#10·#11 은 위 동시성과 겹침.</div>
+    <div class="note"><span class="tag">E · 부가 트랙</span>analyze-query 스킬(우리 스타일 고도화) + Technical Writing(락 선택 회고).</div>
+
+    <div class="note warn"><span class="tag">결정 사항 (고정)</span>쿠폰 <strong>사용 = 낙관락(@Version)</strong> · 발급 <strong>= 관리자 발행·지급</strong>(셀프·선착순은 백로그) · 템플릿은 <strong>관리자 API 생성</strong>(기존 admin 인증 재사용). Coupon 에 <strong>name·createdBy</strong> 추가(minOrderAmount 는 Money), CouponType 은 식별만(표시명·분류 없음).</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">FLOW</p><h2 class="sec">진행 순서 · 문서 안내</h2></div>
+    </div>
+    <p class="lead">발급부터 시작해 사용·주문 통합, 동시성 테스트, 백로그, 부가 트랙 순으로 갑니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 00b">
+        <svg viewBox="0 0 720 92" role="img" aria-label="진행 순서: 쿠폰 발급, 사용과 주문 통합, 동시성 테스트, 백로그, 부가 트랙 순서">
+          <defs>
+            <marker id="ov2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="14" y="30" width="118" height="40" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="73" y="55" text-anchor="middle" fill="#1B64DA">① 발급</text>
+          <rect x="160" y="30" width="146" height="40" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="233" y="55" text-anchor="middle" fill="#1B64DA">② 사용·주문통합</text>
+          <rect x="334" y="30" width="130" height="40" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="399" y="55" text-anchor="middle" fill="#0A8F5B">③ 동시성 테스트</text>
+          <rect x="492" y="30" width="100" height="40" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="542" y="55" text-anchor="middle" fill="#4E5968">④ 백로그</text>
+          <rect x="620" y="30" width="86" height="40" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="663" y="55" text-anchor="middle" fill="#4E5968">⑤ 부가</text>
+          <line x1="132" y1="50" x2="158" y2="50" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#ov2)"/>
+          <line x1="306" y1="50" x2="332" y2="50" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#ov2)"/>
+          <line x1="464" y1="50" x2="490" y2="50" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#ov2)"/>
+          <line x1="592" y1="50" x2="618" y2="50" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#ov2)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 0b.</b> 큰 진행 순서. 세부 체크리스트는 <b>01 문서</b>.</figcaption>
+    </figure>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">01</span> 체크리스트</h4><p>과제 공식 체크 + 단계별 할 일 + 백로그 18건 압축표.</p></div>
+      <div class="col x"><h4><span class="mk">02</span> 구현 플랜</h4><p>쿠폰 모델·주문 흐름·신규 파일 목록·YAGNI 경계 + ERD/시퀀스 그림.</p></div>
+    </div>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">03</span> 동시성 노트</h4><p>임계영역 9개 논점 + 락 전략 비교 그림. <strong>직접 고민할 핵심.</strong></p></div>
+      <div class="col x"><h4><span class="mk">↗</span> 손코딩</h4><p>구현은 직접. 이 문서들은 막힐 때 펼쳐보는 참고 지도.</p></div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 4 · 쿠폰 · 트랜잭션 · 동시성 — 작업 지도<br>
+    Loopers Round 4 · feature/week4-order
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

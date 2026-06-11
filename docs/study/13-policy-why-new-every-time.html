@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>정책인데 왜 매번 새로 만들까</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col.x h4 .mk{background:var(--red);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>설계 노트 · Strategy Pattern</span>
+      <h1 class="title">정책인데 왜<br><span class="hl">매번 새로 만들까</span></h1>
+      <p class="lede">"정책(policy)은 한 번 정해지면 안 바뀌는데, 왜 그 이름을 단 객체를 <b>계산할 때마다 새로 만드는</b> 걸까?" — 이 위화감이 사실 <b>맞는 직관</b>입니다. 쉬운 비유로 풀어봅니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">핵심</span><span class="v">방법(how) vs 데이터(what)</span></div>
+        <div class="chip"><span class="k">근거</span><span class="v">GoF · Effective Java</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">레시피로 이해하기</a></li>
+      <li><a href="#s2">방법과 데이터를 나누기</a></li>
+      <li><a href="#s3">세 가지 만드는 법</a></li>
+      <li><a href="#s4">교과서가 말하는 것</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">ANALOGY</p><h2 class="sec">레시피로 이해하기</h2></div>
+    </div>
+    <p class="lead">"정책"을 <strong>요리 레시피</strong>라고 생각해 보세요. 그러면 위화감의 정체가 바로 보입니다.</p>
+
+    <p><strong>레시피(정책)</strong>는 "볶는 방법", "조리는 방법"처럼 <em>방법</em>입니다. 한 번 정해지면 안 바뀝니다. 반면 <strong>재료(데이터)</strong>는 당근 100g, 양파 2개처럼 <em>그때그때 다릅니다.</em></p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 200" role="img" aria-label="레시피(방법)는 하나로 고정되고, 재료(데이터)는 요리할 때마다 넣는다. 재료가 박힌 레시피를 매번 새로 인쇄하는 건 이상하다.">
+          <!-- recipe book (fixed) -->
+          <rect x="40" y="60" width="150" height="90" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.5"/>
+          <line x1="115" y1="60" x2="115" y2="150" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-t" x="115" y="44" text-anchor="middle" fill="#0A8F5B">레시피 = 방법</text>
+          <text class="svg-s" x="77" y="100" text-anchor="middle" fill="#0A8F5B">볶는 법</text>
+          <text class="svg-s" x="153" y="100" text-anchor="middle" fill="#0A8F5B">조리는 법</text>
+          <text class="svg-s" x="115" y="170" text-anchor="middle" fill="#8B95A1">한 번 정해지면 안 바뀜</text>
+
+          <!-- ingredients (vary) -->
+          <rect x="280" y="50" width="120" height="32" rx="10" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="340" y="70" text-anchor="middle" fill="#1B64DA">당근 100g</text>
+          <rect x="280" y="92" width="120" height="32" rx="10" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="340" y="112" text-anchor="middle" fill="#1B64DA">양파 2개</text>
+          <rect x="280" y="134" width="120" height="32" rx="10" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="340" y="154" text-anchor="middle" fill="#1B64DA">소금 약간</text>
+          <text class="svg-t" x="340" y="30" text-anchor="middle" fill="#1B64DA">재료 = 데이터</text>
+
+          <!-- result -->
+          <rect x="500" y="78" width="180" height="60" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="590" y="105" text-anchor="middle" fill="#1B64DA">요리 완성</text>
+          <text class="svg-s" x="590" y="124" text-anchor="middle" fill="#3182F6">= 할인 결과</text>
+
+          <text class="svg-l" x="445" y="104" text-anchor="middle" fill="#6B7684">레시피 + 재료</text>
+          <line x1="400" y1="110" x2="498" y2="108" stroke="#8B95A1" stroke-width="1.6"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 레시피(방법)는 <b>한 권을 계속 쓰고</b>, 재료(데이터)는 <b>요리할 때 넣는다.</b> 너무 당연하죠?</figcaption>
+    </figure>
+
+    <div class="note warn"><span class="tag">이상한 버전</span>그런데 우리가 한 건 — <strong>"당근 100g이 인쇄된 레시피"를 요리할 때마다 새로 찍어내는</strong> 것과 같습니다. 재료가 바뀔 때마다 레시피를 새로 인쇄하는 셈이죠. <strong>"레시피인데 왜 매번 새로 만들지?"</strong> 라는 위화감이 바로 이겁니다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">HOW vs WHAT</p><h2 class="sec">방법과 데이터를 나누기</h2></div>
+    </div>
+    <p class="lead">코드로 옮기면 — <strong>정책(DiscountPolicy)은 "깎는 방법"</strong>, <strong>value는 "얼마"라는 데이터</strong> 입니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 180" role="img" aria-label="방법(정액으로 깎기, 정률로 깎기)은 안 바뀌고, 데이터(1000원, 5000원, 10퍼센트)는 쿠폰마다 다르다">
+          <rect x="30" y="40" width="300" height="110" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.5"/>
+          <text class="svg-t" x="180" y="66" text-anchor="middle" fill="#0A8F5B">방법 (how) — 안 바뀜</text>
+          <rect x="52" y="84" width="120" height="30" rx="9" fill="#fff" stroke="#15C47E" stroke-width="1"/>
+          <text class="svg-s" x="112" y="103" text-anchor="middle" fill="#0A8F5B">정액으로 깎기</text>
+          <rect x="188" y="84" width="120" height="30" rx="9" fill="#fff" stroke="#15C47E" stroke-width="1"/>
+          <text class="svg-s" x="248" y="103" text-anchor="middle" fill="#0A8F5B">정률로 깎기</text>
+          <text class="svg-s" x="180" y="136" text-anchor="middle" fill="#8B95A1">= 정책 / DiscountPolicy</text>
+
+          <rect x="390" y="40" width="300" height="110" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.5"/>
+          <text class="svg-t" x="540" y="66" text-anchor="middle" fill="#1B64DA">데이터 (what) — 매번 다름</text>
+          <rect x="412" y="84" width="78" height="30" rx="9" fill="#fff" stroke="#3182F6" stroke-width="1"/>
+          <text class="svg-s" x="451" y="103" text-anchor="middle" fill="#1B64DA">1000원</text>
+          <rect x="501" y="84" width="78" height="30" rx="9" fill="#fff" stroke="#3182F6" stroke-width="1"/>
+          <text class="svg-s" x="540" y="103" text-anchor="middle" fill="#1B64DA">5000원</text>
+          <rect x="590" y="84" width="78" height="30" rx="9" fill="#fff" stroke="#3182F6" stroke-width="1"/>
+          <text class="svg-s" x="629" y="103" text-anchor="middle" fill="#1B64DA">10%</text>
+          <text class="svg-s" x="540" y="136" text-anchor="middle" fill="#8B95A1">= value (쿠폰마다)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> <b>방법은 2개로 고정</b>, <b>데이터는 쿠폰 수만큼.</b> 이 둘을 섞으면 문제가 생깁니다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">핵심</span>방법(정책)에 데이터(value)를 <strong>박아 넣으면</strong> → 데이터가 바뀔 때마다 새 객체가 생깁니다. <strong>"방법"인데 "데이터"처럼 매번 생기는</strong> 모순이 여기서 옵니다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">3 WAYS</p><h2 class="sec">세 가지 만드는 법</h2></div>
+    </div>
+    <p class="lead">같은 할인 계산을 만드는 방법은 셋입니다. 그림으로 보면 차이가 분명합니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 03">
+        <svg viewBox="0 0 720 280" role="img" aria-label="세 방식 비교: 1번은 쿠폰마다 객체를 새로 생성, 2번은 객체 하나를 모두 공유, 3번은 객체 자체가 없음">
+          <defs>
+            <marker id="w3a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- way 1 -->
+          <text class="svg-l" x="20" y="34" fill="#C9303C">① 데이터를 박음</text>
+          <rect x="40" y="46" width="70" height="30" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1"/>
+          <text class="svg-s" x="75" y="65" text-anchor="middle" fill="#4E5968">쿠폰들</text>
+          <rect x="200" y="42" width="120" height="18" rx="7" fill="#FEEFEF" stroke="#F04452" stroke-width="1"/>
+          <text class="svg-s" x="260" y="55" text-anchor="middle" fill="#C9303C">new Fixed(1000)</text>
+          <rect x="200" y="64" width="120" height="18" rx="7" fill="#FEEFEF" stroke="#F04452" stroke-width="1"/>
+          <text class="svg-s" x="260" y="77" text-anchor="middle" fill="#C9303C">new Fixed(5000)</text>
+          <line x1="110" y1="61" x2="198" y2="51" stroke="#F04452" stroke-width="1.4" marker-end="url(#w3a)"/>
+          <line x1="110" y1="61" x2="198" y2="73" stroke="#F04452" stroke-width="1.4" marker-end="url(#w3a)"/>
+          <text class="svg-s" x="430" y="65" fill="#C9303C">객체가 쿠폰 수만큼 ✗</text>
+
+          <!-- way 2 -->
+          <text class="svg-l" x="20" y="130" fill="#1B64DA">② 하나를 공유</text>
+          <rect x="40" y="142" width="70" height="30" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1"/>
+          <text class="svg-s" x="75" y="161" text-anchor="middle" fill="#4E5968">쿠폰들</text>
+          <rect x="220" y="146" width="120" height="22" rx="8" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="280" y="161" text-anchor="middle" fill="#1B64DA">object Fixed (1개)</text>
+          <line x1="110" y1="153" x2="218" y2="156" stroke="#3182F6" stroke-width="1.4" marker-end="url(#w3a)"/>
+          <line x1="110" y1="163" x2="218" y2="159" stroke="#3182F6" stroke-width="1.4" marker-end="url(#w3a)"/>
+          <text class="svg-s" x="430" y="161" fill="#1B64DA">value 는 호출 때 전달 ✓</text>
+
+          <!-- way 3 -->
+          <text class="svg-l" x="20" y="226" fill="#0A8F5B">③ 객체 없음 (when)</text>
+          <rect x="40" y="238" width="300" height="30" rx="9" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-s" x="190" y="257" text-anchor="middle" fill="#0A8F5B">Coupon 이 자기 value 로 바로 계산</text>
+          <text class="svg-s" x="430" y="257" fill="#0A8F5B">객체 0개 · 가장 단순 ✓</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> ①은 쿠폰마다 객체, ②는 객체 하나 공유, ③은 객체 자체가 없음.</figcaption>
+    </figure>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">세 가지 비교</span></div>
+<pre><span class="cm">// ① 데이터를 박음 — value 가 객체 안에. 매번 new (사실상 값 객체)</span>
+<span class="kw">class</span> <span class="ty">FixedDiscount</span>(<span class="kw">val</span> value: <span class="ty">Long</span>) { <span class="kw">fun</span> <span class="fn">discount</span>(amount) = <span class="ty">Money</span>(value) }
+
+<span class="cm">// ② 하나를 공유 — value 는 호출 때 전달. 싱글톤 (교과서 정통)</span>
+<span class="kw">object</span> <span class="ty">FixedDiscount</span> { <span class="kw">fun</span> <span class="fn">discount</span>(value: <span class="ty">Long</span>, amount: <span class="ty">Money</span>) = <span class="ty">Money</span>(value) }
+
+<span class="cm">// ③ 객체 없음 — Coupon 이 자기 value 로 바로 (분기 한 곳이면 최선)</span>
+<span class="kw">when</span> (type) { <span class="ty">FIXED</span> -&gt; value; <span class="ty">RATE</span> -&gt; amount.amount * value / <span class="st">100</span> }</pre>
+    </div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">REFERENCE</p><h2 class="sec">교과서가 말하는 것</h2></div>
+    </div>
+    <p class="lead">"정책은 안 바뀌니 하나만 두고 공유하라"는 직관 — 디자인 패턴 고전이 똑같이 말합니다.</p>
+
+    <blockquote>
+      <p>전략(Strategy) 객체는 종종 좋은 flyweight가 된다 — 상태가 없으면 여러 곳이 하나를 공유할 수 있다.</p>
+      <cite>— GoF, Design Patterns (Strategy 구현 노트)<a href="#r1" class="cite">[1]</a></cite>
+    </blockquote>
+
+    <p>여기서 <strong>flyweight(공유)</strong> 는 "같은 걸 여러 번 만들지 말고 하나를 나눠 쓰자"는 뜻입니다. 전략(정책)은 <em>방법</em>이라 안 바뀌니, 하나만 만들어 공유하라는 거죠 — 그림 3의 ②와 정확히 같습니다.</p>
+
+    <p>Joshua Bloch는 <em>Effective Java</em> 에서 더 직접적으로 말합니다 — <strong>"구체 전략은 보통 무상태(stateless)이므로 싱글톤이어야 한다."</strong><a href="#r3" class="cite">[3]</a> <span class="term">Comparator</span> 를 싱글톤으로 두는 것과 같은 이유입니다(불필요한 객체 생성을 피하려고).</p>
+
+    <div class="note key"><span class="tag">그래서 ①은 뭔가?</span>value 를 박은 ①은 엄밀히는 "정책(방법)"이 아니라 <strong>"값을 가진 객체(Value Object)"</strong> 입니다. 그래서 매번 생기는 게 당연하지만, <strong>"Policy"라는 이름과는 맞지 않습니다.</strong> 사용자가 느낀 어긋남의 정체가 이것입니다.</div>
+
+    <h3>결론 — 우리 선택</h3>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">①</span> 데이터 박기</h4><p>매번 new. 이름은 Policy인데 실체는 값 객체. <strong>어정쩡.</strong></p></div>
+      <div class="col o"><h4><span class="mk">②</span> 싱글톤 공유</h4><p>전략을 쓴다면 이게 정통(GoF·Bloch). value는 호출 때 전달.</p></div>
+    </div>
+    <div class="note"><span class="tag">우리 케이스</span>그런데 <span class="term">value</span> 는 <strong>이미 Coupon 이 갖고 있고</strong>, 분기도 <span class="term">calculateDiscount</span> 한 곳뿐입니다. 그래서 객체로 감쌀 필요 없이 <strong>③ when</strong> 이 가장 단순합니다. 할인 종류가 늘어나면 그때 ②로 올리면 됩니다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <div class="ref primary" id="r1"><span class="n">1</span><span class="b"><b>GoF, Design Patterns — Strategy</b> — 무상태 전략은 flyweight 로 공유 가능. State 와 달리 bind-once.<span class="src">http://www.vincehuston.org/dp/state.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r2"><span class="n">2</span><span class="b"><b>Strategy Pattern — Refactoring Guru</b> — 전략 패턴 개념과 구조 정리.<span class="src">https://refactoring.guru/design-patterns/strategy</span></span></div>
+    <div class="ref primary" id="r3"><span class="n">3</span><span class="b"><b>Effective Java (Joshua Bloch)</b> — 구체 전략은 무상태이므로 싱글톤. Comparator 예시.<span class="src">https://github.com/HugoMatilla/Effective-JAVA-Summary</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r4"><span class="n">4</span><span class="b"><b>Stateless Object in Java — Baeldung</b> — 무상태 객체가 공유·싱글톤에 적합한 이유.<span class="src">https://www.baeldung.com/java-stateless-object</span><span class="pr bt">기술 레퍼런스</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    설계 노트 · 정책인데 왜 매번 새로 만들까<br>
+    방법(정책)은 하나로 공유, 데이터(value)는 그때그때
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

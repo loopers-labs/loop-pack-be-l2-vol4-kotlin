@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 4 · 동시성 · 정합성 노트</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:14px 0;background:var(--g50);overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week 4 · Concurrency</span>
+      <h1 class="title">동시성 · 정합성<br><span class="hl">임계영역 노트</span></h1>
+      <p class="lede">이 문서는 답이 아니라 <b>고민할 거리</b>입니다. 어디가 임계영역이고, 락을 어떻게 고를지, 발급과 사용의 경합이 왜 다른지 — 직접 판단하기 위한 그림과 선택지를 모았습니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">핵심 질문</span><span class="v">어디가 임계영역인가</span></div>
+        <div class="chip"><span class="k">선택지</span><span class="v">비관 · 낙관 · 원자 UPDATE</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-checklist.html"><span class="n">01</span>체크리스트</a>
+    <a href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a class="cur" href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="04-coupon-class-sequence.html"><span class="n">04</span>클래스·플로우</a>
+    <a href="05-build-order.html"><span class="n">05</span>빌드 순서</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">임계영역과 Lost Update</a></li>
+      <li><a href="#s2">락 전략 3가지 선택지</a></li>
+      <li><a href="#s3">발급 vs 사용 — 경합이 다르다</a></li>
+      <li><a href="#s4">트랜잭션 경계 · 데드락</a></li>
+      <li><a href="#s5">나머지 논점 · 비동기</a></li>
+      <li><a href="#s6">테스트로 검증하는 법</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CRITICAL SECTION</p><h2 class="sec">임계영역과 Lost Update</h2></div>
+    </div>
+    <p class="lead">임계영역 = 여러 실행 흐름이 <strong>같은 데이터를 동시에 읽고 쓰는 구간</strong>. 보호하지 않으면 갱신이 사라집니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 200" role="img" aria-label="Lost Update: 두 스레드가 재고 10을 동시에 읽고 각자 9를 써서, 2개가 빠져야 하는데 1개만 빠진다">
+          <rect x="40" y="36" width="270" height="58" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="60" y="60" fill="#333D4B">T1: read qty = 10</text>
+          <text class="svg-s" x="60" y="80" fill="#C9303C">→ write qty = 9</text>
+          <rect x="40" y="108" width="270" height="58" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="60" y="132" fill="#333D4B">T2: read qty = 10</text>
+          <text class="svg-s" x="60" y="152" fill="#C9303C">→ write qty = 9</text>
+
+          <rect x="400" y="60" width="280" height="82" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+          <text class="svg-t" x="540" y="92" text-anchor="middle" fill="#C9303C">최종 qty = 9</text>
+          <text class="svg-s" x="540" y="114" text-anchor="middle" fill="#C9303C">정답은 8 — 1개가 사라짐</text>
+          <text class="svg-s" x="540" y="132" text-anchor="middle" fill="#8B95A1">= Lost Update (갱신 손실)</text>
+
+          <line x1="310" y1="100" x2="398" y2="100" stroke="#F04452" stroke-width="2" stroke-dasharray="5 4"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 두 주문이 같은 재고를 동시에 깎으면, 보호 없이는 한쪽 차감이 통째로 사라진다.</figcaption>
+    </figure>
+
+    <div class="note warn"><span class="tag">이번 과제의 임계영역</span>① 재고 차감 · ② 쿠폰 사용(1회성) · ③ like_count 증감. 각각 보호 전략이 다릅니다. (쿠폰 <strong>발급 수량(선착순)</strong>은 관리자 발행이라 경합이 없어 이번 스코프 밖 — 셀프 발급 백로그.)</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STRATEGY</p><h2 class="sec">락 전략 3가지 선택지</h2></div>
+    </div>
+    <p class="lead">정답은 없습니다. 경합 빈도와 비용으로 고릅니다. 셋의 동작 방식부터 그림으로 봅니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 250" role="img" aria-label="락 전략 3비교: 비관락은 직렬 대기, 낙관락은 동시 실행 후 충돌 시 한쪽 실패, 원자 UPDATE는 DB가 단일 문장으로 직렬화">
+          <!-- 비관락 -->
+          <text class="svg-l" x="20" y="34" fill="#C9303C">비관락</text>
+          <rect x="100" y="20" width="130" height="28" rx="9" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2"/>
+          <text class="svg-s" x="165" y="38" text-anchor="middle" fill="#C9303C">T1 잠금·작업</text>
+          <rect x="240" y="20" width="120" height="28" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="300" y="38" text-anchor="middle" fill="#8B95A1">T2 대기…</text>
+          <rect x="370" y="20" width="120" height="28" rx="9" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2"/>
+          <text class="svg-s" x="430" y="38" text-anchor="middle" fill="#C9303C">T2 작업</text>
+          <text class="svg-s" x="560" y="38" fill="#6B7684">직렬 · 안전 · 느림</text>
+
+          <!-- 낙관락 -->
+          <text class="svg-l" x="20" y="118" fill="#1B64DA">낙관락</text>
+          <rect x="100" y="104" width="130" height="28" rx="9" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="165" y="122" text-anchor="middle" fill="#1B64DA">T1 작업 commit ✓</text>
+          <rect x="240" y="104" width="160" height="28" rx="9" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="320" y="122" text-anchor="middle" fill="#1B64DA">T2 작업 version ✗</text>
+          <text class="svg-s" x="560" y="122" fill="#6B7684">동시 · 충돌 시 재시도</text>
+
+          <!-- 원자 UPDATE -->
+          <text class="svg-l" x="20" y="202" fill="#0A8F5B">원자 UPDATE</text>
+          <rect x="140" y="188" width="380" height="28" rx="9" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-s" x="330" y="206" text-anchor="middle" fill="#0A8F5B">UPDATE … SET q = q − 1 WHERE q &gt; 0</text>
+          <text class="svg-s" x="560" y="206" fill="#6B7684">DB가 직렬화 보장</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 비관락은 줄 세우고, 낙관락은 일단 동시에 하고 충돌만 잡고, 원자 UPDATE는 한 문장으로 끝낸다.</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관점</th><th>비관락</th><th>낙관락 / 원자 UPDATE</th></tr></thead>
+        <tbody>
+          <tr><td>적합</td><td>경합 잦고 충돌 비싼 곳</td><td>경합 드물거나, 단일 카운터 증감</td></tr>
+          <tr><td>비용</td><td>락 보유·대기·데드락 관리</td><td>충돌 시 재시도(낙관) / 거의 없음(원자)</td></tr>
+          <tr><td>이번 적용</td><td>재고 차감</td><td>쿠폰 사용(낙관) · like_count(원자)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">고민 포인트</span>경합이 <strong>드문데</strong> 비관락을 쓰면 비용만 늘고, 경합이 <strong>잦은데</strong> 낙관락을 쓰면 재시도가 폭증합니다. 빈도를 먼저 가늠하세요.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">ISSUE vs USE</p><h2 class="sec">발급 vs 사용 — 경합이 다르다</h2></div>
+    </div>
+    <p class="lead">같은 쿠폰 도메인이라도 발급과 사용의 경합 양상은 정반대입니다. 그래서 락 전략도 갈립니다.</p>
+
+    <div class="note warn"><span class="tag">스코프 주의</span>아래 <strong>발급(한정 수량) 고경합</strong>은 <strong>셀프 발급·선착순을 도입할 때(백로그)</strong> 적용되는 대비입니다. 이번 과제의 관리자 발행은 단독 행위라 경합이 없습니다 — 개념 학습용으로 남겨둡니다.</div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 03">
+        <svg viewBox="0 0 720 230" role="img" aria-label="발급은 여러 사용자가 한 템플릿의 잔여수량을 동시에 깎아 고경합, 사용은 한 사용자가 자기 쿠폰 1개를 우연히 두 기기로 써서 저경합">
+          <!-- 발급 (고경합) -->
+          <text class="svg-l" x="170" y="28" text-anchor="middle" fill="#C9303C">발급 (한정 수량)</text>
+          <rect x="40" y="44" width="80" height="26" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.1"/>
+          <text class="svg-s" x="80" y="61" text-anchor="middle" fill="#4E5968">유저 A</text>
+          <rect x="40" y="92" width="80" height="26" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.1"/>
+          <text class="svg-s" x="80" y="109" text-anchor="middle" fill="#4E5968">유저 B</text>
+          <rect x="40" y="140" width="80" height="26" rx="9" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.1"/>
+          <text class="svg-s" x="80" y="157" text-anchor="middle" fill="#4E5968">유저 C</text>
+          <rect x="210" y="80" width="118" height="50" rx="13" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+          <text class="svg-s" x="269" y="101" text-anchor="middle" fill="#C9303C">coupon</text>
+          <text class="svg-s" x="269" y="118" text-anchor="middle" fill="#C9303C">remaining</text>
+          <line x1="120" y1="57" x2="208" y2="95" stroke="#F04452" stroke-width="1.6"/>
+          <line x1="120" y1="105" x2="208" y2="105" stroke="#F04452" stroke-width="1.6"/>
+          <line x1="120" y1="153" x2="208" y2="116" stroke="#F04452" stroke-width="1.6"/>
+          <text class="svg-s" x="190" y="180" text-anchor="middle" fill="#C9303C">→ 한 row 고경합</text>
+          <text class="svg-s" x="190" y="198" text-anchor="middle" fill="#8B95A1">원자 UPDATE 적합</text>
+
+          <line x1="360" y1="30" x2="360" y2="210" stroke="#E5E8EB" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+          <!-- 사용 (저경합) -->
+          <text class="svg-l" x="540" y="28" text-anchor="middle" fill="#1B64DA">사용 (1회성)</text>
+          <rect x="400" y="80" width="110" height="50" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.1"/>
+          <text class="svg-s" x="455" y="101" text-anchor="middle" fill="#4E5968">유저 A</text>
+          <text class="svg-s" x="455" y="118" text-anchor="middle" fill="#8B95A1">기기 2대</text>
+          <rect x="580" y="80" width="118" height="50" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-s" x="639" y="101" text-anchor="middle" fill="#1B64DA">user_coupon</text>
+          <text class="svg-s" x="639" y="118" text-anchor="middle" fill="#1B64DA">단일 소유</text>
+          <line x1="510" y1="98" x2="578" y2="100" stroke="#3182F6" stroke-width="1.6"/>
+          <line x1="510" y1="112" x2="578" y2="110" stroke="#3182F6" stroke-width="1.6"/>
+          <text class="svg-s" x="549" y="160" text-anchor="middle" fill="#1B64DA">→ 우연한 충돌만</text>
+          <text class="svg-s" x="549" y="178" text-anchor="middle" fill="#8B95A1">낙관락 적합</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> <b>발급</b>은 많은 사용자가 한 row를 두고 다투고, <b>사용</b>은 한 사용자가 자기 쿠폰을 우연히 두 번 쓸 뿐이다.</figcaption>
+    </figure>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">발급</span> 고경합</h4><p>한정 수량이면 잔여를 모두가 깎음. 낙관락이면 재시도 폭증 → <strong>원자 UPDATE</strong>. 중복은 UK로.</p></div>
+      <div class="col o"><h4><span class="mk">사용</span> 저경합</h4><p>단일 소유 row. 같은 순간 2기기는 드묾. 재시도 없이 <strong>낙관락</strong>, 충돌 시 주문 실패.</p></div>
+    </div>
+    <div class="note"><span class="tag">스스로 물어볼 것</span>"같은 도메인인데 발급은 원자 UPDATE, 사용은 낙관락 — 왜 다른가?"에 한 문장으로 답할 수 있으면 이해한 것입니다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">TRANSACTION</p><h2 class="sec">트랜잭션 경계 · 데드락</h2></div>
+    </div>
+    <p class="lead">주문은 재고·쿠폰·주문 저장을 한 트랜잭션으로 묶습니다. 락을 둘 이상 잡으면 획득 순서가 데드락을 가릅니다.</p>
+
+    <div class="note key"><span class="tag">핵심</span>재고는 비관락, 쿠폰은 낙관락(=락 미보유)이면 <strong>락 자원이 inventory 하나뿐</strong> → 순서 사이클이 없어 <strong>데드락 불가</strong>. 만약 쿠폰도 비관락이면 inventory→coupon 순서를 전역 고정해야 합니다.</div>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">범위</span> 너무 크면?</h4><p>락 보유 중 외부 I/O(결제 등)가 들어오면 락이 길어짐. 지금은 외부 호출 없음 — 결제 붙으면 분리 고민.</p></div>
+      <div class="col x"><h4><span class="mk">롤백</span> 보장</h4><p>단일 @Transactional이라 쿠폰 검증 실패·낙관락 충돌 어느 하나라도 전체 롤백. 재고도 원복.</p></div>
+    </div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">MORE</p><h2 class="sec">나머지 논점 · 비동기</h2></div>
+    </div>
+    <p class="lead">접어둔 논점들. 펼쳐서 고민 포인트를 확인하세요.</p>
+
+    <details class="tg">
+      <summary><span class="tw">논점</span>like_count — 이미 해결, 그래도 볼 것<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p><strong>임계영역</strong>: 동시 좋아요 → like_count Lost Update. <span class="term">SET like_count = like_count + 1</span> 원자 UPDATE로 이미 해결됨(추가 락 금지).</p>
+        <p><strong>남은 고민</strong>: ProductLike 존재검사 TOCTOU(선검사→저장 경합, 현재 비범위). 비동기 AFTER_COMMIT 핸들러 실패 시 like_count 누락 → 재집계. "좋아요가 수십개씩 빠진다" 시나리오의 원인 진단.</p>
+      </div>
+    </details>
+
+    <details class="tg">
+      <summary><span class="tw">논점</span>격리 수준(Isolation Level)<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p>MySQL 기본 REPEATABLE READ. 비관락(FOR UPDATE)은 격리수준 무관하게 직렬화하지만, 낙관락·원자 UPDATE는 격리수준 의존성이 다릅니다. 지급 중복(UK) 검사에 팬텀·넌리피터블 리드가 영향을 주는지 확인.</p>
+      </div>
+    </details>
+
+    <details class="tg">
+      <summary><span class="tw">논점</span>정합성을 어느 계층에서? (DB 제약 vs 앱 락)<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p>UK/CHECK 제약(DB, 최후 방어선)과 도메인 검증+락(앱, 의미화)의 역할 분담. 예: 발급 중복은 <span class="term">UK</span>가 보증하고, 비즈니스 메시지는 앱이 변환. 둘 다 두는 게 보통 옳습니다.</p>
+      </div>
+    </details>
+
+    <h3>비동기 정합성 (백로그 #11)</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG. 04">
+        <svg viewBox="0 0 720 130" role="img" aria-label="주문 커밋 후 이벤트 발행, bounded 스레드풀에서 REQUIRES_NEW 트랜잭션으로 like_count 갱신">
+          <defs>
+            <marker id="as1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="20" y="48" width="140" height="44" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="90" y="68" text-anchor="middle" fill="#0A8F5B">TX COMMIT</text>
+          <text class="svg-s" x="90" y="84" text-anchor="middle" fill="#0A8F5B">AFTER_COMMIT</text>
+          <rect x="210" y="48" width="150" height="44" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="285" y="68" text-anchor="middle" fill="#1B64DA">publishEvent</text>
+          <text class="svg-s" x="285" y="84" text-anchor="middle" fill="#3182F6">@Async</text>
+          <rect x="410" y="48" width="150" height="44" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="485" y="68" text-anchor="middle" fill="#333D4B">bounded pool</text>
+          <text class="svg-s" x="485" y="84" text-anchor="middle" fill="#8B95A1">+ 예외 핸들러</text>
+          <rect x="610" y="48" width="92" height="44" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="656" y="68" text-anchor="middle" fill="#1B64DA">like_count</text>
+          <text class="svg-s" x="656" y="84" text-anchor="middle" fill="#3182F6">UPDATE</text>
+          <line x1="160" y1="70" x2="208" y2="70" stroke="#8B95A1" stroke-width="1.7" marker-end="url(#as1)"/>
+          <line x1="360" y1="70" x2="408" y2="70" stroke="#8B95A1" stroke-width="1.7" marker-end="url(#as1)"/>
+          <line x1="560" y1="70" x2="608" y2="70" stroke="#8B95A1" stroke-width="1.7" marker-end="url(#as1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 4.</b> 현재는 무제한 스레드(SimpleAsyncTaskExecutor). <b>bounded 풀 + 예외 핸들러</b>로 바꿔 부하·예외 삼킴을 막는다.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">TEST</p><h2 class="sec">테스트로 검증하는 법</h2></div>
+    </div>
+    <p class="lead">동시성은 눈으로 못 봅니다. 스레드를 동시에 풀어 최종 상태로 증명합니다.</p>
+
+    <div class="note key"><span class="tag">패턴</span><span class="term">ExecutorService</span> + 시작 <span class="term">CountDownLatch(1)</span> 으로 동시 진입 → 완료 대기 → <strong>최종 DB 상태 + 성공/실패 카운트 이중 단언</strong>.</div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>테스트</th><th>시나리오</th><th>단언</th></tr></thead>
+        <tbody>
+          <tr><td>쿠폰 1회</td><td>같은 userCouponId N스레드 동시 주문</td><td>성공 1건 · USED 1건 · 실패분 재고 원복</td></tr>
+          <tr><td>재고 차감</td><td>재고 10, 10스레드 동시 주문</td><td>quantity = 0 · 누락/중복 없음</td></tr>
+          <tr><td>like_count</td><td>N스레드(다른 userId) 동시 좋아요</td><td>비동기 완료 후 likeCount = N</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn"><span class="tag">함정</span>H2는 <span class="term">FOR UPDATE</span> 블로킹·<span class="term">@Version</span> 의미가 약합니다. 동시성 3종은 <strong>Testcontainers MySQL</strong>로. <span class="term">maxParallelForks=1</span> 은 클래스 간 병렬만 막을 뿐, 클래스 내 ExecutorService 동시 실행과 무관합니다.</div>
+
+    <blockquote>
+      <p>"트랜잭션이면 안전한 줄 알았다" — 락 없는 read-modify-write는 트랜잭션 안에서도 갱신을 잃는다.</p>
+      <cite>— Technical Writing 후보 주제</cite>
+    </blockquote>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 4 · 동시성 · 정합성 · 임계영역 노트<br>
+    답이 아니라 고민할 거리 — 직접 판단하기 위한 지도
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>companion object vs static — @JvmStatic은 왜 필요한가</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:19px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Kotlin Study · 14</span>
+      <h1 class="title">companion object는<br>왜 <span class="hl">static이 아닌가</span></h1>
+      <p class="lede"><b>@MethodSource가 팩토리 메서드를 못 찾는 사건</b>에서 출발해, Kotlin이 <b>static을 없애고 companion object로 대체한 이유</b>와 <b>@JvmStatic이 놓는 다리</b>까지 바이트코드 레벨로 추적합니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">companion object · @JvmStatic · @MethodSource</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin 2.0 · JUnit 5 · JVM</span></div>
+        <div class="chip"><span class="k">SOURCES</span><span class="v">Kotlin · JUnit 공식 문서</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">발단 — 팩토리 메서드를 못 찾는다</a></li>
+      <li><a href="#s2">static vs companion 의 실체</a></li>
+      <li><a href="#s3">@JvmStatic — 다리를 놓는다</a></li>
+      <li><a href="#s4">왜 이렇게 설계했나</a></li>
+      <li><a href="#s5">실전 — @MethodSource 해법</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ============ S1 ============ -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">PROBLEM</p><h2 class="sec">발단 — 팩토리 메서드를 못 찾는다</h2></div>
+    </div>
+    <p class="lead">파라미터화 테스트에서 <span class="term">@MethodSource</span>로 데이터를 공급하려는데, companion object에 둔 팩토리 메서드를 JUnit이 못 찾고 터집니다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">DiscountPolicyTest.kt</span>
+      </div>
+<pre><span class="kw">class</span> <span class="ty">DiscountPolicyTest</span> {
+    <span class="kw">@ParameterizedTest</span>
+    <span class="kw">@MethodSource</span>(<span class="st">"discountCases"</span>)
+    <span class="kw">fun</span> <span class="fn">`할인 계산`</span>(type: <span class="ty">CouponType</span>, value: <span class="ty">Long</span>, expected: <span class="ty">Money</span>) { ... }
+
+    <span class="kw">companion object</span> {
+        <span class="cm">// ❌ @JvmStatic 없음 → JUnit 이 static 으로 못 찾는다</span>
+        <span class="kw">fun</span> <span class="fn">discountCases</span>() = listOf( ... )
+    }
+}</pre>
+    </div>
+
+    <div class="note warn"><span class="tag">에러</span><strong>Could not find factory method [discountCases]</strong> — 분명 companion object 안에 메서드가 있는데 "없다"고 합니다. 여기서 질문이 시작됩니다: <strong>companion object 의 메서드는 static 이 아닌가?</strong></div>
+
+    <p>JUnit 공식 문서는 그 조건을 못 박습니다.</p>
+    <blockquote>
+      <p>"Factory methods within the test class must be static unless the test class is annotated with <span style="font-family:var(--mono);font-size:.85em">@TestInstance(Lifecycle.PER_CLASS)</span>."</p>
+      <cite>— JUnit 5 User Guide, Parameterized Tests<a href="#r3" class="cite">[3]</a></cite>
+    </blockquote>
+    <p>JUnit은 테스트 인스턴스가 만들어지기 <em>전에</em> 파라미터를 확보해야 해서, 팩토리를 <strong>static 메서드로 리플렉션 조회</strong>합니다. 그런데 Kotlin의 companion object 멤버는 — 이름과 달리 — JVM에서 <strong>static이 아닙니다.</strong></p>
+  </section>
+
+  <!-- ============ S2 ============ -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">MECHANISM</p><h2 class="sec">static vs companion 의 실체</h2></div>
+    </div>
+    <p class="lead">Kotlin에는 <span class="term">static</span> 키워드가 아예 없습니다. companion object는 "클래스 레벨 멤버"를 <strong>별도의 싱글톤 객체</strong>로 풀어낸 것입니다.</p>
+
+    <blockquote>
+      <p>"Members of companion objects look like static members from other languages, but they are actually instance members of the companion object — they belong to the object itself."</p>
+      <cite>— Kotlin Docs, Object declarations<a href="#r1" class="cite">[1]</a></cite>
+    </blockquote>
+
+    <p>그래서 호출 경로가 다릅니다. Java <span class="term">static</span>은 클래스에 직접 붙어 <span class="term">invokestatic</span>으로 한 번에 가지만, Kotlin companion은 <strong>먼저 Companion 인스턴스를 꺼내고(<span class="term">getstatic</span>) 그 위에서 인스턴스 메서드를 호출(<span class="term">invokevirtual</span>)</strong>하는 2단계입니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 308" role="img" aria-label="Java static 은 Foo.bar 호출이 invokestatic 으로 Foo 클래스의 static bar 에 한 번에 도달하고, Kotlin companion 은 같은 Foo.bar 호출이 getstatic 으로 Companion 인스턴스를 꺼낸 뒤 invokevirtual 로 그 인스턴스의 bar 메서드를 호출하는 2단계임을 비교한 그림">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- 컬럼 헤더 -->
+          <text class="svg-l" x="185" y="22" text-anchor="middle" fill="#0A8F5B">Java static</text>
+          <text class="svg-l" x="540" y="22" text-anchor="middle" fill="#6B7684">Kotlin companion object</text>
+          <!-- 구분선 -->
+          <line x1="362" y1="40" x2="362" y2="296" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+
+          <!-- LEFT: 호출지점 -->
+          <rect x="70" y="46" width="230" height="46" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="185" y="74" text-anchor="middle" fill="#4E5968">호출  Foo.bar()</text>
+          <!-- LEFT: 한 번에 -->
+          <line x1="185" y1="92" x2="185" y2="226" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="232" y="150" fill="#0A8F5B">invokestatic</text>
+          <text class="svg-s" x="232" y="168" fill="#0A8F5B">한 번에 도달</text>
+          <!-- LEFT: Foo -->
+          <rect x="85" y="226" width="200" height="58" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <text class="svg-t" x="185" y="251" text-anchor="middle" fill="#0A8F5B">Foo</text>
+          <text class="svg-s" x="185" y="271" text-anchor="middle" fill="#0A8F5B">static bar()</text>
+
+          <!-- RIGHT: 호출지점 -->
+          <rect x="425" y="46" width="230" height="46" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="540" y="74" text-anchor="middle" fill="#4E5968">호출  Foo.bar()</text>
+          <!-- RIGHT: 1단계 getstatic -->
+          <line x1="540" y1="92" x2="540" y2="130" stroke="#8B95A1" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="612" y="116" fill="#6B7684">getstatic</text>
+          <!-- RIGHT: Foo (Companion 필드 보유) -->
+          <rect x="462" y="130" width="156" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="540" y="153" text-anchor="middle" fill="#333D4B">Foo</text>
+          <text class="svg-s" x="540" y="173" text-anchor="middle" fill="#6B7684">Companion 필드</text>
+          <!-- RIGHT: 2단계 invokevirtual -->
+          <line x1="540" y1="186" x2="540" y2="226" stroke="#8B95A1" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="612" y="210" fill="#6B7684">invokevirtual</text>
+          <!-- RIGHT: Companion 인스턴스 -->
+          <rect x="448" y="226" width="184" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="540" y="251" text-anchor="middle" fill="#1B64DA">Companion</text>
+          <text class="svg-s" x="540" y="271" text-anchor="middle" fill="#3182F6">bar() 인스턴스 메서드</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 같은 <span class="term">Foo.bar()</span>라도 Java는 1단계(invokestatic), Kotlin은 2단계(getstatic → invokevirtual). 후자의 <span class="term">bar()</span>는 <b>Foo가 아니라 Foo$Companion에 인스턴스 메서드로</b> 존재한다<a href="#r2" class="cite">[2]</a>.</figcaption>
+    </figure>
+
+    <p>이 마지막 사실이 1번 사건의 정답입니다. JUnit은 <span class="term">Foo</span>에서 static <span class="term">discountCases</span>를 찾는데, 실제로는 <span class="term">Foo$Companion</span>에 인스턴스 메서드로 들어가 있어 <strong>리플렉션 조회가 빗나갑니다.</strong></p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관점</th><th>Java static</th><th>Kotlin companion object</th></tr></thead>
+        <tbody>
+          <tr><td>실체</td><td>클래스에 직접 붙은 멤버</td><td>Companion 싱글톤 객체의 인스턴스 멤버</td></tr>
+          <tr><td>인스턴스</td><td>없음</td><td>Companion 객체 1개가 항상 존재</td></tr>
+          <tr><td>JVM 호출</td><td>invokestatic</td><td>getstatic + invokevirtual</td></tr>
+          <tr><td>static 리플렉션 조회</td><td>찾힘</td><td>안 찾힘 (Foo$Companion에 있음)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">단, 초기화 시점은 같다</span>Kotlin 공식 문서에 따르면 companion object는 <strong>대응 클래스가 로드될 때 초기화되어 Java static 이니셜라이저의 시맨틱과 일치</strong>합니다<a href="#r1" class="cite">[1]</a>. "static이 아니다"는 <em>호출 메커니즘</em> 얘기지, 지연 생성된다는 뜻이 아닙니다.</div>
+  </section>
+
+  <!-- ============ S3 ============ -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">BRIDGE</p><h2 class="sec">@JvmStatic — 다리를 놓는다</h2></div>
+    </div>
+    <p class="lead"><span class="term">@JvmStatic</span>을 붙이면 컴파일러가 <strong>바깥 클래스에 진짜 static 메서드를 추가로 생성</strong>합니다. 기존 인스턴스 메서드는 그대로 두고, static 버전을 하나 더 만드는 것입니다.</p>
+
+    <blockquote>
+      <p>"If you use this annotation, the compiler generates both a static method in the enclosing class of the object and an instance method in the object itself."</p>
+      <cite>— Kotlin Docs, Calling Kotlin from Java<a href="#r2" class="cite">[2]</a></cite>
+    </blockquote>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 188" role="img" aria-label="@JvmStatic 을 붙이면 Foo 클래스에 새 static bar 메서드가 추가로 생성되고, 기존 Companion 의 bar 인스턴스 메서드도 그대로 남아 둘 다 존재함을 보여주는 그림">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- 소스 -->
+          <rect x="40" y="62" width="208" height="64" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="144" y="88" text-anchor="middle" fill="#1B64DA">@JvmStatic</text>
+          <text class="svg-s" x="144" y="108" text-anchor="middle" fill="#3182F6">fun bar()</text>
+          <!-- 컴파일 화살표 -->
+          <line x1="248" y1="94" x2="318" y2="94" stroke="#8B95A1" stroke-width="2" marker-end="url(#a2)"/>
+          <text class="svg-l" x="283" y="82" text-anchor="middle" fill="#6B7684">compile</text>
+          <!-- 산출 1: 새 static -->
+          <rect x="332" y="32" width="240" height="54" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <text class="svg-t" x="452" y="55" text-anchor="middle" fill="#0A8F5B">Foo</text>
+          <text class="svg-s" x="452" y="74" text-anchor="middle" fill="#0A8F5B">static bar()  ← 신규 생성</text>
+          <!-- 산출 2: 기존 인스턴스 -->
+          <rect x="332" y="102" width="240" height="54" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="452" y="125" text-anchor="middle" fill="#333D4B">Foo$Companion</text>
+          <text class="svg-s" x="452" y="144" text-anchor="middle" fill="#6B7684">bar()  ← 그대로 유지</text>
+          <!-- 분기 -->
+          <line x1="572" y1="59" x2="610" y2="59" stroke="#15C47E" stroke-width="1.6" marker-end="url(#a2)"/>
+          <text class="svg-s" x="660" y="55" text-anchor="middle" fill="#0A8F5B">JUnit</text>
+          <text class="svg-s" x="660" y="70" text-anchor="middle" fill="#0A8F5B">Java</text>
+          <line x1="572" y1="129" x2="610" y2="129" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#a2)"/>
+          <text class="svg-s" x="660" y="133" text-anchor="middle" fill="#6B7684">Kotlin</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> <span class="term">@JvmStatic</span> 하나가 산출물을 둘로 만든다 — Java/JUnit이 기대하는 진짜 static과, Kotlin 세계의 인스턴스 메서드. 그래서 JUnit 리플렉션과 시그니처가 맞아떨어진다.</figcaption>
+    </figure>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">해결 — companion object + @JvmStatic</span>
+      </div>
+<pre><span class="kw">companion object</span> {
+    <span class="kw">@JvmStatic</span>
+    <span class="kw">fun</span> <span class="fn">discountCases</span>() = listOf(
+        <span class="ty">Arguments</span>.of(<span class="ty">CouponType</span>.RATE,  <span class="st">10L</span>, <span class="ty">Money</span>(<span class="st">10000</span>), <span class="ty">Money</span>(<span class="st">1000</span>)),
+        <span class="ty">Arguments</span>.of(<span class="ty">CouponType</span>.FIXED, <span class="st">2000L</span>, <span class="ty">Money</span>(<span class="st">10000</span>), <span class="ty">Money</span>(<span class="st">2000</span>)),
+    )
+}</pre>
+    </div>
+  </section>
+
+  <!-- ============ S4 ============ -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">RATIONALE</p><h2 class="sec">왜 이렇게 설계했나</h2></div>
+    </div>
+    <p class="lead">핵심은 하나입니다 — <strong>static은 객체지향 모델에 난 구멍이라, Kotlin은 그 구멍을 1급 객체로 메웠습니다.</strong></p>
+
+    <p>Java의 <span class="term">static</span> 멤버는 객체 시스템 <em>바깥</em>에 있는 절차적 네임스페이스입니다. 그래서 객체라면 당연한 것들이 안 됩니다 — 인터페이스 구현 불가, 상속·오버라이드 불가, 변수로 넘기는 1급 객체가 아님. Kotlin은 이 특수 케이스를 지우고, 대신 <span class="term">object</span>(싱글톤)라는 1급 객체를 도입했습니다. companion object는 그 <span class="term">object</span>를 클래스에 하나 붙인 형태일 뿐입니다.</p>
+
+    <h3>그래서 가능해지는 것 — companion이 인터페이스를 구현한다</h3>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">companion 은 진짜 객체라 다형성에 참여한다</span>
+      </div>
+<pre><span class="kw">interface</span> <span class="ty">Factory</span>&lt;T&gt; { <span class="kw">fun</span> <span class="fn">create</span>(name: <span class="ty">String</span>): T }
+
+<span class="kw">class</span> <span class="ty">User</span>(<span class="kw">val</span> name: <span class="ty">String</span>) {
+    <span class="kw">companion object</span> : <span class="ty">Factory</span>&lt;<span class="ty">User</span>&gt; {     <span class="cm">// static 으론 불가능</span>
+        <span class="kw">override fun</span> <span class="fn">create</span>(name: <span class="ty">String</span>) = <span class="ty">User</span>(name)
+    }
+}
+
+<span class="kw">val</span> factory: <span class="ty">Factory</span>&lt;<span class="ty">User</span>&gt; = <span class="ty">User</span>   <span class="cm">// companion 을 값으로 전달 — 1급 객체</span></pre>
+    </div>
+    <p>Kotlin 공식 문서가 직접 드는 예시입니다<a href="#r1" class="cite">[1]</a>. companion은 객체이므로 인터페이스를 구현하고, 이름을 가질 수 있고(<span class="term">companion object Factory</span>), 참조로 보관할 수 있습니다. Java static으로는 "정적 메서드 묶음을 추상화해 주입"하는 일이 불가능합니다.</p>
+
+    <h3>대가 — Java 생태계와의 경계 비용</h3>
+    <p>이 일관성은 공짜가 아니었습니다. 그 비용이 바로 1~3번에서 본 마찰입니다.</p>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">얻은 것</span> 언어 일관성</h4><p>모든 것이 객체. 다형성·인터페이스 구현·확장 함수·싱글톤 1급 시민. Kotlin만 쓰면 더 우아하다.</p></div>
+      <div class="col x"><h4><span class="mk">치른 것</span> 경계 비용</h4><p>"static 묶음"이 실은 인스턴스 메서드. Java 도구(JUnit·직렬화 등)와 만나면 <span class="term">@JvmStatic</span>으로 다리를 놔야 한다.</p></div>
+    </div>
+    <div class="note key"><span class="tag">설계 철학</span>Kotlin은 <strong>언어 내부 일관성을 우선</strong>하고, <strong>Java 호환 비용은 <span class="term">@JvmStatic</span>·<span class="term">@JvmField</span> 같은 명시적 어노테이션으로 떠넘기는</strong> 선택을 했습니다. "평소엔 우아하게, 경계에서만 비용을 내라"가 의도된 트레이드오프입니다.</div>
+  </section>
+
+  <!-- ============ S5 ============ -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">PRACTICE</p><h2 class="sec">실전 — @MethodSource 해법</h2></div>
+    </div>
+    <p class="lead">팩토리 메서드를 공급하는 길은 둘입니다. 상황에 맞게 고릅니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>방식</th><th>장점</th><th>주의점</th></tr></thead>
+        <tbody>
+          <tr><td>companion object + @JvmStatic</td><td>JUnit 표준, 별도 클래스 설정 없음</td><td>Kotlin 보일러플레이트 약간</td></tr>
+          <tr><td>@TestInstance(PER_CLASS)</td><td>@JvmStatic·companion 불필요, 인스턴스 메서드 허용</td><td>인스턴스가 테스트 간 공유 → 상태 오염 위험</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><span class="term">@TestInstance(PER_CLASS)</span>는 JUnit의 인스턴스 수명주기를 "클래스당 1개"로 바꿔서, 팩토리로 <strong>인스턴스 메서드도 허용</strong>합니다<a href="#r3" class="cite">[3]</a>. 그러면 <span class="term">@JvmStatic</span>은 물론 companion object 자체가 필요 없어집니다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">대안 — @JvmStatic 없이</span>
+      </div>
+<pre><span class="kw">@TestInstance</span>(<span class="ty">TestInstance</span>.<span class="ty">Lifecycle</span>.PER_CLASS)
+<span class="kw">class</span> <span class="ty">DiscountPolicyTest</span> {
+
+    <span class="kw">@ParameterizedTest</span>
+    <span class="kw">@MethodSource</span>(<span class="st">"discountCases"</span>)
+    <span class="kw">fun</span> <span class="fn">`할인 계산`</span>(type: <span class="ty">CouponType</span>, value: <span class="ty">Long</span>, expected: <span class="ty">Money</span>) { ... }
+
+    <span class="cm">// companion object 밖, 그냥 인스턴스 메서드 — @JvmStatic 불필요</span>
+    <span class="kw">fun</span> <span class="fn">discountCases</span>() = listOf( ... )
+}</pre>
+    </div>
+
+    <div class="note warn"><span class="tag">PER_CLASS 함정</span>인스턴스가 테스트 간 <strong>공유</strong>되므로, 인스턴스 필드에 가변 상태를 두면 테스트끼리 오염될 수 있습니다. <span class="term">@BeforeEach</span>로 초기화하지 않으면 위험합니다. 외부 클래스의 팩토리 메서드는 PER_CLASS와 무관하게 <strong>항상 static</strong>이어야 한다는 점도 기억합니다<a href="#r3" class="cite">[3]</a>.</div>
+
+    <h3>권장</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>기본값은 companion object + @JvmStatic</b> — 표준적이고 상태 공유 부작용이 없다</li>
+      <li><span class="box"></span><b>상태 없는 순수 데이터 팩토리</b>(DiscountPolicy 같은)라면 PER_CLASS도 가볍게 쓸 만하다</li>
+      <li><span class="box"></span><b>인스턴스 필드에 가변 상태</b>가 끼면 PER_CLASS는 피하거나 @BeforeEach 초기화 필수</li>
+    </ul>
+
+    <details class="tg">
+      <summary><span class="tw">한 줄 요약</span>그래서 이게 다 무슨 얘기였나<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p><span class="term">companion object</span>는 "Kotlin이 static을 없애고 대신 내놓은 싱글톤 객체"이고, <span class="term">@JvmStatic</span>은 "그 객체 메서드를 Java가 아는 진짜 static으로도 노출해줘"라는 지시입니다. Kotlin 세계 안에서만 쓰면 차이가 안 보이지만, <strong>Java 기반 도구(JUnit @MethodSource, 직렬화 라이브러리 등)와 만나는 경계에서</strong> 이 차이가 드러납니다.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ REFS ============ -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <div class="ref primary" id="r1"><span class="n">1</span><span class="b"><b>Kotlin Docs — Object declarations and expressions</b> — companion object가 "instance members of the companion object"라는 정의, 인터페이스 구현 예시, 클래스 로드 시 초기화 시맨틱.<span class="src">https://kotlinlang.org/docs/object-declarations.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r2"><span class="n">2</span><span class="b"><b>Kotlin Docs — Calling Kotlin from Java (@JvmStatic)</b> — companion 멤버가 기본은 인스턴스 메서드로 컴파일되며, @JvmStatic이 enclosing 클래스에 static 메서드를 추가 생성한다는 설명·예제.<span class="src">https://kotlinlang.org/docs/java-to-kotlin-interop.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r3"><span class="n">3</span><span class="b"><b>JUnit 5 User Guide / MethodSource API</b> — "factory methods within the test class must be static unless the PER_CLASS lifecycle is used; external factory methods must always be static".<span class="src">https://docs.junit.org/current/user-guide/ · MethodSource API</span><span class="pr bt">JUnit 공식</span></span></div>
+    <div class="ref" id="r4"><span class="n">4</span><span class="b"><b>Baeldung — The @JvmStatic Annotation in Kotlin</b> · <b>Eugene Petrenko — JVM Bytecode for Kotlin Object and Companion Object</b> — getstatic Companion + invokevirtual 바이트코드 흐름 보강.<span class="src">baeldung.com/kotlin/jvmstatic-annotation · jonnyzzz.com/blog/2019/02/04/companion-and-object</span><span class="pr bt">엔지니어링 레퍼런스</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Kotlin Study 14 · companion object는 왜 static이 아닌가<br>
+    Kotlin 공식 문서 + JUnit 공식 문서 기반 · @JvmStatic / @MethodSource
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -170,20 +170,45 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
-    fun cancelAfterPaymentCancelsPaymentRestoresStockAndKeepsReservationConfirmed() {
+    fun cancelAfterPaymentRunsPgCancelOutsideTransactionRestoresStockAndCancelsReservation() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
-        facade.pay(OrderCommand.Pay(checkout.orderId))
+        facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
 
         val canceled = facade.cancel(OrderCommand.Cancel(checkout.orderId))
 
         val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
         val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
         assertAll(
             { assertThat(canceled.status).isEqualTo(OrderStatus.CANCELED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.CANCELED) },
             { assertThat(stock.stockQuantity).isEqualTo(5) },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED) },
             { assertThat(paymentGateway.canceledTransactionIds).containsExactly("payment-${checkout.orderId}") },
+            { assertThat(paymentGateway.transactionActiveDuringCancel).containsExactly(false) },
+        )
+    }
+
+    @Test
+    fun pgCancelSuccessWithRestoreFailureLeavesOrderFailedAndPaymentCompletionFailed() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
+        stockReservationJpaRepository.deleteAll(stockReservationJpaRepository.findAllByOrderId(checkout.orderId))
+        stockReservationJpaRepository.flush()
+
+        val ex = assertThrows<CoreException> {
+            facade.cancel(OrderCommand.Cancel(checkout.orderId))
+        }
+
+        val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        assertAll(
+            { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.COMPLETION_FAILED) },
         )
     }
 
@@ -191,7 +216,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     fun shippingStartedOrderCannotBeCanceled() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
-        facade.pay(OrderCommand.Pay(checkout.orderId))
+        facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
         facade.startShipping(OrderCommand.StartShipping(checkout.orderId))
 
         val ex = assertThrows<CoreException> {

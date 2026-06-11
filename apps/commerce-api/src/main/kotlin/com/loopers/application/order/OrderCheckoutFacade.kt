@@ -3,7 +3,6 @@ package com.loopers.application.order
 import com.loopers.application.payment.PaymentApplicationService
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway as PaymentGatewayPort
-import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderStatus
@@ -18,7 +17,6 @@ class OrderCheckoutFacade(
     private val orderApplicationService: OrderApplicationService,
     private val stockApplicationService: StockApplicationService,
     private val paymentApplicationService: PaymentApplicationService,
-    private val legacyPaymentGateway: PaymentGateway,
     private val paymentGateway: PaymentGatewayPort,
     private val paymentCompletionApplicationService: PaymentCompletionApplicationService,
 ) {
@@ -84,23 +82,45 @@ class OrderCheckoutFacade(
         }
     }
 
-    @Transactional
     fun cancel(command: OrderCommand.Cancel): OrderInfo.Detail {
         val detail = orderApplicationService.getDetail(command.orderId)
         return when (detail.status) {
             OrderStatus.PAYMENT_PENDING -> paymentCompletionApplicationService.cancelPaymentPending(command.orderId)
-            OrderStatus.COMPLETED -> {
-                val paymentTransactionId = detail.paymentTransactionId
-                    ?: throw CoreException(ErrorType.CONFLICT, "결제 식별자가 없는 주문은 결제 후 취소할 수 없습니다.")
-                legacyPaymentGateway.cancel(paymentTransactionId)
-                stockApplicationService.restoreConfirmed(command.orderId)
-                orderApplicationService.cancelCompleted(command.orderId, OrderCancelReason.USER_REQUESTED)
-            }
+            OrderStatus.COMPLETED -> cancelCompleted(command.orderId)
             OrderStatus.FAILED,
             OrderStatus.EXPIRED,
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
             -> throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")
+        }
+    }
+
+    private fun cancelCompleted(orderId: Long): OrderInfo.Detail {
+        val payment = paymentApplicationService.recordCancelRequested(orderId)
+        val pgTransactionId = payment.pgTransactionId
+            ?: throw CoreException(ErrorType.CONFLICT, "PG 거래 식별자가 없는 결제는 취소할 수 없습니다.")
+        val pgResult = paymentGateway.cancel(
+            PaymentCommand.Cancel(
+                orderId = orderId,
+                pgTransactionId = pgTransactionId,
+                amount = payment.approvedAmount ?: payment.requestedAmount,
+            ),
+        )
+        if (!pgResult.success) {
+            paymentApplicationService.recordCancelFailed(
+                orderId = orderId,
+                pgStatus = pgResult.pgStatus,
+                failureReason = pgResult.failureReason ?: "PG 취소에 실패했습니다.",
+                rawResponseSummary = pgResult.rawResponseSummary,
+            )
+            throw CoreException(ErrorType.BAD_REQUEST, pgResult.failureReason ?: "결제 취소에 실패했습니다.")
+        }
+
+        return runCatching {
+            paymentCompletionApplicationService.cancelCompletedAfterPgSuccess(orderId, pgResult.pgStatus, pgResult.rawResponseSummary)
+        }.getOrElse { throwable ->
+            paymentCompletionApplicationService.markCompletedCancelRecoveryFailed(orderId, throwable.message ?: throwable.javaClass.simpleName)
+            throw throwable
         }
     }
 

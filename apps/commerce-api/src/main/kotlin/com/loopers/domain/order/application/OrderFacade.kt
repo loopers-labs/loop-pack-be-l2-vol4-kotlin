@@ -1,5 +1,6 @@
 package com.loopers.domain.order.application
 
+import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.domain.order.application.command.OrderCreateCommand
 import com.loopers.domain.order.application.command.OrderItemCreateCommand
 import com.loopers.domain.order.application.info.OrderInfo
@@ -25,6 +26,7 @@ class OrderFacade(
     private val productService: ProductService,
     private val stockService: StockService,
     private val orderService: OrderService,
+    private val couponService: CouponService,
 ) {
     @Transactional
     fun placeOrder(command: OrderCreateCommand): OrderInfo {
@@ -37,8 +39,20 @@ class OrderFacade(
         val orderItems = aggregateItems(command.items)
         val snapshots = productService.findOrderableSnapshots(orderItems.map { it.productId })
         val items = createOrderItems(orderItems, snapshots)
-        val order = orderService.placeOrder(command.userId, items, idempotencyKey)
+        val totalPrice = Money.of(items.sumOf { it.linePrice.value })
+        val discountPrice = command.issuedCouponId
+            ?.let { couponService.validateAndCalculateDiscount(command.userId, it, totalPrice) }
+            ?: Money.of(0)
+
         stockService.decreaseAll(orderItems.map { StockDecreaseCommand(it.productId, it.quantity) })
+        command.issuedCouponId?.let { couponService.useIssuedCoupon(it) }
+        val order = orderService.placeOrder(
+            orderedUserId = command.userId,
+            items = items,
+            idempotencyKey = idempotencyKey,
+            issuedCouponIdOrNull = command.issuedCouponId,
+            discountPrice = discountPrice,
+        )
         return OrderInfo.from(order)
     }
 

@@ -1,5 +1,6 @@
 package com.loopers.domain.order.unit
 
+import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.domain.order.application.OrderFacade
 import com.loopers.domain.order.application.service.OrderService
 import com.loopers.domain.order.support.OrderSteps.Companion.상품_스냅샷
@@ -24,12 +25,13 @@ import org.junit.jupiter.api.assertThrows
 
 class OrderFacadeTest {
     @Test
-    fun `주문은_유저와_상품을_확인하고_저장한_뒤_재고를_차감한다`() {
+    fun `주문은_유저와_상품을_확인하고_재고를_차감한_뒤_저장한다`() {
         val userService = mockk<UserService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val orderService = mockk<OrderService>()
-        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val couponService = mockk<CouponService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드(
             userId = 1L,
             items = listOf(
@@ -70,13 +72,13 @@ class OrderFacadeTest {
         verifySequence {
             userService.findById(1L)
             productService.findOrderableSnapshots(listOf(10L, 20L))
-            orderService.placeOrder(1L, any(), null)
             stockService.decreaseAll(
                 listOf(
                     StockDecreaseCommand(productId = 10L, quantity = 2),
                     StockDecreaseCommand(productId = 20L, quantity = 1),
                 ),
             )
+            orderService.placeOrder(1L, any(), null)
         }
     }
 
@@ -86,11 +88,11 @@ class OrderFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val orderService = mockk<OrderService>()
-        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val couponService = mockk<CouponService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드()
         every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
         every { productService.findOrderableSnapshots(listOf(10L)) } returns listOf(상품_스냅샷(productId = 10L))
-        every { orderService.placeOrder(1L, any(), null) } returns 주문_도메인_생성(id = 100L)
         every {
             stockService.decreaseAll(listOf(StockDecreaseCommand(productId = 10L, quantity = 2)))
         } throws CoreException(ErrorType.CONFLICT)
@@ -100,7 +102,7 @@ class OrderFacadeTest {
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
-        verify(exactly = 1) { orderService.placeOrder(1L, any(), null) }
+        verify(exactly = 0) { orderService.placeOrder(any(), any(), any()) }
     }
 
     @Test
@@ -109,7 +111,8 @@ class OrderFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val orderService = mockk<OrderService>()
-        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val couponService = mockk<CouponService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드(idempotencyKey = "order-key-1")
         every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
         every { orderService.findByIdempotencyKey("order-key-1") } returns 주문_도메인_생성(id = 100L)
@@ -128,7 +131,8 @@ class OrderFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val orderService = mockk<OrderService>()
-        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val couponService = mockk<CouponService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         every { userService.findById(1L) } throws CoreException(ErrorType.NOT_FOUND)
 
         val ex = assertThrows<CoreException> {
@@ -147,7 +151,8 @@ class OrderFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val orderService = mockk<OrderService>()
-        val orderFacade = OrderFacade(userService, productService, stockService, orderService)
+        val couponService = mockk<CouponService>()
+        val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         every { userService.findById(1L) } returns 회원_도메인_생성(id = 1L)
         every { productService.findOrderableSnapshots(listOf(10L)) } throws CoreException(ErrorType.NOT_FOUND)
 

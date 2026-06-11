@@ -1,6 +1,7 @@
 package com.loopers.coupon.interfaces
 
 import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
+import com.loopers.coupon.application.CouponCreateCommand
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
 import java.time.LocalDateTime
@@ -14,18 +15,26 @@ class CouponController(
     val couponService: CouponService,
 ) {
 
-    @PostMapping("/api-admin/coupons")
-    fun issueCoupon(
-        @RequestBody couponIssueRequest: CouponIssueRequest,
+    @PostMapping("/api-admin/v1/coupons")
+    fun createCoupon(
+        @RequestBody couponCreateRequest: CouponCreateRequest,
         @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
-    ) {
-    }
+    ) = couponService.create(couponCreateRequest.toCommand(requestAccountId))
 }
 
-data class CouponIssueRequest(
+data class CouponCreateRequest(
     val couponName: String,
     val expiredAt: LocalDateTime,
     val couponType: CouponType,
     val value: Long,
     val minOrderAmount: Long,
-)
+) {
+    fun toCommand(requestAccountId: Long): CouponCreateCommand = CouponCreateCommand(
+        couponName = this.couponName,
+        expiredAt = this.expiredAt,
+        couponType = this.couponType,
+        value = this.value,
+        minOrderAmount = this.minOrderAmount,
+        requestAccountId = requestAccountId,
+    )
+}

@@ -1,3 +1,5 @@
 package com.loopers.coupon.domain
 
-interface CouponRepository
+interface CouponRepository {
+    fun save(coupon: Coupon): Coupon
+}

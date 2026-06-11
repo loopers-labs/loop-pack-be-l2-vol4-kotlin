@@ -18,22 +18,28 @@ class Coupon(
     val type: CouponType,
     @Column(name = "name", nullable = false, updatable = false)
     val name: String,
-    // H2 2.x 에서 VALUE 는 예약어라 컬럼명만 discount_value 로 둔다 (프로퍼티명은 value 유지)
     @Column(name = "discount_value", nullable = false, updatable = false)
     val value: Long,
     @Embedded
-    @AttributeOverride(name = "amount", column = Column(name = "minOrderAmount", nullable = false, updatable = false))
+    @AttributeOverride(name = "amount", column = Column(name = "min_order_amount", nullable = false, updatable = false))
     val minOrderAmount: Money,
-    @Column(name = "expiredAt", nullable = false, updatable = false)
+    @Column(name = "expired_at", nullable = false, updatable = false)
     val expiredAt: LocalDateTime,
-    @Column(name = "createdBy", nullable = false, updatable = false)
+    @Column(name = "created_by", nullable = false, updatable = false)
     val createdBy: Long,
 ) : BaseEntity() {
+
+    init {
+        if (value <= 0) {
+            throw BadRequestException(CouponErrorCode.INVALID_DISCOUNT_VALUE)
+        }
+        if (type == CouponType.RATE && value > 100) {
+            throw BadRequestException(CouponErrorCode.RATE_DISCOUNT_OUT_OF_RANGE)
+        }
+    }
+
     fun isExpired(now: LocalDateTime): Boolean = this.expiredAt < now
 
-    /**
-     * 이 쿠폰을 [orderAmount] 주문에 사용할 자격이 있는지 검증한다. (할인 계산은 [DiscountPolicy] 가 담당)
-     */
     fun validateUsable(orderAmount: Money, now: LocalDateTime) {
         if (orderAmount.amount < minOrderAmount.amount) {
             throw BadRequestException(CouponErrorCode.MIN_ORDER_NOT_MET)

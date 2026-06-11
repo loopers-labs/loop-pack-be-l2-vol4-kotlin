@@ -46,6 +46,15 @@ In that delegation mandate, include the `workflow-analysis-skills` skill as a ma
 
 When such a flow is also being covered by integration (`@SpringBootTest`) or E2E (`ApiTest`) tests, pair the `performance-consistency-reviewer` with the `tdd-test-author`: the reviewer assesses whether the tests assert the core performance/consistency requirements (rollback-on-failure, no lost update under concurrency, idempotent re-delivery, external-failure compensation) and reports gaps; the test author owns authoring the missing tests (and keeps its explicit-approval rule for changing existing ones). Facilitate this handoff as part of your inter-agent communication duty; do not collapse the two roles.
 
+## Exception Policy / Layering Review Trigger
+
+Whenever a workstream changes application services, controller advice, repository adapters, or domain exception classes, include exception-policy anti-pattern review in the mandate. Route the read-only inspection to `performance-consistency-reviewer` when the same flow touches Facade → Service → Repository layers, and require it to check for:
+- `runDomain`-style whole-use-case exception wrappers.
+- Broad domain exception to API error mapping inside services.
+- `DataIntegrityViolationException` blanket catch outside infrastructure adapters.
+- HTTP/ErrorType policy leaking into pure domain model, VO, or port packages.
+- Ownership/resource-hiding failures that should externally map to `404` per `docs/design/01-requirements.md`.
+
 ## Workflow Methodology
 
 **Phase 1 — Plan Formulation:**

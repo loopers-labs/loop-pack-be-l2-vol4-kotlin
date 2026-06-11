@@ -714,6 +714,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 - 저장 상태가 `USED`이면 `USED`로 응답한다.
 - 저장 상태가 `AVAILABLE`이고 현재 시각이 `expiredAt` 이후이면 `EXPIRED`로 응답한다.
 - 저장 상태가 `AVAILABLE`이고 현재 시각이 `expiredAt` 이전이면 `AVAILABLE`로 응답한다.
+- 주문 요청의 `issuedCouponId`가 요청 사용자 소유가 아니면 자원 존재 여부를 숨기기 위해 외부 응답은 `404 Not Found`로 반환한다.
 - 주문에 적용된 발급 쿠폰은 TX1에서 `USED`로 전환한다.
 - 결제 실패 보상 시 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 되돌린다. 동시에 실패 주문의 `issuedCouponId`를 `NULL`로 분리해 같은 쿠폰의 재주문을 허용한다.
 

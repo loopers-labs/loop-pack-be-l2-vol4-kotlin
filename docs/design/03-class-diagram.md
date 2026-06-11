@@ -924,7 +924,7 @@ classDiagram
 ## 9. 공유 API 인프라
 
 이 절은 도메인 객체 설계의 핵심은 아니지만, 도메인/애플리케이션 실패가 API 응답으로 변환되는 경계를 확인하기 위한 부록이다.
-API 예외 응답은 `CoreException`과 `ErrorType`을 기준으로 `ApiControllerAdvice`가 변환한다.
+API 예외 응답은 `CoreException`과 API 경계까지 전파된 도메인 예외를 `ApiControllerAdvice`가 변환한다. 애플리케이션 서비스 내부에 유스케이스 전체를 감싸는 포괄 예외 wrapper 를 두지 않는다.
 
 ```mermaid
 classDiagram
@@ -948,6 +948,7 @@ classDiagram
     class ApiControllerAdvice {
         <<controller_advice>>
         handle(CoreException) ApiResponse
+        handle(CouponDomainException) ApiResponse
         handle(Throwable) ApiResponse
     }
 
@@ -961,13 +962,15 @@ classDiagram
 
     CoreException --> ErrorType
     ApiControllerAdvice ..> CoreException
+    ApiControllerAdvice ..> CouponDomainException
     ApiControllerAdvice ..> ErrorType
     ApiControllerAdvice ..> ApiResponse
 ```
 
 해석:
 
-- 도메인/애플리케이션 계층은 `CoreException(ErrorType)`으로 실패 의미를 전달한다.
+- 조회 실패, 인증 실패처럼 유스케이스 정책이 곧 API 정책인 경우 애플리케이션 계층은 `CoreException(ErrorType)`으로 실패 의미를 전달한다.
+- 도메인 불변식 예외는 서비스 내부의 공통 wrapper 로 대량 매핑하지 않고, 예외 계층을 유지한 채 API 경계에서 응답 상태로 변환한다.
 - 응답 상태 매핑은 API 어댑터 계층의 공통 처리로 모은다.
 
 ## 10. 도메인 간 협력 맵

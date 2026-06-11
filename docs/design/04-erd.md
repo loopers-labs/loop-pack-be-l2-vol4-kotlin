@@ -219,15 +219,17 @@ DB 관계는 FK로 표현하지만, JPA에서는 다음처럼 단방향을 기�
 | 상품 - 브랜드 | `ProductJpaEntity -> BrandJpaEntity` | 상품 등록/조회 시 브랜드 검증에 필요 |
 | 재고 - 상품 | `ProductStockJpaEntity -> ProductJpaEntity` 또는 `productId` 값 보관 | shared PK라 단순 ID 매핑도 가능 |
 | 좋아요 - 사용자/상품 | `LikeJpaEntity -> UserJpaEntity`, `LikeJpaEntity -> ProductJpaEntity` | 사용자나 상품에서 likes 컬렉션을 열 필요는 낮음 |
-| 쿠폰 템플릿 - 발급 쿠폰 | `IssuedCouponJpaEntity -> CouponTemplateJpaEntity` 또는 `couponTemplateId` 값 보관 | 내 쿠폰 조회에서 템플릿 정보가 필요하므로 query/fetch join 후보 |
+| 쿠폰 템플릿 - 발급 쿠폰 | `IssuedCouponJpaEntity -> CouponTemplateJpaEntity` 또는 `couponTemplateId` 값 보관 | 현재 구현은 `couponTemplateId` 값 보관 후 내 쿠폰 조회에서 템플릿 bulk 조회로 조립 |
 | 발급 쿠폰 - 사용자 | `IssuedCouponJpaEntity -> UserJpaEntity` 또는 `userId` 값 보관 | 사용자에서 issuedCoupons 컬렉션을 열 필요는 낮음 |
 | 주문 - 발급 쿠폰 | `OrderJpaEntity -> IssuedCouponJpaEntity` 또는 `issuedCouponId` 값 보관 | 주문은 할인 스냅샷을 보존하므로 쿠폰 객체 그래프 의존은 최소화 |
 | 주문 - 사용자 | `OrderJpaEntity -> UserJpaEntity` | 주문자 식별과 본인 자원 검증에 필요 |
-| 주문 항목 - 주문/상품 | `OrderItemJpaEntity -> OrderJpaEntity`, `OrderItemJpaEntity -> ProductJpaEntity` 또는 ID 값 보관 | 주문 상세 조회는 query/fetch join으로 해결 가능 |
+| 주문 항목 - 주문/상품 | `OrderItemJpaEntity -> OrderJpaEntity`, `OrderItemJpaEntity -> ProductJpaEntity` 또는 ID 값 보관 | 현재 구현은 `orderId` 값 보관 후 주문 목록 조회에서 주문항목 bulk 조회로 조립 |
 | 결제 - 주문 | `PaymentJpaEntity -> OrderJpaEntity` 또는 `orderId` 값 보관 | 후속 결제 연동 구현에서는 `orderId` unique로 주문당 결제 1개를 보장 |
 | 관리자 변경 로그 - 관리자 | `AdminOperationLogJpaEntity -> AdminJpaEntity` | 관리자에서 로그 컬렉션을 열 필요는 낮음 |
 
 주문 생성 저장에서 `OrderJpaEntity.items` 컬렉션과 cascade가 구현을 크게 단순화한다면 주문 - 주문 항목만 예외적으로 컬렉션을 열 수 있다. 이 경우에도 도메인 모델과 JPA Entity는 분리하고, 양방향 동기화 책임은 JPA Entity 내부 helper로 제한한다.
+
+목록 조회 성능은 Lazy 연관관계만으로 해결하지 않는다. Lazy 는 지연 로딩 시점을 늦출 뿐이며, 목록 결과를 순회하며 연관 Entity 또는 repository 단건 조회를 반복하면 N+1 이 된다. 현재 Round 4 구현은 도메인-JPA 분리를 유지하기 위해 쿠폰 목록과 주문 목록 모두 식별자 기반 bulk query 로 필요한 하위 데이터를 조립한다. 향후 DTO projection 또는 fetch join 을 도입할 때도 pagination, 중복 row, 영속성 컨텍스트 적재 비용을 함께 검토한다.
 
 `coupon_templates`는 단일 테이블로 유지한다. JPA 상속 매핑은 사용하지 않고, `CouponTemplateJpaEntity.toDomain()`에서 `coupon_type + discount_value`를 도메인 계층의 sealed `DiscountPolicy`로 변환한다. `OrderStatus`도 DB에는 문자열 enum 값으로 저장하고, 도메인에서는 sealed/FSM으로 전이 규칙을 통제한다.
 

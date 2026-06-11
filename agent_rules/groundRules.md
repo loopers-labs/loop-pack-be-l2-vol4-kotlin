@@ -80,6 +80,10 @@
 - 전역 API 예외 핸들러는 루트 `interfaces/api` (`ApiControllerAdvice`) 에 두고, 특정 도메인 전용 예외 처리와 분리한다.
 - HTTP 응답 상태를 표현하는 에러 타입은 커스텀 enum/string 대신 Spring 표준 `HttpStatus` 를 사용한다.
 - 컨트롤러/유스케이스에서 인증 실패, 권한 실패, 잘못된 요청 등 HTTP 상태가 필요한 예외를 만들 때도 `HttpStatus` 를 기준으로 전달한다.
+- 애플리케이션 서비스 내부에 `runDomain { ... }` 같은 포괄 예외 번역 wrapper 를 두지 않는다. 유스케이스 본문을 감싸는 공통 catch 블록은 비즈니스 흐름을 숨기고 예외 의미를 한곳의 조건문에 몰아넣기 쉽다.
+- 도메인 예외를 API 응답으로 번역해야 하면 API 경계의 `ApiControllerAdvice` 또는 도메인별 controller advice 에서 예외 계층 단위로 처리한다. 서비스에서 변환이 필요한 경우에는 해당 유스케이스에 필요한 좁은 예외만 명시적으로 처리한다.
+- `DataIntegrityViolationException` 같은 인프라 예외를 application service 에서 blanket catch 하지 않는다. DB unique 제약이 최후 방어선인 경우 infrastructure adapter 가 constraint 이름을 확인한 뒤 의미 있는 도메인/애플리케이션 예외로 변환하고, 알 수 없는 제약 위반은 원인을 보존해 다시 던진다.
+- 본인 외 자원 접근, 소유자 불일치처럼 자원 존재 여부를 숨겨야 하는 실패는 `docs/design/01-requirements.md` 의 HTTP 정책에 맞춰 외부 응답 `404` 를 우선한다.
 
 ### 입력 검증
 - Request DTO 는 API 스펙 관점의 형식 검증을 수행한다.
@@ -138,6 +142,21 @@ domain/<aggregate>/
 - 현재 `user`/`product` 도메인이 이 구조를 따른다. `example` 도메인은 아직 정렬되지 않은 layer-first 레거시이며(`application/example`, `infrastructure/example`, `interfaces/api/example`) 별도 마이그레이션 대상이다.
 - 도메인 내부 패키지 구조는 본 문서 "### 도메인 패키지 구성" 트리 (도메인-계층 순) 를 **목표**로 한다. 신규 도메인은 본 트리를 따르고, 기존 도메인의 정렬은 별도 마이그레이션 작업으로 진행한다.
 - 시퀀스 흐름의 SoT 는 `docs/design/02-sequence-diagrams.md`, 영속성 형태의 SoT 는 `docs/design/04-erd.md` 다. 트랜잭션 경계와 협력 책임은 이 문서들을 우선 참조한다.
+
+### Repository 조회 네이밍
+- Repository port 의 단건 조회는 조회 결과가 없을 수 있음을 정직하게 표현하기 위해 `find*OrNull(...): T?` 로 명명한다.
+- `find*OrNull` 은 멱등키 조회, 중복 확인, 조건 분기처럼 "없음"이 정상 흐름일 수 있는 곳에서만 application/service 바깥으로 노출한다.
+- 유스케이스상 반드시 존재해야 하는 조회는 Service 에 `get*` 또는 `require*` 메서드를 두고, 내부에서 Repository 의 `find*OrNull` 결과를 `CoreException(ErrorType.NOT_FOUND)` 등 정책 예외로 변환한다.
+- Facade/Controller 는 `?: throw` 로 Repository nullable 을 직접 처리하지 않고 Service 의 `get*`/`require*` 또는 의미 있는 `exists*`/`find*OrNull` 메서드를 사용한다.
+- 존재 여부만 필요한 경우에는 `exists*(): Boolean` 을 별도 port 로 둔다. 조회 실패를 빈 도메인 객체, id 0, sentinel 값으로 대체하지 않는다.
+- Spring Data JPA 의 `Optional`/nullable 반환은 infrastructure adapter 내부에서 흡수하고, domain/application port 경계에는 위 네이밍 규칙만 노출한다.
+
+### JPA 조회 성능과 N+1 방지
+- Lazy 연관관계는 기본 지연 로딩 전략이지 N+1 해결책이 아니다. 목록 조회 뒤 반복문에서 지연 로딩이나 repository 단건 조회가 발생하면 즉시 N+1 후보로 본다.
+- 도메인 모델과 JPA Entity 분리 원칙을 유지하기 위해, 목록 API에서 필요한 참조 데이터는 우선 식별자 기반 bulk query (`IN` 조회) 또는 read DTO projection 으로 조립한다.
+- JPA 연관관계를 추가했다면 단건 상세 조회는 fetch join 또는 `@EntityGraph` 를 검토할 수 있다. 단, 컬렉션 fetch join 과 pagination 을 함께 쓰는 설계는 중복 row, 메모리 페이징, count 쿼리 왜곡 가능성을 먼저 검토한다.
+- Facade/Service/Repository 는 list 결과를 순회하면서 `get*`, `find*OrNull`, `findById*` 를 반복 호출하지 않는다. 예외적으로 허용하려면 데이터 수 상한과 호출 비용을 문서화하고 테스트로 보호한다.
+- N+1 위험이 있는 조회 경로는 Hibernate statistics, query counter, 또는 repository integration test 로 쿼리 수가 결과 row 수에 선형 증가하지 않음을 검증한다.
 
 ## 테스트 규약
 

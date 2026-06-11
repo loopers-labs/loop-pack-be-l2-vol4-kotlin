@@ -70,6 +70,10 @@ OrderFacade.placeOrder()  [@Transactional]
 
 ### 5. Layer Responsibility
 - Facade = orchestration; Service = minimal-scope transactional work; Repository = persistence boundary. Are responsibilities leaking (e.g. external call buried in a write Service, transaction declared on a Controller)?
+- Exception translation belongs at a clear boundary. Flag application-service helpers like `runDomain { ... }` that wrap whole use cases and translate many domain/infrastructure exceptions into API errors.
+- Flag blanket `DataIntegrityViolationException` handling outside infrastructure adapters. If DB constraints are used as a final guard, check that the adapter matches a specific constraint name and rethrows unknown constraint failures.
+- Flag domain/application code that leaks HTTP response policy by large conditional mappers instead of preserving domain exception categories or using explicit boundary handlers.
+- For list reads, search for loop-based repository calls (`map { get* / find* }`) after an initial query. Lazy loading alone is not a N+1 fix; confirm bulk query, projection, fetch join, or an explicit documented bound.
 
 ## Reference Inputs
 

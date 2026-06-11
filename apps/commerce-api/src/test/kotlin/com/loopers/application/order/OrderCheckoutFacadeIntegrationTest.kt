@@ -85,19 +85,48 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
-    fun paymentSuccessCompletesOrderConfirmsReservationAndDeductsStock() {
+    fun paymentSuccessRunsPgApproveOutsideTransactionAndCompletesOrder() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
 
-        val paid = facade.pay(OrderCommand.Pay(checkout.orderId))
+        val paid = facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
 
         val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
         val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
         assertAll(
             { assertThat(paid.status).isEqualTo(OrderStatus.COMPLETED) },
-            { assertThat(paid.paymentTransactionId).isEqualTo("payment-${checkout.orderId}") },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.APPROVED) },
+            { assertThat(payment.paymentKey).isEqualTo("payment-key-${checkout.orderId}") },
+            { assertThat(payment.pgTransactionId).isEqualTo("payment-${checkout.orderId}") },
             { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
             { assertThat(stock.stockQuantity).isEqualTo(3) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(paymentGateway.transactionActiveDuringApprove).containsExactly(false) },
+        )
+    }
+
+    @Test
+    fun approvedPaymentWithInternalCompletionFailureLeavesOrderFailedPaymentCompletionFailedAndReservationInProgress() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        stock.reservedQuantity = 0
+        productStockJpaRepository.saveAndFlush(stock)
+
+        val ex = assertThrows<CoreException> {
+            facade.pay(OrderCommand.Pay(checkout.orderId, paymentKey = "payment-key-${checkout.orderId}"))
+        }
+
+        val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        assertAll(
+            { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.COMPLETION_FAILED) },
+            { assertThat(payment.completionRetryCount).isZero() },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.IN_PROGRESS) },
         )
     }
 

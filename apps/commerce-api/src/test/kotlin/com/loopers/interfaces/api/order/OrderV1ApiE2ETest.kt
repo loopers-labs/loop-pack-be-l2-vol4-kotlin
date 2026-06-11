@@ -146,6 +146,49 @@ class OrderV1ApiE2ETest @Autowired constructor(
             )
         }
 
+        @DisplayName("사용 가능한 정률 쿠폰을 적용하면 할인 금액을 반영하고 쿠폰을 사용 처리한다")
+        @Test
+        fun placesOrderWithRateCoupon() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+            val coupon = createCoupon(
+                type = DiscountType.RATE,
+                discountValue = 10L,
+                minOrderAmount = 10_000L,
+            )
+            val couponIssue = createCouponIssue(memberId = member.id, coupon = coupon)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = couponIssue.id,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            val savedOrder = orderJpaRepository.findAll().single()
+            val usedCoupon = couponIssueJpaRepository.findById(couponIssue.id).orElseThrow()
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.originalAmount).isEqualTo(20_000L) },
+                { assertThat(response.body?.data?.discountAmount).isEqualTo(2_000L) },
+                { assertThat(response.body?.data?.totalAmount).isEqualTo(18_000L) },
+                { assertThat(savedOrder.discountAmount).isEqualTo(2_000L) },
+                { assertThat(savedOrder.totalAmount).isEqualTo(18_000L) },
+                { assertThat(savedOrder.couponIssueId).isEqualTo(couponIssue.id) },
+                { assertThat(usedCoupon.status).isEqualTo(CouponIssueStatus.USED) },
+                { assertThat(usedCoupon.usedAt).isNotNull() },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(8L) },
+            )
+        }
+
         @DisplayName("이미 사용된 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
         @Test
         fun returnsBadRequest_whenCouponIssueIsAlreadyUsed() {
@@ -185,6 +228,34 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(10L) },
                 { assertThat(unchangedCoupon.status).isEqualTo(CouponIssueStatus.USED) },
                 { assertThat(unchangedCoupon.usedAt).isEqualTo(couponIssue.usedAt) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 쿠폰을 적용하면 주문을 저장하지 않고 재고를 차감하지 않는다")
+        @Test
+        fun returnsNotFound_whenCouponIssueDoesNotExist() {
+            createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id, name = "hoodie", price = 10_000L)
+            createInventory(productId = product.id, quantity = 10L)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 2L)),
+                        couponId = 999L,
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND) },
+                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(10L) },
             )
         }
 

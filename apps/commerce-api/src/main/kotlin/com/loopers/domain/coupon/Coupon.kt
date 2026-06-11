@@ -18,7 +18,8 @@ class Coupon(
     val type: CouponType,
     @Column(name = "name", nullable = false, updatable = false)
     val name: String,
-    @Column(name = "value", nullable = false, updatable = false)
+    // H2 2.x 에서 VALUE 는 예약어라 컬럼명만 discount_value 로 둔다 (프로퍼티명은 value 유지)
+    @Column(name = "discount_value", nullable = false, updatable = false)
     val value: Long,
     @Embedded
     @AttributeOverride(name = "amount", column = Column(name = "minOrderAmount", nullable = false, updatable = false))

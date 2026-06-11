@@ -68,7 +68,7 @@
 **핵심 파일 위치:**
 - 예외 베이스: `supports/error/src/main/kotlin/com/loopers/support/error/CoreException.kt`
 - 매핑 어드바이스: `supports/web/src/main/kotlin/com/loopers/interfaces/api/ApiControllerAdvice.kt`
-- 도메인 에러 코드 레퍼런스: `modules/account-domain/src/main/kotlin/com/loopers/account/domain/error/AccountErrorCode.kt`
+- 도메인 에러 코드 레퍼런스: `apps/commerce-api/src/main/kotlin/com/loopers/account/domain/error/AccountErrorCode.kt`
 
 **도메인 에러 코드 정의 패턴:**
 
@@ -123,9 +123,9 @@ throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)
 **도메인 에러 코드 enum** → owning 도메인 모듈에 둔다 (application/interface 레이어 금지).
 
 **한 owner의 cohesive 타입** → 같은 `.kt` 파일에 동거시킨다.
-- 예시 1: `modules/account-application/src/main/kotlin/com/loopers/account/application/AccountService.kt`
+- 예시 1: `apps/commerce-api/src/main/kotlin/com/loopers/account/application/AccountService.kt`
   → `AccountService` 아래에 `AccountCreateCommand`, `AccountAuthenticateCommand`, account info DTO들이 함께 있음
-- 예시 2: `modules/account-security/src/main/kotlin/com/loopers/account/security/AccountHeaderAuthenticationFilter.kt`
+- 예시 2: `apps/commerce-api/src/main/kotlin/com/loopers/account/infrastructure/security/AccountHeaderAuthenticationFilter.kt`
   → 필터 옆에 header/attribute 객체와 `AccountPrincipal`이 함께 있음
 
 **별도 파일로 분리해야 할 때:**
@@ -147,14 +147,17 @@ throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)
 
 ```
 apps/
-  commerce-api/         # active
+  commerce-api/         # active — 모든 도메인 코드 (bounded context 우선 패키지)
   commerce-streamer/    # active
   commerce-batch/       # active
-modules/                # 공유 인프라
-supports/               # add-ons (error, web 등)
+modules/                # 공유 인프라 (jpa·redis·kafka·persistence-core) — 베이스 템플릿, 수정 금지
+supports/               # add-ons (error, web 등) — 베이스 템플릿, 수정 금지
 http/                   # HTTP 예시 (비민감 env.json)
 docker/                 # local infra
 ```
+
+commerce-api 내부는 `com.loopers.<context>.{domain,application,infrastructure,interfaces}`
+(context = account·brand·coupon·inventory·like·order·product, 공유 VO 는 `shared.domain`, 앱 전역 설정은 `config`).
 
 Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`, test fixtures.
 
@@ -181,9 +184,9 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 ```
 
 **통합 테스트 격리:**
-- `@SpringBootTest` 통합 테스트는 `DatabaseCleanup` 유틸 + `@BeforeEach`로 cleanup 호출 (예: `apps/account-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt`). `@Transactional`을 테스트 클래스에 일괄 부착하지 않는다 — propagation 경계 충돌(`REQUIRES_NEW`/`@Async`/`@TransactionalEventListener` 롤백 누락), JPA dirty checking flush 타이밍 가림, lazy loading 가림, race 검증 봉쇄, MockMvc 트랜잭션 경계 불확실성 등 함정이 누적된다.
+- `@SpringBootTest` 통합 테스트는 `DatabaseCleanup` 유틸 + `@BeforeEach`로 cleanup 호출 (예: `apps/commerce-api/src/test/kotlin/com/loopers/support/DatabaseCleanup.kt`). `@Transactional`을 테스트 클래스에 일괄 부착하지 않는다 — propagation 경계 충돌(`REQUIRES_NEW`/`@Async`/`@TransactionalEventListener` 롤백 누락), JPA dirty checking flush 타이밍 가림, lazy loading 가림, race 검증 봉쇄, MockMvc 트랜잭션 경계 불확실성 등 함정이 누적된다.
 - `@BeforeEach`로 호출한다 (`@AfterEach` 단독은 crash 시 다음 테스트가 오염된 DB에서 시작). `DatabaseCleanup`은 `@Component @Profile("test")`로 운영 노출 차단, JPA 메타모델 기반 자동 테이블 추출, MySQL syntax(`SET FOREIGN_KEY_CHECKS=0`, `TRUNCATE`, `ALTER TABLE … AUTO_INCREMENT = 1`)로 H2 `MODE=MySQL` + Testcontainers MySQL 모두 호환.
-- 다른 앱에서 같은 패턴이 필요해지면 `supports`의 testFixtures로 promote (현재는 account-api 한정 — YAGNI).
+- 다른 앱에서 같은 패턴이 필요해지면 `supports`의 testFixtures로 promote (현재는 commerce-api 한정 — YAGNI).
 
 > 컨트롤러/리포지토리별 구체 전략은 §12 Account Notes 참고.
 
@@ -270,21 +273,27 @@ Gradle 표준 경로: `src/main/kotlin`, `src/main/resources`, `src/test/kotlin`
 - 서비스 레이어 테스트는 도메인 리포지토리 port와 `PasswordEncryptor`를 mock 처리한다.
 - 리포지토리 동작 검증은 기본적으로 `@DataJpaTest` + 임베디드 DB.
 - MySQL-specific 동작을 검증해야 하는 경우가 아니면 MySQL/Testcontainers 설정을 import하지 않는다.
-- `account-api`는 `src/test/resources/application-test.yaml`의 H2 임베디드 testdatasource를 사용한다.
-- 테스트가 MySQL Testcontainers를 명시적으로 요구하지 않으면 `modules:jpa` test fixtures는 account-api 테스트 클래스패스에서 제외한다.
-- account 영속성 동작은 `modules:account-persistence`에서 Spring Data JPA 리포지토리와 어댑터 와이어링으로 테스트한다.
-- account 패키지 선호 때문에 `modules:jpa` `JpaConfig` 같은 베이스 템플릿 파일을 수정하지 않는다. account JPA 구현은 `modules:account-persistence`에 두고 account 전용 영속성 config로 연결한다.
+- `commerce-api`는 `src/test/resources/application-test.yaml`의 H2 임베디드 testdatasource를 사용한다.
+- account 영속성 동작은 `com.loopers.account.infrastructure`의 Spring Data JPA 리포지토리와 어댑터 와이어링으로 테스트한다 (`AccountDataRepositoryTest`).
+- `modules:jpa` `JpaConfig` 같은 베이스 템플릿 파일은 수정하지 않는다. 도메인-우선 패키지의 repo 스캔은 앱 소유 `com.loopers.config.CommerceJpaRepositoriesConfig`가 담당한다.
 
-### Module Boundaries
+### Package Boundaries (bounded context 우선)
 
-이 프로젝트는 **layered architecture**를 채택한다 — multi-module은 코드 정리/재사용 목적이고, hexagonal의 port-adapter 패턴(domain에 port, persistence에 adapter)은 도입하지 않는다. `account-application`이 `account-persistence`의 repository 인터페이스에 직접 의존하는 게 의도된 구조다. 도메인 복잡도가 더 커져 의존성 역전이 비용 대비 가치 있어질 때 hexagonal로 전환 검토.
+이 프로젝트는 **layered architecture**를 채택하되, 도메인 코드는 전부 `commerce-api` 단일 앱 안에 **bounded context-우선 패키지**로 둔다. 진짜 공통 인프라(`supports/*`, `modules/{jpa,redis,kafka,persistence-core}`)만 모듈로 유지하고, 베이스 템플릿 모듈의 파일은 수정하지 않는다. hexagonal의 port-adapter 패턴은 도입하지 않으며, application이 infrastructure의 repository 인터페이스에 직접 의존하는 게 의도된 구조다. 나중에 서버 분리가 필요해지면 컨텍스트 패키지를 그대로 모듈로 추출한다.
 
-| 모듈 | 소유 |
+```
+com.loopers.<context>.{domain, application, infrastructure, interfaces}
+  · context = account · brand · coupon · inventory · like · order · product
+  · shared.domain = Money·Cursor 등 공유 VO / config = 앱 전역 설정(security FilterChain, JPA repo 스캔)
+```
+
+| 패키지 (account 예시) | 소유 |
 |---|---|
-| `account-domain` | entities, VO, validators, `PasswordEncryptor` 인터페이스 |
-| `account-application` | use case, command, 트랜잭션 경계. `account-persistence`의 repository 인터페이스에 직접 의존 |
-| `account-persistence` | repository 인터페이스 + Spring Data JPA 구현체 |
-| `account-security` | Spring Security crypto 어댑터 |
+| `account.domain` | entities, VO, validators, `PasswordEncryptor` 인터페이스 |
+| `account.application` | use case, command, 트랜잭션 경계. `account.infrastructure`의 repository 인터페이스에 직접 의존 |
+| `account.infrastructure` | repository 인터페이스 + Spring Data JPA 구현체 (+`security/` 인증 어댑터) |
+| `account.interfaces` | REST 컨트롤러 + 요청/응답 DTO |
+| `config.security` | 앱 전역 SecurityFilterChain (swagger·actuator·admin 경로 횡단 정책) |
 | `supports:error` | error code / exception (Spring MVC 상태 매핑 없음) |
 | `supports:web` | 예외 → HTTP 응답 매핑, 성공 응답 래핑 |
 

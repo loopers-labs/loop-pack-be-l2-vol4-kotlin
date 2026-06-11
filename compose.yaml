@@ -1,8 +1,8 @@
-# Local development defaults consumed by Spring Boot's spring-boot-docker-compose
-# (registered as `developmentOnly` in apps/account-api/build.gradle.kts), so this file
-# is NOT included in production artifacts (bootJar) and these values are not used in
-# dev/qa/prd profiles. The credentials below are conventional local defaults — not
-# secrets. Override via environment variables before any real deployment.
+# Local development MySQL defaults. account-api 가 commerce-api 로 흡수되며
+# spring-boot-docker-compose(developmentOnly) 등록은 이관하지 않았다 — 로컬 인프라는
+# docker/infra-compose.yml 사용을 권장. 이 파일은 수동 docker compose 용으로만 남긴다.
+# The credentials below are conventional local defaults — not secrets.
+# Override via environment variables before any real deployment.
 services:
   mysql:
     image: mysql:8.0

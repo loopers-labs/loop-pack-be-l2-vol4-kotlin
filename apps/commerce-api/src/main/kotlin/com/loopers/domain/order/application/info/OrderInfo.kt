@@ -6,6 +6,7 @@ import com.loopers.domain.order.model.OrderModel
 data class OrderInfo(
     val id: Long,
     val orderedUserId: Long,
+    val issuedCouponId: Long?,
     val totalPrice: Long,
     val discountPrice: Long,
     val paymentPrice: Long,
@@ -15,6 +16,7 @@ data class OrderInfo(
         fun from(order: OrderModel): OrderInfo = OrderInfo(
             id = order.id,
             orderedUserId = order.orderedUserId,
+            issuedCouponId = order.issuedCouponIdOrNull,
             totalPrice = order.totalPrice.value,
             discountPrice = order.discountPrice.value,
             paymentPrice = order.paymentPrice.value,

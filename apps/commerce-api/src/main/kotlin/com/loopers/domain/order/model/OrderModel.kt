@@ -7,6 +7,7 @@ data class OrderModel(
     val id: Long = 0L,
     val orderedUserId: Long,
     val idempotencyKey: String? = null,
+    val issuedCouponIdOrNull: Long? = null,
     val items: List<OrderItemModel>,
     val totalPrice: Money,
     val discountPrice: Money,
@@ -27,14 +28,18 @@ data class OrderModel(
             orderedUserId: Long,
             items: List<OrderItemModel>,
             idempotencyKey: String? = null,
+            issuedCouponIdOrNull: Long? = null,
+            discountPrice: Money = Money.of(0),
         ): OrderModel {
             validateUserId(orderedUserId)
+            validateIssuedCouponId(issuedCouponIdOrNull)
             validateItems(items)
             val totalPrice = calculateTotalPrice(items)
-            val discountPrice = Money.of(0)
+            validateDiscount(totalPrice, discountPrice)
             return OrderModel(
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
+                issuedCouponIdOrNull = issuedCouponIdOrNull,
                 items = items,
                 totalPrice = totalPrice,
                 discountPrice = discountPrice,
@@ -46,6 +51,7 @@ data class OrderModel(
             id: Long,
             orderedUserId: Long,
             idempotencyKey: String? = null,
+            issuedCouponIdOrNull: Long? = null,
             items: List<OrderItemModel>,
             totalPrice: Long,
             discountPrice: Long,
@@ -53,11 +59,14 @@ data class OrderModel(
         ): OrderModel {
             validatePersistedId(id)
             validateUserId(orderedUserId)
+            validateIssuedCouponId(issuedCouponIdOrNull)
             validateItems(items)
+            validateDiscount(Money.of(totalPrice), Money.of(discountPrice))
             return OrderModel(
                 id = id,
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
+                issuedCouponIdOrNull = issuedCouponIdOrNull,
                 items = items,
                 totalPrice = Money.of(totalPrice),
                 discountPrice = Money.of(discountPrice),
@@ -86,9 +95,21 @@ data class OrderModel(
             }
         }
 
+        private fun validateIssuedCouponId(issuedCouponIdOrNull: Long?) {
+            if (issuedCouponIdOrNull != null && issuedCouponIdOrNull <= 0) {
+                throw InvalidOrderException("발급 쿠폰 ID는 양수여야 합니다.")
+            }
+        }
+
         private fun validateItems(items: List<OrderItemModel>) {
             if (items.isEmpty()) {
                 throw InvalidOrderException("주문은 하나 이상의 상품을 포함해야 합니다.")
+            }
+        }
+
+        private fun validateDiscount(totalPrice: Money, discountPrice: Money) {
+            if (discountPrice.value > totalPrice.value) {
+                throw InvalidOrderException("할인 금액은 주문 총액을 초과할 수 없습니다.")
             }
         }
     }

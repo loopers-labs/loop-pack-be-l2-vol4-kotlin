@@ -5,6 +5,7 @@ import com.loopers.domain.order.model.OrderItemModel
 import com.loopers.domain.order.model.OrderModel
 import com.loopers.domain.order.port.OrderRepository
 import com.loopers.domain.product.exception.ProductDomainException
+import com.loopers.domain.product.vo.Money
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
@@ -19,6 +20,8 @@ class OrderService(
         orderedUserId: Long,
         items: List<OrderItemModel>,
         idempotencyKey: String? = null,
+        issuedCouponIdOrNull: Long? = null,
+        discountPrice: Money = Money.of(0),
     ): OrderModel =
         try {
             orderRepository.save(
@@ -26,6 +29,8 @@ class OrderService(
                     orderedUserId = orderedUserId,
                     items = items,
                     idempotencyKey = idempotencyKey,
+                    issuedCouponIdOrNull = issuedCouponIdOrNull,
+                    discountPrice = discountPrice,
                 ),
             )
         } catch (e: OrderDomainException) {

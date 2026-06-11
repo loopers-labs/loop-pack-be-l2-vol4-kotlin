@@ -21,69 +21,55 @@ class OrderTest {
     @Nested
     inner class Transition {
         @Test
-        fun completeChangesPaymentPendingToCompleted() {
+        fun completeChangesPaymentPendingToCompletedWithoutPaymentTransactionOnOrder() {
             val order = pendingOrder()
 
-            order.complete("payment-1")
+            order.complete()
 
-            assertAll(
-                { assertThat(order.status).isEqualTo(OrderStatus.COMPLETED) },
-                { assertThat(order.paymentTransactionId).isEqualTo("payment-1") },
-            )
+            assertThat(order.status).isEqualTo(OrderStatus.COMPLETED)
         }
 
         @Test
-        fun paymentFailureKeepsPaymentPending() {
+        fun markCompletionFailedChangesPaymentPendingToFailed() {
             val order = pendingOrder()
 
-            order.recordPaymentFailure()
+            order.markCompletionFailed()
 
-            assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_PENDING)
+            assertThat(order.status).isEqualTo(OrderStatus.FAILED)
         }
 
         @Test
-        fun cancelFromPaymentPendingStoresUserReason() {
+        fun expireChangesPaymentPendingToExpired() {
             val order = pendingOrder()
 
-            order.cancel(OrderCancelReason.USER_REQUESTED)
+            order.expire()
+
+            assertThat(order.status).isEqualTo(OrderStatus.EXPIRED)
+        }
+
+        @Test
+        fun failedOrderCannotBeCanceledByUser() {
+            val order = pendingOrder()
+            order.markCompletionFailed()
+
+            val ex = assertThrows<CoreException> {
+                order.cancelByUser()
+            }
+
+            assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
+        }
+
+        @Test
+        fun completedOrderCanBeCanceledBeforeShipping() {
+            val order = pendingOrder()
+            order.complete()
+
+            order.cancelByUser()
 
             assertAll(
                 { assertThat(order.status).isEqualTo(OrderStatus.CANCELED) },
                 { assertThat(order.cancelReason).isEqualTo(OrderCancelReason.USER_REQUESTED) },
             )
-        }
-
-        @Test
-        fun cancelFromCompletedStoresUserReason() {
-            val order = pendingOrder()
-            order.complete("payment-1")
-
-            order.cancel(OrderCancelReason.USER_REQUESTED)
-
-            assertThat(order.status).isEqualTo(OrderStatus.CANCELED)
-        }
-
-        @Test
-        fun startShippingChangesCompletedToShippingStarted() {
-            val order = pendingOrder()
-            order.complete("payment-1")
-
-            order.startShipping()
-
-            assertThat(order.status).isEqualTo(OrderStatus.SHIPPING_STARTED)
-        }
-
-        @Test
-        fun cancelAfterShippingStartedThrowsConflict() {
-            val order = pendingOrder()
-            order.complete("payment-1")
-            order.startShipping()
-
-            val ex = assertThrows<CoreException> {
-                order.cancel(OrderCancelReason.USER_REQUESTED)
-            }
-
-            assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
 }

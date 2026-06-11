@@ -28,6 +28,8 @@ class OrderCheckoutFacade(
         when (order.status) {
             OrderStatus.COMPLETED -> return orderApplicationService.getDetail(order.id)
             OrderStatus.PAYMENT_PENDING -> Unit
+            OrderStatus.FAILED,
+            OrderStatus.EXPIRED,
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
             -> throw CoreException(ErrorType.CONFLICT, "결제대기 주문만 결제할 수 있습니다.")
@@ -59,6 +61,8 @@ class OrderCheckoutFacade(
                 stockApplicationService.restoreConfirmed(command.orderId)
                 orderApplicationService.cancelCompleted(command.orderId, OrderCancelReason.USER_REQUESTED)
             }
+            OrderStatus.FAILED,
+            OrderStatus.EXPIRED,
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
             -> throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")

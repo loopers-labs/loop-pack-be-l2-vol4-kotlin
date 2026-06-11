@@ -22,6 +22,7 @@ class OrderCommand {
 
     data class Pay(
         val orderId: Long,
+        val paymentKey: String = "",
     )
 
     data class Cancel(

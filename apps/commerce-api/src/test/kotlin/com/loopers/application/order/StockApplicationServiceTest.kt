@@ -45,7 +45,7 @@ class StockApplicationServiceTest @Autowired constructor(
         assertAll(
             { assertThat(reservations).hasSize(2) },
             { assertThat(reservations.map { it.productId }).containsExactlyInAnyOrder(10L, 20L) },
-            { assertThat(reservations).allMatch { it.status == StockReservationStatus.ACTIVE } },
+            { assertThat(reservations).allMatch { it.status == StockReservationStatus.IN_PROGRESS } },
         )
     }
 
@@ -81,7 +81,7 @@ class StockApplicationServiceTest @Autowired constructor(
         val reservation = stockReservationJpaRepository.findAllByOrderId(1L).single()
         assertAll(
             { assertThat(stock.stockQuantity).isEqualTo(3) },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CONFIRMED) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
         )
     }
 }

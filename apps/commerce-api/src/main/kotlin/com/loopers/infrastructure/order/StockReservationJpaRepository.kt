@@ -47,7 +47,7 @@ interface StockReservationJpaRepository : JpaRepository<StockReservation, Long> 
         update StockReservation reservation
            set reservation.status = 'CANCELED'
          where reservation.orderId = :orderId
-           and reservation.status = 'ACTIVE'
+           and reservation.status = 'IN_PROGRESS'
            and reservation.deletedAt is null
         """,
     )
@@ -57,9 +57,9 @@ interface StockReservationJpaRepository : JpaRepository<StockReservation, Long> 
     @Query(
         """
         update StockReservation reservation
-           set reservation.status = 'CONFIRMED'
+           set reservation.status = 'COMPLETED'
          where reservation.orderId = :orderId
-           and reservation.status = 'ACTIVE'
+           and reservation.status = 'IN_PROGRESS'
            and reservation.deletedAt is null
         """,
     )

@@ -44,7 +44,7 @@ class StockApplicationService(
     @Transactional
     fun confirmAndDeduct(orderId: Long) {
         val reservations = stockReservationRepository.findByOrderId(orderId)
-            .filter { it.status == StockReservationStatus.ACTIVE }
+            .filter { it.status == StockReservationStatus.IN_PROGRESS }
         if (reservations.isEmpty()) throw CoreException(ErrorType.CONFLICT, "확정할 활성 예약이 없습니다.")
 
         val quantitiesByProductId = reservations
@@ -69,12 +69,12 @@ class StockApplicationService(
     @Transactional(readOnly = true)
     fun countActive(orderId: Long): Int =
         stockReservationRepository.findByOrderId(orderId)
-            .count { it.status == StockReservationStatus.ACTIVE }
+            .count { it.status == StockReservationStatus.IN_PROGRESS }
 
     @Transactional
     fun restoreConfirmed(orderId: Long) {
         val quantitiesByProductId = stockReservationRepository.findByOrderId(orderId)
-            .filter { it.status == StockReservationStatus.CONFIRMED }
+            .filter { it.status == StockReservationStatus.COMPLETED }
             .groupBy { it.productId }
             .mapValues { entry -> entry.value.sumOf { it.quantity } }
             .toSortedMap()

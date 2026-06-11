@@ -207,7 +207,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             { assertThat(stockQuantity(product.productId)).isEqualTo(1) },
             {
                 assertThat(stockReservationJpaRepository.findAllByOrderId(checkout.body?.data?.orderId!!)).allMatch {
-                    it.status == StockReservationStatus.CONFIRMED
+                    it.status == StockReservationStatus.COMPLETED
                 }
             },
         )
@@ -512,7 +512,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             ?: error("Stock not found: $productId")
 
     private fun activeReservedQuantity(productId: Long): Int =
-        stockReservationJpaRepository.sumQuantityByProductIdAndStatus(productId, StockReservationStatus.ACTIVE).toInt()
+        stockReservationJpaRepository.sumQuantityByProductIdAndStatus(productId, StockReservationStatus.IN_PROGRESS).toInt()
 
     private fun productStats(productId: Long): ProductStats =
         productStatsJpaRepository.findByProductIdAndDeletedAtIsNull(productId)

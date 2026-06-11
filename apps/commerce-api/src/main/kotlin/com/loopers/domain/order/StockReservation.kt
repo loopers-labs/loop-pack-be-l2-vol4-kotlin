@@ -23,22 +23,33 @@ class StockReservation(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    var status: StockReservationStatus = StockReservationStatus.ACTIVE,
+    var status: StockReservationStatus = StockReservationStatus.IN_PROGRESS,
 ) : BaseEntity() {
     init {
         if (quantity <= 0) throw CoreException(ErrorType.BAD_REQUEST, "예약 수량은 0보다 커야 합니다.")
     }
 
-    fun confirm() {
-        if (status != StockReservationStatus.ACTIVE) {
-            throw CoreException(ErrorType.CONFLICT, "활성 예약만 확정할 수 있습니다.")
+    fun complete() {
+        if (status != StockReservationStatus.IN_PROGRESS) {
+            throw CoreException(ErrorType.CONFLICT, "진행 중 예약만 확정할 수 있습니다.")
         }
-        status = StockReservationStatus.CONFIRMED
+        status = StockReservationStatus.COMPLETED
+    }
+
+    fun confirm() {
+        complete()
+    }
+
+    fun expire() {
+        if (status != StockReservationStatus.IN_PROGRESS) {
+            throw CoreException(ErrorType.CONFLICT, "진행 중 예약만 만료할 수 있습니다.")
+        }
+        status = StockReservationStatus.EXPIRED
     }
 
     fun cancel() {
-        if (status != StockReservationStatus.ACTIVE) {
-            throw CoreException(ErrorType.CONFLICT, "활성 예약만 취소할 수 있습니다.")
+        if (status != StockReservationStatus.IN_PROGRESS && status != StockReservationStatus.COMPLETED) {
+            throw CoreException(ErrorType.CONFLICT, "진행 중 또는 확정 예약만 취소할 수 있습니다.")
         }
         status = StockReservationStatus.CANCELED
     }

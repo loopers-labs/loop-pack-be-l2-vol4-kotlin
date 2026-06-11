@@ -8,16 +8,25 @@ import org.junit.jupiter.api.assertThrows
 
 class StockReservationTest {
     @Test
-    fun confirmChangesActiveToConfirmed() {
+    fun completeChangesInProgressToCompleted() {
         val reservation = StockReservation(orderId = 1L, productId = 10L, quantity = 2)
 
-        reservation.confirm()
+        reservation.complete()
 
-        assertThat(reservation.status).isEqualTo(StockReservationStatus.CONFIRMED)
+        assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED)
     }
 
     @Test
-    fun cancelChangesActiveToCanceled() {
+    fun expireChangesInProgressToExpired() {
+        val reservation = StockReservation(orderId = 1L, productId = 10L, quantity = 2)
+
+        reservation.expire()
+
+        assertThat(reservation.status).isEqualTo(StockReservationStatus.EXPIRED)
+    }
+
+    @Test
+    fun cancelChangesInProgressToCanceled() {
         val reservation = StockReservation(orderId = 1L, productId = 10L, quantity = 2)
 
         reservation.cancel()
@@ -26,15 +35,13 @@ class StockReservationTest {
     }
 
     @Test
-    fun confirmedReservationCannotBeCanceled() {
+    fun completedReservationCanBeCanceledAfterPaymentCancel() {
         val reservation = StockReservation(orderId = 1L, productId = 10L, quantity = 2)
-        reservation.confirm()
+        reservation.complete()
 
-        val ex = assertThrows<CoreException> {
-            reservation.cancel()
-        }
+        reservation.cancel()
 
-        assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
+        assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED)
     }
 
     @Test

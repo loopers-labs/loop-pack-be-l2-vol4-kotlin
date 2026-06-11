@@ -19,12 +19,12 @@ class StockReservationRepositoryImpl(
 
     override fun sumActiveQuantityByProductId(productId: Long): Int =
         stockReservationJpaRepository
-            .sumQuantityByProductIdAndStatus(productId, StockReservationStatus.ACTIVE)
+            .sumQuantityByProductIdAndStatus(productId, StockReservationStatus.IN_PROGRESS)
             .toInt()
 
     override fun sumActiveQuantityByProductIdForUpdate(productId: Long): Int =
         stockReservationJpaRepository
-            .findAllByProductIdAndStatusForUpdate(productId, StockReservationStatus.ACTIVE)
+            .findAllByProductIdAndStatusForUpdate(productId, StockReservationStatus.IN_PROGRESS)
             .sumOf { it.quantity }
 
     override fun cancelActiveByOrderId(orderId: Long): Int =

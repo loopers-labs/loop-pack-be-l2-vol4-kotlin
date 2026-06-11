@@ -73,7 +73,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         assertAll(
             { assertThat(paid.status).isEqualTo(OrderStatus.COMPLETED) },
             { assertThat(paid.paymentTransactionId).isEqualTo("payment-${checkout.orderId}") },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CONFIRMED) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
             { assertThat(stock.stockQuantity).isEqualTo(3) },
         )
     }
@@ -93,7 +93,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         assertAll(
             { assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
             { assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.ACTIVE) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.IN_PROGRESS) },
         )
     }
 
@@ -127,7 +127,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         assertAll(
             { assertThat(canceled.status).isEqualTo(OrderStatus.CANCELED) },
             { assertThat(stock.stockQuantity).isEqualTo(5) },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CONFIRMED) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
             { assertThat(paymentGateway.canceledTransactionIds).containsExactly("payment-${checkout.orderId}") },
         )
     }

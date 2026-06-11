@@ -1,7 +1,8 @@
 package com.loopers.domain.order
 
 enum class StockReservationStatus {
-    ACTIVE,
-    CONFIRMED,
+    IN_PROGRESS,
+    EXPIRED,
     CANCELED,
+    COMPLETED,
 }

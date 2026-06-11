@@ -44,18 +44,60 @@ class Order(
         if (phoneNumber.isBlank()) throw CoreException(ErrorType.BAD_REQUEST, "전화번호는 비어있을 수 없습니다.")
     }
 
-    fun complete(paymentTransactionId: String) {
-        if (status != OrderStatus.PAYMENT_PENDING) {
-            throw CoreException(ErrorType.CONFLICT, "결제대기 주문만 완료할 수 있습니다.")
+    fun complete() {
+        if (status != OrderStatus.PAYMENT_PENDING && status != OrderStatus.FAILED) {
+            throw CoreException(ErrorType.CONFLICT, "결제대기 또는 실패 주문만 완료할 수 있습니다.")
         }
+        status = OrderStatus.COMPLETED
+    }
+
+    fun complete(paymentTransactionId: String) {
         if (paymentTransactionId.isBlank()) {
             throw CoreException(ErrorType.BAD_REQUEST, "결제 식별자는 비어있을 수 없습니다.")
         }
         this.paymentTransactionId = paymentTransactionId
-        status = OrderStatus.COMPLETED
+        complete()
     }
 
     fun recordPaymentFailure() = Unit
+
+    fun markCompletionFailed() {
+        if (status != OrderStatus.PAYMENT_PENDING && status != OrderStatus.FAILED) {
+            throw CoreException(ErrorType.CONFLICT, "결제대기 또는 실패 주문만 실패 처리할 수 있습니다.")
+        }
+        status = OrderStatus.FAILED
+    }
+
+    fun expire() {
+        if (status != OrderStatus.PAYMENT_PENDING) {
+            throw CoreException(ErrorType.CONFLICT, "결제대기 주문만 만료할 수 있습니다.")
+        }
+        status = OrderStatus.EXPIRED
+    }
+
+    fun cancelByUser() {
+        when (status) {
+            OrderStatus.PAYMENT_PENDING,
+            OrderStatus.COMPLETED,
+            -> {
+                cancelReason = OrderCancelReason.USER_REQUESTED
+                status = OrderStatus.CANCELED
+            }
+            OrderStatus.FAILED,
+            OrderStatus.EXPIRED,
+            OrderStatus.CANCELED,
+            OrderStatus.SHIPPING_STARTED,
+            -> throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")
+        }
+    }
+
+    fun cancelByOperator(reason: OrderCancelReason) {
+        if (status != OrderStatus.FAILED && status != OrderStatus.COMPLETED && status != OrderStatus.PAYMENT_PENDING) {
+            throw CoreException(ErrorType.CONFLICT, "운영자 취소가 불가능한 주문 상태입니다.")
+        }
+        cancelReason = reason
+        status = OrderStatus.CANCELED
+    }
 
     fun cancel(reason: OrderCancelReason) {
         when (status) {
@@ -65,6 +107,8 @@ class Order(
                 cancelReason = reason
                 status = OrderStatus.CANCELED
             }
+            OrderStatus.FAILED,
+            OrderStatus.EXPIRED,
             OrderStatus.CANCELED,
             OrderStatus.SHIPPING_STARTED,
             -> throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")

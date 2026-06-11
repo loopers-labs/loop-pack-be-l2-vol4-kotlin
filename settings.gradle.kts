@@ -1,16 +1,11 @@
 rootProject.name = "loopers-kotlin-spring-template"
 
 include(
-    ":apps:account-api",
     ":apps:commerce-api",
     ":apps:commerce-streamer",
     ":apps:commerce-batch",
     ":modules:persistence-core",
     ":modules:jpa",
-    ":modules:account-domain",
-    ":modules:account-application",
-    ":modules:account-persistence",
-    ":modules:account-security",
     ":modules:redis",
     ":modules:kafka",
     ":supports:error",

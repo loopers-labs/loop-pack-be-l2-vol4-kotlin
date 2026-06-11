@@ -1,9 +1,0 @@
-spring:
-  docker:
-    compose:
-      lifecycle-management: start-only
-  sql:
-    init:
-      mode: always
-  jpa:
-    defer-datasource-initialization: true

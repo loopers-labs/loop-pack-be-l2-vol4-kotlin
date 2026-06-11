@@ -88,12 +88,7 @@ class OrderCheckoutFacade(
     fun cancel(command: OrderCommand.Cancel): OrderInfo.Detail {
         val detail = orderApplicationService.getDetail(command.orderId)
         return when (detail.status) {
-            OrderStatus.PAYMENT_PENDING -> {
-                val activeReservationCount = stockApplicationService.countActive(command.orderId)
-                val canceled = orderApplicationService.cancelPaymentPending(command.orderId, OrderCancelReason.USER_REQUESTED)
-                stockApplicationService.cancelActive(command.orderId, activeReservationCount)
-                canceled
-            }
+            OrderStatus.PAYMENT_PENDING -> paymentCompletionApplicationService.cancelPaymentPending(command.orderId)
             OrderStatus.COMPLETED -> {
                 val paymentTransactionId = detail.paymentTransactionId
                     ?: throw CoreException(ErrorType.CONFLICT, "결제 식별자가 없는 주문은 결제 후 취소할 수 없습니다.")
@@ -113,18 +108,11 @@ class OrderCheckoutFacade(
     fun startShipping(command: OrderCommand.StartShipping): OrderInfo.Detail =
         orderApplicationService.startShipping(command.orderId)
 
-    @Transactional
     fun expireReservations(command: OrderCommand.Expire): Int {
         return orderApplicationService.findExpiredPaymentPending(command.now).count { order ->
-            cancelExpired(order.id)
+            paymentCompletionApplicationService.expirePaymentPending(order.id)
             true
         }
-    }
-
-    private fun cancelExpired(orderId: Long) {
-        val activeReservationCount = stockApplicationService.countActive(orderId)
-        orderApplicationService.cancelPaymentPending(orderId, OrderCancelReason.EXPIRED)
-        stockApplicationService.cancelActive(orderId, activeReservationCount)
     }
 
     private fun requestedAmount(items: List<OrderCommand.CheckoutItem>): Long =

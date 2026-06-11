@@ -150,19 +150,22 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
-    fun cancelBeforePaymentCancelsOrderAndActiveReservationWithoutChangingStock() {
+    fun cancelBeforePaymentCancelsOrderPaymentReservationAndReleasesReservedQuantityWithoutPgCancel() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
 
         val canceled = facade.cancel(OrderCommand.Cancel(checkout.orderId))
 
         val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
         val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
         assertAll(
             { assertThat(canceled.status).isEqualTo(OrderStatus.CANCELED) },
-            { assertThat(canceled.cancelReason).isEqualTo(OrderCancelReason.USER_REQUESTED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.CANCELED) },
             { assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED) },
             { assertThat(stock.stockQuantity).isEqualTo(5) },
+            { assertThat(stock.reservedQuantity).isZero() },
+            { assertThat(paymentGateway.canceledTransactionIds).isEmpty() },
         )
     }
 
@@ -199,18 +202,21 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
-    fun expireReservationsCancelsExpiredPendingOrderAndActiveReservation() {
+    fun expireReservationsExpiresPendingOrderReservationAndPaymentAndReleasesReservedQuantity() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand(LocalDateTime.of(2026, 5, 29, 12, 0)))
 
         facade.expireReservations(OrderCommand.Expire(LocalDateTime.of(2026, 5, 29, 12, 1)))
 
         val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
         val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
         assertAll(
-            { assertThat(order.status).isEqualTo(OrderStatus.CANCELED) },
-            { assertThat(order.cancelReason).isEqualTo(OrderCancelReason.EXPIRED) },
-            { assertThat(reservation.status).isEqualTo(StockReservationStatus.CANCELED) },
+            { assertThat(order.status).isEqualTo(OrderStatus.EXPIRED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.EXPIRED) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.EXPIRED) },
+            { assertThat(stock.reservedQuantity).isZero() },
         )
     }
 }

@@ -21,4 +21,7 @@ dependencies {
     // test-fixtures
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))
+
+    // archunit
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
 }

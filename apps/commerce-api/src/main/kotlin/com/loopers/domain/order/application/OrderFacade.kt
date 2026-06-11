@@ -19,6 +19,8 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 class OrderFacade(
@@ -90,5 +92,41 @@ class OrderFacade(
         } catch (e: ProductDomainException) {
             throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
+    }
+
+    @Transactional(readOnly = true)
+    fun findMyOrders(
+        userId: Long,
+        startAt: LocalDate?,
+        endAt: LocalDate?,
+    ): List<OrderInfo> {
+        userService.findById(userId)
+        return orderService.findByOrderedUserId(
+            orderedUserId = userId,
+            startAt = startAt?.atStartOfDay(DEFAULT_ZONE),
+            endAt = endAt?.plusDays(1)?.atStartOfDay(DEFAULT_ZONE),
+        ).map { OrderInfo.from(it) }
+    }
+
+    @Transactional(readOnly = true)
+    fun findMyOrder(userId: Long, orderId: Long): OrderInfo {
+        userService.findById(userId)
+        val order = orderService.findById(orderId)
+        if (!order.belongsTo(userId)) {
+            throw CoreException(ErrorType.NOT_FOUND)
+        }
+        return OrderInfo.from(order)
+    }
+
+    @Transactional(readOnly = true)
+    fun findAdminOrders(page: Int, size: Int): List<OrderInfo> =
+        orderService.findAll(page, size).map { OrderInfo.from(it) }
+
+    @Transactional(readOnly = true)
+    fun findAdminOrder(orderId: Long): OrderInfo =
+        OrderInfo.from(orderService.findById(orderId))
+
+    companion object {
+        private val DEFAULT_ZONE: ZoneId = ZoneId.systemDefault()
     }
 }

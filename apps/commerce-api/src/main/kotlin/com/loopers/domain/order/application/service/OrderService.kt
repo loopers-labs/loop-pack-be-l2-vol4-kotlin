@@ -10,6 +10,7 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
 
 @Component
 class OrderService(
@@ -46,4 +47,20 @@ class OrderService(
     @Transactional(readOnly = true)
     fun findByIdempotencyKey(idempotencyKey: String): OrderModel? =
         orderRepository.findByIdempotencyKey(idempotencyKey)
+
+    @Transactional(readOnly = true)
+    fun findByOrderedUserId(
+        orderedUserId: Long,
+        startAt: ZonedDateTime?,
+        endAt: ZonedDateTime?,
+    ): List<OrderModel> =
+        orderRepository.findByOrderedUserId(
+            orderedUserId = orderedUserId,
+            startAt = startAt,
+            endAt = endAt,
+        )
+
+    @Transactional(readOnly = true)
+    fun findAll(page: Int, size: Int): List<OrderModel> =
+        orderRepository.findAll(page, size)
 }

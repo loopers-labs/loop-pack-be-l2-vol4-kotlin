@@ -2,7 +2,9 @@ package com.loopers.domain.order.infrastructure.persistence
 
 import com.loopers.domain.order.model.OrderModel
 import com.loopers.domain.order.port.OrderRepository
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
+import java.time.ZonedDateTime
 
 @Component
 class OrderRepositoryImpl(
@@ -32,4 +34,21 @@ class OrderRepositoryImpl(
                     .map { it.toDomain() }
                 order.toDomain(items)
             }
+
+    override fun findByOrderedUserId(
+        orderedUserId: Long,
+        startAt: ZonedDateTime?,
+        endAt: ZonedDateTime?,
+    ): List<OrderModel> =
+        orderJpaRepository.findByOrderedUserId(orderedUserId, startAt, endAt)
+            .map { it.toDomainWithItems() }
+
+    override fun findAll(page: Int, size: Int): List<OrderModel> =
+        orderJpaRepository.findAllByCreatedAtDesc(PageRequest.of(page, size))
+            .map { it.toDomainWithItems() }
+
+    private fun OrderJpaEntity.toDomainWithItems(): OrderModel {
+        val items = orderItemJpaRepository.findByOrderItemIdOrderId(id).map { it.toDomain() }
+        return toDomain(items)
+    }
 }

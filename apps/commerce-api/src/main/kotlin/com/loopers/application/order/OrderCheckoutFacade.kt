@@ -1,5 +1,6 @@
 package com.loopers.application.order
 
+import com.loopers.application.payment.PaymentApplicationService
 import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
@@ -13,12 +14,14 @@ import java.time.LocalDateTime
 class OrderCheckoutFacade(
     private val orderApplicationService: OrderApplicationService,
     private val stockApplicationService: StockApplicationService,
+    private val paymentApplicationService: PaymentApplicationService,
     private val paymentGateway: PaymentGateway,
 ) {
     @Transactional
     fun checkout(command: OrderCommand.Checkout): OrderInfo.Detail {
         val order = orderApplicationService.createPending(command)
         stockApplicationService.reserveAll(order.orderId, command.items)
+        paymentApplicationService.createReady(order.orderId, requestedAmount(command.items))
         return orderApplicationService.getDetail(order.orderId)
     }
 
@@ -86,4 +89,7 @@ class OrderCheckoutFacade(
         orderApplicationService.cancelPaymentPending(orderId, OrderCancelReason.EXPIRED)
         stockApplicationService.cancelActive(orderId, activeReservationCount)
     }
+
+    private fun requestedAmount(items: List<OrderCommand.CheckoutItem>): Long =
+        items.sumOf { it.priceSnapshot * it.quantity }
 }

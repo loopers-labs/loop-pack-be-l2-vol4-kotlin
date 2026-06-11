@@ -5,10 +5,12 @@ import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.order.StockReservationStatus
+import com.loopers.domain.payment.PaymentStatus
 import com.loopers.infrastructure.catalog.ProductStockJpaRepository
 import com.loopers.infrastructure.order.OrderJpaRepository
 import com.loopers.infrastructure.order.StockReservationJpaRepository
 import com.loopers.infrastructure.payment.FakePaymentGateway
+import com.loopers.infrastructure.payment.PaymentJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -27,6 +29,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     private val productStockJpaRepository: ProductStockJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val stockReservationJpaRepository: StockReservationJpaRepository,
+    private val paymentJpaRepository: PaymentJpaRepository,
     private val paymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -58,6 +61,26 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
             { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
             { assertThat(orderJpaRepository.count()).isZero() },
             { assertThat(stockReservationJpaRepository.count()).isZero() },
+            { assertThat(paymentJpaRepository.count()).isZero() },
+        )
+    }
+
+    @Test
+    fun checkoutCreatesPaymentReadyAndInProgressReservation() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+
+        val checkout = facade.checkout(checkoutCommand())
+
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        assertAll(
+            { assertThat(checkout.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.READY) },
+            { assertThat(payment.requestedAmount).isEqualTo(2000L) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.IN_PROGRESS) },
+            { assertThat(stock.stockQuantity).isEqualTo(5) },
+            { assertThat(stock.reservedQuantity).isEqualTo(2) },
         )
     }
 

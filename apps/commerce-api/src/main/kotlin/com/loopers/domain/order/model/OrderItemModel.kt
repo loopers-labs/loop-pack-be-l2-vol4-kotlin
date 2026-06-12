@@ -11,7 +11,7 @@ data class OrderItemModel(
     val snapshotProductName: String,
     val snapshotUnitPrice: Money,
 ) {
-    val linePrice: Money = Money.of(snapshotUnitPrice.value * quantity.value)
+    val linePrice: Money = snapshotUnitPrice * quantity
 
     init {
         validateOrderId(orderId)

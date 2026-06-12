@@ -38,7 +38,7 @@ data class CouponTemplateModel(
         if (!now.isBefore(expiredAt)) {
             throw CouponNotUsableException("만료된 쿠폰은 사용할 수 없습니다.")
         }
-        if (totalPrice.value < minOrderAmount.value) {
+        if (totalPrice < minOrderAmount) {
             throw CouponNotUsableException("최소 주문 금액을 만족하지 않습니다.")
         }
     }

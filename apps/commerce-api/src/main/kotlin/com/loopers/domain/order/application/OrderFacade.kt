@@ -41,7 +41,7 @@ class OrderFacade(
         val orderItems = aggregateItems(command.items)
         val snapshots = productService.getOrderableSnapshots(orderItems.map { it.productId })
         val items = createOrderItems(orderItems, snapshots)
-        val totalPrice = Money.of(items.sumOf { it.linePrice.value })
+        val totalPrice = items.fold(Money.ZERO) { acc, item -> acc + item.linePrice }
         val discountPrice = command.issuedCouponId
             ?.let { couponService.validateAndCalculateDiscount(command.userId, it, totalPrice) }
             ?: Money.of(0)

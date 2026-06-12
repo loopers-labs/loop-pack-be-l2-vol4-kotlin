@@ -43,7 +43,7 @@ data class OrderModel(
                 items = items,
                 totalPrice = totalPrice,
                 discountPrice = discountPrice,
-                paymentPrice = Money.of(totalPrice.value - discountPrice.value),
+                paymentPrice = totalPrice - discountPrice,
             )
         }
 
@@ -75,7 +75,7 @@ data class OrderModel(
         }
 
         private fun calculateTotalPrice(items: List<OrderItemModel>): Money =
-            Money.of(items.sumOf { it.linePrice.value })
+            items.fold(Money.ZERO) { acc, item -> acc + item.linePrice }
 
         private fun validateId(id: Long) {
             if (id < 0) {
@@ -108,7 +108,7 @@ data class OrderModel(
         }
 
         private fun validateDiscount(totalPrice: Money, discountPrice: Money) {
-            if (discountPrice.value > totalPrice.value) {
+            if (discountPrice > totalPrice) {
                 throw InvalidOrderException("할인 금액은 주문 총액을 초과할 수 없습니다.")
             }
         }

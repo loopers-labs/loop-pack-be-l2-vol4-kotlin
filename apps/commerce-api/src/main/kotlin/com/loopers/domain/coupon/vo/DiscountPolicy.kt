@@ -2,8 +2,6 @@ package com.loopers.domain.coupon.vo
 
 import com.loopers.domain.coupon.exception.InvalidCouponException
 import com.loopers.domain.product.vo.Money
-import java.math.BigDecimal
-import java.math.RoundingMode
 
 sealed interface DiscountPolicy {
     val couponType: CouponType
@@ -17,7 +15,7 @@ class FixedAmountDiscountPolicy private constructor(
     override val couponType: CouponType = CouponType.FIXED_AMOUNT
 
     override fun calculate(totalPrice: Money): Money =
-        Money.of(amount.value.coerceAtMost(totalPrice.value))
+        amount.coerceAtMost(totalPrice)
 
     companion object {
         fun of(amount: Money): FixedAmountDiscountPolicy {
@@ -38,13 +36,8 @@ class PercentageDiscountPolicy private constructor(
 ) : DiscountPolicy {
     override val couponType: CouponType = CouponType.PERCENTAGE
 
-    override fun calculate(totalPrice: Money): Money {
-        val discount = BigDecimal.valueOf(totalPrice.value)
-            .multiply(BigDecimal.valueOf(percent.toLong()))
-            .divide(BigDecimal.valueOf(100), 0, RoundingMode.FLOOR)
-            .longValueExact()
-        return Money.of(discount.coerceAtMost(totalPrice.value))
-    }
+    override fun calculate(totalPrice: Money): Money =
+        totalPrice.percent(percent).coerceAtMost(totalPrice)
 
     companion object {
         fun of(percent: Int): PercentageDiscountPolicy {

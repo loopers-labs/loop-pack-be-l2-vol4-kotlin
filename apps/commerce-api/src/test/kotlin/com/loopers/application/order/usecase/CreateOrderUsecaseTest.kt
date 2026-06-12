@@ -173,6 +173,14 @@ class CreateOrderUsecaseTest {
         override fun existsActiveById(id: Long): Boolean {
             return findActiveById(id) != null
         }
+
+        override fun incrementLikeCount(productId: Long) {
+            findActiveById(productId)?.incrementLikeCount()
+        }
+
+        override fun decrementLikeCount(productId: Long) {
+            findActiveById(productId)?.decrementLikeCount()
+        }
     }
 
     private class InMemoryProductStockRepository : ProductStockRepository {

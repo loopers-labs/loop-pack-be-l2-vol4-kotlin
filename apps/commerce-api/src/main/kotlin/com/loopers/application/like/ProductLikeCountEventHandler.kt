@@ -3,9 +3,8 @@ package com.loopers.application.like
 import com.loopers.domain.like.LikeCreatedEvent
 import com.loopers.domain.like.LikeDeletedEvent
 import com.loopers.domain.product.ProductRepository
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
@@ -14,19 +13,17 @@ import org.springframework.transaction.event.TransactionalEventListener
 class ProductLikeCountEventHandler(
     private val productRepository: ProductRepository,
 ) {
-    @Transactional
+    // AFTER_COMMIT 시점에는 원본 트랜잭션이 이미 끝났으므로 REQUIRES_NEW로 새 트랜잭션을 연다.
+    // (REQUIRED면 완료된 트랜잭션에 참여해 변경이 조용히 유실된다)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: LikeCreatedEvent) {
-        val product = productRepository.findActiveById(event.productId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
-        product.incrementLikeCount()
+        productRepository.incrementLikeCount(event.productId)
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: LikeDeletedEvent) {
-        val product = productRepository.findActiveById(event.productId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
-        product.decrementLikeCount()
+        productRepository.decrementLikeCount(event.productId)
     }
 }

@@ -35,4 +35,12 @@ class ProductRepositoryImpl(
     override fun existsActiveById(id: Long): Boolean {
         return productJpaRepository.existsByIdAndDeletedAtIsNull(id)
     }
+
+    override fun incrementLikeCount(productId: Long) {
+        productJpaRepository.incrementLikeCount(productId)
+    }
+
+    override fun decrementLikeCount(productId: Long) {
+        productJpaRepository.decrementLikeCount(productId)
+    }
 }

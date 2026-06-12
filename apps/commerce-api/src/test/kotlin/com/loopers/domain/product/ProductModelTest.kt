@@ -13,14 +13,15 @@ class ProductModelTest {
     @DisplayName("상품을 생성할 때,")
     @Nested
     inner class Create {
-        @DisplayName("브랜드, 가격, 재고가 유효하면 생성된다.")
+        @DisplayName("브랜드, 가격이 유효하면 생성된다.")
         @Test
         fun createsProduct_whenFieldsAreValid() {
             // act
             val product = createProduct()
 
             // assert
-            assertThat(product.stockQuantity).isEqualTo(10)
+            assertThat(product.name).isEqualTo("Air Max")
+            assertThat(product.price).isEqualByComparingTo(BigDecimal("120000.00"))
         }
 
         @DisplayName("재고가 음수이면 BAD_REQUEST 예외가 발생한다.")
@@ -28,7 +29,7 @@ class ProductModelTest {
         fun throwsBadRequest_whenStockIsNegative() {
             // act
             val exception = assertThrows<CoreException> {
-                createProduct(stockQuantity = -1)
+                ProductStockModel(productId = 1L, quantity = -1)
             }
 
             // assert
@@ -69,13 +70,12 @@ class ProductModelTest {
         }
     }
 
-    private fun createProduct(stockQuantity: Int = 10): ProductModel {
+    private fun createProduct(): ProductModel {
         return ProductModel(
             brandId = 1L,
             name = "Air Max",
             description = "Shoes",
             price = BigDecimal("120000.00"),
-            stockQuantity = stockQuantity,
         )
     }
 }

@@ -15,4 +15,8 @@ class ProductStockRepositoryImpl(
     override fun findByProductId(productId: Long): ProductStockModel? {
         return productStockJpaRepository.findByProductId(productId)
     }
+
+    override fun findAllByProductIdIn(productIds: List<Long>): List<ProductStockModel> {
+        return productStockJpaRepository.findAllByProductIdIn(productIds)
+    }
 }

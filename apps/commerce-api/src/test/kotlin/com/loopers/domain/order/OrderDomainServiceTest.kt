@@ -104,7 +104,6 @@ class OrderDomainServiceTest {
                 name = "Product$productId",
                 description = "Product",
                 price = BigDecimal(price),
-                stockQuantity = stock.quantity,
             ).withId(productId),
             stock = stock,
             quantity = quantity,

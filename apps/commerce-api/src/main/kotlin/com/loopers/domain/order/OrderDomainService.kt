@@ -20,7 +20,6 @@ class OrderDomainService {
 
         val orderItems = items.map {
             it.stock.deduct(it.quantity)
-            it.product.syncStock(it.stock.quantity)
             it.product.toOrderItem(it.quantity)
         }
 

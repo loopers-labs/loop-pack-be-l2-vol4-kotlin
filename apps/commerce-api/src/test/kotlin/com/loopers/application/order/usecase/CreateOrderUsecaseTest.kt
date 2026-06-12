@@ -88,8 +88,8 @@ class CreateOrderUsecaseTest {
                     email = "loopers@example.com",
                 ).withId(1L),
             )
-            productRepository.save(product(id = 10L, name = "Air Max", price = "120000.00", stockQuantity = 10))
-            productRepository.save(product(id = 20L, name = "Jordan", price = "30000.00", stockQuantity = 5))
+            productRepository.save(product(id = 10L, name = "Air Max", price = "120000.00"))
+            productRepository.save(product(id = 20L, name = "Jordan", price = "30000.00"))
             stockRepository.save(ProductStockModel(productId = 10L, quantity = 10))
             stockRepository.save(ProductStockModel(productId = 20L, quantity = 5))
         }
@@ -107,13 +107,12 @@ class CreateOrderUsecaseTest {
             )
         }
 
-        private fun product(id: Long, name: String, price: String, stockQuantity: Int): ProductModel {
+        private fun product(id: Long, name: String, price: String): ProductModel {
             return ProductModel(
                 brandId = 1L,
                 name = name,
                 description = "Shoes",
                 price = BigDecimal(price),
-                stockQuantity = stockQuantity,
             ).withId(id)
         }
     }
@@ -193,6 +192,10 @@ class CreateOrderUsecaseTest {
 
         override fun findByProductId(productId: Long): ProductStockModel? {
             return stocks[productId]
+        }
+
+        override fun findAllByProductIdIn(productIds: List<Long>): List<ProductStockModel> {
+            return productIds.mapNotNull { stocks[it] }
         }
     }
 }

@@ -16,6 +16,10 @@ class OrderTest {
         deliveryAddress = "서울시 강남구 테헤란로 1",
         deliveryRequest = "문 앞에 놓아주세요",
         phoneNumber = "010-1234-5678",
+        couponId = null,
+        totalAmount = 2000,
+        discountAmount = 0,
+        paymentAmount = 2000,
     )
 
     @Nested

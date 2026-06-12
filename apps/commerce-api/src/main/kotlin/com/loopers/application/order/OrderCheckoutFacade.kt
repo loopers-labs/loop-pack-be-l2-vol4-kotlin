@@ -1,10 +1,11 @@
 package com.loopers.application.order
 
+import com.loopers.application.coupon.CouponApplicationService
 import com.loopers.application.payment.PaymentApplicationService
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway as PaymentGatewayPort
-import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.Order
+import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -15,6 +16,7 @@ import java.time.LocalDateTime
 @Component
 class OrderCheckoutFacade(
     private val orderApplicationService: OrderApplicationService,
+    private val couponApplicationService: CouponApplicationService,
     private val stockApplicationService: StockApplicationService,
     private val paymentApplicationService: PaymentApplicationService,
     private val paymentGateway: PaymentGatewayPort,
@@ -22,9 +24,18 @@ class OrderCheckoutFacade(
 ) {
     @Transactional
     fun checkout(command: OrderCommand.Checkout): OrderInfo.Detail {
-        val order = orderApplicationService.createPending(command)
+        val totalAmount = requestedAmount(command.items)
+        val discountAmount = command.couponId
+            ?.let { couponId ->
+                couponApplicationService.useOwnedCoupon(
+                    userId = command.userId,
+                    couponId = couponId,
+                    orderAmount = totalAmount,
+                ).discountAmount
+            } ?: 0L
+        val order = orderApplicationService.createPending(command, discountAmount)
         stockApplicationService.reserveAll(order.orderId, command.items)
-        paymentApplicationService.createReady(order.orderId, requestedAmount(command.items))
+        paymentApplicationService.createReady(order.orderId, order.paymentAmount)
         return orderApplicationService.getDetail(order.orderId)
     }
 

@@ -1,11 +1,16 @@
 package com.loopers.application.order
 
+import com.loopers.application.coupon.CouponApplicationService
 import com.loopers.domain.catalog.ProductStock
+import com.loopers.domain.coupon.CouponCommand
+import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.IssuedCouponStatus
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.order.StockReservationStatus
 import com.loopers.domain.payment.PaymentStatus
 import com.loopers.infrastructure.catalog.ProductStockJpaRepository
+import com.loopers.infrastructure.coupon.IssuedCouponJpaRepository
 import com.loopers.infrastructure.order.OrderJpaRepository
 import com.loopers.infrastructure.order.StockReservationJpaRepository
 import com.loopers.infrastructure.payment.FakePaymentGateway
@@ -27,7 +32,9 @@ import java.time.LocalDateTime
 @SpringBootTest
 class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     private val facade: OrderCheckoutFacade,
+    private val couponApplicationService: CouponApplicationService,
     private val productStockJpaRepository: ProductStockJpaRepository,
+    private val issuedCouponJpaRepository: IssuedCouponJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val stockReservationJpaRepository: StockReservationJpaRepository,
     private val paymentJpaRepository: PaymentJpaRepository,
@@ -41,7 +48,10 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         databaseCleanUp.truncateAllTables()
     }
 
-    private fun checkoutCommand(expiresAt: LocalDateTime = LocalDateTime.now().plusMinutes(10)) =
+    private fun checkoutCommand(
+        expiresAt: LocalDateTime = LocalDateTime.now().plusMinutes(10),
+        couponId: Long? = null,
+    ) =
         OrderCommand.Checkout(
             userId = 1L,
             items = listOf(OrderCommand.CheckoutItem(10L, "상품A", "브랜드A", 1000L, 2)),
@@ -49,6 +59,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
             deliveryRequest = "문 앞",
             phoneNumber = "010-1234-5678",
             reservationExpiresAt = expiresAt,
+            couponId = couponId,
         )
 
     @Test
@@ -83,6 +94,62 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
             { assertThat(reservation.status).isEqualTo(StockReservationStatus.IN_PROGRESS) },
             { assertThat(stock.stockQuantity).isEqualTo(5) },
             { assertThat(stock.reservedQuantity).isEqualTo(2) },
+        )
+    }
+
+    @Test
+    fun checkoutWithCouponMarksCouponUsedAndStoresAmountSnapshot() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val coupon = couponApplicationService.create(
+            CouponCommand.Create(
+                name = "1000원 할인",
+                type = CouponType.FIXED,
+                value = 1000,
+                minOrderAmount = null,
+                expiredAt = LocalDateTime.now().plusDays(30),
+            ),
+        )
+        couponApplicationService.issue(userId = 1L, couponId = coupon.couponId)
+
+        val checkout = facade.checkout(checkoutCommand(couponId = coupon.couponId))
+
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val issue = issuedCouponJpaRepository.findByUserIdAndCouponIdAndDeletedAtIsNull(1L, coupon.couponId)!!
+        assertAll(
+            { assertThat(checkout.couponId).isEqualTo(coupon.couponId) },
+            { assertThat(checkout.totalAmount).isEqualTo(2000L) },
+            { assertThat(checkout.discountAmount).isEqualTo(1000L) },
+            { assertThat(checkout.paymentAmount).isEqualTo(1000L) },
+            { assertThat(payment.requestedAmount).isEqualTo(1000L) },
+            { assertThat(issue.status).isEqualTo(IssuedCouponStatus.USED) },
+        )
+    }
+
+    @Test
+    fun checkoutWithOtherUsersCouponRollsBackOrderReservationAndPayment() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val coupon = couponApplicationService.create(
+            CouponCommand.Create(
+                name = "타인 쿠폰",
+                type = CouponType.FIXED,
+                value = 1000,
+                minOrderAmount = null,
+                expiredAt = LocalDateTime.now().plusDays(30),
+            ),
+        )
+        couponApplicationService.issue(userId = 2L, couponId = coupon.couponId)
+
+        val ex = assertThrows<CoreException> {
+            facade.checkout(checkoutCommand(couponId = coupon.couponId))
+        }
+
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        assertAll(
+            { assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT) },
+            { assertThat(orderJpaRepository.count()).isZero() },
+            { assertThat(stockReservationJpaRepository.count()).isZero() },
+            { assertThat(paymentJpaRepository.count()).isZero() },
+            { assertThat(stock.reservedQuantity).isZero() },
         )
     }
 

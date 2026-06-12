@@ -16,6 +16,10 @@ class OrderInfo {
         val deliveryAddress: String,
         val deliveryRequest: String,
         val phoneNumber: String,
+        val couponId: Long?,
+        val totalAmount: Long,
+        val discountAmount: Long,
+        val paymentAmount: Long,
         val items: List<Item>,
     ) {
         companion object {
@@ -28,6 +32,10 @@ class OrderInfo {
                 deliveryAddress = order.deliveryAddress,
                 deliveryRequest = order.deliveryRequest,
                 phoneNumber = order.phoneNumber,
+                couponId = order.couponId,
+                totalAmount = order.totalAmount,
+                discountAmount = order.discountAmount,
+                paymentAmount = order.paymentAmount,
                 items = items.map(Item::from),
             )
         }

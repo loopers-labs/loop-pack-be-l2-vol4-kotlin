@@ -26,10 +26,12 @@ internal class OrderBatchTestDatabase(
             """
             insert into orders (
                 id, user_id, reservation_expires_at, delivery_address, delivery_request,
-                phone_number, status, cancel_reason, created_at, updated_at, deleted_at
+                phone_number, coupon_id, total_amount, discount_amount, payment_amount,
+                status, cancel_reason, created_at, updated_at, deleted_at
             ) values (
                 :orderId, 1, :reservationExpiresAt, 'Seoul', 'Front door',
-                '010-1234-5678', :status, null, now(), now(), null
+                '010-1234-5678', null, 2000, 0, 2000,
+                :status, null, now(), now(), null
             )
             """.trimIndent(),
             mapOf(
@@ -151,6 +153,10 @@ internal class OrderBatchTestDatabase(
                 delivery_address varchar(500) not null,
                 delivery_request varchar(500) not null,
                 phone_number varchar(30) not null,
+                coupon_id bigint,
+                total_amount bigint not null,
+                discount_amount bigint not null,
+                payment_amount bigint not null,
                 status varchar(30) not null,
                 cancel_reason varchar(30),
                 created_at datetime(6) not null,

@@ -27,6 +27,8 @@ class OrderV1Dto {
 
         @field:NotNull
         val reservationExpiresAt: LocalDateTime,
+
+        val couponId: Long? = null,
     ) {
         fun toCommand(userId: Long): OrderCommand.Checkout = OrderCommand.Checkout(
             userId = userId,
@@ -35,6 +37,7 @@ class OrderV1Dto {
             deliveryRequest = deliveryRequest,
             phoneNumber = phoneNumber,
             reservationExpiresAt = reservationExpiresAt,
+            couponId = couponId,
         )
     }
 
@@ -81,6 +84,10 @@ class OrderV1Dto {
         val deliveryAddress: String,
         val deliveryRequest: String,
         val phoneNumber: String,
+        val couponId: Long?,
+        val totalAmount: Long,
+        val discountAmount: Long,
+        val paymentAmount: Long,
         val items: List<OrderItemResponse>,
     ) {
         companion object {
@@ -92,6 +99,10 @@ class OrderV1Dto {
                 deliveryAddress = info.deliveryAddress,
                 deliveryRequest = info.deliveryRequest,
                 phoneNumber = info.phoneNumber,
+                couponId = info.couponId,
+                totalAmount = info.totalAmount,
+                discountAmount = info.discountAmount,
+                paymentAmount = info.paymentAmount,
                 items = info.items.map(OrderItemResponse::from),
             )
         }

@@ -16,8 +16,9 @@ class OrderApplicationService(
     private val orderRepository: OrderRepository,
 ) {
     @Transactional
-    fun createPending(command: OrderCommand.Checkout): OrderInfo.Detail {
+    fun createPending(command: OrderCommand.Checkout, discountAmount: Long = 0L): OrderInfo.Detail {
         if (command.items.isEmpty()) throw CoreException(ErrorType.BAD_REQUEST, "주문 품목은 비어있을 수 없습니다.")
+        val totalAmount = command.items.sumOf { it.priceSnapshot * it.quantity }
         val order = orderRepository.save(
             Order(
                 userId = command.userId,
@@ -25,6 +26,10 @@ class OrderApplicationService(
                 deliveryAddress = command.deliveryAddress,
                 deliveryRequest = command.deliveryRequest,
                 phoneNumber = command.phoneNumber,
+                couponId = command.couponId,
+                totalAmount = totalAmount,
+                discountAmount = discountAmount,
+                paymentAmount = totalAmount - discountAmount,
             ),
         )
         val items = orderRepository.saveItems(

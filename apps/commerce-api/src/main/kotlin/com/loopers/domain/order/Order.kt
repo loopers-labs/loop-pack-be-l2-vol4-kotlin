@@ -28,6 +28,18 @@ class Order(
     @Column(name = "phone_number", nullable = false, length = 30)
     val phoneNumber: String,
 
+    @Column(name = "coupon_id")
+    val couponId: Long? = null,
+
+    @Column(name = "total_amount", nullable = false)
+    val totalAmount: Long,
+
+    @Column(name = "discount_amount", nullable = false)
+    val discountAmount: Long,
+
+    @Column(name = "payment_amount", nullable = false)
+    val paymentAmount: Long,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     var status: OrderStatus = OrderStatus.PAYMENT_PENDING,
@@ -39,6 +51,12 @@ class Order(
     init {
         if (deliveryAddress.isBlank()) throw CoreException(ErrorType.BAD_REQUEST, "배송 주소는 비어있을 수 없습니다.")
         if (phoneNumber.isBlank()) throw CoreException(ErrorType.BAD_REQUEST, "전화번호는 비어있을 수 없습니다.")
+        if (totalAmount < 0) throw CoreException(ErrorType.BAD_REQUEST, "주문 총액은 0 미만일 수 없습니다.")
+        if (discountAmount < 0) throw CoreException(ErrorType.BAD_REQUEST, "할인 금액은 0 미만일 수 없습니다.")
+        if (discountAmount > totalAmount) throw CoreException(ErrorType.BAD_REQUEST, "할인 금액은 주문 총액보다 클 수 없습니다.")
+        if (paymentAmount != totalAmount - discountAmount) {
+            throw CoreException(ErrorType.BAD_REQUEST, "최종 결제 금액이 주문 금액 스냅샷과 일치하지 않습니다.")
+        }
     }
 
     fun complete() {

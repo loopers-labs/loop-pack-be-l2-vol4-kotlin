@@ -69,6 +69,10 @@ class OrderV1ApiE2ETest @Autowired constructor(
         assertAll(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(response.body?.data?.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
+            { assertThat(response.body?.data?.couponId).isNull() },
+            { assertThat(response.body?.data?.totalAmount).isEqualTo(2000L) },
+            { assertThat(response.body?.data?.discountAmount).isZero() },
+            { assertThat(response.body?.data?.paymentAmount).isEqualTo(2000L) },
             { assertThat(response.body?.data?.items).hasSize(1) },
         )
     }

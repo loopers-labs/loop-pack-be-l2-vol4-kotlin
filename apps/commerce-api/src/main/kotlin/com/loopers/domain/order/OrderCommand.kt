@@ -10,6 +10,7 @@ class OrderCommand {
         val deliveryRequest: String,
         val phoneNumber: String,
         val reservationExpiresAt: LocalDateTime,
+        val couponId: Long? = null,
     )
 
     data class CheckoutItem(

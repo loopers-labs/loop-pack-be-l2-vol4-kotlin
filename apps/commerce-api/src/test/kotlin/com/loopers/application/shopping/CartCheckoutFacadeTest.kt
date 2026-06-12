@@ -108,6 +108,10 @@ class CartCheckoutFacadeTest {
             deliveryAddress = "서울시 강남구",
             deliveryRequest = "문 앞",
             phoneNumber = "010-1234-5678",
+            couponId = null,
+            totalAmount = 0,
+            discountAmount = 0,
+            paymentAmount = 0,
             items = emptyList(),
         )
 }

@@ -13,8 +13,13 @@ class UserCouponRepositoryImpl(
 
     override fun existsByUserIdAndCouponId(userId: Long, couponId: Long): Boolean =
         userCouponJpaRepository.existsByUserIdAndCouponId(userId, couponId)
+
+    override fun findByUserIdAndCouponId(userId: Long, couponId: Long): UserCoupon? =
+        userCouponJpaRepository.findByUserIdAndCouponId(userId, couponId)
 }
 
 interface UserCouponJpaRepository : JpaRepository<UserCoupon, Long> {
     fun existsByUserIdAndCouponId(userId: Long, couponId: Long): Boolean
+
+    fun findByUserIdAndCouponId(userId: Long, couponId: Long): UserCoupon?
 }

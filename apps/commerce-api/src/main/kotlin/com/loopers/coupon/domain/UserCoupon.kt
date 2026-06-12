@@ -1,12 +1,15 @@
 package com.loopers.coupon.domain
 
 import com.loopers.domain.BaseEntity
+import com.loopers.support.error.ConflictException
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import jakarta.persistence.Version
+import java.time.LocalDateTime
 
 @Entity
 @Table(
@@ -31,6 +34,31 @@ class UserCoupon(
     @Column(name = "status", nullable = false)
     var status: UserCouponStatus = UserCouponStatus.AVAILABLE
         protected set
+
+    @Column(name = "used_at")
+    var usedAt: LocalDateTime? = null
+        protected set
+
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
+        protected set
+
+    fun use(now: LocalDateTime) {
+        if (status == UserCouponStatus.USED) {
+            throw ConflictException(CouponErrorCode.ALREADY_USED)
+        }
+        status = UserCouponStatus.USED
+        usedAt = now
+    }
+
+    fun cancelUse() {
+        if (status == UserCouponStatus.AVAILABLE) {
+            return
+        }
+        status = UserCouponStatus.AVAILABLE
+        usedAt = null
+    }
 
     companion object {
         const val SYSTEM_GRANTED = -1L

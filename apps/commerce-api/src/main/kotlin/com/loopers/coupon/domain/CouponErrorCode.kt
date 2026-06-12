@@ -12,6 +12,7 @@ enum class CouponErrorCode(
     EXPIRED_AT_IN_PAST("만료일은 현재 이후여야 합니다."),
     MIN_ORDER_NOT_MET("최소 주문 금액을 충족하지 않습니다."),
     EXPIRED("만료된 쿠폰입니다."),
+    ALREADY_USED("이미 사용된 쿠폰입니다."),
     ;
 
     override val code: String

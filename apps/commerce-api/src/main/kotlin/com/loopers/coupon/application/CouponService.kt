@@ -6,6 +6,7 @@ import com.loopers.coupon.domain.Coupon
 import com.loopers.coupon.domain.CouponErrorCode
 import com.loopers.coupon.domain.CouponRepository
 import com.loopers.coupon.domain.CouponType
+import com.loopers.coupon.domain.DiscountPolicy
 import com.loopers.coupon.domain.UserCoupon
 import com.loopers.coupon.domain.UserCouponGrantedType
 import com.loopers.coupon.domain.UserCouponRepository
@@ -61,6 +62,19 @@ class CouponService(
                 grantedBy = grantedBy,
             ),
         )
+    }
+
+    @Transactional
+    fun use(userId: Long, couponId: Long, orderAmount: Money, now: LocalDateTime): Money {
+        val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        val coupon = couponRepository.findById(couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+
+        coupon.validateUsable(orderAmount, now)
+        userCoupon.use(now)
+
+        return DiscountPolicy.calculateDiscount(coupon.type, coupon.value, orderAmount)
     }
 }
 

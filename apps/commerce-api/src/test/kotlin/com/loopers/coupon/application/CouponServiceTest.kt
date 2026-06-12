@@ -166,13 +166,76 @@ class CouponServiceTest {
         )
     }
 
+    @DisplayName("쿠폰을 사용하면 USED로 전이하고 할인 금액을 돌려준다.")
+    @Test
+    fun usesCoupon_andReturnsDiscountAmount() {
+        whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(userCoupon())
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(value = 3000))
+
+        val discount = service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+
+        assertThat(discount).isEqualTo(Money(3000))
+    }
+
+    @DisplayName("보유하지 않은 쿠폰을 사용하면 NOT_FOUND 예외가 발생한다.")
+    @Test
+    fun throwsNotFound_whenUserCouponMissingForUse() {
+        whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(null)
+
+        val result = assertThrows<NotFoundException> {
+            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+        }
+
+        assertThat(result.errorCode).isEqualTo(CouponErrorCode.COUPON_NOT_FOUND)
+    }
+
+    @DisplayName("이미 사용한 쿠폰을 다시 사용하면 CONFLICT(ALREADY_USED) 예외가 발생한다.")
+    @Test
+    fun throwsConflict_whenCouponAlreadyUsedForUse() {
+        val used = userCoupon().apply { use(LocalDateTime.now().minusHours(1)) }
+        whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(used)
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon())
+
+        val result = assertThrows<ConflictException> {
+            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+        }
+
+        assertThat(result.errorCode).isEqualTo(CouponErrorCode.ALREADY_USED)
+    }
+
+    @DisplayName("최소 주문 금액 미달이면 BAD_REQUEST 예외가 발생하고 쿠폰은 사용 처리되지 않는다.")
+    @Test
+    fun throwsBadRequest_whenMinOrderNotMetForUse() {
+        val owned = userCoupon()
+        whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(owned)
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(minOrderAmount = Money(50_000)))
+
+        val result = assertThrows<BadRequestException> {
+            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.MIN_ORDER_NOT_MET) },
+            { assertThat(owned.status).isEqualTo(UserCouponStatus.AVAILABLE) },
+        )
+    }
+
+    private fun userCoupon(): UserCoupon = UserCoupon(
+        userId = USER_ID,
+        couponId = COUPON_ID,
+        grantedType = UserCouponGrantedType.ADMIN,
+        grantedBy = ADMIN_ID,
+    )
+
     private fun coupon(
         expiredAt: LocalDateTime = LocalDateTime.now().plusDays(1),
+        value: Long = 1000,
+        minOrderAmount: Money = Money(0),
     ): Coupon = Coupon(
         type = CouponType.FIXED,
         name = "테스트쿠폰",
-        value = 1000,
-        minOrderAmount = Money(0),
+        value = value,
+        minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
         createdBy = ADMIN_ID,
     )

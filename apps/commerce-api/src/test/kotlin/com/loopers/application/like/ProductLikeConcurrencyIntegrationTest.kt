@@ -64,7 +64,44 @@ class ProductLikeConcurrencyIntegrationTest @Autowired constructor(
         )
     }
 
-    private fun runConcurrently(times: Int, block: () -> Unit) {
+    @DisplayName("여러 사용자가 동시에 같은 상품에 좋아요를 등록해도 Catalog 좋아요 수가 모든 등록 수만큼 증가한다.")
+    @Test
+    fun countsConcurrentRegistersFromDifferentUsers() {
+        productStatsJpaRepository.save(ProductStats(productId = 100L))
+
+        runConcurrently(times = 12) { index ->
+            productLikeFacade.register(userId = index + 1L, productId = 100L)
+        }
+
+        val stats = productStatsJpaRepository.findByProductIdAndDeletedAtIsNull(100L)
+
+        assertAll(
+            { assertThat(productLikeHistoryJpaRepository.count()).isEqualTo(12) },
+            { assertThat(stats?.likeCount).isEqualTo(12) },
+        )
+    }
+
+    @DisplayName("여러 사용자가 동시에 같은 상품의 좋아요를 취소해도 Catalog 좋아요 수가 0으로 수렴한다.")
+    @Test
+    fun countsConcurrentCancelsFromDifferentUsers() {
+        productStatsJpaRepository.save(ProductStats(productId = 100L))
+        repeat(12) { index ->
+            productLikeFacade.register(userId = index + 1L, productId = 100L)
+        }
+
+        runConcurrently(times = 12) { index ->
+            productLikeFacade.cancel(userId = index + 1L, productId = 100L)
+        }
+
+        val stats = productStatsJpaRepository.findByProductIdAndDeletedAtIsNull(100L)
+
+        assertAll(
+            { assertThat(productLikeHistoryJpaRepository.count()).isEqualTo(24) },
+            { assertThat(stats?.likeCount).isEqualTo(0) },
+        )
+    }
+
+    private fun runConcurrently(times: Int, block: (Int) -> Unit) {
         val executor = Executors.newFixedThreadPool(times)
         val ready = CountDownLatch(times)
         val start = CountDownLatch(1)
@@ -76,7 +113,7 @@ class ProductLikeConcurrencyIntegrationTest @Autowired constructor(
                 try {
                     ready.countDown()
                     start.await(3, TimeUnit.SECONDS)
-                    block()
+                    block(it)
                 } catch (t: Throwable) {
                     synchronized(failures) { failures += t }
                 } finally {

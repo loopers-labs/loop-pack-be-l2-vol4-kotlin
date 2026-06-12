@@ -12,4 +12,10 @@ class ProductStatsRepositoryImpl(
 
     override fun findByProductId(productId: Long): ProductStats? =
         productStatsJpaRepository.findByProductIdAndDeletedAtIsNull(productId)
+
+    override fun increaseLikeCount(productId: Long): Boolean =
+        productStatsJpaRepository.increaseLikeCount(productId) == 1
+
+    override fun decreaseLikeCount(productId: Long): Boolean =
+        productStatsJpaRepository.decreaseLikeCount(productId) == 1
 }

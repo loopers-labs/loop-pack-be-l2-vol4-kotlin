@@ -122,6 +122,19 @@ class FakeProductStatsRepository : ProductStatsRepository {
     }
 
     override fun findByProductId(productId: Long): ProductStats? = store[productId]?.takeIf { it.deletedAt == null }
+
+    override fun increaseLikeCount(productId: Long): Boolean {
+        val stats = findByProductId(productId) ?: return false
+        stats.increaseLikeCount()
+        return true
+    }
+
+    override fun decreaseLikeCount(productId: Long): Boolean {
+        val stats = findByProductId(productId) ?: return false
+        if (stats.likeCount == 0L) return false
+        stats.decreaseLikeCount()
+        return true
+    }
 }
 
 class FakeProductDetailImageRepository : ProductDetailImageRepository {

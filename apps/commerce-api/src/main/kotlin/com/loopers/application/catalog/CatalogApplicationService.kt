@@ -151,16 +151,16 @@ class CatalogApplicationService(
 
     @Transactional
     fun increaseLikeCount(productId: Long) {
-        val stats = getStats(productId)
-        stats.increaseLikeCount()
-        productStatsRepository.save(stats)
+        if (!productStatsRepository.increaseLikeCount(productId)) {
+            throw CoreException(ErrorType.NOT_FOUND, "상품 통계를 찾을 수 없습니다.")
+        }
     }
 
     @Transactional
     fun decreaseLikeCount(productId: Long) {
-        val stats = getStats(productId)
-        stats.decreaseLikeCount()
-        productStatsRepository.save(stats)
+        if (!productStatsRepository.decreaseLikeCount(productId)) {
+            throw CoreException(ErrorType.CONFLICT, "좋아요 수를 감소시킬 수 없습니다.")
+        }
     }
 
     private fun getBrand(brandId: Long): Brand =

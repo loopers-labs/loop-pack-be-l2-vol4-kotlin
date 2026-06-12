@@ -21,7 +21,22 @@ class OrderCheckoutFacade(
     private val paymentApplicationService: PaymentApplicationService,
     private val paymentGateway: PaymentGatewayPort,
     private val paymentCompletionApplicationService: PaymentCompletionApplicationService,
+    private val orderCatalogPort: OrderCatalogPort,
 ) {
+    @Transactional
+    fun checkout(command: OrderCommand.CheckoutRequest): OrderInfo.Detail =
+        checkout(
+            OrderCommand.Checkout(
+                userId = command.userId,
+                items = toSnapshotItems(command.items),
+                deliveryAddress = command.deliveryAddress,
+                deliveryRequest = command.deliveryRequest,
+                phoneNumber = command.phoneNumber,
+                reservationExpiresAt = command.reservationExpiresAt,
+                couponId = command.couponId,
+            ),
+        )
+
     @Transactional
     fun checkout(command: OrderCommand.Checkout): OrderInfo.Detail {
         val totalAmount = requestedAmount(command.items)
@@ -197,4 +212,23 @@ class OrderCheckoutFacade(
 
     private fun requestedAmount(items: List<OrderCommand.CheckoutItem>): Long =
         items.sumOf { it.priceSnapshot * it.quantity }
+
+    private fun toSnapshotItems(items: List<OrderCommand.CheckoutRequestItem>): List<OrderCommand.CheckoutItem> {
+        if (items.isEmpty()) throw CoreException(ErrorType.BAD_REQUEST, "주문 품목은 비어있을 수 없습니다.")
+        val products = orderCatalogPort.getOrderProducts(items.map { it.productId }).associateBy { it.productId }
+        return items.map { item ->
+            val product = products[item.productId]
+                ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
+            if (!product.orderable) {
+                throw CoreException(ErrorType.BAD_REQUEST, "주문할 수 없는 상품입니다.")
+            }
+            OrderCommand.CheckoutItem(
+                productId = product.productId,
+                productNameSnapshot = product.productName,
+                brandNameSnapshot = product.brandName,
+                priceSnapshot = product.price,
+                quantity = item.quantity,
+            )
+        }
+    }
 }

@@ -34,7 +34,8 @@ class CartCheckoutFacadeTest {
             stockQuantity = 10,
         )
         fixture.cartFacade.addItem(CartCommand.AddItem(userId = 1L, productId = 100L, quantity = 2))
-        whenever(fixture.orderCheckoutFacade.checkout(any())).thenReturn(orderDetail(orderId = 900L, expiresAt = expiresAt))
+        whenever(fixture.orderCheckoutFacade.checkout(any<OrderCommand.Checkout>()))
+            .thenReturn(orderDetail(orderId = 900L, expiresAt = expiresAt))
 
         val result = fixture.cartCheckoutFacade.checkout(
             CartCommand.Checkout(
@@ -69,7 +70,7 @@ class CartCheckoutFacadeTest {
         fixture.catalogPort.register(productId = 100L, stockQuantity = 10)
         fixture.cartFacade.addItem(CartCommand.AddItem(userId = 1L, productId = 100L, quantity = 2))
         doThrow(CoreException(ErrorType.CONFLICT, "재고가 부족합니다."))
-            .whenever(fixture.orderCheckoutFacade).checkout(any())
+            .whenever(fixture.orderCheckoutFacade).checkout(any<OrderCommand.Checkout>())
 
         val exception = assertThrows<CoreException> {
             fixture.cartCheckoutFacade.checkout(

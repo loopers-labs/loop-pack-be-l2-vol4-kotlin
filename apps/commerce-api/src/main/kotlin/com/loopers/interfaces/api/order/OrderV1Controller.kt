@@ -29,10 +29,7 @@ class OrderV1Controller(
         @CurrentUser user: User,
         @PathVariable orderId: Long,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
-        val detail = orderApplicationService.getDetail(orderId)
-        if (detail.userId != user.id) {
-            throw CoreException(ErrorType.FORBIDDEN, "다른 사용자의 주문은 조회할 수 없습니다.")
-        }
+        val detail = requireOwnedOrder(user, orderId)
         return OrderV1Dto.OrderResponse.from(detail)
             .let(ApiResponse.Companion::success)
     }
@@ -51,17 +48,28 @@ class OrderV1Controller(
         @CurrentUser user: User,
         @PathVariable orderId: Long,
         @RequestBody @Valid request: OrderV1Dto.PayRequest,
-    ): ApiResponse<OrderV1Dto.OrderResponse> =
-        orderCheckoutFacade.pay(request.toCommand(orderId))
+    ): ApiResponse<OrderV1Dto.OrderResponse> {
+        requireOwnedOrder(user, orderId)
+        return orderCheckoutFacade.pay(request.toCommand(orderId))
             .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
+    }
 
     @PostMapping("/{orderId}/cancel")
     override fun cancel(
         @CurrentUser user: User,
         @PathVariable orderId: Long,
-    ): ApiResponse<OrderV1Dto.OrderResponse> =
-        orderCheckoutFacade.cancel(OrderCommand.Cancel(orderId))
+    ): ApiResponse<OrderV1Dto.OrderResponse> {
+        requireOwnedOrder(user, orderId)
+        return orderCheckoutFacade.cancel(OrderCommand.Cancel(orderId))
             .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
+    }
+
+    private fun requireOwnedOrder(user: User, orderId: Long) =
+        orderApplicationService.getDetail(orderId).also { detail ->
+            if (detail.userId != user.id) {
+                throw CoreException(ErrorType.FORBIDDEN, "다른 사용자의 주문은 처리할 수 없습니다.")
+            }
+        }
 }

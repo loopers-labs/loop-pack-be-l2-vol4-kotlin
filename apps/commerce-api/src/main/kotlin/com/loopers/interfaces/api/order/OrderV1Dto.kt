@@ -30,7 +30,7 @@ class OrderV1Dto {
 
         val couponId: Long? = null,
     ) {
-        fun toCommand(userId: Long): OrderCommand.Checkout = OrderCommand.Checkout(
+        fun toCommand(userId: Long): OrderCommand.CheckoutRequest = OrderCommand.CheckoutRequest(
             userId = userId,
             items = items.map(CheckoutItemRequest::toCommand),
             deliveryAddress = deliveryAddress,
@@ -45,23 +45,11 @@ class OrderV1Dto {
         @field:Positive
         val productId: Long,
 
-        @field:NotBlank
-        val productNameSnapshot: String,
-
-        @field:NotBlank
-        val brandNameSnapshot: String,
-
-        @field:Positive
-        val priceSnapshot: Long,
-
         @field:Positive
         val quantity: Int,
     ) {
-        fun toCommand(): OrderCommand.CheckoutItem = OrderCommand.CheckoutItem(
+        fun toCommand(): OrderCommand.CheckoutRequestItem = OrderCommand.CheckoutRequestItem(
             productId = productId,
-            productNameSnapshot = productNameSnapshot,
-            brandNameSnapshot = brandNameSnapshot,
-            priceSnapshot = priceSnapshot,
             quantity = quantity,
         )
     }

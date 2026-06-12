@@ -110,7 +110,7 @@ class CouponApplicationServiceIntegrationTest @Autowired constructor(
                 expiredAt = LocalDateTime.of(2026, 6, 12, 12, 0),
             ),
         )
-        couponApplicationService.issue(userId = 1L, couponId = coupon.couponId)
+        couponApplicationService.issue(userId = 1L, couponId = coupon.couponId, now = LocalDateTime.of(2026, 6, 12, 11, 59))
 
         val myCoupons = couponApplicationService.getMyCoupons(userId = 1L, now = LocalDateTime.of(2026, 6, 12, 12, 0))
 

@@ -30,6 +30,7 @@ class ProductFacadeTest {
         every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { productService.register(상품_등록_커맨드()) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { stockService.initialize(기본_상품_ID, 10L) } returns 재고_도메인_생성(productId = 기본_상품_ID)
+        every { likeService.initializeCount(기본_상품_ID) } returns Unit
 
         val info = productFacade.registerProduct(상품_등록_커맨드())
 
@@ -52,6 +53,7 @@ class ProductFacadeTest {
             productId = 기본_상품_ID,
             leftStock = 15,
         )
+        every { likeService.initializeCount(기본_상품_ID) } returns Unit
 
         productFacade.registerProduct(command)
 
@@ -59,6 +61,7 @@ class ProductFacadeTest {
             brandService.getById(10L)
             productService.register(command)
             stockService.initialize(기본_상품_ID, 15)
+            likeService.initializeCount(기본_상품_ID)
         }
     }
 

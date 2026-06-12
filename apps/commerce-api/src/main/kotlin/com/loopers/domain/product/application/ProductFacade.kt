@@ -31,6 +31,7 @@ class ProductFacade(
             productId = product.id,
             leftStock = command.initialStock,
         )
+        likeService.initializeCount(product.id)
         return ProductInfo.from(product)
     }
 

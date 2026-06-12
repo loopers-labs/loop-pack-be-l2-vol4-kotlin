@@ -38,3 +38,12 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### macOS ###
+.DS_Store
+
+### OMC ###
+.omc
+
+### Local working docs ###
+docs/todo-list.md

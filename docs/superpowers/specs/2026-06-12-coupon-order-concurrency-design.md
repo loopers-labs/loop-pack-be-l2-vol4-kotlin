@@ -100,7 +100,7 @@
 
 - `ProductModel.stockQuantity` 필드, `syncStock()` 제거
 - `OrderDomainService`의 `product.syncStock(...)` 호출 제거 → 주문 트랜잭션에서 `products` 행 쓰기 제거 (락 경합 표면 축소)
-- 사용처는 상품 상세뿐: `GetProductDetailUsecase`에서 `ProductStockRepository.findByProductId`로 조회해 `ProductInfo.stockQuantity`에 채움 (API 응답 형태 불변)
+- 사용처는 상품 상세와 목록(`ProductInfo` 공유): 상세는 `findByProductId` 단건 조회, 목록은 `findAllByProductIdIn` 배치 조회로 `ProductInfo.stockQuantity`에 채움 (API 응답 형태 불변)
 
 ## 4. API 목록
 

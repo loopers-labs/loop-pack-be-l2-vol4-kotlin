@@ -1,6 +1,5 @@
 package com.loopers.application.order
 
-import com.loopers.domain.order.Order
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -9,7 +8,7 @@ class OrderConfirmService(
     private val orderApplicationService: OrderApplicationService,
 ) {
     @Transactional
-    fun confirm(orderId: Long): Order {
+    fun confirm(orderId: Long): OrderConfirmResult {
         return orderApplicationService.markPaid(orderId)
     }
 }

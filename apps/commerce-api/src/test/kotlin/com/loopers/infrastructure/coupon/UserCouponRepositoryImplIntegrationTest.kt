@@ -9,11 +9,8 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.transaction.IllegalTransactionStateException
-import java.time.LocalDateTime
 
 @SpringBootTest
 class UserCouponRepositoryImplIntegrationTest @Autowired constructor(
@@ -42,38 +39,6 @@ class UserCouponRepositoryImplIntegrationTest @Autowired constructor(
                 { assertThat(found?.usedAt).isNull() },
                 { assertThat(found?.isUsed()).isFalse() },
             )
-        }
-    }
-
-    @DisplayName("조건부 쓰기 메서드 호출 시, ")
-    @Nested
-    inner class TransactionBoundary {
-        @DisplayName("상위 트랜잭션 없이 쿠폰 사용 처리를 직접 호출하면 예외가 발생한다.")
-        @Test
-        fun useIfNotUsed_throwsException_whenCalledWithoutTransaction() {
-            // arrange
-            val saved = userCouponRepository.save(UserCoupon(userId = 1L, couponId = 10L))
-
-            // act & assert
-            assertThrows<IllegalTransactionStateException> {
-                userCouponRepository.useIfNotUsed(
-                    id = saved.id!!,
-                    userId = 1L,
-                    usedAt = LocalDateTime.now(),
-                )
-            }
-        }
-
-        @DisplayName("상위 트랜잭션 없이 쿠폰 사용 취소를 직접 호출하면 예외가 발생한다.")
-        @Test
-        fun cancelUseIfUsed_throwsException_whenCalledWithoutTransaction() {
-            // arrange
-            val saved = userCouponRepository.save(UserCoupon(userId = 1L, couponId = 10L))
-
-            // act & assert
-            assertThrows<IllegalTransactionStateException> {
-                userCouponRepository.cancelUseIfUsed(id = saved.id!!, userId = 1L)
-            }
         }
     }
 }

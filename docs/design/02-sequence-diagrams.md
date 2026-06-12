@@ -732,7 +732,7 @@ sequenceDiagram
 
 관련 API:
 
-- `POST /api/v1/coupons/{couponTemplateId}/issue`
+- `POST /api/v1/coupons/{couponId}/issue`
 - `GET /api/v1/users/me/coupons`
 
 핵심 포인트:
@@ -764,15 +764,15 @@ sequenceDiagram
     participant PaymentRepository
     participant Advice as ApiControllerAdvice
 
-    Customer->>CustomerAPI: 주문 요청(items, issuedCouponId)
+    Customer->>CustomerAPI: 주문 요청(items, couponId)
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>OrderFacade: 쿠폰 적용 주문 처리
     Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·쿠폰·결제(REQUESTED) 요청 기록 원자성
     OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
     ProductService-->>OrderFacade: 상품명·단가·주문 가능 상태
     OrderFacade->>CouponService: 발급 쿠폰 검증과 할인 계산
-    CouponService->>IssuedCouponRepository: 발급 쿠폰 잠금 조회
-    IssuedCouponRepository-->>CouponService: 잠금된 발급 쿠폰 + 템플릿
+    CouponService->>IssuedCouponRepository: 발급 쿠폰 조회 (낙관적 락 version 로드)
+    IssuedCouponRepository-->>CouponService: 발급 쿠폰 + 템플릿
     alt 쿠폰 없음 또는 소유자 불일치
         CouponService-->>Advice: 예외(쿠폰 없음)
         Advice-->>Customer: 404 자원 없음
@@ -795,7 +795,7 @@ sequenceDiagram
         else 재고 충분
             StockService->>StockRepository: 요청 수량만큼 차감
             OrderFacade->>CouponService: 발급 쿠폰 사용 처리
-            CouponService->>IssuedCouponRepository: USED 상태 저장
+            CouponService->>IssuedCouponRepository: AVAILABLE 검증 후 USED 저장 (version 충돌 시 실패)
             OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 + 할인 금액 + issuedCouponId)
             OrderService-->>OrderFacade: 주문 정보
             OrderFacade->>OrderRepository: 주문 저장
@@ -815,8 +815,8 @@ sequenceDiagram
 
 핵심 포인트:
 
-- 주문 요청의 쿠폰 필드는 `couponId`가 아니라 `issuedCouponId`다.
-- 발급 쿠폰 행은 사용 가능 검증과 `USED` 전환 사이의 경쟁을 막기 위해 잠금 조회한다.
+- 주문 요청의 쿠폰 필드는 외부 계약상 `couponId`이며, 내부에서는 발급 쿠폰 식별자 `issuedCouponId`로 매핑한다.
+- 발급 쿠폰은 비관적 락으로 잠그지 않고, 사용 가능(`AVAILABLE`) 상태를 검증한 뒤 `USED`로 전환하며 `version` 낙관적 락으로 동시 사용을 감지한다. 동일 쿠폰 동시 주문 중 하나만 성공하고 나머지는 version 충돌로 실패한다.
 - 여러 재고 행 잠금은 상품 ID 정렬 순서로 획득해 교착 가능성을 줄인다.
 - 쿠폰 검증, 재고 차감, 주문 저장, 결제 요청 기록 중 하나라도 실패하면 TX1 전체를 rollback한다.
 - TX1 이후 외부 결제 실패 보상은 §7의 후속 결제 연동 설계에서 다룬다. Round 4 구현 이슈는 결제 호출 전 쿠폰/재고/주문 원자성까지를 우선 범위로 둔다.
@@ -886,11 +886,11 @@ sequenceDiagram
 관련 API:
 
 - `POST /api-admin/v1/coupons`
-- `PUT /api-admin/v1/coupons/{couponTemplateId}`
-- `DELETE /api-admin/v1/coupons/{couponTemplateId}`
+- `PUT /api-admin/v1/coupons/{couponId}`
+- `DELETE /api-admin/v1/coupons/{couponId}`
 - `GET /api-admin/v1/coupons`
-- `GET /api-admin/v1/coupons/{couponTemplateId}`
-- `GET /api-admin/v1/coupons/{couponTemplateId}/issues`
+- `GET /api-admin/v1/coupons/{couponId}`
+- `GET /api-admin/v1/coupons/{couponId}/issues`
 
 핵심 포인트:
 

@@ -143,7 +143,7 @@
 - 주문 기간: 주문 목록 조회 시 시작일과 종료일을 기준으로 조회할 수 있다.
 - 주문 상세: 단일 주문의 결과와 포함된 주문 항목을 확인할 수 있는 정보다.
 - 재고 정합성: 주문 시점에 상품 재고를 확인하고 차감해야 한다.
-- 적용 쿠폰: 주문 요청에는 사용자가 보유한 발급 쿠폰 식별자(`issuedCouponId`)를 선택적으로 포함할 수 있다. 쿠폰을 적용하지 않는 주문은 `issuedCouponId`를 생략한다.
+- 적용 쿠폰: 주문 요청에는 사용자가 보유한 발급 쿠폰 식별자를 외부 필드명 `couponId`(내부 `issuedCouponId`로 매핑)로 선택적으로 포함할 수 있다. 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다.
 - 쿠폰 정합성: 발급 쿠폰은 소유자, 사용 가능 상태, 유효기간, 최소 주문 금액을 검증한 뒤 주문 생성과 같은 트랜잭션에서 사용 처리되어야 한다.
 - 할인 스냅샷: 주문에는 쿠폰 사용 결과로 확정된 할인 금액을 `discountPrice`로 저장한다. 이후 쿠폰 템플릿 정책이 변경되어도 과거 주문 금액은 바뀌지 않는다.
 - 주문 상태: 주문은 `PAYMENT_PENDING`으로 생성되고, 외부 결제 결과에 따라 `ORDERED` 또는 `PAYMENT_FAILED`로 전이한다. `CANCELED`는 취소/환불 정책이 확정될 때 사용하는 확장 상태다.
@@ -434,14 +434,14 @@
 
 | API | U-J5 | U-E4 | A-J5 |
 | :--- | :---: | :---: | :---: |
-| `POST /api/v1/coupons/{couponTemplateId}/issue` | ● | | |
+| `POST /api/v1/coupons/{couponId}/issue` | ● | | |
 | `GET /api/v1/users/me/coupons` | ● | ● | |
-| `POST /api/v1/orders` with `issuedCouponId` | ● | ● | |
+| `POST /api/v1/orders` with `couponId` | ● | ● | |
 | `POST /api-admin/v1/coupons` | | | ● |
-| `PUT /api-admin/v1/coupons/{couponTemplateId}` | | | ● |
-| `DELETE /api-admin/v1/coupons/{couponTemplateId}` | | | ● |
+| `PUT /api-admin/v1/coupons/{couponId}` | | | ● |
+| `DELETE /api-admin/v1/coupons/{couponId}` | | | ● |
 | `GET /api-admin/v1/coupons` 목록·상세 | | | ● |
-| `GET /api-admin/v1/coupons/{couponTemplateId}/issues` | | | ● |
+| `GET /api-admin/v1/coupons/{couponId}/issues` | | | ● |
 
 > [!NOTE]
 > `GET /api/v1/coupons` 발급 가능 쿠폰 목록은 사용자 편의용 확장 후보지만 Round 4 원문 필수 API가 아니다. 별도 이슈가 없으면 구현 범위에 포함하지 않는다.
@@ -597,11 +597,11 @@
     { "productId": 1, "quantity": 2 },
     { "productId": 3, "quantity": 1 }
   ],
-  "issuedCouponId": 42
+  "couponId": 42
 }
 ```
 
-`issuedCouponId`는 사용자가 보유한 발급 쿠폰 식별자다. 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다. 쿠폰 템플릿 식별자(`couponTemplateId`)와 혼동하지 않도록 외부 API 필드명은 `couponId`가 아니라 `issuedCouponId`를 사용한다.
+외부 API 요청 필드명은 Round 4 원문 계약인 `couponId`를 사용한다. 이 `couponId`는 사용자가 보유한 발급 쿠폰 식별자이며, 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다. 단 내부 command/domain/DB는 의미를 명확히 하기 위해 발급 쿠폰을 `issuedCouponId`(DB `issued_coupon_id`), 쿠폰 템플릿을 `couponTemplateId`로 분리해 표현한다. 즉 외부 `couponId` -> 내부 `issuedCouponId`로 매핑한다(`@JsonProperty("couponId") issuedCouponId`). 발급/관리자 경로 변수 `{couponId}`도 외부 표기일 뿐이며 내부에서는 쿠폰 템플릿 식별자(`couponTemplateId`)로 받는다(`@PathVariable("couponId") couponTemplateId`).
 
 #### 5.5.2 관리자 주문 조회 API
 
@@ -620,7 +620,7 @@
 > 2. **데이터 스냅샷**: **주문 정보**에는 주문 시점의 상품명, 가격 등의 정보를 **스냅샷** 형태로 보관하여 상품 가격이 변하더라도 과거 주문 내역이 훼손되지 않아야 한다.
 > 3. **쿠폰 적용**: `issuedCouponId`가 있으면 발급 쿠폰 소유자, 사용 상태, 유효기간, 최소 주문 금액을 검증하고 주문 할인 금액을 확정한다.
 > 4. **재고·쿠폰 정합성**: 주문 시점에 **상품 재고 확인 및 차감**과 **쿠폰 사용 상태 변경**이 하나의 DB 트랜잭션에서 보장되어야 한다. 둘 중 하나라도 실패하면 주문 전체를 거부한다.
-> 5. **락 획득 순서**: 여러 상품 재고 행을 잠글 때는 상품 ID 정렬 순서로 잠금을 획득한다. 쿠폰을 함께 사용하는 주문은 발급 쿠폰 행과 재고 행을 같은 트랜잭션에서 비관적 쓰기 잠금으로 검증·변경한다.
+> 5. **락 전략**: 재고는 비관적 락, 발급 쿠폰은 낙관적 락으로 도메인 특성에 맞게 다르게 적용한다. 여러 상품 재고 행을 잠글 때는 교착을 막기 위해 상품 ID 정렬 순서로 `PESSIMISTIC_WRITE` 잠금을 획득한다. 발급 쿠폰은 비관적 락으로 함께 잠그지 않고, 같은 트랜잭션에서 사용 가능 상태(`AVAILABLE`)를 검증한 뒤 `USED`로 변경하며 `version` 낙관적 락으로 동시 사용을 감지한다. 자세한 근거는 5.5.6 동시성·락 전략을 참조한다.
 > 6. **실패 이력 보존**: 결제 실패 주문은 삭제하지 않고 `PAYMENT_FAILED` 상태로 유지한다. API 응답은 성공 생성이 아니라 실패 응답이지만, 사용자는 주문 목록/상세에서 실패 이력을 확인할 수 있다.
 
 #### 5.5.4 주문·결제 상태 정책
@@ -659,6 +659,21 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 
 결제 승인 거절이나 외부 결제 장애가 발생하면 주문 row는 `PAYMENT_FAILED`로 보존하지만, `POST /api/v1/orders` 응답은 성공 생성(`201`)이 아니다. 결제 승인 거절은 `409 Conflict`, 외부 결제 장애나 타임아웃은 `502 Bad Gateway`로 응답한다.
 
+#### 5.5.6 동시성·락 전략
+
+동시성 제어는 단일 메커니즘을 강제하지 않고 유스케이스별 특성에 맞춰 선택한다. 각 로직이 무슨 락/제약을 왜 선택했는지는 다음 표를 단일 기준으로 삼는다.
+
+| 유스케이스 | 동시성 위험 | 선택한 락/제약 | 근거 |
+| :--- | :--- | :--- | :--- |
+| 좋아요 등록/취소 | 중복·연타·동시 요청 | DB 복합 PK + 조건부 INSERT/DELETE (행 락 없음) | 멱등 연산이라 락 불필요. 멱등성은 `(user_id, product_id)` PK가 보장 |
+| 좋아요 수 갱신 | 동시 증감으로 카운트 어긋남 | `product_like_counts` 행 원자 UPDATE (`like_count = like_count ± 1`) | 단일 컬럼 증감. 증감량은 좋아요 INSERT/DELETE 영향 행 수(0/1)로 결정, 취소는 `like_count > 0` 가드로 음수 방지 |
+| 쿠폰 발급 | 동일 사용자·템플릿 중복 발급 | `UNIQUE(user_id, coupon_template_id)` | 1인 1발급 멱등. 위반은 `409 Conflict` |
+| 쿠폰 사용 | 동일 쿠폰 동시 주문으로 중복 사용 | 낙관적 락(`version`) + 상태 검증(`AVAILABLE`/`used_at IS NULL`) | 경합 주체가 소유자 본인으로 한정돼 충돌 확률이 낮아 비관적 락 대비 응답이 빠르고 재처리가 단순. `version`은 lost update를, 상태 검증은 재사용을 막으며 둘이 함께 작동해야 "단 1회 사용"이 보장됨. 충돌 시 주문 실패로 응답 |
+| 재고 차감 | 동시 주문으로 초과 차감·음수 재고 | 비관적 락(`PESSIMISTIC_WRITE`) + 상품 ID 정렬 잠금 | 다중 상품 행을 read-modify-write로 차감하므로 경합이 잦고 정렬 잠금으로 교착을 방지. 차감은 잔여 재고 검증 후 수행 |
+
+> [!NOTE]
+> 재고(비관)와 쿠폰(낙관)이 한 주문 트랜잭션에 공존하는 것은 의도된 혼합이다. 재고는 다중 행 동시 차감으로 경합이 잦지만 쿠폰 사용은 소유자 단독 토글이라 경합이 드물어, 각 도메인 특성에 최적인 전략을 독립적으로 선택한 결과다.
+
 ---
 
 ### 5.6 쿠폰 (Coupons)
@@ -667,7 +682,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 
 | Method | URI | User Required | 설명 |
 | :--- | :--- | :---: | :--- |
-| `POST` | `/api/v1/coupons/{couponTemplateId}/issue` | O | 쿠폰 발급 |
+| `POST` | `/api/v1/coupons/{couponId}/issue` | O | 쿠폰 발급 |
 | `GET` | `/api/v1/users/me/coupons` | O | 내 발급 쿠폰 목록 조회 |
 
 > [!IMPORTANT]
@@ -678,11 +693,11 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 | Method | URI | LDAP Required | 설명 |
 | :--- | :--- | :---: | :--- |
 | `GET` | `/api-admin/v1/coupons?page=0&size=20` | O | 쿠폰 템플릿 목록 조회 |
-| `GET` | `/api-admin/v1/coupons/{couponTemplateId}` | O | 쿠폰 템플릿 상세 조회 |
+| `GET` | `/api-admin/v1/coupons/{couponId}` | O | 쿠폰 템플릿 상세 조회 |
 | `POST` | `/api-admin/v1/coupons` | O | 쿠폰 템플릿 생성 |
-| `PUT` | `/api-admin/v1/coupons/{couponTemplateId}` | O | 쿠폰 템플릿 수정 |
-| `DELETE` | `/api-admin/v1/coupons/{couponTemplateId}` | O | 쿠폰 템플릿 soft delete |
-| `GET` | `/api-admin/v1/coupons/{couponTemplateId}/issues?page=0&size=20` | O | 쿠폰 템플릿별 발급 이력 조회 |
+| `PUT` | `/api-admin/v1/coupons/{couponId}` | O | 쿠폰 템플릿 수정 |
+| `DELETE` | `/api-admin/v1/coupons/{couponId}` | O | 쿠폰 템플릿 soft delete |
+| `GET` | `/api-admin/v1/coupons/{couponId}/issues?page=0&size=20` | O | 쿠폰 템플릿별 발급 이력 조회 |
 
 ##### 쿠폰 템플릿 생성/수정 Body 예시
 

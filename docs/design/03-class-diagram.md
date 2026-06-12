@@ -60,7 +60,7 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 | Admin | `AdminModel`, `AdminOperationLogModel` | `Ldap`, `AdminName`, `TargetType`, `OperationType` | 관리자 LDAP 유일성, 로그 대상은 브랜드/상품 변경 작업으로 제한 | 관리자 식별, 변경 작업 기록 |
 | Brand | `BrandModel` | `BrandName` | 브랜드명 유효성, 삭제된 브랜드는 상품 등록 기준이 될 수 없음 | 등록, 이름 변경, soft delete |
 | Product | `ProductModel`, `StockModel` | `ProductName`, `Money`, `Quantity`, `StockQuantity` | 상품은 존재하는 브랜드에 속함, 가격은 음수 불가, 재고는 음수 불가, 삭제된 상품은 주문 불가 | 상품 정보 변경, 삭제, 재고 초기화/차감 |
-| Like | `LikeModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등 | 좋아요 생성, 좋아요 취소, 내 좋아요 조회 |
+| Like | `LikeModel`, `ProductLikeCountModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 레코드와 정합을 이루는 집계 캐시 | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 좋아요 수 집계 갱신/조회 |
 | Coupon | `CouponTemplateModel`, `IssuedCouponModel` | `CouponName`, `DiscountPolicy`, `IssuedCouponStatus`, `Money` | 한 사용자-쿠폰 템플릿 조합은 한 번만 발급됨, 발급 쿠폰은 사용 가능 상태에서 한 번만 사용 가능, 만료 쿠폰은 사용 불가 | 쿠폰 템플릿 생성/수정/삭제, 쿠폰 발급, 할인 계산, 쿠폰 사용/복구 |
 | Order | `OrderModel`, `OrderItemModel` | `Money`, `Quantity`, `OrderStatus` | 주문 항목 1개 이상, 수량 양수, 주문 시점 상품명/단가/할인 스냅샷 불변, 생성 상태는 `PAYMENT_PENDING`, 전이는 `PAYMENT_PENDING -> ORDERED/PAYMENT_FAILED`만 허용 | 주문 생성, 금액 계산, 쿠폰 할인 반영, 결제 결과 전이, 본인 주문 검증 |
 | Payment | `PaymentModel` | `PaymentMethod`, `PaymentStatus`, `Money` | 후속 결제 연동 설계에서 주문에 1:1로 속함, 결제 금액은 주문 결제 금액과 일치, 상태 전이는 요청 후 승인/실패 | 결제 요청 기록, 승인 기록, 실패 기록 |
@@ -514,9 +514,24 @@ classDiagram
         <<jpa_entity>>
     }
 
+    class ProductLikeCountModel {
+        <<aggregate_root>>
+        Long productId
+        Long likeCount
+    }
+
+    class ProductLikeCountRepository {
+        <<port>>
+        increment(productId) Int
+        decrement(productId) Int
+        countByProductId(productId) Long
+        countByProductIds(productIds) Map
+    }
+
     LikeFacade ..> ProductService
     LikeFacade ..> LikeService
     LikeService ..> LikeRepository
+    LikeService ..> ProductLikeCountRepository
     LikeRepository <|.. LikeRepositoryImpl
     LikeRepositoryImpl ..> LikeJpaEntity
     LikeJpaEntity ..> LikeModel
@@ -534,6 +549,7 @@ classDiagram
 - 좋아요는 이력보다 현재 상태가 중요하므로 취소 시 hard delete를 기본으로 한다.
 - 같은 `LikeKey`는 하나만 존재할 수 있다. 멱등 처리는 `LikeService`가 repository 존재 여부를 기준으로 조합하고, DB 복합 PK가 최종 중복을 막는다.
 - `LikeModel`은 `UserModel`이나 `ProductModel` 객체를 직접 들고 있지 않는다. 다른 애그리거트와는 식별자로만 연결한다.
+- `ProductLikeCountModel`은 상품별 좋아요 수 집계 애그리거트로 `likes` 레코드의 비정규화 캐시다. `LikeService`는 좋아요 등록/취소와 같은 트랜잭션에서 `ProductLikeCountRepository.increment/decrement`로 `likeCount`를 원자 갱신한다. 증감 수행 여부는 `likes` INSERT/DELETE의 영향 행 수(0/1)로 결정해 동시·반복 요청에도 카운트가 어긋나지 않으며, 감소는 `likeCount > 0` 가드로 음수를 방지한다. 상품 조회(`ProductFacade`)는 이 집계를 읽어 매 요청 `COUNT`를 피한다.
 
 해석:
 
@@ -724,6 +740,7 @@ classDiagram
         IssuedCouponStatus status
         DateTime issuedAt
         DateTime usedAtOrNull
+        Long version
         issue(userId, couponTemplateId, now) IssuedCouponModel
         requireOwnedBy(userId) void
         requireAvailable() void
@@ -781,7 +798,7 @@ classDiagram
         <<port>>
         save(issuedCoupon) IssuedCouponModel
         existsByUserIdAndTemplateId(userId, templateId) Boolean
-        findByIdForUpdate(issuedCouponId) IssuedCouponModel
+        findById(issuedCouponId) IssuedCouponModel
         findByUserId(userId, page) List
         findByTemplateId(templateId, page) List
     }
@@ -795,6 +812,7 @@ classDiagram
 
     class IssuedCouponJpaEntity {
         <<jpa_entity>>
+        Long version
     }
 
     CouponTemplateModel --> DiscountPolicy
@@ -829,7 +847,7 @@ classDiagram
 - `IssuedCouponModel`은 사용자에게 발급된 쿠폰의 현재 상태다. 한 발급 쿠폰은 한 번만 `USED`로 전환될 수 있다.
 - 결제 실패 보상에서는 `IssuedCouponModel.revertUse()`로 `USED` 상태를 `AVAILABLE`로 되돌린다.
 - 한 사용자와 한 쿠폰 템플릿 조합은 하나의 `IssuedCouponModel`만 가질 수 있다. 애플리케이션 사전 검사와 DB unique 제약으로 함께 보장한다.
-- 쿠폰 사용 검증과 `USED` 전환은 주문 트랜잭션 안에서 `IssuedCouponRepository.findByIdForUpdate`로 잠금 조회한 뒤 수행한다.
+- 쿠폰 사용 검증과 `USED` 전환은 주문 트랜잭션 안에서 사용 가능(`AVAILABLE`) 상태를 검증한 뒤 수행하며, `version` 낙관적 락으로 동시 사용 시 lost update를 감지해 한 주문만 성공시킨다. 비관적 잠금 조회(`findByIdForUpdate`)는 사용하지 않는다.
 - `EXPIRED`는 저장 상태가 아니라 `expiredAt`과 현재 시각을 기준으로 응답 모델에서 계산한다.
 
 해석:

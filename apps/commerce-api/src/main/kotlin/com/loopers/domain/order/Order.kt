@@ -33,6 +33,11 @@ class Order(
         status = OrderStatus.PAYMENT_FAILED
     }
 
+    fun cancel() {
+        guardPendingPayment()
+        status = OrderStatus.CANCELED
+    }
+
     private fun guardPendingPayment() {
         if (status != OrderStatus.PENDING_PAYMENT) {
             throw CoreException(ErrorType.BAD_REQUEST, "결제 대기 상태의 주문만 상태를 변경할 수 있습니다.")

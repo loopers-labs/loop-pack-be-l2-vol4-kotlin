@@ -49,4 +49,11 @@ class OrderApplicationService(
         order.markPaymentFailed()
         return orderRepository.save(order)
     }
+
+    @Transactional
+    fun cancelOrder(id: Long): Order {
+        val order = getOrder(id)
+        order.cancel()
+        return orderRepository.save(order)
+    }
 }

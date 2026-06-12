@@ -145,10 +145,11 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             val saved = createOrder(userId = 1L, items = listOf(newOrderItem()))
 
             // act
-            val order = orderApplicationService.markPaid(saved.id!!)
+            val result = orderApplicationService.markPaid(saved.id!!)
 
             // assert
-            assertThat(order.status).isEqualTo(OrderStatus.PAID)
+            assertThat(result).isInstanceOf(OrderConfirmResult.Confirmed::class.java)
+            assertThat((result as OrderConfirmResult.Confirmed).order.status).isEqualTo(OrderStatus.PAID)
         }
 
         @DisplayName("결제 실패 상태로 변경할 수 있다.")

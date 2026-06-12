@@ -167,8 +167,9 @@ class OrderFacadeConcurrencyTest @Autowired constructor(
                 ),
             )
 
-            // act
-            val results = runConcurrently(2) { index ->
+            // act — confirm 은 결과 타입을 반환(예외 없음), release 는 패배 시 CONFLICT 예외.
+            //        동시성의 진실은 최종 DB 상태로 검증한다.
+            runConcurrently(2) { index ->
                 if (index == 0) {
                     orderConfirmService.confirm(order.id!!)
                 } else {
@@ -176,25 +177,19 @@ class OrderFacadeConcurrencyTest @Autowired constructor(
                 }
             }
 
-            // assert
-            val successes = results.mapNotNull { it.getOrNull() }
-            val failures = results.mapNotNull { it.exceptionOrNull() }
+            // assert — 최종 상태는 PAID 또는 PAYMENT_FAILED 중 하나로 단일하게 확정되고,
+            //          재고/쿠폰 부수효과가 그 상태와 일치한다.
             val savedOrder = orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(order.id!!)
             val userCouponEntity = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
             val stock = stockJpaRepository.findByProductIdAndDeletedAtIsNull(product.id)
 
             assertAll(
-                { assertThat(successes).hasSize(1) },
-                { assertThat(failures).hasSize(1) },
-                { assertThat(failures.single()).isInstanceOf(CoreException::class.java) },
-                { assertThat((failures.single() as CoreException).errorType).isEqualTo(ErrorType.CONFLICT) },
-                { assertThat(savedOrder?.status).isEqualTo(successes.single().status) },
+                { assertThat(savedOrder?.status).isIn(OrderStatus.PAID, OrderStatus.PAYMENT_FAILED) },
                 {
-                    if (successes.single().status == OrderStatus.PAID) {
+                    if (savedOrder?.status == OrderStatus.PAID) {
                         assertThat(userCouponEntity?.usedAt).isNotNull()
                         assertThat(stock?.quantity).isEqualTo(9)
                     } else {
-                        assertThat(successes.single().status).isEqualTo(OrderStatus.PAYMENT_FAILED)
                         assertThat(userCouponEntity?.usedAt).isNull()
                         assertThat(stock?.quantity).isEqualTo(10)
                     }

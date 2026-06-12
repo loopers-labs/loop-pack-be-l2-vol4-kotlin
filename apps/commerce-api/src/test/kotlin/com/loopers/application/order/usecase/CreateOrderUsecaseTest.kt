@@ -194,6 +194,10 @@ class CreateOrderUsecaseTest {
             return stocks[productId]
         }
 
+        override fun findByProductIdForUpdate(productId: Long): ProductStockModel? {
+            return findByProductId(productId)
+        }
+
         override fun findAllByProductIdIn(productIds: List<Long>): List<ProductStockModel> {
             return productIds.mapNotNull { stocks[it] }
         }

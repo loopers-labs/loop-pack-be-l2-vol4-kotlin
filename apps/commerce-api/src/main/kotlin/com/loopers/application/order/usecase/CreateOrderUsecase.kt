@@ -24,10 +24,10 @@ class CreateOrderUsecase(
     @Transactional
     fun execute(command: OrderCommand): OrderInfo {
         val user = userService.getProfile(loginId = command.loginId, password = command.password)
-        val orderProducts = command.items.map { item ->
+        val orderProducts = command.items.sortedBy { it.productId }.map { item ->
             val product = productRepository.findActiveById(item.productId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
-            val stock = productStockRepository.findByProductId(item.productId)
+            val stock = productStockRepository.findByProductIdForUpdate(item.productId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "상품 재고를 찾을 수 없습니다.")
 
             OrderDomainService.OrderProduct(

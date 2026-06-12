@@ -39,21 +39,30 @@ class OrderApplicationService(
     @Transactional
     fun markPaid(id: Long): Order {
         val order = getOrder(id)
+        if (!orderRepository.markPaidIfPending(id)) {
+            throw CoreException(ErrorType.CONFLICT, "결제 확정할 수 없는 주문입니다. id=$id")
+        }
         order.markPaid()
-        return orderRepository.save(order)
+        return order
     }
 
     @Transactional
     fun markPaymentFailed(id: Long): Order {
         val order = getOrder(id)
+        if (!orderRepository.markPaymentFailedIfPending(id)) {
+            throw CoreException(ErrorType.CONFLICT, "결제 실패 처리할 수 없는 주문입니다. id=$id")
+        }
         order.markPaymentFailed()
-        return orderRepository.save(order)
+        return order
     }
 
     @Transactional
     fun cancelOrder(id: Long): Order {
         val order = getOrder(id)
+        if (!orderRepository.cancelIfPending(id)) {
+            throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문입니다. id=$id")
+        }
         order.cancel()
-        return orderRepository.save(order)
+        return order
     }
 }

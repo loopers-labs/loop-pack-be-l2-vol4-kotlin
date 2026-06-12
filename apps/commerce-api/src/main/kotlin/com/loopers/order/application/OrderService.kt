@@ -1,18 +1,14 @@
 package com.loopers.order.application
 
-import com.loopers.coupon.application.CouponService
-import com.loopers.inventory.domain.InventoryErrorCode
-import com.loopers.inventory.domain.InventoryRepository
 import com.loopers.order.domain.Order
 import com.loopers.order.domain.OrderErrorCode
 import com.loopers.order.domain.OrderItem
 import com.loopers.order.domain.OrderItemSnapshot
 import com.loopers.order.domain.OrderRepository
 import com.loopers.order.domain.OrderStatus
+import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
-import com.loopers.product.domain.ProductRepository
 import com.loopers.shared.domain.Money
-import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.springframework.stereotype.Service
@@ -22,18 +18,9 @@ import java.time.LocalDateTime
 @Service
 class OrderService(
     private val orderRepository: OrderRepository,
-    private val productRepository: ProductRepository,
-    private val inventoryRepository: InventoryRepository,
-    private val couponService: CouponService,
 ) {
     @Transactional
-    fun place(userId: Long, command: OrderCreateCommand): OrderInfo {
-        if (command.items.isEmpty()) {
-            throw BadRequestException(OrderErrorCode.EMPTY_ORDER_ITEMS)
-        }
-        val productIds = command.items.map { it.productId }
-        val products = productRepository.findAllActiveByIdIn(productIds).associateBy { it.id }
-
+    fun create(userId: Long, command: OrderCreateCommand, products: Map<Long, Product>, discountAmount: Money): OrderInfo {
         val snapshots = command.items.map { line ->
             val product = products[line.productId]
                 ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
@@ -47,10 +34,6 @@ class OrderService(
             )
         }
         val originalAmount = Money(snapshots.sumOf { it.unitPrice.amount * it.quantity })
-
-        val discountAmount = command.couponId
-            ?.let { couponService.use(userId, it, originalAmount, LocalDateTime.now()) }
-            ?: Money(0)
         val totalAmount = Money(originalAmount.amount - discountAmount.amount)
 
         if (command.expectedOriginalAmount != originalAmount.amount ||
@@ -58,15 +41,6 @@ class OrderService(
             command.expectedTotalAmount != totalAmount.amount
         ) {
             throw ConflictException(OrderErrorCode.PRICE_CHANGED)
-        }
-
-        // FOR UPDATE 는 ID 정렬 순서로 — 교차 주문 데드락 차단
-        val inventories = inventoryRepository.findAllByProductIdInForUpdate(productIds.distinct().sorted())
-            .associateBy { it.productId }
-        command.items.forEach { line ->
-            val inventory = inventories[line.productId]
-                ?: throw NotFoundException(InventoryErrorCode.INVENTORY_NOT_FOUND)
-            inventory.decrease(line.quantity.toLong())
         }
 
         val order = orderRepository.save(Order.create(userId, snapshots, command.couponId, discountAmount))

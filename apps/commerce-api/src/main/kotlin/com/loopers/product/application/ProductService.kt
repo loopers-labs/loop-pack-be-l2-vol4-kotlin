@@ -89,6 +89,15 @@ class ProductService(
             ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
         return ProductDetailInfo.of(product, brand.name.value)
     }
+
+    @Transactional(readOnly = true)
+    fun getActiveProducts(ids: List<Long>): Map<Long, Product> {
+        val products = productRepository.findAllActiveByIdIn(ids).associateBy { it.id }
+        if (ids.any { it !in products }) {
+            throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+        }
+        return products
+    }
 }
 
 data class ProductCreateCommand(

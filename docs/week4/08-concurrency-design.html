@@ -294,7 +294,7 @@
     <h2>목차</h2>
     <ol>
       <li><a href="#s1">한눈에 보기 — 전략 매트릭스</a></li>
-      <li><a href="#s2">트랜잭션 경계 — Facade는 Tx 없음</a></li>
+      <li><a href="#s2">트랜잭션 경계 — Facade가 Tx①을 소유</a></li>
       <li><a href="#s3">쿠폰 이중사용 차단 — 3중 방어</a></li>
       <li><a href="#s4">재고 차감 — 비관락 + 데드락 차단</a></li>
       <li><a href="#s5">Tx① 내부 작업 순서와 이유</a></li>
@@ -366,11 +366,11 @@
   <section id="s2" class="fade">
     <div class="sec-head">
       <div class="sec-num">2</div>
-      <div><p class="sec-eyebrow">TRANSACTION BOUNDARY</p><h2 class="sec">트랜잭션 경계 — Facade에는 Tx가 없다</h2></div>
+      <div><p class="sec-eyebrow">TRANSACTION BOUNDARY</p><h2 class="sec">트랜잭션 경계 — Facade가 Tx①을 소유한다</h2></div>
     </div>
 
-    <p class="lead">Tx①의 주인은 OrderService.place 하나. OrderFacade는 의도적으로 트랜잭션을 갖지 않는다.</p>
-    <p><span class="term">OrderFacade</span>는 현재 <span class="term">orderService.place()</span>를 위임만 하는 얇은 컴포넌트지만, 트랜잭션을 두지 않은 것은 미래를 위한 <strong>의도된 자리 비움</strong>입니다. PG 연동(O-F1) 시 <em>place(Tx①) → PG approve(Tx 밖) → confirm/fail(Tx②)</em> 3단계를 지휘해야 하는데, Facade에 <span class="term">@Transactional</span>이 붙어 있으면 외부 HTTP 호출(PG)이 DB 트랜잭션 안에 갇혀 <strong>커넥션과 락을 PG 응답 시간만큼 점유</strong>하게 됩니다.</p>
+    <p class="lead">Tx①의 주인은 OrderFacade.place 하나. 유스케이스 지휘와 트랜잭션 경계가 같은 곳에 있다.</p>
+    <p><span class="term">OrderFacade.place()</span>가 <span class="term">@Transactional</span>로 Tx①을 열고 Product → Coupon → Order → Inventory 서비스를 지휘합니다. 각 서비스는 자기 도메인만 담당하고 기본 전파(REQUIRED)로 Tx①에 합류합니다. 주의할 것 하나 — PG 연동(O-F1) 시 외부 HTTP 호출이 이 Tx 안에 갇히면 <strong>커넥션과 락을 PG 응답 시간만큼 점유</strong>하므로, 그 시점에 Tx 구간을 안쪽 메서드로 분리해 <em>Tx① → PG approve(Tx 밖) → confirm/fail(Tx②)</em> 구조로 확장합니다 (self-invocation을 피해 별도 빈 또는 TransactionTemplate).</p>
 
     <div class="code">
       <div class="code-bar">
@@ -379,19 +379,24 @@
         <span class="dot" style="background:#15C47E"></span>
         <span class="fn">order/application/OrderFacade.kt</span>
       </div>
-<pre><span class="cm">// Tx 어노테이션 금지 — PG 연동(O-F1) 시 place(Tx①) → approve(Tx 밖) → confirm/fail(Tx②) 를 지휘한다</span>
+<pre><span class="cm">// PG 연동(O-F1) 시 이 메서드의 Tx 구간을 안쪽 메서드로 분리한다 — 외부 호출은 Tx 밖에 둔다</span>
 <span class="kw">@Component</span>
 <span class="kw">class</span> <span class="ty">OrderFacade</span>(
+    <span class="kw">private val</span> productService: <span class="ty">ProductService</span>,
+    <span class="kw">private val</span> couponService: <span class="ty">CouponService</span>,
+    <span class="kw">private val</span> inventoryService: <span class="ty">InventoryService</span>,
     <span class="kw">private val</span> orderService: <span class="ty">OrderService</span>,
 ) {
-    <span class="kw">fun</span> <span class="fn">place</span>(userId: <span class="ty">Long</span>, command: <span class="ty">OrderCreateCommand</span>): <span class="ty">OrderInfo</span> =
-        orderService.place(userId, command)
+    <span class="kw">@Transactional</span>
+    <span class="kw">fun</span> <span class="fn">place</span>(userId: <span class="ty">Long</span>, command: <span class="ty">OrderCreateCommand</span>): <span class="ty">OrderInfo</span> {
+        <span class="cm">// 상품 조회 → 쿠폰 use → 주문 생성(금액 게이트) → 재고 차감(비관락, 맨 마지막)</span>
+    }
 }</pre>
     </div>
 
     <figure>
       <div class="fig-box" data-fig="FIG. 01">
-        <svg viewBox="0 0 720 570" role="img" aria-label="트랜잭션 경계 다이어그램. OrderController와 OrderFacade는 트랜잭션 없음. OrderService.place가 Tx1을 열고 CouponService.use가 REQUIRED로 합류. 재고 FOR UPDATE와 주문 저장이 같은 Tx1 안. 추후 PG approve는 Tx 밖, confirm과 fail은 Tx2.">
+        <svg viewBox="0 0 720 570" role="img" aria-label="트랜잭션 경계 다이어그램. OrderController는 트랜잭션 없음. OrderFacade.place가 Tx1을 열고 각 도메인 서비스가 REQUIRED로 합류. 검증과 쿠폰 use, 주문 저장, 재고 FOR UPDATE가 같은 Tx1 안. 추후 PG approve는 Tx 밖, confirm과 fail은 Tx2.">
           <defs>
             <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
               <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -407,12 +412,12 @@
           <!-- Facade -->
           <rect x="230" y="102" width="260" height="58" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
           <text class="svg-t" x="360" y="126" text-anchor="middle" fill="#4E5968">OrderFacade</text>
-          <text class="svg-s" x="360" y="146" text-anchor="middle" fill="#6B7684">Tx 없음 — 지휘만</text>
+          <text class="svg-s" x="360" y="146" text-anchor="middle" fill="#1B64DA">@Transactional — Tx① 소유 · 지휘</text>
           <line x1="360" y1="160" x2="360" y2="188" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#a1)"/>
 
           <!-- Tx1 container -->
           <rect x="40" y="192" width="640" height="262" rx="20" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.5" stroke-dasharray="7 5"/>
-          <text class="svg-l" x="60" y="220" fill="#1B64DA">Tx① — OrderService.place @Transactional</text>
+          <text class="svg-l" x="60" y="220" fill="#1B64DA">Tx① — OrderFacade.place @Transactional (서비스들 REQUIRED 합류)</text>
 
           <!-- step 1: validate/snapshot/gate -->
           <rect x="64" y="238" width="280" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
@@ -428,14 +433,14 @@
           <!-- step 2: inventory -->
           <line x1="204" y1="296" x2="204" y2="328" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
           <rect x="64" y="332" width="280" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
-          <text class="svg-t" x="204" y="356" text-anchor="middle" fill="#1B64DA">② 재고 FOR UPDATE</text>
-          <text class="svg-s" x="204" y="376" text-anchor="middle" fill="#3182F6">ID 정렬 · decrease()</text>
+          <text class="svg-t" x="204" y="356" text-anchor="middle" fill="#1B64DA">② Order 저장</text>
+          <text class="svg-s" x="204" y="376" text-anchor="middle" fill="#3182F6">금액 게이트 · PENDING_PAYMENT</text>
 
           <!-- step 3: save -->
           <line x1="344" y1="361" x2="396" y2="361" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
           <rect x="400" y="332" width="256" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
-          <text class="svg-t" x="528" y="356" text-anchor="middle" fill="#1B64DA">③ Order 저장</text>
-          <text class="svg-s" x="528" y="376" text-anchor="middle" fill="#3182F6">PENDING_PAYMENT</text>
+          <text class="svg-t" x="528" y="356" text-anchor="middle" fill="#1B64DA">③ 재고 FOR UPDATE</text>
+          <text class="svg-s" x="528" y="376" text-anchor="middle" fill="#3182F6">ID 정렬 · 비관락은 맨 마지막</text>
 
           <text class="svg-s" x="360" y="430" text-anchor="middle" fill="#6B7684">예외 1건이면 전체 롤백 — 쿠폰 USED 도 함께 원복</text>
 
@@ -450,10 +455,10 @@
           <text class="svg-s" x="500" y="534" text-anchor="middle" fill="#8B95A1">추후 O-F1 (예정)</text>
         </svg>
       </div>
-      <figcaption><b>그림 1.</b> 트랜잭션 경계. Tx①의 주인은 <b>OrderService.place</b> 하나이고, CouponService.use는 REQUIRED로 합류한다. 점선은 PG 연동(O-F1) 시 추가될 부분.</figcaption>
+      <figcaption><b>그림 1.</b> 트랜잭션 경계. Tx①의 주인은 <b>OrderFacade.place</b> 하나이고, 각 도메인 서비스는 REQUIRED로 합류한다. 점선은 PG 연동(O-F1) 시 추가될 부분.</figcaption>
     </figure>
 
-    <div class="note"><span class="tag">참고</span>Controller → Facade → Service 모두 같은 스레드에서 호출되지만 <strong>트랜잭션은 <span class="term">place()</span> 진입 시점에만 열립니다</strong>. PG가 들어와도 Tx①의 길이는 변하지 않는 구조입니다.</div>
+    <div class="note"><span class="tag">참고</span>처음에는 Tx①을 OrderService.place에 두고 Facade를 비워뒀으나, 오케스트레이션과 Tx 경계가 갈라지는 문제로 <strong>Facade 소유로 리팩터링</strong>했습니다. PG가 들어오면 Tx 구간만 안쪽으로 분리합니다.</div>
   </section>
 
   <!-- ===================== SECTION 3 ===================== -->
@@ -680,7 +685,7 @@ command.items.forEach { line -&gt;
     </div>
 
     <p class="lead">원칙은 하나 — 싼 검증은 처음에, 비싼 락은 마지막에. 락 점유 시간을 최소로 만든다.</p>
-    <p><span class="term">OrderService.place</span>의 7단계는 임의 순서가 아닙니다. 실패 확률이 있는 검증을 앞에 배치해 <strong>락을 잡기 전에 떨어질 요청은 미리 떨어뜨리고</strong>, 비관락(재고)은 커밋 직전에 잡아 행 점유 시간을 최소화합니다.</p>
+    <p><span class="term">OrderFacade.place</span>의 단계는 임의 순서가 아닙니다. 실패 확률이 있는 검증을 앞에 배치해 <strong>락을 잡기 전에 떨어질 요청은 미리 떨어뜨리고</strong>, 비관락(재고)은 커밋 직전에 잡아 행 점유 시간을 최소화합니다.</p>
 
     <div class="tbl-wrap">
       <table>
@@ -691,8 +696,8 @@ command.items.forEach { line -&gt;
           <tr><td>③</td><td>스냅샷 생성 + 원금액 합산</td><td>—</td><td>주문 시점 가격·상품명을 고정 (이후 가격 변동과 무관)</td></tr>
           <tr><td>④</td><td>쿠폰 <code>couponService.use</code> (REQUIRED)</td><td>404 / 409</td><td>낙관락이라 행 점유 없음 + ⑤의 할인액 계산에 필요</td></tr>
           <tr><td>⑤</td><td>expected 3종 금액 게이트</td><td>409 PRICE_CHANGED</td><td>락 잡기 직전 마지막 게이트 — 사용자가 본 금액과 불일치 시 차단</td></tr>
-          <tr><td>⑥</td><td>재고 FOR UPDATE + <code>decrease()</code></td><td>404 / 409</td><td>비관락은 맨 마지막 — 점유 시간 최소화</td></tr>
-          <tr><td>⑦</td><td>주문 저장 (PENDING_PAYMENT)</td><td>—</td><td>커밋과 함께 확정 — 결제 대기 상태로 시작</td></tr>
+          <tr><td>⑥</td><td>주문 저장 (PENDING_PAYMENT)</td><td>—</td><td>락 잡기 전에 INSERT 까지 끝낸다 — 같은 Tx 라 실패 시 함께 롤백</td></tr>
+          <tr><td>⑦</td><td>재고 FOR UPDATE + <code>decrease()</code></td><td>404 / 409</td><td>비관락은 맨 마지막 — 점유 구간이 차감+커밋뿐</td></tr>
         </tbody>
       </table>
     </div>
@@ -730,13 +735,13 @@ command.items.forEach { line -&gt;
             <text class="svg-s" x="621" y="81" text-anchor="middle" fill="#4E5968">⑤ 금액 게이트</text>
             <text class="svg-s" x="621" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">expected 3종</text>
 
-            <rect x="698" y="56" width="114" height="58" rx="12" fill="#FEEFEF" stroke="#F04452"/>
-            <text class="svg-s" x="755" y="81" text-anchor="middle" fill="#C9303C">⑥ 재고 차감</text>
-            <text class="svg-s" x="755" y="99" text-anchor="middle" font-size="10" fill="#C9303C">FOR UPDATE</text>
+            <rect x="698" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="755" y="81" text-anchor="middle" fill="#4E5968">⑥ 주문 저장</text>
+            <text class="svg-s" x="755" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">PENDING 박제</text>
 
-            <rect x="832" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
-            <text class="svg-s" x="889" y="81" text-anchor="middle" fill="#4E5968">⑦ 주문 저장</text>
-            <text class="svg-s" x="889" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">PENDING 박제</text>
+            <rect x="832" y="56" width="114" height="58" rx="12" fill="#FEEFEF" stroke="#F04452"/>
+            <text class="svg-s" x="889" y="81" text-anchor="middle" fill="#C9303C">⑦ 재고 차감</text>
+            <text class="svg-s" x="889" y="99" text-anchor="middle" font-size="10" fill="#C9303C">FOR UPDATE</text>
 
             <rect x="966" y="56" width="114" height="58" rx="12" fill="#1B64DA" stroke="#1B64DA"/>
             <text class="svg-s" x="1023" y="81" text-anchor="middle" fill="#fff">COMMIT</text>
@@ -757,13 +762,13 @@ command.items.forEach { line -&gt;
           <!-- 구간 가이드 점선 -->
           <g stroke-dasharray="3 4" stroke-width="1.2">
             <line x1="430" y1="118" x2="430" y2="222" stroke="#15C47E"/>
-            <line x1="698" y1="118" x2="698" y2="292" stroke="#F04452"/>
+            <line x1="832" y1="118" x2="832" y2="292" stroke="#F04452"/>
             <line x1="1080" y1="118" x2="1080" y2="338" stroke="#8B95A1"/>
           </g>
 
           <!-- 밴드: Tx① -->
           <rect x="28" y="152" width="1052" height="46" rx="12" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.6"/>
-          <text class="svg-s" x="44" y="180" fill="#1B64DA">Tx① — OrderService.place @Transactional</text>
+          <text class="svg-s" x="44" y="180" fill="#1B64DA">Tx① — OrderFacade.place @Transactional</text>
           <text class="svg-s" x="1064" y="180" text-anchor="end" fill="#1B64DA">어디서 실패해도 전부 롤백 — 부분 커밋 불가</text>
 
           <!-- 밴드: 쿠폰 낙관락 -->
@@ -772,9 +777,9 @@ command.items.forEach { line -&gt;
           <text class="svg-s" x="446" y="258" font-size="10" fill="#0A8F5B">④ version 스탬프 → COMMIT 비교까지가 충돌 윈도우 · 진 쪽은 Tx 전체 롤백</text>
 
           <!-- 밴드: 재고 비관락 -->
-          <rect x="698" y="292" width="382" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.6"/>
-          <text class="svg-s" x="714" y="312" fill="#C9303C">재고 비관락 — 물리적 임계영역</text>
-          <text class="svg-s" x="714" y="328" font-size="10" fill="#C9303C">FOR UPDATE 점유 · 같은 상품 주문은 대기</text>
+          <rect x="832" y="292" width="248" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.6"/>
+          <text class="svg-s" x="848" y="312" fill="#C9303C">재고 비관락 — 물리적 임계영역</text>
+          <text class="svg-s" x="848" y="328" font-size="10" fill="#C9303C">점유 = 차감 + 커밋뿐</text>
 
           <!-- 왜 이 락인가 -->
           <g>

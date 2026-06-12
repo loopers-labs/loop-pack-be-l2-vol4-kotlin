@@ -188,4 +188,27 @@ class ProductServiceTest {
         }
         assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
     }
+
+    @DisplayName("요청한 ID가 전부 활성 상품이면, ID를 키로 한 맵을 반환한다.")
+    @Test
+    fun returnsActiveProductsMap() {
+        val product = product()
+        whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
+
+        val result = productService.getActiveProducts(listOf(product.id))
+
+        assertThat(result).containsEntry(product.id, product)
+    }
+
+    @DisplayName("요청한 ID 중 하나라도 활성 상품이 아니면, NOT_FOUND 예외가 발생한다.")
+    @Test
+    fun throwsNotFound_whenAnyProductMissing() {
+        val product = product()
+        whenever(productRepository.findAllActiveByIdIn(listOf(product.id, 99L))).thenReturn(listOf(product))
+
+        val result = assertThrows<NotFoundException> {
+            productService.getActiveProducts(listOf(product.id, 99L))
+        }
+        assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
+    }
 }

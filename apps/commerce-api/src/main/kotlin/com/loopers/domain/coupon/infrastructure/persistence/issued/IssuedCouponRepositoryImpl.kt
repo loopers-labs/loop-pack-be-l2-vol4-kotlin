@@ -3,8 +3,10 @@ package com.loopers.domain.coupon.infrastructure.persistence.issued
 import com.loopers.domain.coupon.exception.DuplicateIssuedCouponException
 import com.loopers.domain.coupon.model.IssuedCouponModel
 import com.loopers.domain.coupon.port.IssuedCouponRepository
+import com.loopers.support.page.PageResult
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 
 @Component
@@ -32,16 +34,22 @@ class IssuedCouponRepositoryImpl(
     override fun existsByUserIdAndTemplateId(userId: Long, templateId: Long): Boolean =
         issuedCouponJpaRepository.existsByUserIdAndCouponTemplateId(userId, templateId)
 
-    override fun findByIdForUpdateOrNull(issuedCouponId: Long): IssuedCouponModel? =
-        issuedCouponJpaRepository.findByIdForUpdate(issuedCouponId)?.toDomain()
+    override fun findByIdOrNull(issuedCouponId: Long): IssuedCouponModel? =
+        issuedCouponJpaRepository.findById(issuedCouponId).map { it.toDomain() }.orElse(null)
 
     override fun findByUserId(userId: Long): List<IssuedCouponModel> =
         issuedCouponJpaRepository.findByUserIdOrderByIssuedAtDesc(userId).map { it.toDomain() }
 
-    override fun findByTemplateId(templateId: Long, page: Int, size: Int): List<IssuedCouponModel> =
-        issuedCouponJpaRepository
-            .findByCouponTemplateIdOrderByIssuedAtDesc(templateId, PageRequest.of(page, size))
-            .map { it.toDomain() }
+    override fun findByTemplateId(templateId: Long, page: Int, size: Int): PageResult<IssuedCouponModel> {
+        val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "issuedAt"))
+        val result = issuedCouponJpaRepository.findByCouponTemplateId(templateId, pageable)
+        return PageResult(
+            content = result.content.map { it.toDomain() },
+            page = page,
+            size = size,
+            totalElements = result.totalElements,
+        )
+    }
 
     private fun DataIntegrityViolationException.isUserTemplateUniqueConstraintViolation(): Boolean =
         generateSequence(this as Throwable?) { it.cause }

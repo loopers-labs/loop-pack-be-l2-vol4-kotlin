@@ -7,6 +7,7 @@ import com.loopers.domain.coupon.presentation.response.IssuedCouponResponse
 import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.domain.user.presentation.auth.LoginUser
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import io.swagger.v3.oas.annotations.Parameter
@@ -31,11 +32,11 @@ import org.springframework.web.bind.annotation.RestController
 class CouponController(
     private val couponFacade: CouponFacade,
 ) : CouponApiSpec {
-    @PostMapping("/coupons/{couponTemplateId}/issue")
+    @PostMapping("/coupons/{couponId}/issue")
     @ResponseStatus(HttpStatus.CREATED)
     override fun issueCoupon(
         @Parameter(hidden = true) @LoginUser user: UserInfo,
-        @PathVariable couponTemplateId: Long,
+        @PathVariable("couponId") couponTemplateId: Long,
     ): ApiResponse<IssuedCouponResponse> =
         couponFacade.issue(user.id, couponTemplateId)
             .let { IssuedCouponResponse.from(it) }
@@ -63,19 +64,19 @@ class CouponAdminController(
         ldap: String?,
         @RequestParam(required = false) page: Int?,
         @RequestParam(required = false) size: Int?,
-    ): ApiResponse<List<CouponTemplateResponse>> {
+    ): ApiResponse<PageResponse<CouponTemplateResponse>> {
         requireAdmin(ldap)
-        return couponFacade.findTemplates(page ?: DEFAULT_PAGE, size ?: DEFAULT_SIZE)
+        val result = couponFacade.findTemplates(page ?: DEFAULT_PAGE, size ?: DEFAULT_SIZE)
             .map { CouponTemplateResponse.from(it) }
-            .let { ApiResponse.success(it) }
+        return ApiResponse.success(PageResponse.from(result))
     }
 
-    @GetMapping("/{couponTemplateId}")
+    @GetMapping("/{couponId}")
     override fun findTemplate(
         @Parameter(hidden = true)
         @RequestHeader(name = ADMIN_LDAP_HEADER, required = false)
         ldap: String?,
-        @PathVariable couponTemplateId: Long,
+        @PathVariable("couponId") couponTemplateId: Long,
     ): ApiResponse<CouponTemplateResponse> {
         requireAdmin(ldap)
         return couponFacade.findTemplate(couponTemplateId)
@@ -97,12 +98,12 @@ class CouponAdminController(
             .let { ApiResponse.success(it) }
     }
 
-    @PutMapping("/{couponTemplateId}")
+    @PutMapping("/{couponId}")
     override fun updateTemplate(
         @Parameter(hidden = true)
         @RequestHeader(name = ADMIN_LDAP_HEADER, required = false)
         ldap: String?,
-        @PathVariable couponTemplateId: Long,
+        @PathVariable("couponId") couponTemplateId: Long,
         @Valid @RequestBody request: CouponTemplateRequest,
     ): ApiResponse<CouponTemplateResponse> {
         requireAdmin(ldap)
@@ -111,35 +112,35 @@ class CouponAdminController(
             .let { ApiResponse.success(it) }
     }
 
-    @DeleteMapping("/{couponTemplateId}")
+    @DeleteMapping("/{couponId}")
     override fun deleteTemplate(
         @Parameter(hidden = true)
         @RequestHeader(name = ADMIN_LDAP_HEADER, required = false)
         ldap: String?,
-        @PathVariable couponTemplateId: Long,
+        @PathVariable("couponId") couponTemplateId: Long,
     ): ApiResponse<Any> {
         requireAdmin(ldap)
         couponFacade.deleteTemplate(couponTemplateId)
         return ApiResponse.success()
     }
 
-    @GetMapping("/{couponTemplateId}/issues")
+    @GetMapping("/{couponId}/issues")
     override fun findIssuedCouponsByTemplate(
         @Parameter(hidden = true)
         @RequestHeader(name = ADMIN_LDAP_HEADER, required = false)
         ldap: String?,
-        @PathVariable couponTemplateId: Long,
+        @PathVariable("couponId") couponTemplateId: Long,
         @RequestParam(required = false) page: Int?,
         @RequestParam(required = false) size: Int?,
-    ): ApiResponse<List<IssuedCouponResponse>> {
+    ): ApiResponse<PageResponse<IssuedCouponResponse>> {
         requireAdmin(ldap)
-        return couponFacade.findIssuedCouponsByTemplate(
+        val result = couponFacade.findIssuedCouponsByTemplate(
             templateId = couponTemplateId,
             page = page ?: DEFAULT_PAGE,
             size = size ?: DEFAULT_SIZE,
         )
             .map { IssuedCouponResponse.from(it) }
-            .let { ApiResponse.success(it) }
+        return ApiResponse.success(PageResponse.from(result))
     }
 
     private fun requireAdmin(ldap: String?) {

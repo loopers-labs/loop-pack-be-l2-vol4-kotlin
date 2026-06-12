@@ -2,6 +2,7 @@ package com.loopers.domain.coupon.infrastructure.persistence.template
 
 import com.loopers.domain.coupon.model.CouponTemplateModel
 import com.loopers.domain.coupon.port.CouponTemplateRepository
+import com.loopers.support.page.PageResult
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
@@ -32,8 +33,14 @@ class CouponTemplateRepositoryImpl(
         return couponTemplateJpaRepository.findAllById(templateIds).map { it.toDomain() }
     }
 
-    override fun findAll(page: Int, size: Int): List<CouponTemplateModel> {
+    override fun findAll(page: Int, size: Int): PageResult<CouponTemplateModel> {
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"))
-        return couponTemplateJpaRepository.findAll(pageable).content.map { it.toDomain() }
+        val result = couponTemplateJpaRepository.findAll(pageable)
+        return PageResult(
+            content = result.content.map { it.toDomain() },
+            page = page,
+            size = size,
+            totalElements = result.totalElements,
+        )
     }
 }

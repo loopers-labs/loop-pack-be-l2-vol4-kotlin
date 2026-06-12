@@ -6,6 +6,7 @@ import com.loopers.domain.coupon.application.info.IssuedCouponInfo
 import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.support.page.PageResult
 import org.springframework.stereotype.Component
 import java.time.LocalDateTime
 
@@ -23,7 +24,7 @@ class CouponFacade(
         couponService.softDeleteTemplate(templateId)
     }
 
-    fun findTemplates(page: Int, size: Int): List<CouponTemplateInfo> =
+    fun findTemplates(page: Int, size: Int): PageResult<CouponTemplateInfo> =
         couponService.findTemplates(page, size).map { CouponTemplateInfo.from(it) }
 
     fun findTemplate(templateId: Long): CouponTemplateInfo =
@@ -47,7 +48,7 @@ class CouponFacade(
         }
     }
 
-    fun findIssuedCouponsByTemplate(templateId: Long, page: Int, size: Int): List<IssuedCouponInfo> {
+    fun findIssuedCouponsByTemplate(templateId: Long, page: Int, size: Int): PageResult<IssuedCouponInfo> {
         val template = findTemplate(templateId)
         val now = LocalDateTime.now()
         return couponService.findIssuedCouponsByTemplate(templateId, page, size)

@@ -3,6 +3,8 @@ package com.loopers.interfaces.api
 import com.loopers.ApiTest
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
+import com.loopers.domain.coupon.application.command.CouponTemplateCommand
+import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.domain.product.application.ProductFacade
 import com.loopers.domain.product.infrastructure.persistence.stock.ProductStockJpaRepository
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
@@ -25,6 +27,7 @@ class OrderApiE2ETest
     constructor(
         private val userService: UserService,
         private val brandService: BrandService,
+        private val couponService: CouponService,
         private val productFacade: ProductFacade,
         private val productStockJpaRepository: ProductStockJpaRepository,
     ) : ApiTest() {
@@ -50,7 +53,7 @@ class OrderApiE2ETest
             val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
-            assertThat(response.body?.data?.number("issuedCouponId")).isEqualTo(issuedCouponId)
+            assertThat(response.body?.data?.number("couponId")).isEqualTo(issuedCouponId)
             assertThat(response.body?.data?.number("totalPrice")).isEqualTo(20_000)
             assertThat(response.body?.data?.number("discountPrice")).isEqualTo(2_000)
             assertThat(response.body?.data?.number("paymentPrice")).isEqualTo(18_000)
@@ -97,6 +100,90 @@ class OrderApiE2ETest
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
             assertThat(savedStock.leftStock).isEqualTo(5)
+        }
+
+        @Test
+        fun `만료된_쿠폰으로_주문하면_409_CONFLICT를_반환하고_재고를_차감하지_않는다`() {
+            userService.signUp(사용자_회원가입())
+            val productId = registerProduct(price = 10_000, initialStock = 5)
+            val templateId = createRateTemplate(value = 10, minOrderAmount = 0)
+            val issuedCouponId = issueCoupon(templateId)
+            expireTemplate(templateId)
+
+            val response = placeOrder(
+                productId = productId,
+                quantity = 1,
+                issuedCouponId = issuedCouponId,
+            )
+            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            assertThat(savedStock.leftStock).isEqualTo(5)
+        }
+
+        @Test
+        fun `최소_주문금액에_미달하면_409_CONFLICT를_반환하고_재고를_차감하지_않는다`() {
+            userService.signUp(사용자_회원가입())
+            val productId = registerProduct(price = 10_000, initialStock = 5)
+            val issuedCouponId = issueCoupon(createRateTemplate(value = 10, minOrderAmount = 100_000))
+
+            val response = placeOrder(
+                productId = productId,
+                quantity = 1,
+                issuedCouponId = issuedCouponId,
+            )
+            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            assertThat(savedStock.leftStock).isEqualTo(5)
+        }
+
+        @Test
+        fun `존재하지_않는_쿠폰으로_주문하면_404_NOT_FOUND를_반환하고_재고를_차감하지_않는다`() {
+            userService.signUp(사용자_회원가입())
+            val productId = registerProduct(price = 10_000, initialStock = 5)
+
+            val response = placeOrder(
+                productId = productId,
+                quantity = 1,
+                issuedCouponId = 999_999L,
+            )
+            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            assertThat(savedStock.leftStock).isEqualTo(5)
+        }
+
+        @Test
+        fun `재고가_부족하면_주문이_실패하고_쿠폰_사용과_재고_차감이_모두_롤백된다`() {
+            userService.signUp(사용자_회원가입())
+            val productId = registerProduct(price = 10_000, initialStock = 1)
+            val issuedCouponId = issueCoupon(createRateTemplate(value = 10, minOrderAmount = 0))
+
+            val response = placeOrder(
+                productId = productId,
+                quantity = 2,
+                issuedCouponId = issuedCouponId,
+            )
+            val myCouponsResponse = findMyCoupons()
+            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            assertThat(myCouponsResponse.body?.data?.first()?.get("displayStatus")).isEqualTo("AVAILABLE")
+            assertThat(savedStock.leftStock).isEqualTo(1)
+        }
+
+        private fun expireTemplate(templateId: Long) {
+            couponService.updateTemplate(
+                templateId = templateId,
+                command = CouponTemplateCommand(
+                    name = "EXPIRED_RATE",
+                    type = "RATE",
+                    value = 10,
+                    minOrderAmount = 0,
+                    expiredAt = LocalDateTime.now().minusDays(1),
+                ),
+            )
         }
 
         private fun registerProduct(price: Long, initialStock: Long): Long {
@@ -148,7 +235,7 @@ class OrderApiE2ETest
                 HttpMethod.POST,
                 HttpEntity(
                     mapOf(
-                        "issuedCouponId" to issuedCouponId,
+                        "couponId" to issuedCouponId,
                         "items" to listOf(
                             mapOf(
                                 "productId" to productId,

@@ -8,6 +8,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import jakarta.persistence.Version
 import java.time.LocalDateTime
 
 const val ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT = "uk_issued_coupons_user_template"
@@ -38,6 +39,11 @@ class IssuedCouponJpaEntity(
     @Column(name = "used_at")
     var usedAt: LocalDateTime? = null,
 ) : BaseEntity() {
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0
+        protected set
+
     fun updateFrom(issuedCoupon: IssuedCouponModel) {
         couponTemplateId = issuedCoupon.couponTemplateId
         userId = issuedCoupon.userId

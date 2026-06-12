@@ -5,6 +5,7 @@ import com.loopers.domain.coupon.presentation.response.CouponTemplateResponse
 import com.loopers.domain.coupon.presentation.response.IssuedCouponResponse
 import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.PageResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -40,7 +41,7 @@ interface CouponAdminApiSpec {
         page: Int?,
         @Min(1)
         size: Int?,
-    ): ApiResponse<List<CouponTemplateResponse>>
+    ): ApiResponse<PageResponse<CouponTemplateResponse>>
 
     @Operation(
         summary = "쿠폰 템플릿 상세 조회",
@@ -90,5 +91,5 @@ interface CouponAdminApiSpec {
         page: Int?,
         @Min(1)
         size: Int?,
-    ): ApiResponse<List<IssuedCouponResponse>>
+    ): ApiResponse<PageResponse<IssuedCouponResponse>>
 }

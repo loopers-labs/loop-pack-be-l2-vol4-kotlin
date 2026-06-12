@@ -1,11 +1,13 @@
 package com.loopers.domain.order.presentation.response
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.loopers.domain.order.application.info.OrderInfo
 import com.loopers.domain.order.application.info.OrderItemInfo
 
 data class OrderResponse(
     val id: Long,
     val orderedUserId: Long,
+    @field:JsonProperty("couponId")
     val issuedCouponId: Long?,
     val totalPrice: Long,
     val discountPrice: Long,

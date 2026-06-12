@@ -19,4 +19,16 @@ class UserCoupon(
     }
 
     fun isUsed(): Boolean = usedAt != null
+
+    fun validateOwnedBy(userId: Long) {
+        if (this.userId != userId) {
+            throw CoreException(ErrorType.BAD_REQUEST, "사용자 소유의 쿠폰이 아닙니다. id=$id")
+        }
+    }
+
+    fun validateUsable() {
+        if (isUsed()) {
+            throw CoreException(ErrorType.CONFLICT, "이미 사용된 쿠폰입니다. id=$id")
+        }
+    }
 }

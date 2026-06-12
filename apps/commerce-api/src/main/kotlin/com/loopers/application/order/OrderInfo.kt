@@ -9,6 +9,8 @@ data class OrderInfo(
     val userId: Long,
     val status: OrderStatus,
     val totalPrice: BigDecimal,
+    val discountAmount: BigDecimal,
+    val paidPrice: BigDecimal,
     val items: List<Item>,
 ) {
     data class Item(
@@ -26,6 +28,8 @@ data class OrderInfo(
                 userId = order.userId,
                 status = order.status,
                 totalPrice = order.totalPrice,
+                discountAmount = order.discountAmount,
+                paidPrice = order.paidPrice,
                 items = order.items.map {
                     Item(
                         productId = it.productId,

@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 도메인 — 클래스 다이어그램 &amp; 메서드 플로우차트</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  /* checklist — 체크 항목 리스트. li 안에 <span class="box"></span> + 텍스트. 완료는 li.done */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈(여러 HTML 파일) 간 네비게이션 바. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week 4 · 주문 도메인 구현 가이드</span>
+      <h1 class="title">주문 도메인,<br><span class="hl">클래스 &amp; 플로우차트</span></h1>
+      <p class="lede">06(D1-b 결정)·07(플로우 목업)에서 확정한 설계를 <b>코드로 옮기기 직전의 한 장</b>으로 만든다. 클래스 다이어그램으로 <b>무엇을 새로 만들지</b>를, 메서드별 플로우차트로 <b>각 분기에서 어떤 에러가 나가는지</b>를 고정한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">Order · Coupon · Inventory · PaymentGateway</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · MySQL</span></div>
+        <div class="chip"><span class="k">BASE</span><span class="v">06 주문 API 결정 · 07 플로우 목업</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="06-order-api-plan.html"><span class="n">06</span>주문 API 결정</a>
+    <a href="07-order-flow-mockup.html"><span class="n">07</span>주문 플로우 목업</a>
+    <a class="cur" href="08-order-class-flowchart.html"><span class="n">08</span>클래스·플로우차트</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">전체 클래스 다이어그램</a></li>
+      <li><a href="#s2">OrderController.order()</a></li>
+      <li><a href="#s3">OrderService.place() — Tx①</a></li>
+      <li><a href="#s4">결제 진행 — Tx 밖 + Tx②</a></li>
+      <li><a href="#s5">UserCoupon.use · Coupon.validateUsable</a></li>
+      <li><a href="#s6">DiscountPolicy.calculateDiscount</a></li>
+      <li><a href="#s7">Order.create · 상태 전이</a></li>
+      <li><a href="#s8">구현 체크리스트</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== SECTION 1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CLASS DIAGRAM</p><h2 class="sec">전체 클래스 다이어그램</h2></div>
+    </div>
+
+    <p class="lead">박스가 많아 세 장으로 나눈다 — ① 요청·응답 계층, ② 도메인 엔티티 계층, ③ 빈 협력 관계. 파란 박스·파란 텍스트가 이번에 새로 만들거나 확장하는 부분이다.</p>
+    <p>현재 코드는 <span class="term">Order</span> 가 금액 1종(<span class="term">totalAmount</span>)·상태 1종(<span class="term">CREATED</span>)만 가진 상태고, <span class="term">UserCoupon</span> 은 <span class="term">use()</span> 가 없다. 이번 작업은 기존 클래스를 부수지 않고 <strong>필드·메서드를 추가</strong>하는 방향으로 진행한다.</p>
+
+    <h3>① 요청 → 커맨드 → 응답 계층</h3>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 800" role="img" aria-label="요청 응답 계층 클래스 다이어그램. interfaces 의 OrderCreateRequest 가 toCommand 로 application 의 OrderCreateCommand 가 되고, OrderService.place 가 OrderInfo 를 반환한다.">
+          <defs>
+            <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- interfaces group -->
+          <rect x="16" y="34" width="688" height="222" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="56" fill="#6B7684">interfaces — OrderController.kt 파일 동거</text>
+
+          <!-- OrderCreateRequest (신규) -->
+          <rect x="32" y="70" width="304" height="164" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="46" y="92" fill="#1B64DA">OrderCreateRequest</text>
+          <rect x="278" y="76" width="46" height="19" rx="7" fill="#3182F6"/>
+          <text class="svg-s" x="301" y="90" text-anchor="middle" fill="#FFFFFF">신규</text>
+          <line x1="46" y1="102" x2="322" y2="102" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="46" y="122" fill="#1B64DA">items: List&lt;OrderLineRequest&gt;</text>
+          <text class="svg-s" x="46" y="139" fill="#1B64DA">couponId: Long?</text>
+          <text class="svg-s" x="46" y="156" fill="#1B64DA">expectedOriginalAmount: Long</text>
+          <text class="svg-s" x="46" y="173" fill="#1B64DA">expectedDiscountAmount: Long</text>
+          <text class="svg-s" x="46" y="190" fill="#1B64DA">expectedTotalAmount: Long</text>
+          <line x1="46" y1="200" x2="322" y2="200" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="46" y="220" fill="#1B64DA">toCommand(): OrderCreateCommand</text>
+
+          <!-- OrderLineRequest (신규) -->
+          <rect x="400" y="70" width="270" height="86" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="414" y="92" fill="#1B64DA">OrderLineRequest</text>
+          <line x1="414" y1="102" x2="656" y2="102" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="414" y="122" fill="#1B64DA">productId: Long</text>
+          <text class="svg-s" x="414" y="139" fill="#1B64DA">quantity: Int</text>
+          <line x1="336" y1="131" x2="400" y2="131" stroke="#8B95A1" stroke-width="1.4"/>
+          <text class="svg-s" x="368" y="123" text-anchor="middle" fill="#6B7684">1..*</text>
+
+          <!-- toCommand arrow -->
+          <line x1="184" y1="234" x2="184" y2="332" stroke="#15C47E" stroke-width="2" marker-end="url(#f1)"/>
+          <text class="svg-l" x="198" y="276" fill="#0A8F5B">toCommand()</text>
+          <text class="svg-s" x="198" y="294" fill="#6B7684">userId 는 @RequestAttribute 로 별도 전달</text>
+
+          <!-- application group -->
+          <rect x="16" y="300" width="688" height="190" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="322" fill="#6B7684">application — OrderService.kt 파일 동거</text>
+
+          <!-- OrderCreateCommand (확장) -->
+          <rect x="32" y="336" width="304" height="132" rx="14" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="46" y="358" fill="#333D4B">OrderCreateCommand</text>
+          <rect x="278" y="342" width="46" height="19" rx="7" fill="#3182F6"/>
+          <text class="svg-s" x="301" y="356" text-anchor="middle" fill="#FFFFFF">확장</text>
+          <line x1="46" y1="368" x2="322" y2="368" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="388" fill="#4E5968">items: List&lt;OrderLineCommand&gt;</text>
+          <text class="svg-s" x="46" y="405" fill="#1B64DA">couponId: Long?</text>
+          <text class="svg-s" x="46" y="422" fill="#1B64DA">expectedOriginalAmount: Long</text>
+          <text class="svg-s" x="46" y="439" fill="#1B64DA">expectedDiscountAmount: Long</text>
+          <text class="svg-s" x="46" y="456" fill="#1B64DA">expectedTotalAmount: Long</text>
+
+          <!-- OrderLineCommand (기존) -->
+          <rect x="400" y="336" width="270" height="86" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="414" y="358" fill="#333D4B">OrderLineCommand</text>
+          <line x1="414" y1="368" x2="656" y2="368" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="414" y="388" fill="#4E5968">productId: Long</text>
+          <text class="svg-s" x="414" y="405" fill="#4E5968">quantity: Int</text>
+          <line x1="336" y1="394" x2="400" y2="394" stroke="#8B95A1" stroke-width="1.4"/>
+          <text class="svg-s" x="368" y="386" text-anchor="middle" fill="#6B7684">1..*</text>
+
+          <!-- place return arrow -->
+          <line x1="360" y1="490" x2="360" y2="540" stroke="#15C47E" stroke-width="2" marker-end="url(#f1)"/>
+          <text class="svg-s" x="374" y="520" fill="#0A8F5B">place() 가 Order 를 OrderInfo 로 변환해 반환</text>
+
+          <!-- return group -->
+          <rect x="16" y="540" width="688" height="246" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="562" fill="#6B7684">application — 반환 모델</text>
+
+          <!-- OrderInfo -->
+          <rect x="32" y="576" width="304" height="186" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="46" y="598" fill="#333D4B">OrderInfo</text>
+          <rect x="278" y="582" width="46" height="19" rx="7" fill="#3182F6"/>
+          <text class="svg-s" x="301" y="596" text-anchor="middle" fill="#FFFFFF">확장</text>
+          <line x1="46" y1="608" x2="322" y2="608" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="628" fill="#4E5968">id: Long</text>
+          <text class="svg-s" x="46" y="645" fill="#4E5968">userId: Long</text>
+          <text class="svg-s" x="46" y="662" fill="#4E5968">orderedAt: LocalDateTime</text>
+          <text class="svg-s" x="46" y="679" fill="#4E5968">status: OrderStatus</text>
+          <text class="svg-s" x="46" y="696" fill="#4E5968">totalAmount: Long</text>
+          <text class="svg-s" x="46" y="713" fill="#1B64DA">originalAmount: Long</text>
+          <text class="svg-s" x="46" y="730" fill="#1B64DA">discountAmount: Long</text>
+          <text class="svg-s" x="46" y="747" fill="#4E5968">items: List&lt;OrderItemInfo&gt;</text>
+
+          <!-- OrderItemInfo -->
+          <rect x="400" y="576" width="270" height="152" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="414" y="598" fill="#333D4B">OrderItemInfo</text>
+          <line x1="414" y1="608" x2="656" y2="608" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="414" y="628" fill="#4E5968">productId: Long</text>
+          <text class="svg-s" x="414" y="645" fill="#4E5968">brandId: Long?</text>
+          <text class="svg-s" x="414" y="662" fill="#4E5968">productName: String</text>
+          <text class="svg-s" x="414" y="679" fill="#4E5968">brandName: String?</text>
+          <text class="svg-s" x="414" y="696" fill="#4E5968">unitPrice: Long</text>
+          <text class="svg-s" x="414" y="713" fill="#4E5968">quantity: Int</text>
+          <line x1="336" y1="660" x2="400" y2="660" stroke="#8B95A1" stroke-width="1.4"/>
+          <text class="svg-s" x="368" y="652" text-anchor="middle" fill="#6B7684">1..*</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 요청·응답 계층. 파랑 = 신규/확장, 회색 = 기존 유지. <b>expected 3종</b>은 요청에서 커맨드로 그대로 흘러가 place 의 변동 게이트에서 소비된다 — 결제 금액의 근거가 아니라 <b>비교 전용</b>이다.</figcaption>
+    </figure>
+
+    <h3>② 도메인 엔티티 계층</h3>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 856" role="img" aria-label="도메인 엔티티 클래스 다이어그램. order 컨텍스트의 Order, OrderItem, OrderItemSnapshot, OrderStatus 와 coupon 컨텍스트의 Coupon, UserCoupon, DiscountPolicy, inventory 컨텍스트의 Inventory, shared 의 Money 를 보인다.">
+          <defs>
+            <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- order context -->
+          <rect x="16" y="30" width="688" height="330" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="52" fill="#6B7684">order — 도메인</text>
+
+          <!-- Order -->
+          <rect x="32" y="66" width="232" height="266" rx="14" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="46" y="88" fill="#333D4B">Order</text>
+          <rect x="206" y="72" width="46" height="19" rx="7" fill="#3182F6"/>
+          <text class="svg-s" x="229" y="86" text-anchor="middle" fill="#FFFFFF">확장</text>
+          <line x1="46" y1="98" x2="250" y2="98" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="118" fill="#4E5968">userId: Long</text>
+          <text class="svg-s" x="46" y="135" fill="#4E5968">orderedAt: LocalDateTime</text>
+          <text class="svg-s" x="46" y="152" fill="#4E5968">status: OrderStatus</text>
+          <text class="svg-s" x="46" y="169" fill="#4E5968">totalAmount: Money</text>
+          <text class="svg-s" x="46" y="186" fill="#4E5968">items: List&lt;OrderItem&gt;</text>
+          <text class="svg-s" x="46" y="203" fill="#1B64DA">couponId: Long?</text>
+          <text class="svg-s" x="46" y="220" fill="#1B64DA">originalAmount: Money</text>
+          <text class="svg-s" x="46" y="237" fill="#1B64DA">discountAmount: Money</text>
+          <line x1="46" y1="247" x2="250" y2="247" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="267" fill="#1B64DA">create(...) — 시그니처 확장</text>
+          <text class="svg-s" x="46" y="284" fill="#1B64DA">confirmPayment()</text>
+          <text class="svg-s" x="46" y="301" fill="#1B64DA">failPayment()</text>
+          <text class="svg-s" x="46" y="318" fill="#1B64DA">markUnknown()</text>
+
+          <!-- OrderItem -->
+          <rect x="292" y="66" width="196" height="182" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="306" y="88" fill="#333D4B">OrderItem</text>
+          <line x1="306" y1="98" x2="474" y2="98" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="306" y="118" fill="#4E5968">productId: Long</text>
+          <text class="svg-s" x="306" y="135" fill="#4E5968">brandId: Long?</text>
+          <text class="svg-s" x="306" y="152" fill="#4E5968">productName: String</text>
+          <text class="svg-s" x="306" y="169" fill="#4E5968">brandName: String?</text>
+          <text class="svg-s" x="306" y="186" fill="#4E5968">unitPrice: Money</text>
+          <text class="svg-s" x="306" y="203" fill="#4E5968">quantity: Int</text>
+          <line x1="306" y1="213" x2="474" y2="213" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="306" y="233" fill="#4E5968">subtotal(): Money</text>
+          <line x1="264" y1="140" x2="292" y2="140" stroke="#8B95A1" stroke-width="1.4"/>
+          <text class="svg-s" x="278" y="132" text-anchor="middle" fill="#6B7684">1..*</text>
+
+          <!-- OrderItemSnapshot -->
+          <rect x="512" y="66" width="178" height="152" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="526" y="88" fill="#333D4B">OrderItemSnapshot</text>
+          <line x1="526" y1="98" x2="676" y2="98" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="526" y="118" fill="#4E5968">productId: Long</text>
+          <text class="svg-s" x="526" y="135" fill="#4E5968">brandId: Long?</text>
+          <text class="svg-s" x="526" y="152" fill="#4E5968">productName: String</text>
+          <text class="svg-s" x="526" y="169" fill="#4E5968">brandName: String?</text>
+          <text class="svg-s" x="526" y="186" fill="#4E5968">unitPrice: Money</text>
+          <text class="svg-s" x="526" y="203" fill="#4E5968">quantity: Int</text>
+          <polyline points="601,218 601,300 268,300" fill="none" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#f2)"/>
+          <text class="svg-s" x="430" y="292" text-anchor="middle" fill="#6B7684">create() 입력 — 박제 원본</text>
+
+          <!-- OrderStatus enum -->
+          <rect x="512" y="236" width="178" height="120" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="526" y="258" fill="#1B64DA">OrderStatus</text>
+          <line x1="526" y1="268" x2="676" y2="268" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="526" y="288" fill="#1B64DA">PENDING_PAYMENT</text>
+          <text class="svg-s" x="526" y="305" fill="#1B64DA">PAID</text>
+          <text class="svg-s" x="526" y="322" fill="#1B64DA">FAILED</text>
+          <text class="svg-s" x="526" y="339" fill="#1B64DA">UNKNOWN</text>
+
+          <!-- Order → UserCoupon ID reference -->
+          <polyline points="148,332 148,372 407,372 407,416" fill="none" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#f2)"/>
+          <text class="svg-s" x="170" y="366" fill="#6B7684">couponId — ID 참조 (객체 참조 아님)</text>
+
+          <!-- coupon context -->
+          <rect x="16" y="380" width="688" height="260" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="402" fill="#6B7684">coupon — 도메인</text>
+
+          <!-- Coupon -->
+          <rect x="32" y="416" width="246" height="182" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="46" y="438" fill="#333D4B">Coupon</text>
+          <line x1="46" y1="448" x2="264" y2="448" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="468" fill="#4E5968">type: CouponType</text>
+          <text class="svg-s" x="46" y="485" fill="#4E5968">name: String</text>
+          <text class="svg-s" x="46" y="502" fill="#4E5968">value: Long</text>
+          <text class="svg-s" x="46" y="519" fill="#4E5968">minOrderAmount: Money</text>
+          <text class="svg-s" x="46" y="536" fill="#4E5968">expiredAt: LocalDateTime</text>
+          <line x1="46" y1="546" x2="264" y2="546" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="566" fill="#4E5968">isExpired(now)</text>
+          <text class="svg-s" x="46" y="583" fill="#4E5968">validateUsable(orderAmount, now)</text>
+
+          <!-- UserCoupon -->
+          <rect x="302" y="416" width="210" height="182" rx="14" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="316" y="438" fill="#333D4B">UserCoupon</text>
+          <rect x="456" y="422" width="46" height="19" rx="7" fill="#3182F6"/>
+          <text class="svg-s" x="479" y="436" text-anchor="middle" fill="#FFFFFF">확장</text>
+          <line x1="316" y1="448" x2="498" y2="448" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="316" y="468" fill="#4E5968">userId: Long</text>
+          <text class="svg-s" x="316" y="485" fill="#4E5968">couponId: Long</text>
+          <text class="svg-s" x="316" y="502" fill="#4E5968">status: UserCouponStatus</text>
+          <text class="svg-s" x="316" y="519" fill="#1B64DA">usedAt: LocalDateTime?</text>
+          <text class="svg-s" x="316" y="536" fill="#1B64DA">@Version version: Long</text>
+          <line x1="316" y1="546" x2="498" y2="546" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="316" y="566" fill="#1B64DA">use(now)</text>
+          <text class="svg-s" x="316" y="583" fill="#1B64DA">restore()</text>
+          <line x1="302" y1="500" x2="278" y2="500" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#f2)"/>
+
+          <!-- DiscountPolicy -->
+          <rect x="528" y="416" width="162" height="118" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="542" y="438" fill="#333D4B">DiscountPolicy</text>
+          <line x1="542" y1="448" x2="676" y2="448" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="542" y="468" fill="#4E5968">calculateDiscount(</text>
+          <text class="svg-s" x="542" y="485" fill="#4E5968">type, value, price</text>
+          <text class="svg-s" x="542" y="502" fill="#4E5968">) → Money</text>
+          <text class="svg-s" x="542" y="519" fill="#8B95A1">object — 무상태</text>
+
+          <!-- inventory context -->
+          <rect x="16" y="660" width="336" height="180" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="30" y="682" fill="#6B7684">inventory — 도메인</text>
+          <rect x="32" y="696" width="220" height="130" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="46" y="718" fill="#333D4B">Inventory</text>
+          <line x1="46" y1="728" x2="238" y2="728" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="748" fill="#4E5968">productId: Long</text>
+          <text class="svg-s" x="46" y="765" fill="#4E5968">quantity: Long</text>
+          <line x1="46" y1="775" x2="238" y2="775" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="795" fill="#4E5968">decrease(amount)</text>
+          <text class="svg-s" x="46" y="812" fill="#4E5968">increase(amount)</text>
+
+          <!-- shared context -->
+          <rect x="368" y="660" width="336" height="180" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="382" y="682" fill="#6B7684">shared — 도메인</text>
+          <rect x="384" y="696" width="200" height="66" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="398" y="718" fill="#333D4B">Money</text>
+          <line x1="398" y1="728" x2="570" y2="728" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="398" y="748" fill="#4E5968">amount: Long (≥ 0)</text>
+          <text class="svg-s" x="384" y="790" fill="#8B95A1">Order · OrderItem · Coupon 의</text>
+          <text class="svg-s" x="384" y="806" fill="#8B95A1">금액 필드에 @Embedded 로 재사용</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 도메인 엔티티 계층. <b>OrderStatus</b> 는 기존 <span class="term">CREATED</span> 1종을 4종으로 대체한다 (전이 규칙은 그림 10). Order → UserCoupon 은 객체 참조가 아니라 <b>couponId ID 참조</b> — 컨텍스트 경계를 넘는 JPA 연관을 만들지 않는다.</figcaption>
+    </figure>
+
+    <h3>③ 빈 협력 관계</h3>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 03">
+        <svg viewBox="0 0 720 560" role="img" aria-label="빈 협력 다이어그램. OrderController 가 OrderService 를 호출하고, OrderService 가 다섯 개 리포지토리와 PaymentGateway 를 사용한다.">
+          <defs>
+            <marker id="f3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- OrderController -->
+          <rect x="32" y="40" width="260" height="86" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="46" y="62" fill="#1B64DA">OrderController</text>
+          <line x1="46" y1="72" x2="278" y2="72" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="46" y="92" fill="#1B64DA">order(userId, request): OrderInfo</text>
+          <text class="svg-s" x="46" y="109" fill="#6B7684">@PostMapping /api/v1/orders</text>
+
+          <line x1="162" y1="126" x2="162" y2="180" stroke="#15C47E" stroke-width="2" marker-end="url(#f3)"/>
+          <text class="svg-s" x="176" y="156" fill="#0A8F5B">place(userId, command)</text>
+
+          <!-- OrderService -->
+          <rect x="32" y="180" width="260" height="134" rx="14" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="46" y="202" fill="#333D4B">OrderService</text>
+          <line x1="46" y1="212" x2="278" y2="212" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="46" y="232" fill="#4E5968">place(userId, command)</text>
+          <text class="svg-s" x="46" y="249" fill="#1B64DA">confirmPayment(orderId) — 신규</text>
+          <text class="svg-s" x="46" y="266" fill="#1B64DA">failPayment(orderId) — 신규</text>
+          <text class="svg-s" x="46" y="283" fill="#4E5968">findById(orderId, requesterUserId)</text>
+          <text class="svg-s" x="46" y="300" fill="#4E5968">findMine(userId, startAt, endAt)</text>
+
+          <!-- fan-out arrows -->
+          <line x1="292" y1="220" x2="430" y2="90" stroke="#4E5968" stroke-width="1.5" marker-end="url(#f3)"/>
+          <line x1="292" y1="240" x2="430" y2="193" stroke="#4E5968" stroke-width="1.5" marker-end="url(#f3)"/>
+          <line x1="292" y1="260" x2="430" y2="279" stroke="#4E5968" stroke-width="1.5" marker-end="url(#f3)"/>
+          <line x1="292" y1="280" x2="430" y2="365" stroke="#4E5968" stroke-width="1.5" marker-end="url(#f3)"/>
+          <line x1="292" y1="300" x2="430" y2="460" stroke="#3182F6" stroke-width="1.5" marker-end="url(#f3)"/>
+
+          <!-- repositories -->
+          <rect x="430" y="40" width="274" height="100" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="444" y="62" fill="#333D4B">OrderRepository</text>
+          <line x1="444" y1="72" x2="690" y2="72" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="444" y="92" fill="#4E5968">save(order)</text>
+          <text class="svg-s" x="444" y="109" fill="#4E5968">findById(id)</text>
+          <text class="svg-s" x="444" y="126" fill="#4E5968">findByUserIdAndOrderedAtBetween(…)</text>
+
+          <rect x="430" y="160" width="274" height="66" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="444" y="182" fill="#333D4B">ProductRepository</text>
+          <line x1="444" y1="192" x2="690" y2="192" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="444" y="212" fill="#4E5968">findAllActiveByIdIn(ids)</text>
+
+          <rect x="430" y="246" width="274" height="66" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="444" y="268" fill="#333D4B">InventoryRepository</text>
+          <line x1="444" y1="278" x2="690" y2="278" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="444" y="298" fill="#4E5968">findAllByProductIdInForUpdate(ids)</text>
+
+          <rect x="430" y="332" width="274" height="66" rx="14" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="444" y="354" fill="#333D4B">CouponRepository</text>
+          <line x1="444" y1="364" x2="690" y2="364" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="444" y="384" fill="#4E5968">findById(id)</text>
+
+          <rect x="430" y="418" width="274" height="84" rx="14" fill="#FFFFFF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="444" y="440" fill="#333D4B">UserCouponRepository</text>
+          <line x1="444" y1="450" x2="690" y2="450" stroke="#E5E8EB" stroke-width="1"/>
+          <text class="svg-s" x="444" y="470" fill="#1B64DA">findByUserIdAndCouponId(</text>
+          <text class="svg-s" x="444" y="487" fill="#1B64DA">userId, couponId) — 신규</text>
+
+          <!-- PaymentGateway -->
+          <line x1="162" y1="314" x2="162" y2="394" stroke="#3182F6" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#f3)"/>
+          <text class="svg-s" x="176" y="348" fill="#1B64DA">Tx 밖에서 approve 호출</text>
+          <text class="svg-s" x="176" y="366" fill="#6B7684">(배선 위치는 구현 시 결정)</text>
+
+          <rect x="32" y="394" width="300" height="100" rx="14" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="6 5"/>
+          <text class="svg-t" x="46" y="416" fill="#1B64DA">PaymentGateway — 인터페이스</text>
+          <line x1="46" y1="426" x2="318" y2="426" stroke="#3182F6" stroke-width="1" opacity=".35"/>
+          <text class="svg-s" x="46" y="446" fill="#1B64DA">approve(orderId, amount,</text>
+          <text class="svg-s" x="46" y="463" fill="#1B64DA">idempotencyKey): PaymentGatewayResult</text>
+          <text class="svg-s" x="46" y="480" fill="#6B7684">SUCCESS · DECLINED · TIMEOUT</text>
+          <text class="svg-s" x="32" y="516" fill="#C9303C">D7 Payment 엔티티 · D8 구현 깊이 — 미결</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> 빈 협력 관계 — 이 흐름에서 호출하는 메서드만 표기. <b>PaymentGateway</b> 는 인터페이스 시그니처만 확정 (점선 = 미구현). <span class="term">UserCouponRepository.findByUserIdAndCouponId</span> 가 신규로 필요하다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">쿠폰 범위</span>쿠폰은 <strong>주문 전체 적용 1장</strong>이다 — <span class="term">couponId: Long?</span> 를 주문 레벨에 둔다 (라인별 아님). 추후 상품별 적용으로 확장할 수 있지만, 그때는 <strong>Coupon 에 적용 대상 개념(카테고리·상품 제한)을 신설</strong>해야 한다. 지금 라인 레벨로 내려두면 그 개념 없이 자리만 차지한다.</div>
+  </section>
+
+  <!-- ===================== SECTION 2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">CONTROLLER</p><h2 class="sec">OrderController.order()</h2></div>
+    </div>
+
+    <p class="lead">컨트롤러는 얇다 — 인증 속성에서 userId 를 꺼내고, 요청을 커맨드로 바꿔 place 에 넘기고, 결과를 그대로 반환한다. 분기가 없다.</p>
+    <p>userId 는 요청 body 가 아니라 <span class="term">@RequestAttribute(ACCOUNT_ID)</span> 로 받는다 — 인증 필터가 주입한 값만 신뢰한다. 응답은 <span class="term">OrderInfo</span> 를 그대로 반환하고, <span class="term">ApiResponse</span> 래핑은 <span class="term">ResponseBodyAdvice</span> 의 몫이다 (컨트롤러에서 직접 래핑 금지). place 에서 던져진 예외는 <span class="term">ApiControllerAdvice</span> 가 HTTP status 로 매핑한다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">order</span>(<span class="pa">userId: Long</span>, <span class="pa">request: OrderCreateRequest</span>) <span class="rt">→ OrderInfo</span><span class="mut">HTTP · 위임</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>userId — @RequestAttribute(ACCOUNT_ID) · request — @RequestBody (items · couponId · expected 3종)</td></tr>
+        <tr><td>반환</td><td>OrderInfo (ResponseBodyAdvice 가 ApiResponse 로 래핑)</td></tr>
+        <tr><td>책임</td><td>인증 속성 추출 + 요청 → 커맨드 변환 + OrderService.place 위임. 비즈니스 분기 없음</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 04">
+        <svg viewBox="0 0 720 440" role="img" aria-label="OrderController.order 플로우차트. 요청 수신, userId 추출, 커맨드 변환, place 호출, OrderInfo 반환의 직선 흐름이다.">
+          <defs>
+            <marker id="f4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="200" y="16" width="320" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="44" text-anchor="middle" fill="#333D4B">POST /api/v1/orders</text>
+          <line x1="360" y1="60" x2="360" y2="100" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f4)"/>
+
+          <rect x="200" y="100" width="320" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="128" text-anchor="middle" fill="#4E5968">@RequestAttribute(ACCOUNT_ID) → userId</text>
+          <line x1="360" y1="146" x2="360" y2="186" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f4)"/>
+
+          <rect x="200" y="186" width="320" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="214" text-anchor="middle" fill="#1B64DA">OrderCreateRequest.toCommand()</text>
+          <line x1="360" y1="232" x2="360" y2="272" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f4)"/>
+
+          <rect x="200" y="272" width="320" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="300" text-anchor="middle" fill="#4E5968">orderService.place(userId, command)</text>
+          <line x1="360" y1="318" x2="360" y2="358" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f4)"/>
+
+          <rect x="200" y="358" width="320" height="56" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="382" text-anchor="middle" fill="#0A8F5B">OrderInfo 그대로 반환</text>
+          <text class="svg-s" x="360" y="400" text-anchor="middle" fill="#0A8F5B">ResponseBodyAdvice 가 ApiResponse 래핑</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 4.</b> OrderController.order() — 직선 흐름. 예외 경로는 전부 place 안에서 발생하고 <b>ApiControllerAdvice</b> 가 status 를 매핑하므로 컨트롤러에는 try-catch 가 없다.</figcaption>
+    </figure>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">OrderController.kt — 목표 형태 (DTO 동거)</span>
+      </div>
+<pre><span class="kw">data class</span> <span class="ty">OrderCreateRequest</span>(
+    <span class="kw">val</span> items: <span class="ty">List</span>&lt;<span class="ty">OrderLineRequest</span>&gt;,
+    <span class="kw">val</span> couponId: <span class="ty">Long</span>?,                  <span class="cm">// 주문 전체 적용 1장 — 미적용이면 null</span>
+    <span class="kw">val</span> expectedOriginalAmount: <span class="ty">Long</span>,      <span class="cm">// ① 계산서 echo — 비교 전용</span>
+    <span class="kw">val</span> expectedDiscountAmount: <span class="ty">Long</span>,
+    <span class="kw">val</span> expectedTotalAmount: <span class="ty">Long</span>,
+) {
+    <span class="kw">fun</span> <span class="fn">toCommand</span>(): <span class="ty">OrderCreateCommand</span> = <span class="cm">/* 필드 1:1 매핑 */</span>
+}
+<span class="kw">data class</span> <span class="ty">OrderLineRequest</span>(<span class="kw">val</span> productId: <span class="ty">Long</span>, <span class="kw">val</span> quantity: <span class="ty">Int</span>)
+
+<span class="cm">// 호출: orderService.place(userId, command)</span>
+<span class="cm">// userId 는 @RequestAttribute(ACCOUNT_ID) — body 에 넣지 않는다</span></pre>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">SERVICE · TX①</p><h2 class="sec">OrderService.place() — Tx①</h2></div>
+    </div>
+
+    <p class="lead">가장 크고 중요한 메서드다. 재고 차감 → 쿠폰 사용 → 금액 박제 → PENDING_PAYMENT 저장이 전부 트랜잭션 ① 하나에서 끝난다. 어느 분기에서 실패하든 Tx① 이 롤백되어 재고·쿠폰이 원복된다.</p>
+    <p>재고는 <span class="term">FOR UPDATE</span> 로 일괄 조회하되 <strong>productId 오름차순으로 정렬</strong>해 잠근다 — 두 주문이 같은 상품 집합을 다른 순서로 잠그면 데드락이 난다. 쿠폰 검증·할인 계산이 끝난 뒤 <strong>expected 3종 변동 게이트</strong>를 통과해야 주문이 만들어진다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">place</span>(<span class="pa">userId: Long</span>, <span class="pa">command: OrderCreateCommand</span>) <span class="rt">→ OrderInfo</span><span class="mut">MUT · @Transactional</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>userId · command (items · couponId · expected 3종)</td></tr>
+        <tr><td>반환</td><td>OrderInfo — status = PENDING_PAYMENT (결제는 아직)</td></tr>
+        <tr><td>책임</td><td>재고 차감 + 쿠폰 사용 + 금액 3종 재계산·박제 + 변동 게이트 + Order 저장. 전부 Tx① 안</td></tr>
+        <tr><td>실패</td><td>아래 표의 에러 전부 — 어느 지점이든 Tx① 롤백으로 재고·쿠폰 원복</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 05">
+        <svg viewBox="0 0 720 1740" role="img" aria-label="OrderService.place 플로우차트. items 검증, 상품 조회, 재고 잠금과 차감, 쿠폰 검증과 사용, 금액 3종 계산, expected 비교 게이트, 주문 저장까지 트랜잭션 1 안에서 진행되며 각 분기의 에러 코드가 우측에 표시된다.">
+          <defs>
+            <marker id="f5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="120" y="14" width="260" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="250" y="42" text-anchor="middle" fill="#333D4B">place(userId, command)</text>
+
+          <!-- Tx boundary -->
+          <rect x="24" y="78" width="440" height="1547" rx="18" fill="none" stroke="#3182F6" stroke-width="1.6" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="40" y="100" fill="#1B64DA">Tx① — @Transactional place()</text>
+
+          <line x1="250" y1="58" x2="250" y2="110" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D1 items empty -->
+          <polygon points="250,110 345,140 250,170 155,140" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="145" text-anchor="middle" fill="#333D4B">items 비었나?</text>
+          <line x1="345" y1="140" x2="490" y2="140" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="132" text-anchor="middle" fill="#C9303C">예</text>
+          <rect x="490" y="118" width="210" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="146" text-anchor="middle" fill="#C9303C">400 EMPTY_ORDER_ITEMS</text>
+          <line x1="250" y1="170" x2="250" y2="200" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="192" fill="#0A8F5B">아니오</text>
+
+          <!-- P2 products -->
+          <rect x="120" y="200" width="260" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="228" text-anchor="middle" fill="#4E5968">상품 일괄 조회 — findAllActiveByIdIn</text>
+          <line x1="250" y1="246" x2="250" y2="270" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D2 product exists -->
+          <polygon points="250,270 345,300 250,330 155,300" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="305" text-anchor="middle" fill="#333D4B">상품 전부 존재?</text>
+          <line x1="345" y1="300" x2="490" y2="300" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="292" text-anchor="middle" fill="#C9303C">누락</text>
+          <rect x="490" y="278" width="210" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="306" text-anchor="middle" fill="#C9303C">404 PRODUCT_NOT_FOUND</text>
+          <line x1="250" y1="330" x2="250" y2="360" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="352" fill="#0A8F5B">예</text>
+
+          <!-- P3 inventory lock -->
+          <rect x="120" y="360" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="384" text-anchor="middle" fill="#4E5968">재고 FOR UPDATE 일괄 조회</text>
+          <text class="svg-s" x="250" y="402" text-anchor="middle" fill="#4E5968">(productId 오름차순 — 데드락 방지)</text>
+          <line x1="250" y1="416" x2="250" y2="440" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D3 inventory exists -->
+          <polygon points="250,440 345,470 250,500 155,470" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="475" text-anchor="middle" fill="#333D4B">재고 행 존재?</text>
+          <line x1="345" y1="470" x2="490" y2="470" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="462" text-anchor="middle" fill="#C9303C">없음</text>
+          <rect x="490" y="448" width="210" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="476" text-anchor="middle" fill="#C9303C">404 INVENTORY_NOT_FOUND</text>
+          <line x1="250" y1="500" x2="250" y2="530" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="522" fill="#0A8F5B">예</text>
+
+          <!-- P4 decrease -->
+          <rect x="120" y="530" width="260" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="558" text-anchor="middle" fill="#4E5968">inventory.decrease(quantity)</text>
+          <line x1="250" y1="576" x2="250" y2="610" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D4 stock enough -->
+          <polygon points="250,610 345,640 250,670 155,640" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="645" text-anchor="middle" fill="#333D4B">재고 충분?</text>
+          <line x1="345" y1="640" x2="490" y2="640" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="632" text-anchor="middle" fill="#C9303C">부족</text>
+          <rect x="490" y="618" width="210" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="646" text-anchor="middle" fill="#C9303C">409 STOCK_INSUFFICIENT</text>
+          <line x1="250" y1="670" x2="250" y2="700" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="692" fill="#0A8F5B">예</text>
+
+          <!-- P4b snapshot -->
+          <rect x="120" y="700" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="724" text-anchor="middle" fill="#4E5968">OrderItemSnapshot 구성</text>
+          <text class="svg-s" x="250" y="742" text-anchor="middle" fill="#4E5968">originalAmount = Σ 단가 × 수량</text>
+          <line x1="250" y1="756" x2="250" y2="790" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D5 coupon? -->
+          <polygon points="250,790 345,820 250,850 155,820" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="825" text-anchor="middle" fill="#1B64DA">couponId 있나?</text>
+          <polyline points="155,820 70,820 70,1252 242,1252" fill="none" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#f5)"/>
+          <text class="svg-s" x="76" y="810" fill="#6B7684">없음 — discount = 0</text>
+          <line x1="250" y1="850" x2="250" y2="900" stroke="#3182F6" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="878" fill="#1B64DA">있음 — 쿠폰 적용</text>
+
+          <!-- D6 user coupon exists -->
+          <polygon points="250,900 345,930 250,960 155,930" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="935" text-anchor="middle" fill="#1B64DA">UserCoupon 있나?</text>
+          <line x1="345" y1="930" x2="490" y2="930" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="922" text-anchor="middle" fill="#C9303C">없음</text>
+          <rect x="490" y="908" width="210" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="936" text-anchor="middle" fill="#C9303C">404 COUPON_NOT_FOUND</text>
+          <line x1="250" y1="960" x2="250" y2="990" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="982" fill="#0A8F5B">예</text>
+
+          <!-- P5 validateUsable -->
+          <rect x="120" y="990" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1014" text-anchor="middle" fill="#4E5968">Coupon.validateUsable(</text>
+          <text class="svg-s" x="250" y="1032" text-anchor="middle" fill="#4E5968">originalAmount, now)</text>
+          <line x1="380" y1="1018" x2="490" y2="1018" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="432" y="1010" text-anchor="middle" fill="#C9303C">위반</text>
+          <rect x="490" y="990" width="210" height="56" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="1014" text-anchor="middle" fill="#C9303C">400 MIN_ORDER_NOT_MET</text>
+          <text class="svg-s" x="595" y="1032" text-anchor="middle" fill="#C9303C">400 EXPIRED</text>
+          <line x1="250" y1="1046" x2="250" y2="1080" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- P6 discount -->
+          <rect x="120" y="1080" width="260" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1108" text-anchor="middle" fill="#4E5968">DiscountPolicy.calculateDiscount</text>
+          <line x1="250" y1="1126" x2="250" y2="1160" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- P7 use -->
+          <rect x="120" y="1160" width="260" height="56" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1184" text-anchor="middle" fill="#1B64DA">UserCoupon.use(now)</text>
+          <text class="svg-s" x="250" y="1202" text-anchor="middle" fill="#1B64DA">@Version — 커밋 시 충돌 감지</text>
+          <line x1="380" y1="1188" x2="490" y2="1188" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="432" y="1180" text-anchor="middle" fill="#C9303C">충돌</text>
+          <rect x="490" y="1160" width="210" height="56" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="1184" text-anchor="middle" fill="#C9303C">409 ALREADY_USED</text>
+          <text class="svg-s" x="595" y="1202" text-anchor="middle" fill="#C9303C">(@Version 충돌 포함)</text>
+          <line x1="250" y1="1216" x2="250" y2="1280" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- P8 amounts -->
+          <rect x="120" y="1280" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1304" text-anchor="middle" fill="#4E5968">금액 3종 확정</text>
+          <text class="svg-s" x="250" y="1322" text-anchor="middle" fill="#4E5968">total = original − discount</text>
+          <line x1="250" y1="1336" x2="250" y2="1370" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- D7 expected gate -->
+          <polygon points="250,1370 345,1400 250,1430 155,1400" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1405" text-anchor="middle" fill="#1B64DA">expected 3종 일치?</text>
+          <line x1="345" y1="1400" x2="490" y2="1400" stroke="#F04452" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="415" y="1392" text-anchor="middle" fill="#C9303C">불일치</text>
+          <rect x="490" y="1372" width="210" height="56" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="595" y="1396" text-anchor="middle" fill="#C9303C">409 PRICE_CHANGED</text>
+          <text class="svg-s" x="595" y="1414" text-anchor="middle" fill="#C9303C">+ 현재 금액 3종 응답</text>
+          <line x1="250" y1="1430" x2="250" y2="1460" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="1452" fill="#0A8F5B">일치</text>
+
+          <!-- P9 create -->
+          <rect x="120" y="1460" width="260" height="56" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1484" text-anchor="middle" fill="#1B64DA">Order.create — 금액·쿠폰 박제</text>
+          <text class="svg-s" x="250" y="1502" text-anchor="middle" fill="#1B64DA">status = PENDING_PAYMENT</text>
+          <line x1="250" y1="1516" x2="250" y2="1550" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f5)"/>
+
+          <!-- P10 save -->
+          <rect x="120" y="1550" width="260" height="46" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1578" text-anchor="middle" fill="#4E5968">orderRepository.save(order)</text>
+
+          <line x1="250" y1="1596" x2="250" y2="1665" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f5)"/>
+          <text class="svg-s" x="262" y="1646" fill="#0A8F5B">— Tx① commit —</text>
+
+          <rect x="100" y="1665" width="300" height="48" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="1694" text-anchor="middle" fill="#0A8F5B">OrderInfo 반환 — 이후 결제 진행 (그림 6)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 5.</b> OrderService.place() — Tx① 경계(파란 점선) 안에서 모든 검증·차감·박제가 끝난다. 우측 빨간 출구는 전부 예외 throw → <b>Tx① 롤백</b>으로 재고 차감·쿠폰 사용이 원복된 채 전파된다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">왜 3종을 다 비교하나</span>총액 1개만 비교하면 <strong>상품가 +1,000 / 할인 +1,000 이 상쇄</strong>되어 게이트가 뚫린다 — 유저가 본 계산서와 실제 구성이 달라졌는데 통과한다. 그래서 <span class="term">originalAmount · discountAmount · totalAmount</span> <strong>3종을 전부</strong> 비교한다. 이 값은 결제 금액의 근거가 아니라 <strong>비교 전용</strong>이고, 결제는 항상 서버 재계산값으로 한다.</div>
+
+    <h3>에러 경로 한 장</h3>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>에러 코드</th><th>발생 지점</th><th>HTTP</th></tr></thead>
+        <tbody>
+          <tr><td>EMPTY_ORDER_ITEMS</td><td>items 빈 배열</td><td>400</td></tr>
+          <tr><td>INVALID_ORDER_QUANTITY</td><td>quantity &lt; 1 (OrderItem init)</td><td>400</td></tr>
+          <tr><td>PRODUCT_NOT_FOUND</td><td>비활성/없는 상품</td><td>404</td></tr>
+          <tr><td>INVENTORY_NOT_FOUND</td><td>재고 행 없음</td><td>404</td></tr>
+          <tr><td>STOCK_INSUFFICIENT</td><td>inventory.decrease</td><td>409</td></tr>
+          <tr><td>COUPON_NOT_FOUND</td><td>UserCoupon 조회 실패</td><td>404</td></tr>
+          <tr><td>EXPIRED · MIN_ORDER_NOT_MET</td><td>Coupon.validateUsable</td><td>400</td></tr>
+          <tr><td>ALREADY_USED <em>(신규)</em></td><td>UserCoupon.use · @Version 충돌</td><td>409</td></tr>
+          <tr><td>PRICE_CHANGED <em>(신규)</em></td><td>expected 3종 게이트</td><td>409</td></tr>
+          <tr><td>PAYMENT_DECLINED <em>(신규)</em></td><td>PG 거절 (그림 6)</td><td>4xx</td></tr>
+          <tr><td>ORDER_NOT_FOUND</td><td>조회 시 없음/타인 주문</td><td>404</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">PAYMENT · TX②</p><h2 class="sec">결제 진행 — Tx 밖 + Tx②</h2></div>
+    </div>
+
+    <p class="lead">D1-b 의 핵심 — PG 호출은 트랜잭션 밖이다. 느린 외부 호출이 DB 락을 잡지 않고, 결과 3종(성공·거절·타임아웃)을 짧은 Tx② 에서 확정한다.</p>
+    <p><span class="term">PaymentGateway.approve</span> 는 <strong>박제된 totalAmount 로만</strong> 호출한다 — 현재 상품가를 재조회하지 않는다 (②→③ 의 짧은 틈은 박제가 막는다, 07 문서). 멱등키를 함께 보내 재시도 시 이중 결제를 막는다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">approve</span>(<span class="pa">orderId: Long</span>, <span class="pa">amount: Money</span>, <span class="pa">idempotencyKey: String</span>) <span class="rt">→ PaymentGatewayResult</span><span class="mut">외부 I/O · Tx 밖</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>orderId · amount — Order.totalAmount <strong>박제값</strong> · idempotencyKey — 재시도 멱등성</td></tr>
+        <tr><td>반환</td><td>PaymentGatewayResult — SUCCESS / DECLINED / TIMEOUT 3종 (sealed/enum)</td></tr>
+        <tr><td>책임</td><td>외부 PG 승인 요청. 인터페이스만 확정 — 구현 깊이(D8)·Payment 엔티티(D7)는 미결</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 06">
+        <svg viewBox="0 0 720 650" role="img" aria-label="결제 진행 플로우차트. place 커밋 후 트랜잭션 밖에서 PaymentGateway.approve 를 호출하고, 결과에 따라 트랜잭션 2 에서 PAID 확정, FAILED 와 보상, UNKNOWN 보류로 갈라진다.">
+          <defs>
+            <marker id="f6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="200" y="18" width="320" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="46" text-anchor="middle" fill="#333D4B">place() 커밋 완료 — PENDING_PAYMENT</text>
+          <line x1="360" y1="62" x2="360" y2="108" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f6)"/>
+
+          <!-- Tx-밖 zone -->
+          <rect x="120" y="108" width="480" height="120" rx="16" fill="none" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="136" y="130" fill="#6B7684">트랜잭션 밖 — DB 락 없음</text>
+          <rect x="180" y="142" width="360" height="64" rx="12" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="360" y="168" text-anchor="middle" fill="#1B64DA">PaymentGateway.approve(orderId,</text>
+          <text class="svg-s" x="360" y="186" text-anchor="middle" fill="#1B64DA">박제 totalAmount, idempotencyKey)</text>
+
+          <line x1="360" y1="228" x2="360" y2="268" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f6)"/>
+          <polygon points="360,268 445,300 360,332 275,300" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="305" text-anchor="middle" fill="#333D4B">결과?</text>
+
+          <!-- SUCCESS branch -->
+          <polyline points="275,300 130,300 130,368" fill="none" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f6)"/>
+          <text class="svg-s" x="160" y="292" fill="#0A8F5B">SUCCESS</text>
+          <rect x="30" y="352" width="200" height="170" rx="16" fill="none" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="42" y="372" fill="#1B64DA">Tx②</text>
+          <rect x="42" y="384" width="176" height="44" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="130" y="412" text-anchor="middle" fill="#1B64DA">order.confirmPayment()</text>
+          <line x1="130" y1="428" x2="130" y2="560" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f6)"/>
+
+          <!-- DECLINED branch -->
+          <line x1="360" y1="332" x2="360" y2="368" stroke="#F04452" stroke-width="1.8" marker-end="url(#f6)"/>
+          <text class="svg-s" x="372" y="356" fill="#C9303C">DECLINED</text>
+          <rect x="250" y="352" width="220" height="170" rx="16" fill="none" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="262" y="372" fill="#1B64DA">Tx②</text>
+          <rect x="262" y="384" width="196" height="44" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="412" text-anchor="middle" fill="#1B64DA">order.failPayment()</text>
+          <line x1="360" y1="428" x2="360" y2="442" stroke="#4E5968" stroke-width="1.6" marker-end="url(#f6)"/>
+          <rect x="262" y="442" width="196" height="60" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="466" text-anchor="middle" fill="#4E5968">보상 — inventory.increase()</text>
+          <text class="svg-s" x="360" y="484" text-anchor="middle" fill="#4E5968">userCoupon.restore()</text>
+          <line x1="360" y1="502" x2="360" y2="560" stroke="#F04452" stroke-width="1.8" marker-end="url(#f6)"/>
+
+          <!-- TIMEOUT branch -->
+          <polyline points="445,300 590,300 590,368" fill="none" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#f6)"/>
+          <text class="svg-s" x="475" y="292" fill="#6B7684">TIMEOUT</text>
+          <rect x="480" y="352" width="220" height="170" rx="16" fill="none" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="492" y="372" fill="#1B64DA">Tx②</text>
+          <rect x="492" y="384" width="196" height="44" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="590" y="412" text-anchor="middle" fill="#1B64DA">order.markUnknown()</text>
+          <line x1="590" y1="428" x2="590" y2="442" stroke="#4E5968" stroke-width="1.6" marker-end="url(#f6)"/>
+          <rect x="492" y="442" width="196" height="60" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="590" y="466" text-anchor="middle" fill="#C9303C">보상 금지 — 결제됐을 수 있음</text>
+          <text class="svg-s" x="590" y="484" text-anchor="middle" fill="#C9303C">확인 전까지 보류</text>
+          <line x1="590" y1="502" x2="590" y2="560" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#f6)"/>
+
+          <!-- end pills -->
+          <rect x="60" y="560" width="140" height="44" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="130" y="588" text-anchor="middle" fill="#0A8F5B">PAID</text>
+          <rect x="290" y="560" width="140" height="44" rx="22" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="588" text-anchor="middle" fill="#C9303C">FAILED</text>
+          <rect x="520" y="560" width="140" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="590" y="588" text-anchor="middle" fill="#4E5968">UNKNOWN</text>
+
+          <text class="svg-s" x="360" y="632" text-anchor="middle" fill="#C9303C">FAILED 응답: PAYMENT_DECLINED (4xx · 신규 에러코드)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 6.</b> 결제 진행 — Tx 밖 approve 후 결과 3종 분기. <b>DECLINED 만 보상</b>(재고 increase + 쿠폰 restore)하고, <b>TIMEOUT 은 보상하지 않는다</b> — 실제로 결제됐을 수 있기 때문이다.</figcaption>
+    </figure>
+
+    <div class="note warn"><span class="tag">UNKNOWN 의 의미</span>타임아웃은 "실패"가 아니라 <strong>"모른다"</strong>다. 여기서 재고·쿠폰을 복원하면 실제로는 결제된 주문의 재고가 다른 사람에게 팔린다. UNKNOWN 은 <strong>복원 금지 + 보류</strong>가 정답이고, 후속 확인(PG 조회·배치)은 이번 범위 밖이다.</div>
+
+    <div class="note"><span class="tag">미결 사항</span><strong>D8 (PaymentGateway 구현 깊이)</strong> 과 <strong>D7 (Payment 엔티티 분리)</strong> 은 아직 결정하지 않았다. 이 문서는 인터페이스 시그니처(approve + 결과 3종)까지만 고정하고, 구현은 점선으로 둔다 — place 와 상태머신은 이 결정과 무관하게 지금 만들 수 있다.</div>
+  </section>
+
+  <!-- ===================== SECTION 5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">COUPON METHODS</p><h2 class="sec">UserCoupon.use · Coupon.validateUsable</h2></div>
+    </div>
+
+    <p class="lead">쿠폰 도메인에 새로 들어가는 메서드 두 개. use 는 상태를 바꾸는 쪽(@Version 낙관락), validateUsable 은 검증만 하는 쪽(기존 코드)이다.</p>
+    <p><span class="term">UserCoupon</span> 에는 <span class="term">usedAt: LocalDateTime?</span> 과 <span class="term">@Version</span> 필드를 추가한다. 같은 쿠폰을 두 요청이 동시에 사용하면 둘 다 <span class="term">AVAILABLE</span> 을 읽고 통과하지만, <strong>커밋 시점의 @Version 검사</strong>가 한쪽을 떨어뜨린다 — 이 충돌도 409 ALREADY_USED 로 변환한다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">use</span>(<span class="pa">now: LocalDateTime</span>) <span class="rt">→ Unit</span><span class="mut">MUT · @Version 낙관락</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>now — 사용 시각 (테스트 주입 가능하게 파라미터로)</td></tr>
+        <tr><td>변경</td><td>status = USED · usedAt = now</td></tr>
+        <tr><td>실패</td><td>status ≠ AVAILABLE → ConflictException(ALREADY_USED) · 커밋 시 @Version 충돌 → 409 변환</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 07">
+        <svg viewBox="0 0 720 465" role="img" aria-label="UserCoupon.use 플로우차트. status 가 AVAILABLE 이 아니면 409 ALREADY_USED, 맞으면 usedAt 과 status 를 갱신하고 커밋 시 @Version 충돌을 검사한다.">
+          <defs>
+            <marker id="f7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="140" y="14" width="220" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="250" y="42" text-anchor="middle" fill="#333D4B">UserCoupon.use(now)</text>
+          <line x1="250" y1="58" x2="250" y2="88" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f7)"/>
+
+          <polygon points="250,88 365,120 250,152 135,120" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="125" text-anchor="middle" fill="#333D4B">status == AVAILABLE?</text>
+          <line x1="365" y1="120" x2="470" y2="120" stroke="#F04452" stroke-width="1.8" marker-end="url(#f7)"/>
+          <text class="svg-s" x="415" y="112" text-anchor="middle" fill="#C9303C">아니오</text>
+          <rect x="470" y="98" width="200" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="570" y="126" text-anchor="middle" fill="#C9303C">409 ALREADY_USED</text>
+          <line x1="250" y1="152" x2="250" y2="200" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f7)"/>
+          <text class="svg-s" x="262" y="180" fill="#0A8F5B">예</text>
+
+          <rect x="130" y="200" width="240" height="56" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="224" text-anchor="middle" fill="#1B64DA">usedAt = now</text>
+          <text class="svg-s" x="250" y="242" text-anchor="middle" fill="#1B64DA">status = USED</text>
+          <line x1="250" y1="256" x2="250" y2="295" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f7)"/>
+
+          <rect x="110" y="295" width="280" height="64" rx="12" fill="#F2F4F6" stroke="#8B95A1" stroke-width="1.3" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="250" y="319" text-anchor="middle" fill="#4E5968">커밋 시 @Version 검사</text>
+          <text class="svg-s" x="250" y="337" text-anchor="middle" fill="#4E5968">동시 사용 → 낙관락 충돌 감지</text>
+          <line x1="390" y1="327" x2="470" y2="327" stroke="#F04452" stroke-width="1.8" marker-end="url(#f7)"/>
+          <rect x="470" y="299" width="210" height="56" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="575" y="323" text-anchor="middle" fill="#C9303C">낙관락 충돌 시</text>
+          <text class="svg-s" x="575" y="341" text-anchor="middle" fill="#C9303C">409 ALREADY_USED 변환</text>
+          <line x1="250" y1="359" x2="250" y2="398" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f7)"/>
+
+          <rect x="160" y="398" width="180" height="44" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="250" y="426" text-anchor="middle" fill="#0A8F5B">USED 확정</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 7.</b> UserCoupon.use(now) — 상태 검사는 메서드 안에서, 동시성 방어는 커밋 시점의 <b>@Version</b> 으로 이중 방어한다. <span class="term">restore()</span> 는 역방향 (USED → AVAILABLE · usedAt = null, 보상 전용).</figcaption>
+    </figure>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">validateUsable</span>(<span class="pa">orderAmount: Money</span>, <span class="pa">now: LocalDateTime</span>) <span class="rt">→ Unit</span><span class="pure">PURE · 상태 변경 없음</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>orderAmount — 할인 전 originalAmount · now — 현재 시각</td></tr>
+        <tr><td>반환</td><td>통과 시 아무것도 안 함 (Unit)</td></tr>
+        <tr><td>실패</td><td>최소 주문 금액 미달 → 400 MIN_ORDER_NOT_MET · 만료 → 400 EXPIRED</td></tr>
+        <tr><td>비고</td><td>기존 코드 그대로 — 이번에 수정 없음, place 가 새로 호출하기만 한다</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 08">
+        <svg viewBox="0 0 720 380" role="img" aria-label="Coupon.validateUsable 플로우차트. 최소 주문 금액 미달이면 400 MIN_ORDER_NOT_MET, 만료면 400 EXPIRED, 둘 다 통과하면 사용 가능이다.">
+          <defs>
+            <marker id="f8" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="110" y="14" width="280" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="42" text-anchor="middle" fill="#333D4B">validateUsable(orderAmount, now)</text>
+          <line x1="250" y1="58" x2="250" y2="88" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f8)"/>
+
+          <polygon points="250,88 370,120 250,152 130,120" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="114" text-anchor="middle" fill="#333D4B">orderAmount &lt;</text>
+          <text class="svg-s" x="250" y="130" text-anchor="middle" fill="#333D4B">minOrderAmount?</text>
+          <line x1="370" y1="120" x2="470" y2="120" stroke="#F04452" stroke-width="1.8" marker-end="url(#f8)"/>
+          <text class="svg-s" x="418" y="112" text-anchor="middle" fill="#C9303C">예</text>
+          <rect x="470" y="98" width="216" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="578" y="126" text-anchor="middle" fill="#C9303C">400 MIN_ORDER_NOT_MET</text>
+          <line x1="250" y1="152" x2="250" y2="198" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f8)"/>
+          <text class="svg-s" x="262" y="180" fill="#0A8F5B">아니오</text>
+
+          <polygon points="250,198 355,230 250,262 145,230" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="235" text-anchor="middle" fill="#333D4B">isExpired(now)?</text>
+          <line x1="355" y1="230" x2="470" y2="230" stroke="#F04452" stroke-width="1.8" marker-end="url(#f8)"/>
+          <text class="svg-s" x="412" y="222" text-anchor="middle" fill="#C9303C">예</text>
+          <rect x="470" y="208" width="216" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="578" y="236" text-anchor="middle" fill="#C9303C">400 EXPIRED</text>
+          <line x1="250" y1="262" x2="250" y2="310" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f8)"/>
+          <text class="svg-s" x="262" y="290" fill="#0A8F5B">아니오</text>
+
+          <rect x="140" y="310" width="220" height="44" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="250" y="338" text-anchor="middle" fill="#0A8F5B">통과 — 사용 가능</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 8.</b> Coupon.validateUsable — 기존 구현 그대로. 검사 순서도 코드와 동일하게 <b>최소 금액 → 만료</b> 순이다. orderAmount 에는 할인 전 <span class="term">originalAmount</span> 를 넣는다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================== SECTION 6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">DISCOUNT POLICY</p><h2 class="sec">DiscountPolicy.calculateDiscount</h2></div>
+    </div>
+
+    <p class="lead">무상태 object — 입력만으로 결과가 정해지는 순수 함수다. 정률/정액 분기 후, 할인이 주문 금액을 넘지 않게 캡을 씌운다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">calculateDiscount</span>(<span class="pa">couponType: CouponType</span>, <span class="pa">value: Long</span>, <span class="pa">price: Money</span>) <span class="rt">→ Money</span><span class="pure">PURE · 부작용 없음</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>couponType — RATE/FIXED · value — 할인율(%) 또는 정액 · price — 할인 전 originalAmount</td></tr>
+        <tr><td>반환</td><td>Money(discount) — 항상 0 ≤ discount ≤ price</td></tr>
+        <tr><td>책임</td><td>할인액 계산만. 검증(만료·최소금액)은 validateUsable 의 몫</td></tr>
+        <tr><td>비고</td><td>기존 구현 그대로 — place 가 새로 호출하기만 한다</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 09">
+        <svg viewBox="0 0 720 470" role="img" aria-label="DiscountPolicy.calculateDiscount 플로우차트. 타입이 RATE 면 가격 곱하기 할인율 나누기 100, FIXED 면 정액을 raw 로 잡고, min(raw, price) 캡을 거쳐 Money 를 반환한다.">
+          <defs>
+            <marker id="f9" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="210" y="14" width="300" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="42" text-anchor="middle" fill="#333D4B">calculateDiscount(type, value, price)</text>
+          <line x1="360" y1="58" x2="360" y2="88" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f9)"/>
+
+          <polygon points="360,88 440,120 360,152 280,120" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="125" text-anchor="middle" fill="#333D4B">type?</text>
+
+          <polyline points="280,120 185,120 185,200" fill="none" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f9)"/>
+          <text class="svg-s" x="215" y="112" text-anchor="middle" fill="#6B7684">RATE</text>
+          <polyline points="440,120 535,120 535,200" fill="none" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f9)"/>
+          <text class="svg-s" x="485" y="112" text-anchor="middle" fill="#6B7684">FIXED</text>
+
+          <rect x="70" y="200" width="230" height="60" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="185" y="224" text-anchor="middle" fill="#333D4B">RATE (정률)</text>
+          <text class="svg-s" x="185" y="242" text-anchor="middle" fill="#4E5968">raw = price × value / 100</text>
+          <rect x="420" y="200" width="230" height="60" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="535" y="224" text-anchor="middle" fill="#333D4B">FIXED (정액)</text>
+          <text class="svg-s" x="535" y="242" text-anchor="middle" fill="#4E5968">raw = value</text>
+
+          <polyline points="185,260 185,338 226,338" fill="none" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f9)"/>
+          <polyline points="535,260 535,338 494,338" fill="none" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f9)"/>
+
+          <rect x="230" y="310" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="360" y="334" text-anchor="middle" fill="#333D4B">discount = min(raw, price)</text>
+          <text class="svg-s" x="360" y="352" text-anchor="middle" fill="#4E5968">할인이 원금액을 넘지 않는다</text>
+          <line x1="360" y1="366" x2="360" y2="404" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f9)"/>
+
+          <rect x="240" y="404" width="240" height="44" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="432" text-anchor="middle" fill="#0A8F5B">Money(discount) 반환</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 9.</b> DiscountPolicy.calculateDiscount — RATE 는 <span class="term">price × value / 100</span>, FIXED 는 <span class="term">value</span>. 마지막에 <b>min(raw, price) 캡</b>으로 음수 totalAmount 를 원천 차단한다 (Money 가 음수면 어차피 예외).</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================== SECTION 7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">ORDER ENTITY</p><h2 class="sec">Order.create · 상태 전이</h2></div>
+    </div>
+
+    <p class="lead">create 는 박제를 완성하는 팩토리, 전이 메서드 3종은 상태머신의 게이트다 — PENDING_PAYMENT 가 아닌 상태에서의 전이는 전부 예외다.</p>
+    <p>기존 <span class="term">create(userId, snapshots)</span> 시그니처에 <strong>couponId · 금액 3종</strong>이 추가된다. 전이 검증을 서비스가 아니라 <strong>Order 엔티티 메서드</strong>에 두는 이유 — 어떤 경로(API·배치·테스트)로 호출돼도 PAID → FAILED 같은 역전이가 불가능해야 하기 때문이다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">create</span>(<span class="pa">userId</span>, <span class="pa">couponId</span>, <span class="pa">originalAmount</span>, <span class="pa">discountAmount</span>, <span class="pa">totalAmount</span>, <span class="pa">snapshots</span>) <span class="rt">→ Order</span><span class="mut">팩토리 · 박제</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>place 가 재계산한 금액 3종 + couponId + OrderItemSnapshot 목록</td></tr>
+        <tr><td>반환</td><td>Order — status = PENDING_PAYMENT, 저장은 place 가</td></tr>
+        <tr><td>실패</td><td>snapshots 빈 목록 → 400 EMPTY_ORDER_ITEMS · quantity &lt; 1 → 400 INVALID_ORDER_QUANTITY</td></tr>
+        <tr><td>전이</td><td>confirmPayment() → PAID · failPayment() → FAILED · markUnknown() → UNKNOWN (전부 PENDING_PAYMENT 에서만)</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 10">
+        <svg viewBox="0 0 720 710" role="img" aria-label="Order.create 플로우차트와 상태 전이 다이어그램. 빈 스냅샷이면 400, addItem 누적 후 금액 3종을 박제하고 PENDING_PAYMENT 로 반환한다. 상태 전이는 PENDING_PAYMENT 에서 PAID, FAILED, UNKNOWN 으로만 허용된다.">
+          <defs>
+            <marker id="f10" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="110" y="14" width="280" height="44" rx="22" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="42" text-anchor="middle" fill="#333D4B">Order.create(userId, couponId, …)</text>
+          <line x1="250" y1="58" x2="250" y2="88" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f10)"/>
+
+          <polygon points="250,88 355,120 250,152 145,120" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="125" text-anchor="middle" fill="#333D4B">snapshots 비었나?</text>
+          <line x1="355" y1="120" x2="470" y2="120" stroke="#F04452" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="412" y="112" text-anchor="middle" fill="#C9303C">예</text>
+          <rect x="470" y="98" width="216" height="44" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="578" y="126" text-anchor="middle" fill="#C9303C">400 EMPTY_ORDER_ITEMS</text>
+          <line x1="250" y1="152" x2="250" y2="200" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="262" y="180" fill="#0A8F5B">아니오</text>
+
+          <rect x="120" y="200" width="260" height="56" rx="12" fill="#FFFFFF" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="224" text-anchor="middle" fill="#4E5968">addItem(snapshot) 반복</text>
+          <text class="svg-s" x="250" y="242" text-anchor="middle" fill="#4E5968">OrderItem 박제 누적</text>
+          <line x1="380" y1="228" x2="470" y2="228" stroke="#F04452" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="425" y="220" text-anchor="middle" fill="#C9303C">quantity &lt; 1</text>
+          <rect x="470" y="200" width="216" height="56" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="578" y="224" text-anchor="middle" fill="#C9303C">400 INVALID_ORDER_QUANTITY</text>
+          <text class="svg-s" x="578" y="242" text-anchor="middle" fill="#C9303C">(OrderItem init 검증)</text>
+          <line x1="250" y1="256" x2="250" y2="300" stroke="#4E5968" stroke-width="1.8" marker-end="url(#f10)"/>
+
+          <rect x="120" y="300" width="260" height="56" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="324" text-anchor="middle" fill="#1B64DA">금액 3종 + couponId 박제</text>
+          <text class="svg-s" x="250" y="342" text-anchor="middle" fill="#1B64DA">status = PENDING_PAYMENT</text>
+          <line x1="250" y1="356" x2="250" y2="396" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f10)"/>
+
+          <rect x="120" y="396" width="260" height="44" rx="22" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="250" y="424" text-anchor="middle" fill="#0A8F5B">Order 반환 — 저장은 place 가</text>
+
+          <!-- separator -->
+          <line x1="24" y1="470" x2="696" y2="470" stroke="#B0B8C1" stroke-width="1.2" stroke-dasharray="6 5"/>
+          <text class="svg-l" x="24" y="498" fill="#191F28">상태 전이 — PENDING_PAYMENT 에서만 허용</text>
+
+          <rect x="60" y="520" width="180" height="44" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-s" x="150" y="548" text-anchor="middle" fill="#1B64DA">PENDING_PAYMENT</text>
+
+          <line x1="240" y1="532" x2="480" y2="528" stroke="#15C47E" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="355" y="518" text-anchor="middle" fill="#0A8F5B">confirmPayment()</text>
+          <rect x="480" y="508" width="160" height="40" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="560" y="533" text-anchor="middle" fill="#0A8F5B">PAID</text>
+
+          <line x1="240" y1="546" x2="480" y2="582" stroke="#F04452" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="355" y="572" text-anchor="middle" fill="#C9303C">failPayment()</text>
+          <rect x="480" y="562" width="160" height="40" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="560" y="587" text-anchor="middle" fill="#C9303C">FAILED</text>
+
+          <line x1="240" y1="558" x2="480" y2="636" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#f10)"/>
+          <text class="svg-s" x="340" y="626" text-anchor="middle" fill="#6B7684">markUnknown()</text>
+          <rect x="480" y="616" width="160" height="40" rx="12" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-s" x="560" y="641" text-anchor="middle" fill="#4E5968">UNKNOWN</text>
+
+          <text class="svg-s" x="60" y="692" fill="#C9303C">PENDING_PAYMENT 가 아닌 상태에서 전이 호출 → 예외 — PAID → FAILED 같은 역전이 금지</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 10.</b> Order.create 와 상태머신. 기존 <span class="term">CREATED</span> 는 <b>PENDING_PAYMENT 로 대체</b>한다 (CANCELED 는 이번 범위 밖). 전이 검증이 엔티티 안에 있으므로 서비스가 실수해도 역전이는 막힌다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===================== SECTION 8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">CHECKLIST</p><h2 class="sec">구현 체크리스트</h2></div>
+    </div>
+
+    <p class="lead">의존성 순서대로 — 아래 단계가 위 단계를 필요로 한다. 1·2 는 서로 독립이라 어느 쪽을 먼저 해도 된다.</p>
+
+    <ul class="checklist">
+      <li><span class="box"></span><b>UserCoupon 확장</b> — use(now) · restore() · usedAt · @Version + CouponErrorCode 에 ALREADY_USED 추가. 단위 테스트로 닫는다 <span class="tag">Step 1</span></li>
+      <li><span class="box"></span><b>Order 확장 + 상태머신</b> — couponId · originalAmount · discountAmount 필드, OrderStatus 4종(CREATED 대체), confirmPayment/failPayment/markUnknown 전이 검증 <span class="tag">Step 2</span></li>
+      <li><span class="box"></span><b>place 통합</b> — 쿠폰 조회·검증·사용 + 금액 3종 계산 + expected 변동 게이트 (OrderErrorCode 에 PRICE_CHANGED 추가, UserCouponRepository 에 findByUserIdAndCouponId 추가) <span class="tag">Step 3</span></li>
+      <li><span class="box"></span><b>PaymentGateway + 결제 배선</b> — 인터페이스(approve + 결과 3종) 정의, Tx 밖 호출 → Tx② confirmPayment/failPayment/markUnknown 연결 (D7·D8 결정 후 구현) <span class="tag">Step 4</span></li>
+      <li><span class="box"></span><b>보상 로직</b> — DECLINED 시 inventory.increase + userCoupon.restore. TIMEOUT 은 보상 금지(UNKNOWN 보류) 테스트로 고정 <span class="tag">Step 5</span></li>
+      <li><span class="box"></span><b>OrderController 재작성</b> — OrderCreateRequest(DTO 동거) · toCommand() · @RequestAttribute(ACCOUNT_ID) · OrderInfo 그대로 반환 <span class="tag">Step 6</span></li>
+      <li><span class="box"></span><b>동시성 테스트 3종</b> — ① 재고 차감 경합(FOR UPDATE) ② 쿠폰 중복 사용(@Version → 409) ③ 주문 생성-결제 흐름 통합 <span class="tag">Step 7</span></li>
+    </ul>
+
+    <div class="note"><span class="tag">진행 메모</span>Step 1·2 는 06/07 의 미결(D7·D8)과 무관하게 <strong>지금 시작 가능</strong>하다. Step 4 만 결정 대기가 걸리고, 그 전까지 place 는 그림 5 의 형태로 완성해 둘 수 있다.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 4 · 주문 도메인 클래스 &amp; 플로우차트 — 06 D1-b 결정 · 07 플로우 목업 기반<br>
+    Tx① 박제 → Tx 밖 결제 → Tx② 확정 · expected 3종은 비교 전용, 결제는 항상 박제값
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

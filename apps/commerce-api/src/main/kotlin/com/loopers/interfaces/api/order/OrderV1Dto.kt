@@ -8,6 +8,7 @@ import java.math.BigDecimal
 class OrderV1Dto {
     data class OrderRequest(
         val items: List<OrderItemRequest>,
+        val couponId: Long? = null,
     ) {
         fun toCommand(loginId: String, password: String): OrderCommand {
             return OrderCommand(
@@ -19,6 +20,7 @@ class OrderV1Dto {
                         quantity = it.quantity,
                     )
                 },
+                couponId = couponId,
             )
         }
     }
@@ -32,6 +34,8 @@ class OrderV1Dto {
         val id: Long,
         val status: OrderStatus,
         val totalPrice: BigDecimal,
+        val discountAmount: BigDecimal,
+        val paidPrice: BigDecimal,
         val items: List<OrderItemResponse>,
     ) {
         data class OrderItemResponse(
@@ -48,6 +52,8 @@ class OrderV1Dto {
                     id = info.id,
                     status = info.status,
                     totalPrice = info.totalPrice,
+                    discountAmount = info.discountAmount,
+                    paidPrice = info.paidPrice,
                     items = info.items.map {
                         OrderItemResponse(
                             productId = it.productId,

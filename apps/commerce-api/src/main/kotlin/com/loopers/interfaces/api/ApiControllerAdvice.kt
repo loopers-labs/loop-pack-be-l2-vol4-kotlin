@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -102,6 +103,15 @@ class ApiControllerAdvice {
     @ExceptionHandler
     fun handleNotFound(e: NoResourceFoundException): ResponseEntity<ApiResponse<*>> {
         return failureResponse(errorType = ErrorType.NOT_FOUND)
+    }
+
+    @ExceptionHandler
+    fun handleConflict(e: OptimisticLockingFailureException): ResponseEntity<ApiResponse<*>> {
+        log.warn("OptimisticLockingFailureException : {}", e.message)
+        return failureResponse(
+            errorType = ErrorType.CONFLICT,
+            errorMessage = "동시 요청으로 처리에 실패했습니다. 다시 시도해주세요.",
+        )
     }
 
     @ExceptionHandler

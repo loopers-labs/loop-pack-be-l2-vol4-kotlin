@@ -1,6 +1,12 @@
 package com.loopers.application.order.usecase
 
+import com.loopers.application.coupon.InMemoryCouponRepository
+import com.loopers.application.coupon.InMemoryUserCouponRepository
 import com.loopers.application.order.OrderCommand
+import com.loopers.domain.coupon.CouponModel
+import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.UserCouponModel
+import com.loopers.domain.coupon.UserCouponStatus
 import com.loopers.domain.order.OrderModel
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.product.ProductModel
@@ -22,6 +28,7 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.ZonedDateTime
 
 class CreateOrderUsecaseTest {
     @DisplayName("주문 생성 유스케이스를 실행할 때,")
@@ -63,18 +70,77 @@ class CreateOrderUsecaseTest {
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
+
+        @DisplayName("쿠폰을 적용하면 할인 금액이 반영되고 쿠폰은 사용 처리된다.")
+        @Test
+        fun appliesCouponDiscount() {
+            // arrange
+            val fixture = Fixture()
+            val userCoupon = fixture.issueCoupon(discountValue = BigDecimal("1000.00"))
+
+            // act
+            val order = fixture.createOrderUsecase.execute(fixture.command(couponId = userCoupon.id))
+
+            // assert
+            assertAll(
+                { assertThat(order.discountAmount).isEqualByComparingTo(BigDecimal("1000.00")) },
+                { assertThat(order.paidPrice).isEqualByComparingTo(BigDecimal("269000.00")) },
+                {
+                    assertThat(fixture.userCouponRepository.findByIdAndUserId(userCoupon.id, fixture.userId)!!.status)
+                        .isEqualTo(UserCouponStatus.USED)
+                },
+            )
+        }
+
+        @DisplayName("내 소유가 아닌 쿠폰이면 NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFound_whenCouponBelongsToOtherUser() {
+            // arrange
+            val fixture = Fixture()
+            val otherUserCoupon = fixture.issueCouponToOtherUser()
+
+            // act
+            val exception = assertThrows<CoreException> {
+                fixture.createOrderUsecase.execute(fixture.command(couponId = otherUserCoupon.id))
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.NOT_FOUND)
+        }
+
+        @DisplayName("이미 사용한 쿠폰이면 CONFLICT 예외가 발생한다.")
+        @Test
+        fun throwsConflict_whenCouponAlreadyUsed() {
+            // arrange
+            val fixture = Fixture()
+            val userCoupon = fixture.issueCoupon(discountValue = BigDecimal("1000.00"))
+            fixture.createOrderUsecase.execute(fixture.command(couponId = userCoupon.id))
+
+            // act
+            val exception = assertThrows<CoreException> {
+                fixture.createOrderUsecase.execute(fixture.command(couponId = userCoupon.id))
+            }
+
+            // assert
+            assertThat(exception.errorType).isEqualTo(ErrorType.CONFLICT)
+        }
     }
 
     private class Fixture {
         private val userRepository = InMemoryUserRepository()
         private val productRepository = InMemoryProductRepository()
+        private val couponRepository = InMemoryCouponRepository()
+        val userCouponRepository = InMemoryUserCouponRepository()
         val stockRepository = InMemoryProductStockRepository()
         val orderRepository = InMemoryOrderRepository()
+        val userId = 1L
         private val userService = UserService(userRepository)
         val createOrderUsecase = CreateOrderUsecase(
             userService = userService,
             productRepository = productRepository,
             productStockRepository = stockRepository,
+            couponRepository = couponRepository,
+            userCouponRepository = userCouponRepository,
             orderRepository = orderRepository,
         )
 
@@ -86,7 +152,7 @@ class CreateOrderUsecaseTest {
                     name = "홍길동",
                     birthDate = LocalDate.of(1990, 1, 1),
                     email = "loopers@example.com",
-                ).withId(1L),
+                ).withId(userId),
             )
             productRepository.save(product(id = 10L, name = "Air Max", price = "120000.00"))
             productRepository.save(product(id = 20L, name = "Jordan", price = "30000.00"))
@@ -99,12 +165,24 @@ class CreateOrderUsecaseTest {
                 OrderCommand.OrderItemCommand(productId = 10L, quantity = 2),
                 OrderCommand.OrderItemCommand(productId = 20L, quantity = 1),
             ),
+            couponId: Long? = null,
         ): OrderCommand {
             return OrderCommand(
                 loginId = "loopers01",
                 password = "Pass1234!",
                 items = items,
+                couponId = couponId,
             )
+        }
+
+        fun issueCoupon(discountValue: BigDecimal): UserCouponModel {
+            val coupon = couponRepository.save(coupon(discountValue = discountValue))
+            return userCouponRepository.save(UserCouponModel(userId = userId, couponId = coupon.id))
+        }
+
+        fun issueCouponToOtherUser(): UserCouponModel {
+            val coupon = couponRepository.save(coupon(discountValue = BigDecimal("1000.00")))
+            return userCouponRepository.save(UserCouponModel(userId = userId + 999, couponId = coupon.id))
         }
 
         private fun product(id: Long, name: String, price: String): ProductModel {
@@ -114,6 +192,16 @@ class CreateOrderUsecaseTest {
                 description = "Shoes",
                 price = BigDecimal(price),
             ).withId(id)
+        }
+
+        private fun coupon(discountValue: BigDecimal): CouponModel {
+            return CouponModel(
+                name = "쿠폰",
+                type = CouponType.FIXED,
+                discountValue = discountValue,
+                minOrderAmount = null,
+                expiredAt = ZonedDateTime.now().plusDays(30),
+            )
         }
     }
 

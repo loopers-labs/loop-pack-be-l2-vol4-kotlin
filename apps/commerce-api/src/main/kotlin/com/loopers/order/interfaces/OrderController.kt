@@ -1,0 +1,65 @@
+package com.loopers.order.interfaces
+
+import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
+import com.loopers.order.application.OrderCreateCommand
+import com.loopers.order.application.OrderFacade
+import com.loopers.order.application.OrderInfo
+import com.loopers.order.application.OrderLineCommand
+import com.loopers.order.domain.OrderStatus
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestAttribute
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+@RestController
+@RequestMapping("/api/v1/orders")
+class OrderController(
+    private val orderFacade: OrderFacade,
+) {
+    @PostMapping
+    fun order(
+        @RequestAttribute(ACCOUNT_ID) userId: Long,
+        @RequestBody request: OrderCreateRequest,
+    ): OrderCreateResponse =
+        OrderCreateResponse.from(orderFacade.place(userId, request.toCommand()))
+}
+
+data class OrderCreateRequest(
+    val items: List<OrderLineRequest>,
+    val couponId: Long?,
+    val expectedOriginalAmount: Long,
+    val expectedDiscountAmount: Long,
+    val expectedTotalAmount: Long,
+) {
+    fun toCommand(): OrderCreateCommand = OrderCreateCommand(
+        items = items.map { OrderLineCommand(productId = it.productId, quantity = it.quantity) },
+        couponId = couponId,
+        expectedOriginalAmount = expectedOriginalAmount,
+        expectedDiscountAmount = expectedDiscountAmount,
+        expectedTotalAmount = expectedTotalAmount,
+    )
+}
+
+data class OrderLineRequest(
+    val productId: Long,
+    val quantity: Int,
+)
+
+data class OrderCreateResponse(
+    val orderId: Long,
+    val status: OrderStatus,
+    val originalAmount: Long,
+    val discountAmount: Long,
+    val totalAmount: Long,
+) {
+    companion object {
+        fun from(info: OrderInfo): OrderCreateResponse = OrderCreateResponse(
+            orderId = info.id,
+            status = info.status,
+            originalAmount = info.originalAmount,
+            discountAmount = info.discountAmount,
+            totalAmount = info.totalAmount,
+        )
+    }
+}

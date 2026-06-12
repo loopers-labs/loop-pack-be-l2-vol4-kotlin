@@ -1,5 +1,6 @@
 package com.loopers.order.application
 
+import com.loopers.coupon.application.CouponService
 import com.loopers.inventory.domain.InventoryErrorCode
 import com.loopers.inventory.domain.InventoryRepository
 import com.loopers.order.domain.Order
@@ -10,7 +11,9 @@ import com.loopers.order.domain.OrderRepository
 import com.loopers.order.domain.OrderStatus
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.product.domain.ProductRepository
+import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
+import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -21,6 +24,7 @@ class OrderService(
     private val orderRepository: OrderRepository,
     private val productRepository: ProductRepository,
     private val inventoryRepository: InventoryRepository,
+    private val couponService: CouponService,
 ) {
     @Transactional
     fun place(userId: Long, command: OrderCreateCommand): OrderInfo {
@@ -29,14 +33,10 @@ class OrderService(
         }
         val productIds = command.items.map { it.productId }
         val products = productRepository.findAllActiveByIdIn(productIds).associateBy { it.id }
-        val inventories = inventoryRepository.findAllByProductIdInForUpdate(productIds).associateBy { it.productId }
 
         val snapshots = command.items.map { line ->
             val product = products[line.productId]
                 ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
-            val inventory = inventories[line.productId]
-                ?: throw NotFoundException(InventoryErrorCode.INVENTORY_NOT_FOUND)
-            inventory.decrease(line.quantity.toLong())
             OrderItemSnapshot(
                 productId = product.id,
                 brandId = product.brandId,
@@ -46,7 +46,30 @@ class OrderService(
                 quantity = line.quantity,
             )
         }
-        val order = orderRepository.save(Order.create(userId, snapshots))
+        val originalAmount = Money(snapshots.sumOf { it.unitPrice.amount * it.quantity })
+
+        val discountAmount = command.couponId
+            ?.let { couponService.use(userId, it, originalAmount, LocalDateTime.now()) }
+            ?: Money(0)
+        val totalAmount = Money(originalAmount.amount - discountAmount.amount)
+
+        if (command.expectedOriginalAmount != originalAmount.amount ||
+            command.expectedDiscountAmount != discountAmount.amount ||
+            command.expectedTotalAmount != totalAmount.amount
+        ) {
+            throw ConflictException(OrderErrorCode.PRICE_CHANGED)
+        }
+
+        // FOR UPDATE 는 ID 정렬 순서로 — 교차 주문 데드락 차단
+        val inventories = inventoryRepository.findAllByProductIdInForUpdate(productIds.distinct().sorted())
+            .associateBy { it.productId }
+        command.items.forEach { line ->
+            val inventory = inventories[line.productId]
+                ?: throw NotFoundException(InventoryErrorCode.INVENTORY_NOT_FOUND)
+            inventory.decrease(line.quantity.toLong())
+        }
+
+        val order = orderRepository.save(Order.create(userId, snapshots, command.couponId, discountAmount))
         return OrderInfo.from(order)
     }
 
@@ -67,6 +90,10 @@ class OrderService(
 
 data class OrderCreateCommand(
     val items: List<OrderLineCommand>,
+    val couponId: Long? = null,
+    val expectedOriginalAmount: Long,
+    val expectedDiscountAmount: Long,
+    val expectedTotalAmount: Long,
 )
 
 data class OrderLineCommand(
@@ -78,7 +105,10 @@ data class OrderInfo(
     val id: Long,
     val userId: Long,
     val orderedAt: LocalDateTime,
+    val originalAmount: Long,
+    val discountAmount: Long,
     val totalAmount: Long,
+    val couponId: Long?,
     val status: OrderStatus,
     val items: List<OrderItemInfo>,
 ) {
@@ -88,7 +118,10 @@ data class OrderInfo(
                 id = order.id,
                 userId = order.userId,
                 orderedAt = order.orderedAt,
+                originalAmount = order.originalAmount.amount,
+                discountAmount = order.discountAmount.amount,
                 totalAmount = order.totalAmount.amount,
+                couponId = order.couponId,
                 status = order.status,
                 items = order.items.map(OrderItemInfo::from),
             )

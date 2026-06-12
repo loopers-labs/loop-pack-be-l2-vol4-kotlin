@@ -38,7 +38,7 @@ class BrandServiceTest {
         val brandService = BrandService(brandRepository)
         every { brandRepository.findByIdOrNull(기본_브랜드_ID) } returns 브랜드_도메인_생성(
             id = 기본_브랜드_ID,
-            deletedAtOrNull = ZonedDateTime.now(),
+            deletedAt = ZonedDateTime.now(),
         )
 
         val ex = assertThrows<CoreException> {

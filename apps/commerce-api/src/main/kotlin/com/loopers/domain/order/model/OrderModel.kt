@@ -7,7 +7,7 @@ data class OrderModel(
     val id: Long = 0L,
     val orderedUserId: Long,
     val idempotencyKey: String? = null,
-    val issuedCouponIdOrNull: Long? = null,
+    val issuedCouponId: Long? = null,
     val items: List<OrderItemModel>,
     val totalPrice: Money,
     val discountPrice: Money,
@@ -28,18 +28,18 @@ data class OrderModel(
             orderedUserId: Long,
             items: List<OrderItemModel>,
             idempotencyKey: String? = null,
-            issuedCouponIdOrNull: Long? = null,
+            issuedCouponId: Long? = null,
             discountPrice: Money = Money.of(0),
         ): OrderModel {
             validateUserId(orderedUserId)
-            validateIssuedCouponId(issuedCouponIdOrNull)
+            validateIssuedCouponId(issuedCouponId)
             validateItems(items)
             val totalPrice = calculateTotalPrice(items)
             validateDiscount(totalPrice, discountPrice)
             return OrderModel(
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
-                issuedCouponIdOrNull = issuedCouponIdOrNull,
+                issuedCouponId = issuedCouponId,
                 items = items,
                 totalPrice = totalPrice,
                 discountPrice = discountPrice,
@@ -51,7 +51,7 @@ data class OrderModel(
             id: Long,
             orderedUserId: Long,
             idempotencyKey: String? = null,
-            issuedCouponIdOrNull: Long? = null,
+            issuedCouponId: Long? = null,
             items: List<OrderItemModel>,
             totalPrice: Long,
             discountPrice: Long,
@@ -59,14 +59,14 @@ data class OrderModel(
         ): OrderModel {
             validatePersistedId(id)
             validateUserId(orderedUserId)
-            validateIssuedCouponId(issuedCouponIdOrNull)
+            validateIssuedCouponId(issuedCouponId)
             validateItems(items)
             validateDiscount(Money.of(totalPrice), Money.of(discountPrice))
             return OrderModel(
                 id = id,
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
-                issuedCouponIdOrNull = issuedCouponIdOrNull,
+                issuedCouponId = issuedCouponId,
                 items = items,
                 totalPrice = Money.of(totalPrice),
                 discountPrice = Money.of(discountPrice),
@@ -95,8 +95,8 @@ data class OrderModel(
             }
         }
 
-        private fun validateIssuedCouponId(issuedCouponIdOrNull: Long?) {
-            if (issuedCouponIdOrNull != null && issuedCouponIdOrNull <= 0) {
+        private fun validateIssuedCouponId(issuedCouponId: Long?) {
+            if (issuedCouponId != null && issuedCouponId <= 0) {
                 throw InvalidOrderException("발급 쿠폰 ID는 양수여야 합니다.")
             }
         }

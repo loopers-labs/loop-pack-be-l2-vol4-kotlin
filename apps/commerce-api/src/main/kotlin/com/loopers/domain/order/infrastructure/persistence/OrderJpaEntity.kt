@@ -27,7 +27,7 @@ class OrderJpaEntity(
         id = id,
         orderedUserId = orderedUserId,
         idempotencyKey = idempotencyKey,
-        issuedCouponIdOrNull = issuedCouponId,
+        issuedCouponId = issuedCouponId,
         items = items,
         totalPrice = totalPrice,
         discountPrice = discountPrice,
@@ -38,7 +38,7 @@ class OrderJpaEntity(
         fun fromDomain(order: OrderModel): OrderJpaEntity = OrderJpaEntity(
             orderedUserId = order.orderedUserId,
             idempotencyKey = order.idempotencyKey,
-            issuedCouponId = order.issuedCouponIdOrNull,
+            issuedCouponId = order.issuedCouponId,
             totalPrice = order.totalPrice.value,
             discountPrice = order.discountPrice.value,
             paymentPrice = order.paymentPrice.value,

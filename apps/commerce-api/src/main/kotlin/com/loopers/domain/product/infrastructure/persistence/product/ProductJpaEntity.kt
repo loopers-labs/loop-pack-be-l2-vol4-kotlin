@@ -22,7 +22,7 @@ class ProductJpaEntity(
         brandId = product.brandId
         productName = product.name.value
         price = product.price.value
-        if (product.deletedAtOrNull == null) {
+        if (product.deletedAt == null) {
             restore()
         } else {
             delete()
@@ -34,7 +34,7 @@ class ProductJpaEntity(
         brandId = brandId,
         name = ProductName.of(productName),
         price = Money.of(price),
-        deletedAtOrNull = deletedAt,
+        deletedAt = deletedAt,
     )
 
     companion object {

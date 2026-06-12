@@ -148,7 +148,6 @@ class OrderApiE2ETest
                 HttpMethod.POST,
                 HttpEntity(
                     mapOf(
-                        "paymentMethod" to "CARD",
                         "issuedCouponId" to issuedCouponId,
                         "items" to listOf(
                             mapOf(

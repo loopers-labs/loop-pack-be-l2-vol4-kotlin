@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Positive
 
 data class OrderCreateRequest(
-    val paymentMethod: String? = null,
     @field:Positive
     val issuedCouponId: Long? = null,
     @field:NotEmpty

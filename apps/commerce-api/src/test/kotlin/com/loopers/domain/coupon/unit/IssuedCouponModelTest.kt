@@ -18,7 +18,7 @@ class IssuedCouponModelTest {
         val issuedCoupon = 발급쿠폰_도메인_생성()
 
         assertThat(issuedCoupon.status).isEqualTo(IssuedCouponStatus.AVAILABLE)
-        assertThat(issuedCoupon.usedAtOrNull).isNull()
+        assertThat(issuedCoupon.usedAt).isNull()
     }
 
     @Test
@@ -46,7 +46,7 @@ class IssuedCouponModelTest {
         val used = issuedCoupon.use(기준_시각.plusHours(1))
 
         assertThat(used.status).isEqualTo(IssuedCouponStatus.USED)
-        assertThat(used.usedAtOrNull).isEqualTo(기준_시각.plusHours(1))
+        assertThat(used.usedAt).isEqualTo(기준_시각.plusHours(1))
     }
 
     @Test
@@ -65,7 +65,7 @@ class IssuedCouponModelTest {
         val reverted = used.revertUse()
 
         assertThat(reverted.status).isEqualTo(IssuedCouponStatus.AVAILABLE)
-        assertThat(reverted.usedAtOrNull).isNull()
+        assertThat(reverted.usedAt).isNull()
     }
 
     @Test

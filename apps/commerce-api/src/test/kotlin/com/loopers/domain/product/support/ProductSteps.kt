@@ -23,13 +23,13 @@ class ProductSteps {
             brandId: Long = 기본_브랜드_ID,
             name: String = 기본_상품명,
             price: Long = 기본_가격,
-            deletedAtOrNull: ZonedDateTime? = null,
+            deletedAt: ZonedDateTime? = null,
         ): ProductModel = ProductModel(
             id = id,
             brandId = brandId,
             name = ProductName.of(name),
             price = Money.of(price),
-            deletedAtOrNull = deletedAtOrNull,
+            deletedAt = deletedAt,
         )
 
         fun 재고_도메인_생성(

@@ -43,7 +43,7 @@ class IssuedCouponJpaEntity(
         userId = issuedCoupon.userId
         couponStatus = issuedCoupon.status.name
         issuedAt = issuedCoupon.issuedAt
-        usedAt = issuedCoupon.usedAtOrNull
+        usedAt = issuedCoupon.usedAt
     }
 
     fun toDomain(): IssuedCouponModel = IssuedCouponModel(
@@ -52,7 +52,7 @@ class IssuedCouponJpaEntity(
         userId = userId,
         status = IssuedCouponStatus.valueOf(couponStatus),
         issuedAt = issuedAt,
-        usedAtOrNull = usedAt,
+        usedAt = usedAt,
     )
 
     companion object {
@@ -61,7 +61,7 @@ class IssuedCouponJpaEntity(
             userId = issuedCoupon.userId,
             couponStatus = issuedCoupon.status.name,
             issuedAt = issuedCoupon.issuedAt,
-            usedAt = issuedCoupon.usedAtOrNull,
+            usedAt = issuedCoupon.usedAt,
         )
     }
 }

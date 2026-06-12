@@ -67,7 +67,7 @@ class CouponTemplateModelTest {
         val deleted = template.delete(기준_시각)
         val deletedAgain = deleted.delete(기준_시각.plusDays(1))
 
-        assertThat(deleted.deletedAtOrNull).isEqualTo(기준_시각)
-        assertThat(deletedAgain.deletedAtOrNull).isEqualTo(기준_시각)
+        assertThat(deleted.deletedAt).isEqualTo(기준_시각)
+        assertThat(deletedAgain.deletedAt).isEqualTo(기준_시각)
     }
 }

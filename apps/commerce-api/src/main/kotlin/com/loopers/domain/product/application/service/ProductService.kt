@@ -67,7 +67,7 @@ class ProductService(
     @Transactional(readOnly = true)
     fun getById(productId: Long): ProductModel {
         val product = productRepository.findByIdOrNull(productId) ?: throwNotFound()
-        if (product.deletedAtOrNull != null) {
+        if (product.deletedAt != null) {
             throwNotFound()
         }
         return product

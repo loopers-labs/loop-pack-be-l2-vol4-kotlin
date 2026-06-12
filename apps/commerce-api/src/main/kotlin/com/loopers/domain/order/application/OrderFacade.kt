@@ -52,7 +52,7 @@ class OrderFacade(
             orderedUserId = command.userId,
             items = items,
             idempotencyKey = idempotencyKey,
-            issuedCouponIdOrNull = command.issuedCouponId,
+            issuedCouponId = command.issuedCouponId,
             discountPrice = discountPrice,
         )
         return OrderInfo.from(order)

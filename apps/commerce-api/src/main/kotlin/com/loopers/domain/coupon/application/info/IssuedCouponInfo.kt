@@ -23,7 +23,7 @@ data class IssuedCouponInfo(
             userId = issuedCoupon.userId,
             displayStatus = issuedCoupon.displayStatus(template.expiredAt, now),
             issuedAt = issuedCoupon.issuedAt,
-            usedAt = issuedCoupon.usedAtOrNull,
+            usedAt = issuedCoupon.usedAt,
         )
     }
 }

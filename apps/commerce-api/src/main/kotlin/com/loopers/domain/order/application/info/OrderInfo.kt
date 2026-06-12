@@ -16,7 +16,7 @@ data class OrderInfo(
         fun from(order: OrderModel): OrderInfo = OrderInfo(
             id = order.id,
             orderedUserId = order.orderedUserId,
-            issuedCouponId = order.issuedCouponIdOrNull,
+            issuedCouponId = order.issuedCouponId,
             totalPrice = order.totalPrice.value,
             discountPrice = order.discountPrice.value,
             paymentPrice = order.paymentPrice.value,

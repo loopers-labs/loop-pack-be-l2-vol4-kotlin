@@ -15,7 +15,7 @@ class BrandJpaEntity(
 ) : BaseEntity() {
     fun updateFrom(brand: BrandModel) {
         brandName = brand.name.value
-        if (brand.deletedAtOrNull == null) {
+        if (brand.deletedAt == null) {
             restore()
         } else {
             delete()
@@ -25,7 +25,7 @@ class BrandJpaEntity(
     fun toDomain(): BrandModel = BrandModel(
         id = id,
         name = BrandName.of(brandName),
-        deletedAtOrNull = deletedAt,
+        deletedAt = deletedAt,
     )
 
     companion object {

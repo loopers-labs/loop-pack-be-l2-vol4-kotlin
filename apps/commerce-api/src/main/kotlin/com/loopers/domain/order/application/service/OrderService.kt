@@ -21,7 +21,7 @@ class OrderService(
         orderedUserId: Long,
         items: List<OrderItemModel>,
         idempotencyKey: String? = null,
-        issuedCouponIdOrNull: Long? = null,
+        issuedCouponId: Long? = null,
         discountPrice: Money = Money.of(0),
     ): OrderModel =
         try {
@@ -30,7 +30,7 @@ class OrderService(
                     orderedUserId = orderedUserId,
                     items = items,
                     idempotencyKey = idempotencyKey,
-                    issuedCouponIdOrNull = issuedCouponIdOrNull,
+                    issuedCouponId = issuedCouponId,
                     discountPrice = discountPrice,
                 ),
             )

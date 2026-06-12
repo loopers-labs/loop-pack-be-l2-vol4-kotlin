@@ -29,14 +29,14 @@ class OrderModelTest {
     fun `주문은_적용한_발급_쿠폰_ID와_할인금액을_스냅샷으로_보관한다`() {
         val order = OrderModel.create(
             orderedUserId = 1L,
-            issuedCouponIdOrNull = 10L,
+            issuedCouponId = 10L,
             discountPrice = Money.of(2_000),
             items = listOf(
                 주문항목_도메인_생성(productId = 10L, quantity = 2, unitPrice = 10_000),
             ),
         )
 
-        assertThat(order.issuedCouponIdOrNull).isEqualTo(10L)
+        assertThat(order.issuedCouponId).isEqualTo(10L)
         assertThat(order.totalPrice.value).isEqualTo(20_000)
         assertThat(order.discountPrice.value).isEqualTo(2_000)
         assertThat(order.paymentPrice.value).isEqualTo(18_000)
@@ -47,7 +47,7 @@ class OrderModelTest {
         assertThrows<InvalidOrderException> {
             OrderModel.create(
                 orderedUserId = 1L,
-                issuedCouponIdOrNull = 10L,
+                issuedCouponId = 10L,
                 discountPrice = Money.of(20_001),
                 items = listOf(
                     주문항목_도메인_생성(productId = 10L, quantity = 2, unitPrice = 10_000),

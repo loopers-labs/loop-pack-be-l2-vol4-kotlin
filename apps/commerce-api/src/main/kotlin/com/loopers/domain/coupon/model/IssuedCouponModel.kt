@@ -22,7 +22,7 @@ data class IssuedCouponModel(
     val userId: Long,
     val status: IssuedCouponStatus,
     val issuedAt: LocalDateTime,
-    val usedAtOrNull: LocalDateTime? = null,
+    val usedAt: LocalDateTime? = null,
 ) {
     init {
         validateId(id)
@@ -50,14 +50,14 @@ data class IssuedCouponModel(
 
     fun use(now: LocalDateTime): IssuedCouponModel {
         requireAvailable()
-        return copy(status = IssuedCouponStatus.USED, usedAtOrNull = now)
+        return copy(status = IssuedCouponStatus.USED, usedAt = now)
     }
 
     fun revertUse(): IssuedCouponModel {
         if (status == IssuedCouponStatus.AVAILABLE) {
             return this
         }
-        return copy(status = IssuedCouponStatus.AVAILABLE, usedAtOrNull = null)
+        return copy(status = IssuedCouponStatus.AVAILABLE, usedAt = null)
     }
 
     fun displayStatus(expiredAt: LocalDateTime, now: LocalDateTime): IssuedCouponDisplayStatus =

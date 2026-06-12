@@ -14,7 +14,7 @@ data class CouponTemplateModel(
     val discountPolicy: DiscountPolicy,
     val minOrderAmount: Money,
     val expiredAt: LocalDateTime,
-    val deletedAtOrNull: LocalDateTime? = null,
+    val deletedAt: LocalDateTime? = null,
 ) {
     init {
         validateId(id)
@@ -23,7 +23,7 @@ data class CouponTemplateModel(
     fun calculateDiscount(totalPrice: Money): Money = discountPolicy.calculate(totalPrice)
 
     fun requireIssuable(now: LocalDateTime) {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             throw CouponNotIssuableException("삭제된 쿠폰 템플릿은 발급할 수 없습니다.")
         }
         if (!now.isBefore(expiredAt)) {
@@ -32,7 +32,7 @@ data class CouponTemplateModel(
     }
 
     fun requireUsable(totalPrice: Money, now: LocalDateTime) {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             throw CouponNotUsableException("삭제된 쿠폰은 사용할 수 없습니다.")
         }
         if (!now.isBefore(expiredAt)) {
@@ -56,10 +56,10 @@ data class CouponTemplateModel(
     )
 
     fun delete(now: LocalDateTime): CouponTemplateModel {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             return this
         }
-        return copy(deletedAtOrNull = now)
+        return copy(deletedAt = now)
     }
 
     fun withId(id: Long): CouponTemplateModel {

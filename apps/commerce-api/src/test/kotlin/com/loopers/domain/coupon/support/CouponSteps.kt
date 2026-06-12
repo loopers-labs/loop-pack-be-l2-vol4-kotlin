@@ -33,14 +33,14 @@ class CouponSteps {
             discountPolicy: DiscountPolicy = 정률_할인정책(),
             minOrderAmount: Long = 기본_최소_주문금액,
             expiredAt: LocalDateTime = 기본_만료시각,
-            deletedAtOrNull: LocalDateTime? = null,
+            deletedAt: LocalDateTime? = null,
         ): CouponTemplateModel = CouponTemplateModel(
             id = id,
             name = CouponName.of(name),
             discountPolicy = discountPolicy,
             minOrderAmount = Money.of(minOrderAmount),
             expiredAt = expiredAt,
-            deletedAtOrNull = deletedAtOrNull,
+            deletedAt = deletedAt,
         )
 
         fun 발급쿠폰_도메인_생성(

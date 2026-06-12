@@ -73,7 +73,7 @@ class ProductServiceTest {
         every { productRepository.findAllByIds(listOf(기본_상품_ID)) } returns listOf(
             상품_도메인_생성(
                 id = 기본_상품_ID,
-                deletedAtOrNull = ZonedDateTime.now(),
+                deletedAt = ZonedDateTime.now(),
             ),
         )
 
@@ -115,7 +115,7 @@ class ProductServiceTest {
         val deletedProducts = productService.softDeleteByBrandId(10L)
 
         assertThat(deletedProducts).hasSize(2)
-        assertThat(deletedProducts).allMatch { it.deletedAtOrNull != null }
+        assertThat(deletedProducts).allMatch { it.deletedAt != null }
         verify(exactly = 1) { productRepository.saveAll(any()) }
     }
 

@@ -33,7 +33,7 @@ class CouponTemplateJpaEntity(
         discountValue = mappedPolicy.value
         minOrderAmount = template.minOrderAmount.value
         expiredAt = template.expiredAt
-        if (template.deletedAtOrNull == null) {
+        if (template.deletedAt == null) {
             restore()
         } else {
             delete()
@@ -49,7 +49,7 @@ class CouponTemplateJpaEntity(
         },
         minOrderAmount = Money.of(minOrderAmount),
         expiredAt = expiredAt,
-        deletedAtOrNull = deletedAt?.toLocalDateTime(),
+        deletedAt = deletedAt?.toLocalDateTime(),
     )
 
     companion object {

@@ -7,19 +7,19 @@ import java.time.ZonedDateTime
 data class BrandModel(
     val id: Long = 0,
     val name: BrandName,
-    val deletedAtOrNull: ZonedDateTime? = null,
+    val deletedAt: ZonedDateTime? = null,
 ) {
     fun rename(name: BrandName): BrandModel = copy(name = name)
 
     fun delete(): BrandModel {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             return this
         }
-        return copy(deletedAtOrNull = ZonedDateTime.now())
+        return copy(deletedAt = ZonedDateTime.now())
     }
 
     fun requireActive() {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             throw BrandNotActiveException(id)
         }
     }

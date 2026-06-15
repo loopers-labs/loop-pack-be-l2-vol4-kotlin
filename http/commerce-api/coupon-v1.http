@@ -1,0 +1,34 @@
+### 쿠폰 발급 — 정상 (couponId=1 템플릿이 미만료 상태로 존재해야 함)
+POST {{commerce-api}}/api/v1/coupons/1/issue
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: Password1!
+
+### 쿠폰 발급 — 중복 발급 (1인 1매 → 409)
+POST {{commerce-api}}/api/v1/coupons/1/issue
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: Password1!
+
+### 쿠폰 발급 — 존재하지 않는 템플릿 (404)
+POST {{commerce-api}}/api/v1/coupons/9999/issue
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: Password1!
+
+### 쿠폰 발급 — 만료된 템플릿 (400, expiredAt이 과거인 템플릿 id로 교체)
+POST {{commerce-api}}/api/v1/coupons/2/issue
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: Password1!
+
+### 쿠폰 발급 — 잘못된 비밀번호 (401)
+POST {{commerce-api}}/api/v1/coupons/1/issue
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: wrong-password
+
+### 내 쿠폰 목록 조회 — 정상 (발급 직후 AVAILABLE, 사용 시 USED, 템플릿 만료 시 EXPIRED 로 표시)
+GET {{commerce-api}}/api/v1/users/me/coupons
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: Password1!
+
+### 내 쿠폰 목록 조회 — 미인증 (잘못된 비밀번호 → 401)
+GET {{commerce-api}}/api/v1/users/me/coupons
+X-Loopers-LoginId: testuser01
+X-Loopers-LoginPw: wrong-password

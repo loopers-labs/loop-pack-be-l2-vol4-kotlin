@@ -23,6 +23,15 @@ class OrderTest {
 
     private fun items(vararg list: OrderItem): OrderItems = OrderItems(list.toList())
 
+    private fun appliedCoupon(discountAmount: Long, issuedCouponId: Long = 1L): AppliedCoupon =
+        AppliedCoupon(
+            issuedCouponId = issuedCouponId,
+            couponName = "5천원 할인",
+            couponType = "FIXED",
+            couponValue = discountAmount,
+            discountAmount = discountAmount,
+        )
+
     @DisplayName("Order.create")
     @Nested
     inner class Create {
@@ -73,6 +82,59 @@ class OrderTest {
             )
 
             assertThat(order.getActualAmount()).isEqualTo(5_000L)
+        }
+
+        @DisplayName("쿠폰이 적용되면 totalAmount - discountAmount - usedPoint 를 반환한다.")
+        @Test
+        fun reflectsCouponDiscount() {
+            val order = Order.create(
+                userId = 1L,
+                items = items(item(quantity = 5, price = 1_000L)),
+                appliedCoupon = appliedCoupon(discountAmount = 1_500L),
+                orderedAt = fixedAt,
+            )
+
+            assertThat(order.discountAmount).isEqualTo(1_500L)
+            assertThat(order.getActualAmount()).isEqualTo(3_500L)
+        }
+
+        @DisplayName("쿠폰이 없으면 discountAmount 는 0 이다.")
+        @Test
+        fun zeroDiscount_whenNoCoupon() {
+            val order = Order.create(userId = 1L, items = items(item(price = 1_000L)), orderedAt = fixedAt)
+
+            assertThat(order.discountAmount).isEqualTo(0L)
+            assertThat(order.getActualAmount()).isEqualTo(1_000L)
+        }
+    }
+
+    @DisplayName("쿠폰 할인 불변식")
+    @Nested
+    inner class CouponInvariant {
+        @DisplayName("할인 금액이 총 주문 금액을 초과하면 생성에 실패한다.")
+        @Test
+        fun rejectsDiscountOverTotal() {
+            assertThrows<IllegalArgumentException> {
+                Order.create(
+                    userId = 1L,
+                    items = items(item(quantity = 1, price = 1_000L)),
+                    appliedCoupon = appliedCoupon(discountAmount = 1_500L),
+                    orderedAt = fixedAt,
+                )
+            }
+        }
+
+        @DisplayName("할인 금액이 총 주문 금액과 같으면 최종 금액 0 으로 생성된다.")
+        @Test
+        fun allowsDiscountEqualToTotal() {
+            val order = Order.create(
+                userId = 1L,
+                items = items(item(quantity = 1, price = 1_000L)),
+                appliedCoupon = appliedCoupon(discountAmount = 1_000L),
+                orderedAt = fixedAt,
+            )
+
+            assertThat(order.getActualAmount()).isEqualTo(0L)
         }
     }
 

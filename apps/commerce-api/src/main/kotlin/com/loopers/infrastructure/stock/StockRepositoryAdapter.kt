@@ -13,6 +13,9 @@ class StockRepositoryAdapter(
     override fun findByProductId(productId: Long): Stock? =
         stockJpaRepository.findByProductId(productId)?.toDomain()
 
+    override fun findByProductIdForUpdate(productId: Long): Stock? =
+        stockJpaRepository.findByProductIdForUpdate(productId)?.toDomain()
+
     override fun findAllByProductIdIn(productIds: List<Long>): List<Stock> {
         if (productIds.isEmpty()) return emptyList()
         return stockJpaRepository.findAllByProductIdIn(productIds).map { it.toDomain() }

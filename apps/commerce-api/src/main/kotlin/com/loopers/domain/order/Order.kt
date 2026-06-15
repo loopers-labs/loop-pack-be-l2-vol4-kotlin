@@ -10,15 +10,20 @@ data class Order(
     val usedPoint: Long,
     val orderedAt: ZonedDateTime,
     val items: OrderItems,
+    val appliedCoupon: AppliedCoupon? = null,
 ) {
     init {
         require(userId > 0) { "회원 ID는 0보다 커야 합니다." }
         require(totalAmount >= 0) { "총 주문 금액은 0 이상이어야 합니다." }
         require(usedPoint >= 0) { "사용 포인트는 0 이상이어야 합니다." }
-        require(usedPoint <= totalAmount) { "사용 포인트는 총 주문 금액을 초과할 수 없습니다." }
+        val discount = appliedCoupon?.discountAmount ?: 0L
+        require(discount <= totalAmount) { "할인 금액은 총 주문 금액을 초과할 수 없습니다." }
+        require(usedPoint <= totalAmount - discount) { "사용 포인트는 할인 후 금액을 초과할 수 없습니다." }
     }
 
-    fun getActualAmount(): Long = totalAmount - usedPoint
+    val discountAmount: Long get() = appliedCoupon?.discountAmount ?: 0L
+
+    fun getActualAmount(): Long = totalAmount - discountAmount - usedPoint
 
     fun getEarnPoint(): Long = if (status in EARN_STATUSES) getActualAmount() / EARN_DIVISOR else 0L
 
@@ -45,6 +50,7 @@ data class Order(
         fun create(
             userId: Long,
             items: OrderItems,
+            appliedCoupon: AppliedCoupon? = null,
             orderedAt: ZonedDateTime = ZonedDateTime.now(),
         ): Order = Order(
             userId = userId,
@@ -53,6 +59,7 @@ data class Order(
             usedPoint = 0L,
             orderedAt = orderedAt,
             items = items,
+            appliedCoupon = appliedCoupon,
         )
     }
 }

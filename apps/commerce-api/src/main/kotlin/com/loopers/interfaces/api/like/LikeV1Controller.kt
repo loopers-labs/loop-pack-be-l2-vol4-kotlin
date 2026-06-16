@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.like
 
 import com.loopers.application.like.LikeFacade
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.support.LoopersHeaders
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -17,30 +18,36 @@ class LikeV1Controller(
 ) : LikeV1ApiSpec {
     @PostMapping("/products/{productId}/likes")
     override fun like(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @PathVariable productId: Long,
     ): ApiResponse<Any> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         likeFacade.like(loginId = loginId, rawPassword = password, productId = productId)
         return ApiResponse.success()
     }
 
     @DeleteMapping("/products/{productId}/likes")
     override fun unlike(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @PathVariable productId: Long,
     ): ApiResponse<Any> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         likeFacade.unlike(loginId = loginId, rawPassword = password, productId = productId)
         return ApiResponse.success()
     }
 
     @GetMapping("/users/{userId}/likes")
     override fun getLikedProducts(
-        @RequestHeader("X-Loopers-LoginId") loginId: String,
-        @RequestHeader("X-Loopers-LoginPw") password: String,
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
         @PathVariable userId: Long,
     ): ApiResponse<List<LikeV1Dto.LikedProductResponse>> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
         val likedProducts = likeFacade.getLikedProducts(
             loginId = loginId,
             rawPassword = password,

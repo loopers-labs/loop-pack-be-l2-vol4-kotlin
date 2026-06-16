@@ -1,10 +1,13 @@
 package com.loopers.application.product
 
 import com.loopers.application.brand.BrandService
+import com.loopers.application.inventory.InventoryService
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.inventory.Inventory
+import com.loopers.domain.inventory.InventoryRepository
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductCatalogService
 import com.loopers.domain.product.ProductRepository
@@ -73,11 +76,13 @@ class ProductFacadeTest {
 
     private class ProductServiceFixture {
         val brandRepository = FakeBrandRepository()
+        val inventoryRepository = FakeInventoryRepository()
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
         val productFacade = ProductFacade(
             productService = ProductService(productRepository),
             brandService = BrandService(brandRepository),
+            inventoryService = InventoryService(inventoryRepository),
             productStatService = ProductStatService(productStatRepository),
             productCatalogService = ProductCatalogService(),
         )
@@ -195,11 +200,38 @@ class ProductFacadeTest {
         }
     }
 
+    private class FakeInventoryRepository : InventoryRepository {
+        private val inventories = mutableListOf<Inventory>()
+
+        override fun findByProductId(productId: Long): Inventory? {
+            return inventories.find { it.productId == productId }
+        }
+
+        override fun findAllByProductIdsForUpdate(productIds: Collection<Long>): List<Inventory> {
+            return inventories.filter { it.productId in productIds }
+        }
+
+        override fun save(inventory: Inventory): Inventory {
+            inventories.removeIf { it.productId == inventory.productId }
+            inventories.add(inventory)
+            return inventory
+        }
+
+        override fun updateAll(inventories: Collection<Inventory>): List<Inventory> {
+            inventories.forEach(::save)
+            return inventories.toList()
+        }
+    }
+
     private class FakeProductStatRepository : ProductStatRepository {
         private val productStats = mutableListOf<ProductStat>()
 
         override fun findByProductId(productId: Long): ProductStat? {
             return productStats.find { it.productId == productId }
+        }
+
+        override fun findByProductIdForUpdate(productId: Long): ProductStat? {
+            return findByProductId(productId)
         }
 
         override fun findAllByProductIds(productIds: Collection<Long>): List<ProductStat> {

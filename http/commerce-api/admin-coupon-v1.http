@@ -1,0 +1,16 @@
+### 관리자 쿠폰 등록
+POST {{commerce-api}}/api-admin/v1/coupons
+X-Loopers-Ldap: loopers.admin
+Content-Type: application/json
+
+{
+  "name": "신규가입 10% 할인",
+  "type": "RATE",
+  "value": 10,
+  "minOrderAmount": 10000,
+  "expiredAt": "2026-12-31T23:59:59+09:00"
+}
+
+### 관리자 쿠폰 발급 내역 조회
+GET {{commerce-api}}/api-admin/v1/coupons/1/issues?page=0&size=20
+X-Loopers-Ldap: loopers.admin

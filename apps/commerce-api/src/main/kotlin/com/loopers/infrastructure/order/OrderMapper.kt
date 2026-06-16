@@ -10,7 +10,10 @@ object OrderMapper {
             orderNumber = order.orderNumber,
             memberId = order.memberId,
             status = order.status,
+            originalAmount = order.originalAmount,
+            discountAmount = order.discountAmount,
             totalAmount = order.totalAmount,
+            couponIssueId = order.couponIssueId,
             orderedAt = order.orderedAt,
             items = order.items.map { item ->
                 OrderItem(
@@ -32,6 +35,9 @@ object OrderMapper {
             memberId = order.memberId,
             status = order.status,
             totalAmount = order.totalAmount,
+            originalAmount = order.originalAmount,
+            discountAmount = order.discountAmount,
+            couponIssueId = order.couponIssueId,
             orderedAt = order.orderedAt,
         )
         order.items

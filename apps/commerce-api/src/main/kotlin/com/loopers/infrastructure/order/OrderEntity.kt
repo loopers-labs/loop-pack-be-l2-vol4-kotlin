@@ -34,6 +34,15 @@ class OrderEntity(
     @Column(name = "total_amount", nullable = false)
     var totalAmount: Long,
 
+    @Column(name = "original_amount", nullable = false)
+    var originalAmount: Long = totalAmount,
+
+    @Column(name = "discount_amount", nullable = false)
+    var discountAmount: Long = 0L,
+
+    @Column(name = "coupon_issue_id")
+    var couponIssueId: Long? = null,
+
     @Column(name = "ordered_at", nullable = false)
     var orderedAt: ZonedDateTime,
 ) : BaseEntity() {

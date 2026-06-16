@@ -16,6 +16,11 @@ class ProductStatRepositoryImpl(
             ?.let(ProductStatMapper::toDomain)
     }
 
+    override fun findByProductIdForUpdate(productId: Long): ProductStat? {
+        return productStatJpaRepository.findByProductIdForUpdate(productId)
+            ?.let(ProductStatMapper::toDomain)
+    }
+
     override fun findAllByProductIds(productIds: Collection<Long>): List<ProductStat> {
         if (productIds.isEmpty()) {
             return emptyList()

@@ -1,5 +1,6 @@
 package com.loopers.application.user
 
+import com.loopers.application.coupon.CouponService
 import com.loopers.fixture.user.UserFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -14,7 +15,8 @@ class UserFacadeTest {
     @Nested
     inner class SignUp {
         private val userService = mock<UserService>()
-        private val userFacade = UserFacade(userService)
+        private val couponService = mock<CouponService>()
+        private val userFacade = UserFacade(userService, couponService)
 
         @DisplayName("회원가입이 성공하면 회원 정보를 반환한다")
         @Test
@@ -34,7 +36,8 @@ class UserFacadeTest {
     @Nested
     inner class UpdatePassword {
         private val userService = mock<UserService>()
-        private val userFacade = UserFacade(userService)
+        private val couponService = mock<CouponService>()
+        private val userFacade = UserFacade(userService, couponService)
 
         @DisplayName("비밀번호 수정 요청을 서비스로 위임한다")
         @Test

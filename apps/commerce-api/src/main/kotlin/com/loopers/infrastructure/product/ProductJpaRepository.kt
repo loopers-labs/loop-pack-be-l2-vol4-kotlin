@@ -2,9 +2,7 @@ package com.loopers.infrastructure.product
 
 import org.springframework.data.jpa.repository.JpaRepository
 
-interface ProductJpaRepository :
-    JpaRepository<ProductEntity, Long>,
-    ProductQueryRepository {
+interface ProductJpaRepository : JpaRepository<ProductEntity, Long>, ProductQueryRepository {
     fun findAllByBrandId(brandId: Long): List<ProductEntity>
 
     fun existsByBrandIdAndName(brandId: Long, name: String): Boolean

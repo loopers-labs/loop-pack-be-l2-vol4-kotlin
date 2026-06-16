@@ -9,7 +9,10 @@ data class OrderInfo(
     val orderNumber: String,
     val memberId: Long,
     val status: OrderStatus,
+    val originalAmount: Long,
+    val discountAmount: Long,
     val totalAmount: Long,
+    val couponId: Long?,
     val orderedAt: ZonedDateTime,
     val items: List<Item>,
 ) {
@@ -29,7 +32,10 @@ data class OrderInfo(
                 orderNumber = order.orderNumber,
                 memberId = order.memberId,
                 status = order.status,
+                originalAmount = order.originalAmount,
+                discountAmount = order.discountAmount,
                 totalAmount = order.totalAmount,
+                couponId = order.couponIssueId,
                 orderedAt = order.orderedAt,
                 items = order.items.map { item ->
                     Item(
@@ -41,28 +47,6 @@ data class OrderInfo(
                         totalAmount = item.totalAmount,
                     )
                 },
-            )
-        }
-    }
-}
-
-data class OrderSummaryInfo(
-    val orderId: Long,
-    val orderNumber: String,
-    val memberId: Long,
-    val status: OrderStatus,
-    val totalAmount: Long,
-    val orderedAt: ZonedDateTime,
-) {
-    companion object {
-        fun from(order: Order): OrderSummaryInfo {
-            return OrderSummaryInfo(
-                orderId = order.id,
-                orderNumber = order.orderNumber,
-                memberId = order.memberId,
-                status = order.status,
-                totalAmount = order.totalAmount,
-                orderedAt = order.orderedAt,
             )
         }
     }

@@ -9,6 +9,7 @@ import java.time.ZonedDateTime
 class OrderV1Dto {
     data class CreateOrderRequest(
         val items: List<Item>,
+        val couponId: Long? = null,
     ) {
         data class Item(
             val productId: Long,
@@ -23,6 +24,7 @@ class OrderV1Dto {
                         quantity = item.quantity,
                     )
                 },
+                couponId = couponId,
             )
         }
     }
@@ -32,7 +34,10 @@ class OrderV1Dto {
         val orderNumber: String,
         val memberId: Long,
         val status: OrderStatus,
+        val originalAmount: Long,
+        val discountAmount: Long,
         val totalAmount: Long,
+        val couponId: Long?,
         val orderedAt: ZonedDateTime,
         val items: List<Item>,
     ) {
@@ -52,7 +57,10 @@ class OrderV1Dto {
                     orderNumber = order.orderNumber,
                     memberId = order.memberId,
                     status = order.status,
+                    originalAmount = order.originalAmount,
+                    discountAmount = order.discountAmount,
                     totalAmount = order.totalAmount,
+                    couponId = order.couponId,
                     orderedAt = order.orderedAt,
                     items = order.items.map { item ->
                         Item(

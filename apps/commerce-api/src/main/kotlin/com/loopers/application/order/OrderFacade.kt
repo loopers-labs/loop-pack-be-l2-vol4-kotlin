@@ -1,6 +1,7 @@
 package com.loopers.application.order
 
 import com.loopers.application.brand.BrandService
+import com.loopers.application.coupon.CouponService
 import com.loopers.application.inventory.InventoryService
 import com.loopers.application.order.dto.OrderCreateCommand
 import com.loopers.application.order.dto.OrderInfo
@@ -9,6 +10,7 @@ import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
 import com.loopers.domain.order.OrderPlacementService
 import com.loopers.domain.order.dto.OrderPlacementItem
+import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -20,6 +22,7 @@ class OrderFacade(
     private val productService: ProductService,
     private val brandService: BrandService,
     private val inventoryService: InventoryService,
+    private val couponService: CouponService,
     private val orderPlacementService: OrderPlacementService,
 ) {
     @Transactional
@@ -32,7 +35,8 @@ class OrderFacade(
         val requestedItems = command.items.map { item ->
             OrderPlacementItem(productId = item.productId, quantity = item.quantity)
         }
-        val productIds = requestedItems.map { it.productId }
+        val productIds = requestedItems.map { it.productId }.distinct().sorted()
+        val couponIssue = command.couponId?.let(couponService::getCouponIssueForUpdate)
         val products = productService.getProducts(productIds)
         val brands = brandService.getBrands(products.map { it.brandId })
         val inventories = inventoryService.getInventoriesForUpdate(productIds)
@@ -42,9 +46,11 @@ class OrderFacade(
             products = products,
             brands = brands,
             inventories = inventories,
+            couponIssue = couponIssue,
         )
 
         inventoryService.updateInventories(result.inventories)
+        result.couponIssue?.let(couponService::saveCouponIssue)
         return orderService.save(result.order)
             .let(OrderInfo::from)
     }
@@ -74,5 +80,15 @@ class OrderFacade(
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
 
         return orderService.getOrder(memberId = user.id, orderId = orderId)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrdersForAdmin(page: Int, size: Int): Page<OrderSummaryInfo> {
+        return orderService.getOrders(page = page, size = size)
+    }
+
+    @Transactional(readOnly = true)
+    fun getOrderForAdmin(orderId: Long): OrderInfo {
+        return orderService.getOrder(orderId)
     }
 }

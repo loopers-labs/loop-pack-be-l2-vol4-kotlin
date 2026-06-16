@@ -12,7 +12,14 @@ interface InventoryJpaRepository : JpaRepository<InventoryEntity, Long> {
     fun findAllByProductIdIn(productIds: Collection<Long>): List<InventoryEntity>
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select inventory from InventoryEntity inventory where inventory.productId in :productIds")
+    @Query(
+        """
+        select inventory
+        from InventoryEntity inventory
+        where inventory.productId in :productIds
+        order by inventory.productId asc
+        """,
+    )
     fun findAllByProductIdInForUpdate(
         @Param("productIds") productIds: Collection<Long>,
     ): List<InventoryEntity>

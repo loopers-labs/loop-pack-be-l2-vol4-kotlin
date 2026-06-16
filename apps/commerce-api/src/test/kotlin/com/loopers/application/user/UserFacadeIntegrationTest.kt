@@ -1,5 +1,6 @@
 package com.loopers.application.user
 
+import com.loopers.application.coupon.CouponService
 import com.loopers.config.jpa.DataSourceConfig
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.domain.user.UserAccountService
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.context.annotation.Import
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -34,6 +36,9 @@ class UserFacadeIntegrationTest @Autowired constructor(
     private val userFacade: UserFacade,
     private val memberJpaRepository: MemberJpaRepository,
 ) {
+    @MockitoBean
+    private lateinit var couponService: CouponService
+
     @DisplayName("회원가입")
     @Nested
     inner class SignUp {

@@ -8,7 +8,7 @@ import com.loopers.domain.brand.model.Brand
 import com.loopers.domain.brand.repository.BrandRepository
 import com.loopers.domain.like.model.Like
 import com.loopers.domain.like.repository.LikeRepository
-import com.loopers.domain.like.service.LikeService
+import com.loopers.domain.like.service.ProductLikeService
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.domain.product.model.Product
@@ -223,7 +223,7 @@ class LikeFacadeTest {
             productService = ProductService(productRepository),
             brandService = BrandService(brandRepository),
             productStatService = ProductStatService(productStatRepository),
-            productLikeService = LikeService(),
+            productLikeService = ProductLikeService(),
         )
 
         init {

@@ -2,9 +2,9 @@ package com.loopers.infrastructure.product.repository
 
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
-import com.loopers.infrastructure.brand.QBrandEntity.brandEntity
-import com.loopers.infrastructure.product.QProductEntity.productEntity
-import com.loopers.infrastructure.productstat.QProductStatEntity.productStatEntity
+import com.loopers.infrastructure.brand.entity.QBrandEntity.brandEntity
+import com.loopers.infrastructure.product.entity.QProductEntity.productEntity
+import com.loopers.infrastructure.product.entity.QProductStatEntity.productStatEntity
 import com.querydsl.core.types.OrderSpecifier
 import com.querydsl.core.types.Projections
 import com.querydsl.core.types.dsl.BooleanExpression

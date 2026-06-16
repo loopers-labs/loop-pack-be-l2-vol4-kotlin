@@ -33,4 +33,16 @@ class ProductStatService(
     fun save(productStat: ProductStat): ProductStat {
         return productStatRepository.save(productStat)
     }
+
+    fun increaseLikeCount(id: Long) {
+        val productStat = getProductStatForUpdate(id)
+        productStat.increaseLikeCount()
+        save(productStat)
+    }
+
+    fun decreaseLikeCount(id: Long) {
+        val productStat = getProductStatForUpdate(id)
+        productStat.decreaseLikeCount()
+        save(productStat)
+    }
 }

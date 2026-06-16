@@ -8,10 +8,10 @@ import jakarta.persistence.UniqueConstraint
 
 @Entity
 @Table(
-    name = "like",
+    name = "likes",
     uniqueConstraints = [
         UniqueConstraint(
-            name = "uk_product_like_member_id_product_id",
+            name = "uk_likes_member_id_product_id",
             columnNames = ["member_id", "product_id"],
         ),
     ],

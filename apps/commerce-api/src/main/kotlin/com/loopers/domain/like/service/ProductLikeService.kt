@@ -8,15 +8,7 @@ import com.loopers.domain.product.model.ProductStat
 import org.springframework.stereotype.Component
 
 @Component
-class LikeService {
-    fun like(productStat: ProductStat) {
-        productStat.increaseLikeCount()
-    }
-
-    fun unlike(productStat: ProductStat) {
-        productStat.decreaseLikeCount()
-    }
-
+class ProductLikeService {
     fun displayLikedProductSummaries(
         likes: List<Like>,
         products: List<Product>,

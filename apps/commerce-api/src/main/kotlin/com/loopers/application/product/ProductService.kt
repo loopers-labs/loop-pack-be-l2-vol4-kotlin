@@ -3,9 +3,9 @@ package com.loopers.application.product
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.product.dto.ProductUpdateCommand
-import com.loopers.domain.product.Product
-import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.domain.product.model.Product
+import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page

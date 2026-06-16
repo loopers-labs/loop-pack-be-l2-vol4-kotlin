@@ -4,21 +4,21 @@ import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.application.user.UserService
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.brand.BrandRepository
-import com.loopers.domain.like.Like
-import com.loopers.domain.like.LikeRepository
-import com.loopers.domain.like.ProductLikeService
-import com.loopers.domain.product.Product
-import com.loopers.domain.product.ProductRepository
+import com.loopers.domain.brand.model.Brand
+import com.loopers.domain.brand.repository.BrandRepository
+import com.loopers.domain.like.model.Like
+import com.loopers.domain.like.repository.LikeRepository
+import com.loopers.domain.like.service.LikeService
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
-import com.loopers.domain.productstat.ProductStat
-import com.loopers.domain.productstat.ProductStatRepository
+import com.loopers.domain.product.model.Product
+import com.loopers.domain.product.model.ProductStat
+import com.loopers.domain.product.repository.ProductRepository
+import com.loopers.domain.product.repository.ProductStatRepository
 import com.loopers.domain.user.PasswordEncoder
-import com.loopers.domain.user.User
-import com.loopers.domain.user.UserAccountService
-import com.loopers.domain.user.UserRepository
+import com.loopers.domain.user.model.User
+import com.loopers.domain.user.repository.UserRepository
+import com.loopers.domain.user.service.UserAccountService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
@@ -30,6 +30,7 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import java.time.LocalDate
 
 class LikeFacadeTest {
     @DisplayName("상품 좋아요 등록")
@@ -222,7 +223,7 @@ class LikeFacadeTest {
             productService = ProductService(productRepository),
             brandService = BrandService(brandRepository),
             productStatService = ProductStatService(productStatRepository),
-            productLikeService = ProductLikeService(),
+            productLikeService = LikeService(),
         )
 
         init {
@@ -232,7 +233,7 @@ class LikeFacadeTest {
                     loginId = LOGIN_ID,
                     password = PasswordEncoder.encode(RAW_PASSWORD),
                     name = "홍길동",
-                    birthDate = java.time.LocalDate.of(1990, 1, 1),
+                    birthDate = LocalDate.of(1990, 1, 1),
                     email = "loopers@example.com",
                 ),
             )

@@ -1,22 +1,22 @@
 package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
-import com.loopers.domain.coupon.Coupon
-import com.loopers.domain.coupon.CouponIssue
-import com.loopers.domain.coupon.CouponIssueRepository
-import com.loopers.domain.coupon.CouponRepository
-import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.enums.DiscountType
+import com.loopers.domain.coupon.model.Coupon
+import com.loopers.domain.coupon.model.CouponIssue
+import com.loopers.domain.coupon.repository.CouponIssueRepository
+import com.loopers.domain.coupon.repository.CouponRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
-import org.springframework.data.domain.PageRequest
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
 import java.time.ZonedDateTime
 
 class CouponServiceTest {

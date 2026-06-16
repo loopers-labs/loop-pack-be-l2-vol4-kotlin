@@ -2,7 +2,8 @@ package com.loopers.application.user
 
 import com.loopers.application.coupon.CouponService
 import com.loopers.application.coupon.dto.CouponIssueInfo
-import com.loopers.domain.user.UserSignUpCommand
+import com.loopers.application.user.dto.UserInfo
+import com.loopers.application.user.dto.UserSignUpCommand
 import org.springframework.stereotype.Component
 
 @Component

@@ -1,7 +1,7 @@
 package com.loopers.application.order.dto
 
-import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderStatus
+import com.loopers.domain.order.model.Order
 import java.time.ZonedDateTime
 
 data class OrderInfo(

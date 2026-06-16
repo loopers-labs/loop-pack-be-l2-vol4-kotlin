@@ -1,7 +1,8 @@
 package com.loopers.domain.order
 
-import com.loopers.domain.inventory.Inventory
+import com.loopers.domain.inventory.model.Inventory
 import com.loopers.domain.order.dto.OrderPlacementItem
+import com.loopers.domain.order.service.OrderPlacementService
 import com.loopers.fixture.product.ProductBrandFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType

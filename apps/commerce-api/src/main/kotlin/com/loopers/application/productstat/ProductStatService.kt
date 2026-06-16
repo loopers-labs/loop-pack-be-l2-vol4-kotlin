@@ -1,7 +1,7 @@
 package com.loopers.application.productstat
 
-import com.loopers.domain.productstat.ProductStat
-import com.loopers.domain.productstat.ProductStatRepository
+import com.loopers.domain.product.model.ProductStat
+import com.loopers.domain.product.repository.ProductStatRepository
 import org.springframework.stereotype.Component
 
 @Component

@@ -1,0 +1,21 @@
+package com.loopers.infrastructure.product.mapper
+
+import com.loopers.domain.product.model.ProductStat
+import com.loopers.infrastructure.product.entity.ProductStatEntity
+
+object ProductStatMapper {
+    fun toDomain(productStat: ProductStatEntity): ProductStat {
+        return ProductStat(
+            id = productStat.id,
+            productId = productStat.productId,
+            likeCount = productStat.likeCount,
+        )
+    }
+
+    fun toEntity(productStat: ProductStat): ProductStatEntity {
+        return ProductStatEntity(
+            productId = productStat.productId,
+            likeCount = productStat.likeCount,
+        )
+    }
+}

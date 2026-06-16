@@ -1,12 +1,12 @@
 package com.loopers.application.brand
 
 import com.loopers.application.product.ProductService
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.brand.BrandRepository
-import com.loopers.domain.product.Product
-import com.loopers.domain.product.ProductRepository
+import com.loopers.domain.brand.model.Brand
+import com.loopers.domain.brand.repository.BrandRepository
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.domain.product.model.Product
+import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.fixture.product.ProductBrandFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType

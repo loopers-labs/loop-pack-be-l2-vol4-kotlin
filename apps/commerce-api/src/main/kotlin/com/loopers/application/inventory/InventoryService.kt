@@ -1,7 +1,7 @@
 package com.loopers.application.inventory
 
-import com.loopers.domain.inventory.Inventory
-import com.loopers.domain.inventory.InventoryRepository
+import com.loopers.domain.inventory.model.Inventory
+import com.loopers.domain.inventory.repository.InventoryRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component

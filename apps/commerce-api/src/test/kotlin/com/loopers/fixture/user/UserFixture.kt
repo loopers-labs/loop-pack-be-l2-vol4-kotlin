@@ -1,7 +1,7 @@
 package com.loopers.fixture.user
 
-import com.loopers.domain.user.User
-import com.loopers.domain.user.UserSignUpCommand
+import com.loopers.application.user.dto.UserSignUpCommand
+import com.loopers.domain.user.model.User
 import java.time.LocalDate
 
 object UserFixture {

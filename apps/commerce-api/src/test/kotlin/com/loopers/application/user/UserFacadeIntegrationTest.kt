@@ -3,10 +3,10 @@ package com.loopers.application.user
 import com.loopers.application.coupon.CouponService
 import com.loopers.config.jpa.DataSourceConfig
 import com.loopers.domain.user.PasswordEncoder
-import com.loopers.domain.user.UserAccountService
+import com.loopers.domain.user.service.UserAccountService
 import com.loopers.fixture.user.UserFixture
-import com.loopers.infrastructure.member.MemberJpaRepository
-import com.loopers.infrastructure.member.MemberRepositoryImpl
+import com.loopers.infrastructure.member.repository.MemberJpaRepository
+import com.loopers.infrastructure.member.repository.MemberRepositoryImpl
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.testcontainers.MySqlTestContainersConfig

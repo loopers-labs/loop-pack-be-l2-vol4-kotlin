@@ -1,7 +1,8 @@
 package com.loopers.interfaces.api.user
 
-import com.loopers.infrastructure.member.MemberJpaRepository
+import com.loopers.infrastructure.member.repository.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.user.dto.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach

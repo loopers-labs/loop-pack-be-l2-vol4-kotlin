@@ -1,26 +1,27 @@
 package com.loopers.interfaces.api.order
 
+import com.loopers.domain.coupon.enums.CouponIssueStatus
+import com.loopers.domain.coupon.enums.DiscountType
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.user.PasswordEncoder
-import com.loopers.infrastructure.brand.BrandEntity
-import com.loopers.infrastructure.brand.BrandJpaRepository
-import com.loopers.infrastructure.coupon.CouponEntity
-import com.loopers.infrastructure.coupon.CouponIssueEntity
-import com.loopers.infrastructure.coupon.CouponIssueJpaRepository
-import com.loopers.infrastructure.coupon.CouponJpaRepository
-import com.loopers.infrastructure.inventory.InventoryEntity
-import com.loopers.infrastructure.inventory.InventoryJpaRepository
-import com.loopers.infrastructure.member.MemberEntity
-import com.loopers.infrastructure.member.MemberJpaRepository
-import com.loopers.infrastructure.order.OrderEntity
-import com.loopers.infrastructure.order.OrderItemEntity
-import com.loopers.infrastructure.order.OrderJpaRepository
-import com.loopers.infrastructure.product.ProductEntity
-import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.brand.entity.BrandEntity
+import com.loopers.infrastructure.brand.repository.BrandJpaRepository
+import com.loopers.infrastructure.coupon.entity.CouponEntity
+import com.loopers.infrastructure.coupon.entity.CouponIssueEntity
+import com.loopers.infrastructure.coupon.repository.CouponIssueJpaRepository
+import com.loopers.infrastructure.coupon.repository.CouponJpaRepository
+import com.loopers.infrastructure.inventory.entity.InventoryEntity
+import com.loopers.infrastructure.inventory.repository.InventoryJpaRepository
+import com.loopers.infrastructure.member.entity.MemberEntity
+import com.loopers.infrastructure.member.repository.MemberJpaRepository
+import com.loopers.infrastructure.order.entity.OrderEntity
+import com.loopers.infrastructure.order.entity.OrderItemEntity
+import com.loopers.infrastructure.order.repository.OrderJpaRepository
+import com.loopers.infrastructure.product.entity.ProductEntity
+import com.loopers.infrastructure.product.repository.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.order.dto.OrderV1Dto
 import com.loopers.utils.DatabaseCleanUp
-import com.loopers.domain.coupon.CouponIssueStatus
-import com.loopers.domain.coupon.DiscountType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -623,7 +624,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 loginId = loginId,
                 password = PasswordEncoder.encode(password),
                 name = "홍길동",
-                birthDate = java.time.LocalDate.of(1990, 1, 1),
+                birthDate = LocalDate.of(1990, 1, 1),
                 email = "$loginId@example.com",
             ),
         )

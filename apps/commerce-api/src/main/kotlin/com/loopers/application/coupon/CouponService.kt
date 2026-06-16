@@ -2,11 +2,11 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.dto.CouponCreateCommand
 import com.loopers.application.coupon.dto.CouponUpdateCommand
-import com.loopers.domain.coupon.Coupon
-import com.loopers.domain.coupon.CouponIssue
-import com.loopers.domain.coupon.CouponIssueRepository
 import com.loopers.domain.coupon.CouponPolicy
-import com.loopers.domain.coupon.CouponRepository
+import com.loopers.domain.coupon.model.Coupon
+import com.loopers.domain.coupon.model.CouponIssue
+import com.loopers.domain.coupon.repository.CouponIssueRepository
+import com.loopers.domain.coupon.repository.CouponRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page

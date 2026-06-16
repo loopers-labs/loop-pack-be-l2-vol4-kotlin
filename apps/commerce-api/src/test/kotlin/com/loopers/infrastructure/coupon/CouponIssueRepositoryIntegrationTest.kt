@@ -1,9 +1,11 @@
 package com.loopers.infrastructure.coupon
 
-import com.loopers.domain.coupon.CouponIssue
-import com.loopers.domain.coupon.CouponIssueRepository
-import com.loopers.domain.coupon.CouponIssueStatus
-import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.enums.CouponIssueStatus
+import com.loopers.domain.coupon.enums.DiscountType
+import com.loopers.domain.coupon.model.CouponIssue
+import com.loopers.domain.coupon.repository.CouponIssueRepository
+import com.loopers.infrastructure.coupon.mapper.CouponIssueMapper
+import com.loopers.infrastructure.coupon.repository.CouponIssueJpaRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach

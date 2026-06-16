@@ -1,17 +1,18 @@
 package com.loopers.interfaces.api.like
 
-import com.loopers.infrastructure.brand.BrandEntity
-import com.loopers.infrastructure.brand.BrandJpaRepository
-import com.loopers.infrastructure.like.ProductLikeEntity
-import com.loopers.infrastructure.like.ProductLikeJpaRepository
-import com.loopers.infrastructure.member.MemberEntity
-import com.loopers.infrastructure.member.MemberJpaRepository
-import com.loopers.infrastructure.product.ProductEntity
-import com.loopers.infrastructure.product.ProductJpaRepository
-import com.loopers.infrastructure.productstat.ProductStatEntity
-import com.loopers.infrastructure.productstat.ProductStatJpaRepository
-import com.loopers.interfaces.api.ApiResponse
 import com.loopers.domain.user.PasswordEncoder
+import com.loopers.infrastructure.brand.entity.BrandEntity
+import com.loopers.infrastructure.brand.repository.BrandJpaRepository
+import com.loopers.infrastructure.like.entity.LikeEntity
+import com.loopers.infrastructure.like.repository.LikeJpaRepository
+import com.loopers.infrastructure.member.entity.MemberEntity
+import com.loopers.infrastructure.member.repository.MemberJpaRepository
+import com.loopers.infrastructure.product.entity.ProductEntity
+import com.loopers.infrastructure.product.entity.ProductStatEntity
+import com.loopers.infrastructure.product.repository.ProductJpaRepository
+import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
+import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.like.dto.LikeV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -27,6 +28,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.time.LocalDate
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -36,7 +38,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val brandJpaRepository: BrandJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
-    private val productLikeJpaRepository: ProductLikeJpaRepository,
+    private val likeJpaRepository: LikeJpaRepository,
     private val productStatJpaRepository: ProductStatJpaRepository,
     private val memberJpaRepository: MemberJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -66,7 +68,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(productLikeJpaRepository.findAll().single().memberId).isEqualTo(member.id) },
+                { assertThat(likeJpaRepository.findAll().single().memberId).isEqualTo(member.id) },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
             )
         }
@@ -95,7 +97,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(productLikeJpaRepository.findAll()).hasSize(1) },
+                { assertThat(likeJpaRepository.findAll()).hasSize(1) },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
             )
         }
@@ -133,7 +135,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
-                { assertThat(productLikeJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
+                { assertThat(likeJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
                 { assertThat(productStat?.likeCount).isEqualTo(CONCURRENT_LIKE_COUNT.toLong()) },
             )
         }
@@ -196,7 +198,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val member = createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+            likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
 
             val response = testRestTemplate.exchange(
@@ -209,7 +211,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(likeJpaRepository.findAll()).isEmpty() },
                 { assertThat(productStat?.likeCount).isEqualTo(0L) },
             )
         }
@@ -232,7 +234,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(likeJpaRepository.findAll()).isEmpty() },
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
             )
         }
@@ -247,7 +249,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val product = createProduct(brandId = brand.id)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = CONCURRENT_LIKE_COUNT.toLong()))
             members.forEach { member ->
-                productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+                likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
             }
             val executor = Executors.newFixedThreadPool(CONCURRENT_LIKE_COUNT)
             val startLatch = java.util.concurrent.CountDownLatch(1)
@@ -273,7 +275,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val productStat = productStatJpaRepository.findByProductId(product.id)
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
-                { assertThat(productLikeJpaRepository.findAll()).isEmpty() },
+                { assertThat(likeJpaRepository.findAll()).isEmpty() },
                 { assertThat(productStat?.likeCount).isEqualTo(0L) },
             )
         }
@@ -339,8 +341,8 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val secondProduct = createProduct(brandId = brand.id, name = "loopers cap")
             productStatJpaRepository.save(ProductStatEntity(productId = firstProduct.id, likeCount = 3L))
             productStatJpaRepository.save(ProductStatEntity(productId = secondProduct.id, likeCount = 5L))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = firstProduct.id))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = secondProduct.id))
+            likeJpaRepository.save(LikeEntity(memberId = member.id, productId = firstProduct.id))
+            likeJpaRepository.save(LikeEntity(memberId = member.id, productId = secondProduct.id))
 
             val response = testRestTemplate.exchange(
                 "$USERS_ENDPOINT/${member.id}/likes",
@@ -363,7 +365,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val brand = createBrand()
             val product = createProduct(brandId = brand.id, isDeleted = true)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+            likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
 
             val response = testRestTemplate.exchange(
                 "$USERS_ENDPOINT/${member.id}/likes",
@@ -385,7 +387,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val brand = createBrand(isDeleted = true)
             val product = createProduct(brandId = brand.id)
             productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
-            productLikeJpaRepository.save(ProductLikeEntity(memberId = member.id, productId = product.id))
+            likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
 
             val response = testRestTemplate.exchange(
                 "$USERS_ENDPOINT/${member.id}/likes",
@@ -467,7 +469,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 loginId = loginId,
                 password = PasswordEncoder.encode(password),
                 name = "홍길동",
-                birthDate = java.time.LocalDate.of(1990, 1, 1),
+                birthDate = LocalDate.of(1990, 1, 1),
                 email = "$loginId@example.com",
             ),
         )

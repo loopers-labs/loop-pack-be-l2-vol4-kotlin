@@ -8,8 +8,8 @@ import com.loopers.application.order.dto.OrderInfo
 import com.loopers.application.order.dto.OrderSummaryInfo
 import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
-import com.loopers.domain.order.OrderPlacementService
 import com.loopers.domain.order.dto.OrderPlacementItem
+import com.loopers.domain.order.service.OrderPlacementService
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional

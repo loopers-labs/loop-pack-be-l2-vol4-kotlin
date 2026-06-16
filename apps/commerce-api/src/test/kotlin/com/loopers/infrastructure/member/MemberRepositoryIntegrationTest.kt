@@ -1,8 +1,11 @@
 package com.loopers.infrastructure.member
 
 import com.loopers.config.jpa.DataSourceConfig
-import com.loopers.domain.user.UserRepository
+import com.loopers.domain.user.repository.UserRepository
 import com.loopers.fixture.user.UserFixture
+import com.loopers.infrastructure.member.mapper.MemberMapper
+import com.loopers.infrastructure.member.repository.MemberJpaRepository
+import com.loopers.infrastructure.member.repository.MemberRepositoryImpl
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName

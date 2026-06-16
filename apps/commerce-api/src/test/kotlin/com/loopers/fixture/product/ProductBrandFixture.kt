@@ -1,8 +1,8 @@
 package com.loopers.fixture.product
 
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.product.Product
-import com.loopers.domain.productstat.ProductStat
+import com.loopers.domain.brand.model.Brand
+import com.loopers.domain.product.model.Product
+import com.loopers.domain.product.model.ProductStat
 
 object ProductBrandFixture {
     fun createBrand(

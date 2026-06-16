@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 4 · 체크리스트</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week 4 · Checklist</span>
+      <h1 class="title">구현 <span class="hl">체크리스트</span></h1>
+      <p class="lede">과제 공식 체크리스트와 <b>단계별 할 일</b>, 그리고 이번에 함께 처리할 <b>백로그 18건</b>을 한 곳에 모았습니다. 손코딩하며 하나씩 채워가세요.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">단계</span><span class="v">발급 → 사용·통합 → 동시성 → 백로그 → 부가</span></div>
+        <div class="chip"><span class="k">목표</span><span class="v">정합성 + 동시성 테스트 그린</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a class="cur" href="01-checklist.html"><span class="n">01</span>체크리스트</a>
+    <a href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="04-coupon-class-sequence.html"><span class="n">04</span>클래스·플로우</a>
+    <a href="05-build-order.html"><span class="n">05</span>빌드 순서</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">과제 공식 체크리스트</a></li>
+      <li><a href="#s2">단계별 할 일</a></li>
+      <li><a href="#s3">백로그 18건 (그룹별)</a></li>
+      <li><a href="#s4">결정 사항 · 검증</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">OFFICIAL</p><h2 class="sec">과제 공식 체크리스트</h2></div>
+    </div>
+    <p class="lead">과제 명세 그대로의 합격 기준입니다. 이게 전부 체크되면 Must-Have 충족입니다.</p>
+
+    <h3>쿠폰 도메인</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>쿠폰은 사용자가 소유하며, <b>이미 사용된 쿠폰은 사용 불가</b> <span class="tag">Coupon</span></li>
+      <li><span class="box"></span>쿠폰 종류는 <b>정액 / 정률</b>로 구분, 각 적용 로직 구현 <span class="tag">Coupon</span></li>
+      <li><span class="box"></span>각 발급 쿠폰은 <b>최대 1회만</b> 사용 가능 <span class="tag">Coupon</span></li>
+    </ul>
+
+    <h3>주문</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>주문 전체 흐름에 대해 <b>원자성</b> 보장 <span class="tag">Order</span></li>
+      <li><span class="box"></span>사용 불가/존재하지 않는 쿠폰이면 <b>주문 실패</b> <span class="tag">Order</span></li>
+      <li><span class="box"></span>재고가 없거나 부족하면 <b>주문 실패</b> <span class="tag">Order</span></li>
+      <li><span class="box"></span>쿠폰·재고 중 하나라도 실패하면 <b>모두 롤백</b> <span class="tag">Order</span></li>
+      <li><span class="box"></span>주문 성공 시 모든 처리가 정상 반영 <span class="tag">Order</span></li>
+    </ul>
+
+    <h3>동시성 테스트</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>동시 좋아요/싫어요 → <b>like_count 정상 반영</b> <span class="tag">Test</span></li>
+      <li><span class="box"></span>같은 쿠폰 여러 기기 동시 주문 → <b>1회만 사용</b> <span class="tag">Test</span></li>
+      <li><span class="box"></span>같은 상품 동시 주문 → <b>재고 정상 차감</b> <span class="tag">Test</span></li>
+    </ul>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STEPS</p><h2 class="sec">단계별 할 일</h2></div>
+    </div>
+    <p class="lead">발급부터 시작합니다. 도메인 모델·메서드 세부는 <strong>02 구현 플랜</strong>에 있습니다.</p>
+
+    <h3>① 쿠폰 발행 · 지급 (관리자)</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">Coupon</span> 템플릿 엔티티 (name·type·value·minOrderAmount:Money·expiredAt·createdBy) — 관리자 API 생성</li>
+      <li><span class="box"></span><span class="term">UserCoupon</span> 보유 엔티티 (userId·status·@Version)</li>
+      <li><span class="box"></span>관리자 발행 <span class="term">POST /api-admin/v1/coupons</span> — 기존 admin 인증 재사용</li>
+      <li><span class="box"></span>관리자 지급 <span class="term">.../{id}/grant</span> — 특정 userId 에게 발급, 중복 방지 <span class="term">UK(user_id, coupon_id)</span></li>
+      <li><span class="box"></span>사용자 <span class="term">GET /users/me/coupons</span> · (셀프 발급·선착순은 백로그)</li>
+    </ul>
+
+    <h3>② 사용 + 주문 통합</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">OrderCreateCommand</span> 에 <span class="term">couponId?</span> 추가</li>
+      <li><span class="box"></span>Order 에 금액 3종 스냅샷 (원금·할인·최종) + couponId</li>
+      <li><span class="box"></span><span class="term">place()</span> 흐름: 재고락 → 쿠폰 검증·할인 → <span class="term">use()</span> → 저장</li>
+      <li><span class="box"></span>쿠폰 사용 = <b>낙관락(@Version)</b>, 충돌 시 주문 실패·전체 롤백</li>
+    </ul>
+
+    <h3>③ 동시성 테스트 3종</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">build.gradle.kts</span> 에 testFixtures(:modules:jpa) 의존성 추가</li>
+      <li><span class="box"></span>쿠폰 1회 / 재고 정확 / like_count 정확 — Testcontainers MySQL</li>
+      <li><span class="box"></span>ExecutorService + CountDownLatch 패턴, 최종 상태 + 카운트 이중 단언</li>
+    </ul>
+
+    <h3>④ 백로그 · ⑤ 부가</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>CodeRabbit 백로그 18건 (다음 섹션 표) — 그룹 단위 커밋</li>
+      <li><span class="box"></span>analyze-query 스킬 (우리 컨벤션 내장 고도화)</li>
+      <li><span class="box"></span>Technical Writing — 락 선택 회고/Design Doc</li>
+    </ul>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">BACKLOG</p><h2 class="sec">백로그 18건 (그룹별)</h2></div>
+    </div>
+    <p class="lead">지난 PR에서 미룬 CodeRabbit 지적. 이번 PR에 전부 포함하되, 동시성과 겹치는 것은 위 단계에 흡수합니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>그룹</th><th>항목</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr><td>동시성·비동기</td><td>#6 재고 락 타임아웃 힌트 · #11 bounded TaskExecutor · #10 like_count 갱신 행수</td><td>단계 ②③ 흡수</td></tr>
+          <tr><td>보안·로그 PII</td><td>#4 userId/productId 로그 마스킹 · #13 throwable 전달(stack trace)</td><td>채택</td></tr>
+          <tr><td>조회 한계</td><td>#5+#7 좋아요 목록 페이징 · #8 주문 날짜범위 Pageable · #9 Order.items N+1</td><td>채택</td></tr>
+          <tr><td>대량·검증</td><td>#3 브랜드 대량삭제(트레이드오프 답변) · #2 H2 vs MySQL · #12 실패 케이스 테스트</td><td>일부 답변</td></tr>
+          <tr><td>테스트·스타일</td><td>#14 #15 #16 #17(requireNotNull) #18 DatabaseCleanup #19 Mermaid 이스케이프</td><td>일괄 채택</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">원본</span>항목 상세는 <span class="term">docs/week3/pr-44-coderabbit-followups.md</span> 참조. <strong>#1(data.sql 평문)</strong> 은 지난 PR에서 이미 완료.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">FIXED</p><h2 class="sec">결정 사항 · 검증</h2></div>
+    </div>
+    <p class="lead">아래는 고정된 결정입니다. 흔들리면 02·03 문서의 근거를 다시 봅니다.</p>
+
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">사용</span> 낙관락 @Version</h4><p>단일 소유 row라 경합 드묾. 재고 비관락과 데드락 없음. 충돌 시 주문 실패.</p></div>
+      <div class="col o"><h4><span class="mk">발급</span> 관리자 발행·지급</h4><p>관리자가 발행·특정 유저에 지급. 단독 행위라 경합 없음. 셀프 발급·선착순은 백로그.</p></div>
+    </div>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">템플릿</span> 관리자 API 생성</h4><p>Coupon 은 <span class="term">/api-admin/v1/coupons</span> 로 생성. 기존 admin 인증 재사용, 수정·삭제는 범위 밖.</p></div>
+      <div class="col x"><h4><span class="mk">테스트</span> MySQL</h4><p>동시성 3종은 Testcontainers MySQL. H2는 락 의미 약함.</p></div>
+    </div>
+
+    <h3>최종 검증</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">./gradlew :apps:commerce-api:test</span> 그린</li>
+      <li><span class="box"></span>동시성 3종: 쿠폰 1건 / 재고 0 / like_count N 단언 통과</li>
+      <li><span class="box"></span>기존 commerce-api 테스트 회귀 없음</li>
+    </ul>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 4 · 구현 체크리스트<br>
+    공식 체크리스트 + 단계별 할 일 + 백로그 18건
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

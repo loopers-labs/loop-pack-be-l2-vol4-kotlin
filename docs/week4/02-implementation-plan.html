@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 4 · 구현 플랜</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week 4 · Implementation</span>
+      <h1 class="title">구현 <span class="hl">플랜</span></h1>
+      <p class="lede">쿠폰 도메인 모델과 <b>주문 통합 흐름</b>, 신규 파일 목록, 그리고 <b>만들지 않을 것(YAGNI)</b>까지. 손코딩 전 구조를 잡는 지도입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">도메인</span><span class="v">Coupon · UserCoupon</span></div>
+        <div class="chip"><span class="k">통합</span><span class="v">OrderService.place()</span></div>
+        <div class="chip"><span class="k">패턴 재사용</span><span class="v">Money · BaseEntity · 이벤트</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-checklist.html"><span class="n">01</span>체크리스트</a>
+    <a class="cur" href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="04-coupon-class-sequence.html"><span class="n">04</span>클래스·플로우</a>
+    <a href="05-build-order.html"><span class="n">05</span>빌드 순서</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">쿠폰 도메인 모델</a></li>
+      <li><a href="#s2">주문 통합 흐름</a></li>
+      <li><a href="#s3">신규 · 변경 파일</a></li>
+      <li><a href="#s4">YAGNI 경계</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">DOMAIN</p><h2 class="sec">쿠폰 도메인 모델</h2></div>
+    </div>
+    <p class="lead">템플릿(<span class="term">Coupon</span>)과 보유(<span class="term">UserCoupon</span>)를 분리합니다. 정의는 불변, 생명주기는 사용자 소유 쪽에 둡니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="ERD">
+        <svg viewBox="0 0 720 250" role="img" aria-label="쿠폰 ERD: user_coupon 은 coupon 을 N대1로 참조, orders 는 user_coupon 을 1대1 nullable 로 참조">
+          <defs>
+            <marker id="erd1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- coupon (template) -->
+          <rect x="18" y="40" width="200" height="170" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <rect x="18" y="40" width="200" height="30" rx="16" fill="#E5E8EB"/>
+          <rect x="18" y="55" width="200" height="15" fill="#E5E8EB"/>
+          <text class="svg-t" x="32" y="60" fill="#333D4B">coupon</text>
+          <text class="svg-s" x="32" y="88" fill="#6B7684">PK id</text>
+          <text class="svg-s" x="32" y="104" fill="#6B7684">name</text>
+          <text class="svg-s" x="32" y="120" fill="#6B7684">type: FIXED|RATE</text>
+          <text class="svg-s" x="32" y="136" fill="#6B7684">value: Long</text>
+          <text class="svg-s" x="32" y="152" fill="#6B7684">minOrderAmount</text>
+          <text class="svg-s" x="32" y="168" fill="#6B7684">expiredAt</text>
+          <text class="svg-s" x="32" y="184" fill="#6B7684">createdBy</text>
+          <text class="svg-s" x="32" y="202" fill="#0A8F5B">(관리자 발행)</text>
+
+          <!-- user_coupon -->
+          <rect x="260" y="40" width="200" height="170" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.5"/>
+          <rect x="260" y="40" width="200" height="30" rx="16" fill="#cfe4ff"/>
+          <rect x="260" y="55" width="200" height="15" fill="#cfe4ff"/>
+          <text class="svg-t" x="274" y="60" fill="#1B64DA">user_coupon</text>
+          <text class="svg-s" x="274" y="92" fill="#3182F6">PK id</text>
+          <text class="svg-s" x="274" y="111" fill="#3182F6">userId</text>
+          <text class="svg-s" x="274" y="130" fill="#3182F6">FK couponId</text>
+          <text class="svg-s" x="274" y="149" fill="#3182F6">status: 3종</text>
+          <text class="svg-s" x="274" y="168" fill="#C9303C">@Version</text>
+          <text class="svg-s" x="274" y="190" fill="#3182F6">usedAt?</text>
+
+          <!-- orders -->
+          <rect x="502" y="40" width="200" height="170" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <rect x="502" y="40" width="200" height="30" rx="16" fill="#E5E8EB"/>
+          <rect x="502" y="55" width="200" height="15" fill="#E5E8EB"/>
+          <text class="svg-t" x="516" y="60" fill="#333D4B">orders</text>
+          <text class="svg-s" x="516" y="92" fill="#6B7684">PK id · userId</text>
+          <text class="svg-s" x="516" y="111" fill="#0A8F5B">FK couponId?</text>
+          <text class="svg-s" x="516" y="130" fill="#6B7684">originalAmount</text>
+          <text class="svg-s" x="516" y="149" fill="#6B7684">discountAmount</text>
+          <text class="svg-s" x="516" y="168" fill="#6B7684">totalAmount(최종)</text>
+          <text class="svg-s" x="516" y="190" fill="#6B7684">+ items[]</text>
+
+          <!-- relations -->
+          <line x1="260" y1="120" x2="220" y2="120" stroke="#3182F6" stroke-width="2" marker-end="url(#erd1)"/>
+          <text class="svg-l" x="240" y="110" text-anchor="middle" fill="#1B64DA">N:1</text>
+          <line x1="502" y1="120" x2="462" y2="120" stroke="#15C47E" stroke-width="2" marker-end="url(#erd1)"/>
+          <text class="svg-l" x="482" y="110" text-anchor="middle" fill="#0A8F5B">1:1?</text>
+        </svg>
+      </div>
+      <figcaption><b>ERD.</b> <b>user_coupon</b> 이 발급·사용의 주체. <b>orders.couponId</b> 는 적용된 user_coupon(nullable).</figcaption>
+    </figure>
+
+    <h3>핵심 도메인 메서드</h3>
+    <div class="fn-card">
+      <div class="fn-sig"><span class="ty">DiscountPolicy</span>.<span class="fn">calculateDiscount</span>(<span class="pa">type, value, price</span>) <span class="rt">→ Money</span><span class="pure">PURE</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>FIXED</td><td>min(value, price) (정액 · 캡)</td></tr>
+        <tr><td>RATE</td><td>min(price × value / 100, price) (정률 내림 · 캡)</td></tr>
+        <tr><td>캡</td><td>price 를 받으니 할인 ≤ 주문금액을 여기서 보장</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="fn-card">
+      <div class="fn-sig"><span class="ty">Coupon</span>.<span class="fn">validateUsable</span>(<span class="pa">orderAmount, now</span>) <span class="rt">→ Unit</span><span class="pure">PURE · 검증만</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>minOrder</td><td>orderAmount &lt; minOrderAmount → MIN_ORDER_NOT_MET</td></tr>
+        <tr><td>만료</td><td>isExpired(now) → EXPIRED</td></tr>
+        <tr><td>책임</td><td>자격 검증만. 계산은 DiscountPolicy 가 (Coupon 은 의존 안 함)</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="fn-card">
+      <div class="fn-sig"><span class="ty">UserCoupon</span>.<span class="fn">use</span>(<span class="pa">now</span>: LocalDateTime) <span class="rt">→ Unit</span><span class="mut">STATE</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>전이</td><td>AVAILABLE → USED, usedAt 기록</td></tr>
+        <tr><td>거부</td><td>AVAILABLE 아니면 COUPON_ALREADY_USED / EXPIRED</td></tr>
+        <tr><td>동시성</td><td>@Version 이 동시 커밋 중 1건만 성공시킴 (2차 방어선)</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="note key"><span class="tag">결정</span>할인 계산은 <strong>템플릿(Coupon)</strong>이, "사용 가능·1회성"은 <strong>UserCoupon</strong>이 책임집니다. 사용 락은 <strong>낙관락</strong> — 근거는 <span class="term">03 동시성 노트</span>.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">ORDER</p><h2 class="sec">주문 통합 흐름</h2></div>
+    </div>
+    <p class="lead"><span class="term">OrderService.place()</span> 단일 트랜잭션 안에서 재고 차감 → 쿠폰 적용 → 주문 저장. 락 획득 순서가 데드락을 가릅니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="SEQ">
+        <svg viewBox="0 0 720 320" role="img" aria-label="place 트랜잭션 흐름: 재고 비관락 차감, 쿠폰 검증과 할인, userCoupon.use 낙관락, 주문 저장. 하나라도 실패하면 전체 롤백">
+          <defs>
+            <marker id="seq1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- TX boundary -->
+          <rect x="30" y="20" width="520" height="284" rx="20" fill="none" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="6 5"/>
+          <text class="svg-l" x="48" y="14" fill="#1B64DA">@Transactional 경계</text>
+
+          <!-- steps -->
+          <rect x="58" y="40" width="464" height="46" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="78" y="62" fill="#333D4B">1. 상품 조회 (findAllActiveByIdIn)</text>
+          <text class="svg-s" x="78" y="78" fill="#8B95A1">스냅샷 단가용</text>
+
+          <rect x="58" y="98" width="464" height="46" rx="13" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="78" y="120" fill="#C9303C">2. 재고 조회 + 차감 — PESSIMISTIC_WRITE</text>
+          <text class="svg-s" x="78" y="136" fill="#C9303C">락 #1 · order by productId (데드락 회피)</text>
+
+          <rect x="58" y="156" width="464" height="46" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-s" x="78" y="178" fill="#1B64DA">3. 쿠폰 검증 · 할인 계산 (couponId != null)</text>
+          <text class="svg-s" x="78" y="194" fill="#3182F6">validateUsable → DiscountPolicy 계산 → use() @Version</text>
+
+          <rect x="58" y="214" width="464" height="46" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="78" y="236" fill="#0A8F5B">4. 주문 저장 (원금·할인·최종 스냅샷)</text>
+          <text class="svg-s" x="78" y="252" fill="#0A8F5B">Order.create(userId, snapshots, couponId, discount)</text>
+
+          <rect x="58" y="272" width="464" height="22" rx="9" fill="#191F28"/>
+          <text class="svg-s" x="290" y="287" text-anchor="middle" fill="#9FE3B8">COMMIT</text>
+
+          <!-- down arrows -->
+          <line x1="290" y1="86" x2="290" y2="97" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#seq1)"/>
+          <line x1="290" y1="144" x2="290" y2="155" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#seq1)"/>
+          <line x1="290" y1="202" x2="290" y2="213" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#seq1)"/>
+          <line x1="290" y1="260" x2="290" y2="271" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#seq1)"/>
+
+          <!-- rollback -->
+          <rect x="568" y="98" width="128" height="162" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="632" y="160" text-anchor="middle" fill="#C9303C">어느 하나</text>
+          <text class="svg-s" x="632" y="178" text-anchor="middle" fill="#C9303C">실패 시</text>
+          <text class="svg-t" x="632" y="202" text-anchor="middle" fill="#C9303C">전체 롤백</text>
+          <line x1="550" y1="178" x2="566" y2="178" stroke="#F04452" stroke-width="2" marker-end="url(#seq1)"/>
+        </svg>
+      </div>
+      <figcaption><b>SEQ.</b> 락 자원은 inventory 하나뿐(쿠폰은 낙관락=락 미보유) → <b>데드락 불가</b>. 실패하면 재고도 원복.</figcaption>
+    </figure>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">OrderService.place() — 의사 흐름</span>
+      </div>
+<pre><span class="kw">@Transactional</span>
+<span class="kw">fun</span> <span class="fn">place</span>(userId: <span class="ty">Long</span>, command: <span class="ty">OrderCreateCommand</span>): <span class="ty">OrderInfo</span> {
+    <span class="cm">// 1~2: 재고 비관락 + 차감 (기존)</span>
+    <span class="kw">val</span> inventories = inventoryRepository.<span class="fn">findAllByProductIdInForUpdate</span>(ids)
+    snapshots.forEach { inv.<span class="fn">decrease</span>(it.quantity) }
+    <span class="kw">val</span> originalAmount = <span class="ty">Money</span>(snapshots.sumOf { it.subtotal })
+
+    <span class="cm">// 3: 쿠폰 (couponId 있을 때만)</span>
+    <span class="kw">val</span> discount = command.couponId?.<span class="kw">let</span> { id -&gt;
+        <span class="kw">val</span> uc = userCouponRepository.<span class="fn">findById</span>(id) <span class="cm">// 소유자 검증</span>
+        <span class="kw">val</span> coupon = couponRepository.<span class="fn">findById</span>(uc.couponId)
+        coupon.<span class="fn">validateUsable</span>(originalAmount, now) <span class="cm">// minOrder·만료 검증</span>
+        <span class="kw">val</span> d = <span class="ty">DiscountPolicy</span>.<span class="fn">calculateDiscount</span>(coupon.type, coupon.value, originalAmount) <span class="cm">// 계산+캡</span>
+        uc.<span class="fn">use</span>(now) <span class="cm">// @Version → 동시 사용 시 1건만</span>
+        d
+    } ?: <span class="ty">Money</span>(<span class="st">0</span>)
+
+    <span class="cm">// 4: 저장 (원금·할인·최종 스냅샷)</span>
+    <span class="kw">return</span> <span class="ty">OrderInfo</span>.<span class="fn">from</span>(orderRepository.<span class="fn">save</span>(
+        <span class="ty">Order</span>.<span class="fn">create</span>(userId, snapshots, command.couponId, discount)))
+}</pre>
+    </div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">FILES</p><h2 class="sec">신규 · 변경 파일</h2></div>
+    </div>
+    <p class="lead">기존 inventory/like 패턴(port/adapter)과 동형으로 만듭니다. 단일 구현 인터페이스는 repository port만 예외.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>레이어</th><th>신규 파일</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>domain/coupon</td><td>Coupon · CouponType · UserCoupon · UserCouponStatus · CouponErrorCode</td><td>+ Repository port 2</td></tr>
+          <tr><td>infrastructure/coupon</td><td>CouponJpaRepository · UserCouponJpaRepository (+ Impl)</td><td>inventory 동형</td></tr>
+          <tr><td>application/coupon</td><td>CouponService (create · grant · findMyCoupons) + DTO</td><td>관리자 발행·지급</td></tr>
+          <tr><td>interfaces/api/coupon</td><td>CouponAdminController · CouponController</td><td>발행·지급 + 내 조회</td></tr>
+          <tr><td>config</td><td>AsyncConfig (bounded executor + 핸들러)</td><td>백로그 #11</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>변경 파일</h3>
+    <ul style="list-style:none;padding:0;margin:0">
+      <li class="note" style="margin:8px 0"><span class="term">application/order/OrderService.kt</span> — couponId 처리, OrderInfo 금액 3종</li>
+      <li class="note" style="margin:8px 0"><span class="term">domain/order/Order.kt</span> — couponId·originalAmount·discountAmount, create 시그니처</li>
+      <li class="note" style="margin:8px 0"><span class="term">apps/commerce-api/build.gradle.kts</span> — testFixtures(:modules:jpa) 의존성</li>
+    </ul>
+
+    <div class="note"><span class="tag">재사용</span><strong>Money</strong>(금액·할인) · <strong>BaseEntity</strong>(soft delete·status) · <strong>CursorPage</strong>(목록) · <strong>이벤트 패턴</strong>(필요 시). 새로 만들 것 최소화.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">YAGNI</p><h2 class="sec">만들지 않을 것</h2></div>
+    </div>
+    <p class="lead">지금 필요 없는 것은 만들지 않습니다. 막판에 "혹시 몰라서"가 떠오르면 이 목록을 봅니다.</p>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">✕</span> 쿠폰 만료 배치</h4><p>만료는 주문 시점 isExpired 검증으로 충분. 스케줄러 불필요.</p></div>
+      <div class="col x"><h4><span class="mk">✕</span> 쿠폰 수정·삭제 API</h4><p>관리자 발행(생성)·지급만. 수정·삭제·풀 CRUD는 범위 밖.</p></div>
+      <div class="col x"><h4><span class="mk">✕</span> 쿠폰 사용 이력 테이블</h4><p>주문 자체가 사용 기록. LikeEvent 식 append 불필요.</p></div>
+      <div class="col x"><h4><span class="mk">✕</span> like_count 추가 락</h4><p>원자 UPDATE로 이미 해결. 락/버전 추가 금지.</p></div>
+      <div class="col x"><h4><span class="mk">✕</span> 보상 트랜잭션</h4><p>트랜잭션 롤백이 처리. restore() 불필요.</p></div>
+      <div class="col x"><h4><span class="mk">✕</span> 다중 쿠폰 적용</h4><p>요구는 1장. 조합 로직 금지.</p></div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 4 · 구현 플랜<br>
+    쿠폰 도메인 · 주문 통합 · 신규 파일 · YAGNI
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

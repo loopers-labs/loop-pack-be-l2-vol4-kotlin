@@ -7,9 +7,6 @@ dependencies {
     implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
-    implementation(project(":modules:account-application"))
-    implementation(project(":modules:account-persistence"))
-    implementation(project(":modules:account-security"))
     implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
@@ -19,6 +16,9 @@ dependencies {
     // web
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+
+    // security (구 account-security 모듈이 보유하던 직접 의존)
+    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
 
     // querydsl

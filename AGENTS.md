@@ -24,7 +24,7 @@ Preserve the architectural boundaries of `interfaces`, `application`, `domain`, 
 
 For expected business/application failures thrown from our code, use the custom exception model in `supports/error/src/main/kotlin/com/loopers/support/error/CoreException.kt`: `BadRequestException`, `UnauthorizedException`, `ForbiddenException`, `NotFoundException`, `ConflictException`, or `InternalServerException`. Throw the HTTP-semantic wrapper with a domain error code, e.g. `throw ConflictException(AccountErrorCode.DUPLICATE_EMAIL)`. This is the path consumed by `supports/web/src/main/kotlin/com/loopers/interfaces/api/ApiControllerAdvice.kt`, which maps exception subclasses to HTTP status, and `ApiResponse.fail`, which reads `exception.errorCode.code` and `exception.message`.
 
-Define error codes per domain by importing `com.loopers.support.error.ErrorCode` from the `supports/error` module and implementing it with a domain enum. Follow `modules/account-domain/src/main/kotlin/com/loopers/account/domain/error/AccountErrorCode.kt`: `enum class XxxErrorCode(override val message: String) : ErrorCode`, with `override val code` using the domain prefix plus enum name, such as `ACCOUNT:$name`.
+Define error codes per domain by importing `com.loopers.support.error.ErrorCode` from the `supports/error` module and implementing it with a domain enum. Follow `apps/commerce-api/src/main/kotlin/com/loopers/account/domain/error/AccountErrorCode.kt`: `enum class XxxErrorCode(override val message: String) : ErrorCode`, with `override val code` using the domain prefix plus enum name, such as `ACCOUNT:$name`.
 
 Do not introduce ad hoc `RuntimeException`, app-local `CoreException`, `ErrorType`-based models, a new `ErrorCode` interface, or duplicate common error-code abstractions for new business/application failures. If a framework requires its own exception type, wrap a `CoreException` as `AccountAuthenticationException(coreException: CoreException)` does.
 
@@ -42,7 +42,7 @@ Keep production code justified by an active test or concrete use case.
 
 Place domain error-code enums in the owning domain module, not in application or interface layers.
 
-Keep highly cohesive, owner-specific types in the same `.kt` file when they have a single owner. Follow the existing pattern in `modules/account-application/src/main/kotlin/com/loopers/account/application/AccountService.kt`, where `AccountCreateCommand`, `AccountAuthenticateCommand`, and account info DTOs live below `AccountService`, and in `modules/account-security/src/main/kotlin/com/loopers/account/security/AccountHeaderAuthenticationFilter.kt`, where authentication header/attribute objects and `AccountPrincipal` live with the filter.
+Keep highly cohesive, owner-specific types in the same `.kt` file when they have a single owner. Follow the existing pattern in `apps/commerce-api/src/main/kotlin/com/loopers/account/application/AccountService.kt`, where `AccountCreateCommand`, `AccountAuthenticateCommand`, and account info DTOs live below `AccountService`, and in `apps/commerce-api/src/main/kotlin/com/loopers/account/infrastructure/security/AccountHeaderAuthenticationFilter.kt`, where authentication header/attribute objects and `AccountPrincipal` live with the filter.
 
 Split types into separate files when they are reused across owners or represent stable domain/infrastructure concepts, such as `AccountErrorCode.kt`, value objects under `domain/vo`, or Redis configuration properties.
 

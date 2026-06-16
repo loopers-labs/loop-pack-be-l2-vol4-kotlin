@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>enum의 책임은 어디까지인가</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col.x h4 .mk{background:var(--red);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>설계 노트 · Domain Modeling</span>
+      <h1 class="title">enum의 책임은<br><span class="hl">어디까지인가</span></h1>
+      <p class="lede">enum 안에 로직을 넣어도 될까? 답은 <b>"그 값 자체로 완결되면 넣고, 외부 데이터가 필요하면 빼라"</b> 입니다. 왜 그런지를 쉬운 비유와 예시로 풉니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">한 줄 기준</span><span class="v">값의 정체성인가, 인스턴스 데이터인가</span></div>
+        <div class="chip"><span class="k">근거</span><span class="v">Effective Java · 우아한형제들</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">핵심 기준 — enum은 상태가 없다</a></li>
+      <li><a href="#s2">넣어도 되는 책임</a></li>
+      <li><a href="#s3">빼야 하는 책임</a></li>
+      <li><a href="#s4">같은 잣대로 본 할인 예제</a></li>
+      <li><a href="#s5">우아한형제들 사례</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">PRINCIPLE</p><h2 class="sec">핵심 기준 — enum은 상태가 없다</h2></div>
+    </div>
+    <p class="lead">모든 enum 항목은 프로그램에 단 하나뿐인 싱글톤 상수입니다. <span class="term">FIXED</span> 는 어디서든 같은 그 하나예요. 여기서 모든 기준이 나옵니다.</p>
+
+    <blockquote>
+      <p>그 로직이 enum 값 "그 자체만으로 완결"되면 넣어라. "외부 데이터나 협력자"가 있어야 완성되면 빼라.</p>
+      <cite>— enum 책임의 한 줄 기준</cite>
+    </blockquote>
+
+    <h3>쉬운 비유 — 트럼프 카드의 무늬</h3>
+    <p>카드 게임을 떠올려 보세요. 무늬(<span class="term">SPADE</span>, <span class="term">HEART</span>…)를 enum이라고 하면:</p>
+    <div class="note key"><span class="tag">비유</span><strong>하트의 색(빨강), 기호(♥)</strong> 는 모든 하트가 똑같이 공유합니다 → <strong>무늬 enum의 속성으로 OK</strong>. 하지만 <strong>그 카드의 숫자(7인지 K인지)</strong> 는 카드 한 장마다 다릅니다 → <strong>무늬 enum이 아니라 카드 객체의 데이터</strong>.</div>
+    <p>"무늬에 고정된 것"은 enum에 넣고, "카드마다 다른 것"은 카드에 둡니다. enum은 종류를 나타낼 뿐, 개별 인스턴스의 데이터를 들고 있을 수 없기 때문입니다(상태가 없으니까).</p>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">OK</p><h2 class="sec">넣어도 되는 책임</h2></div>
+    </div>
+    <p class="lead">그 값에 <strong>고정된 불변 속성</strong>, 그리고 그 속성만으로 답할 수 있는 <strong>판정·변환</strong>은 enum 안이 정석입니다.</p>
+
+    <h3>① 표시 이름·코드 같은 고정 속성</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">CouponType.kt</span></div>
+<pre><span class="kw">enum class</span> <span class="ty">CouponType</span>(<span class="kw">val</span> displayName: <span class="ty">String</span>) {
+    <span class="ty">FIXED</span>(<span class="st">"정액 할인"</span>),
+    <span class="ty">RATE</span>(<span class="st">"정률 할인"</span>);
+}
+<span class="cm">// couponType.displayName → "정액 할인"  ✅ 모든 FIXED 가 공유</span></pre>
+    </div>
+
+    <h3>② 자기완결적 판정 (Tell, Don't Ask)</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">상태·요일 판정</span></div>
+<pre><span class="kw">enum class</span> <span class="ty">OrderStatus</span> { <span class="ty">CREATED</span>, <span class="ty">PAID</span>, <span class="ty">CANCELLED</span>;
+    <span class="kw">fun</span> <span class="fn">canCancel</span>() = <span class="kw">this</span> == <span class="ty">CREATED</span> || <span class="kw">this</span> == <span class="ty">PAID</span>   <span class="cm">// 상태의 고유 규칙 ✅</span>
+}</pre>
+    </div>
+
+    <h3>③ 2차 그룹 — 다른 enum을 필드로</h3>
+    <p>"타입을 더 큰 그룹으로 묶는다"도 고정된 분류라 OK입니다. enum이 다른 enum을 참조해도 안전합니다(둘 다 불변 상수).</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">그룹·카테고리</span></div>
+<pre><span class="kw">enum class</span> <span class="ty">CouponCategory</span> { <span class="ty">ORDER</span>, <span class="ty">SHIPPING</span> }
+
+<span class="kw">enum class</span> <span class="ty">CouponType</span>(<span class="kw">val</span> displayName: <span class="ty">String</span>, <span class="kw">val</span> category: <span class="ty">CouponCategory</span>) {
+    <span class="ty">FIXED</span>(<span class="st">"정액 할인"</span>, <span class="ty">ORDER</span>),
+    <span class="ty">RATE</span>(<span class="st">"정률 할인"</span>, <span class="ty">ORDER</span>),
+    <span class="ty">FREE_SHIPPING</span>(<span class="st">"무료배송"</span>, <span class="ty">SHIPPING</span>);
+
+    <span class="kw">fun</span> <span class="fn">isShipping</span>() = category == <span class="ty">CouponCategory</span>.<span class="ty">SHIPPING</span>   <span class="cm">// ✅</span>
+}</pre>
+    </div>
+
+    <div class="note"><span class="tag">근거</span>이렇게 "상수마다 다른 값/행동"을 enum에 응집하는 것이 <em>Effective Java</em> Item 34 의 <strong>constant-specific method</strong> 패턴입니다<a href="#r3" class="cite">[3]</a>. <span class="term">Operation.PLUS.apply(a, b)</span> 처럼 타입 자체로 행위가 완결될 때가 대표적입니다.</div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 240" role="img" aria-label="enum 경계: 값의 정체성에 고정된 것(표시명·코드·카테고리·판정)은 안, 인스턴스마다 다른 데이터(value·계산·외부협력)는 밖">
+          <rect x="30" y="34" width="380" height="180" rx="22" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.6"/>
+          <text class="svg-t" x="220" y="60" text-anchor="middle" fill="#1B64DA">enum 안 — 값의 정체성</text>
+          <rect x="56" y="78" width="150" height="34" rx="11" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="131" y="100" text-anchor="middle" fill="#1B64DA">displayName</text>
+          <rect x="222" y="78" width="150" height="34" rx="11" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="297" y="100" text-anchor="middle" fill="#1B64DA">code 변환</text>
+          <rect x="56" y="124" width="150" height="34" rx="11" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="131" y="146" text-anchor="middle" fill="#1B64DA">category 그룹</text>
+          <rect x="222" y="124" width="150" height="34" rx="11" fill="#fff" stroke="#3182F6" stroke-width="1.1"/>
+          <text class="svg-s" x="297" y="146" text-anchor="middle" fill="#1B64DA">canCancel 판정</text>
+          <text class="svg-s" x="220" y="190" text-anchor="middle" fill="#3182F6">모든 FIXED 가 똑같이 공유</text>
+
+          <rect x="440" y="34" width="250" height="180" rx="22" fill="#FEEFEF" stroke="#F04452" stroke-width="1.6" stroke-dasharray="6 5"/>
+          <text class="svg-t" x="565" y="60" text-anchor="middle" fill="#C9303C">enum 밖 — 인스턴스 데이터</text>
+          <rect x="466" y="78" width="198" height="34" rx="11" fill="#fff" stroke="#F04452" stroke-width="1.1"/>
+          <text class="svg-s" x="565" y="100" text-anchor="middle" fill="#C9303C">value (할인량)</text>
+          <rect x="466" y="124" width="198" height="34" rx="11" fill="#fff" stroke="#F04452" stroke-width="1.1"/>
+          <text class="svg-s" x="565" y="146" text-anchor="middle" fill="#C9303C">value 기반 계산</text>
+          <text class="svg-s" x="565" y="190" text-anchor="middle" fill="#C9303C">쿠폰마다 다름 · 외부 협력</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 경계는 하나의 질문으로 갈린다 — <b>"모든 FIXED가 똑같은 값인가?"</b> 그렇다면 안, 아니면 밖.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">NO</p><h2 class="sec">빼야 하는 책임</h2></div>
+    </div>
+    <p class="lead">아래 신호가 보이면 enum에서 빼서 별도 객체·서비스로 옮깁니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>빼야 할 신호</th><th>왜</th><th>어디로</th></tr></thead>
+        <tbody>
+          <tr><td>외부 협력자 의존</td><td>enum은 상수라 DI 불가, mock 못 끼움</td><td>도메인 서비스</td></tr>
+          <tr><td>인스턴스마다 다른 데이터 기반 계산</td><td>enum은 상태가 없어 매번 인자로 받아야 함</td><td>전략 객체</td></tr>
+          <tr><td>부작용 (I/O·상태 변경)</td><td>enum은 불변 싱글톤이어야 함</td><td>서비스·리포지토리</td></tr>
+          <tr><td>자주 바뀌는 정책</td><td>enum 수정 = 코드 배포</td><td>설정·DB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn"><span class="tag">체크 한 줄</span><strong>"이 로직을 그 enum 파일 안에서, 외부 데이터 주입 없이 테스트할 수 있나?"</strong> "아니오"라면 빼는 게 맞습니다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">CASE</p><h2 class="sec">같은 잣대로 본 할인 예제</h2></div>
+    </div>
+    <p class="lead">쿠폰 할인을 같은 기준에 대보면, 무엇이 enum에 들어가고 무엇이 빠지는지 한 표로 정리됩니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>후보</th><th>모든 FIXED가 같은가?</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>displayName "정액 할인"</td><td>✅ 항상 같음</td><td>enum 안</td></tr>
+          <tr><td>category ORDER</td><td>✅ 항상 같음</td><td>enum 안</td></tr>
+          <tr><td>value (1000원 / 5000원)</td><td>❌ 쿠폰마다 다름</td><td>enum 밖</td></tr>
+          <tr><td>discount 계산</td><td>❌ value 에 의존</td><td>enum 밖</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><span class="term">FIXED</span> 라는 <strong>타입</strong>만으로는 "얼마 할인"이 정해지지 않습니다 — <span class="term">value</span> 가 있어야 완성됩니다. 즉 할인은 <strong>"상태(value) + 행위(계산)"가 한 쌍</strong>이고, 그건 enum이 아니라 객체입니다.</p>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">✕</span> enum에 계산</h4><p>CouponType.discountOf(amount, <strong>value</strong>) — value를 밖에서 넣어줘야 함. 어색하고 테스트도 데이터 주입 필요.</p></div>
+      <div class="col o"><h4><span class="mk">○</span> 전략 객체로</h4><p>DiscountPolicy = value(상태) + discount(행위)를 묶음. 계산이 자기 안에서 완결. enum은 식별만.</p></div>
+    </div>
+
+    <div class="note key"><span class="tag">결론</span>같은 "enum 활용" 주제라도 — <strong>표시명·카테고리·판정</strong>은 넣는 쪽의 좋은 예, <strong>할인 계산</strong>은 빼는 쪽의 예. 둘을 대비하면 경계가 선명해집니다.</div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">REFERENCE</p><h2 class="sec">우아한형제들 사례</h2></div>
+    </div>
+    <p class="lead">우아한형제들 기술블로그 <em>"Java Enum 활용기"</em> 가 바로 이 "넣어도 되는 쪽"의 교과서적 예입니다.</p>
+
+    <p>이 글의 논지는 <strong>"Java enum은 단순 상수가 아니라 완전한 클래스이니, 관련 데이터와 행위를 enum 안에 응집시켜라"</strong> 입니다<a href="#r1" class="cite">[1]</a>. 대표 사례:</p>
+
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">○</span> 코드 매핑·변환</h4><p>origin 테이블의 Y/N ↔ 다른 테이블의 1/0, true/false 변환을 enum이 자기완결적으로 처리. 흩어진 if 를 enum 한 곳으로.</p></div>
+      <div class="col o"><h4><span class="mk">○</span> 함수형 필드</h4><p>각 enum 상수가 자기 판정·변환 로직을 들고 있게 해 분기를 다형성으로 대체.</p></div>
+    </div>
+
+    <p>이 사례들은 전부 <strong>enum 값 자체로 완결되는 변환·판정</strong>이라 enum에 넣는 게 정석입니다. 우리 할인 예제와의 차이는 단 하나 — 할인은 <strong>쿠폰마다 다른 <span class="term">value</span> 라는 인스턴스 상태에 의존</strong>한다는 점입니다.</p>
+
+    <div class="note"><span class="tag">이어지는 글</span>같은 블로그의 <em>"Legacy DB의 JPA Entity Mapping (Enum Converter 편)"</em><a href="#r2" class="cite">[2]</a> 은 enum을 DB에 매핑하는 <span class="term">AttributeConverter</span> 실전을 다룹니다 — enum의 영속성 측면과 직결됩니다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <div class="ref primary" id="r1"><span class="n">1</span><span class="b"><b>Java Enum 활용기</b> — enum을 완전한 클래스로 보고 데이터·행위를 응집시키는 실전 사례.<span class="src">https://techblog.woowahan.com/2527/</span><span class="pr bt">우아한형제들</span></span></div>
+    <div class="ref" id="r2"><span class="n">2</span><span class="b"><b>Legacy DB의 JPA Entity Mapping (Enum Converter 편)</b> — AttributeConverter 로 enum 영속화.<span class="src">https://techblog.woowahan.com/2600/</span><span class="pr bt">우아한형제들</span></span></div>
+    <div class="ref primary" id="r3"><span class="n">3</span><span class="b"><b>Effective Java 3rd Ed. — Item 34</b> (Joshua Bloch) — enum과 constant-specific method. enum 다형성의 정석 근거.<span class="src">Use enums instead of int constants</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r4"><span class="n">4</span><span class="b"><b>Replace Conditional with Polymorphism</b> (Martin Fowler, Refactoring) — switch-on-type 냄새를 다형성으로. "Tell, Don't Ask".<span class="src">https://refactoring.com/catalog/replaceConditionalWithPolymorphism.html</span><span class="pr p1">1차 출처</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    설계 노트 · enum의 책임은 어디까지인가<br>
+    값의 정체성은 안으로, 인스턴스 데이터는 밖으로
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loopers 커머스 — 동시성 보장 설계 (락 + 트랜잭션)</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  /* checklist — 체크 항목 리스트. li 안에 <span class="box"></span> + 텍스트. 완료는 li.done */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈(여러 HTML 파일) 간 네비게이션 바. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>LOOPERS · WEEK 4 · CONCURRENCY</span>
+      <h1 class="title">동시성 보장 설계<br><span class="hl">락 + 트랜잭션</span></h1>
+      <p class="lede">주문 한 건이 <b>쿠폰·재고·금액</b>을 동시에 건드린다. 자원마다 충돌 빈도가 다르므로 <b>락 전략도 자원마다 다르게</b> — 쿠폰은 낙관락, 재고는 비관락, 좋아요 수는 원자 UPDATE. 전부 <b>단일 트랜잭션 Tx①</b> 안에서 원자적으로 묶인다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">동시성 제어 · Tx 경계</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · JPA · MySQL</span></div>
+        <div class="chip"><span class="k">SCOPE</span><span class="v">Order · Coupon · Inventory · Like</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="02-implementation-plan.html"><span class="n">02</span>구현 플랜</a>
+    <a href="03-concurrency-notes.html"><span class="n">03</span>동시성 노트</a>
+    <a href="06-order-api-plan.html"><span class="n">06</span>주문 API 결정</a>
+    <a href="07-order-flow-mockup.html"><span class="n">07</span>주문 플로우 목업</a>
+    <a href="08-order-class-flowchart.html"><span class="n">08</span>클래스·플로우차트</a>
+    <a class="cur" href="08-concurrency-design.html"><span class="n">08</span>동시성 설계</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">한눈에 보기 — 전략 매트릭스</a></li>
+      <li><a href="#s2">트랜잭션 경계 — Facade가 Tx①을 소유</a></li>
+      <li><a href="#s3">쿠폰 이중사용 차단 — 3중 방어</a></li>
+      <li><a href="#s4">재고 차감 — 비관락 + 데드락 차단</a></li>
+      <li><a href="#s5">Tx① 내부 작업 순서와 이유</a></li>
+      <li><a href="#s6">원자성과 롤백 — 단일 Tx 합류</a></li>
+      <li><a href="#s7">좋아요 — 락 없이 정합성 지키기</a></li>
+      <li><a href="#s8">남은 일 — 테스트와 PG 연동</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== SECTION 1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">STRATEGY MATRIX</p><h2 class="sec">한눈에 보기 — 도메인별 동시성 전략</h2></div>
+    </div>
+
+    <p class="lead">락 선택의 기준은 단 두 가지 — 충돌이 얼마나 자주 나는가, 충돌 시 재시도 비용이 얼마인가.</p>
+    <p>같은 주문 트랜잭션 안에서도 자원마다 경합의 성격이 다릅니다. <strong>쿠폰</strong>은 한 유저의 한 행을 그 유저 본인만 경합하므로 충돌이 드물고, <strong>재고</strong>는 인기 상품 한 행에 다수 유저가 몰리므로 충돌이 잦습니다. 좋아요 수는 아예 read-modify-write를 제거해 <strong>락 자체를 회피</strong>합니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>자원</th><th>충돌 특성</th><th>선택한 전략</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>쿠폰 사용<br><code>user_coupon</code></td>
+            <td>경합 주체가 <em>같은 유저뿐</em> (더블클릭·중복 요청) → 충돌 빈도 매우 낮음</td>
+            <td>낙관락 <span class="term">@Version</span><br>+ status 가드 + UK</td>
+            <td>드문 충돌에 행 락을 잡는 건 낭비. 커밋 시점 감지 + 실패 응답이 더 싸다</td>
+          </tr>
+          <tr>
+            <td>재고 차감<br><code>inventory</code></td>
+            <td>인기 상품 1행에 <em>다수 유저</em> 동시 차감 → 충돌 빈도 높음</td>
+            <td>비관락 <span class="term">FOR UPDATE</span><br>(PESSIMISTIC_WRITE)</td>
+            <td>낙관락이면 재시도 폭증·오버셀 위험. 줄 세워서 정확히 차감</td>
+          </tr>
+          <tr>
+            <td>좋아요 수<br><code>product.like_count</code></td>
+            <td>다수 유저가 같은 상품 카운터 증감 → 충돌 잦지만 연산이 단순</td>
+            <td>원자 UPDATE<br><code>SET c = c ± 1</code></td>
+            <td>read-modify-write 제거 → lost update 원천 차단, 락 불필요</td>
+          </tr>
+          <tr>
+            <td>주문 금액</td>
+            <td>주문 사이에 상품 가격·쿠폰 정책이 바뀌는 race</td>
+            <td>expected 3종 금액 게이트<br>(검증, 락 아님)</td>
+            <td>사용자가 본 금액 ≠ 서버 계산이면 409 — 동의 없는 결제 차단</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">낙관락</span> 충돌은 드물다고 가정</h4>
+        <p>락을 잡지 않고 진행 → 커밋 시점 <span class="term">version</span> 비교로 충돌 감지. 대기 비용 0, 대신 충돌 시 트랜잭션 전체 롤백·재시도. <strong>충돌이 드문 자원</strong>(쿠폰)에 유리합니다.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">비관락</span> 충돌은 잦다고 가정</h4>
+        <p>읽는 시점에 <span class="term">FOR UPDATE</span>로 행을 선점 → 뒤 트랜잭션은 대기. 대기 비용이 있지만 재시도가 없고 정확합니다. <strong>충돌이 잦은 자원</strong>(재고)에 유리합니다.</p>
+      </div>
+    </div>
+
+    <div class="note key"><span class="tag">핵심</span>하나의 전략을 전 도메인에 강요하지 않습니다. <strong>충돌 빈도 × 재시도 비용</strong>으로 자원마다 따로 결정한 것이 이 설계의 뼈대입니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">TRANSACTION BOUNDARY</p><h2 class="sec">트랜잭션 경계 — Facade가 Tx①을 소유한다</h2></div>
+    </div>
+
+    <p class="lead">Tx①의 주인은 OrderFacade.place 하나. 유스케이스 지휘와 트랜잭션 경계가 같은 곳에 있다.</p>
+    <p><span class="term">OrderFacade.place()</span>가 <span class="term">@Transactional</span>로 Tx①을 열고 Product → Coupon → Order → Inventory 서비스를 지휘합니다. 각 서비스는 자기 도메인만 담당하고 기본 전파(REQUIRED)로 Tx①에 합류합니다. 주의할 것 하나 — PG 연동(O-F1) 시 외부 HTTP 호출이 이 Tx 안에 갇히면 <strong>커넥션과 락을 PG 응답 시간만큼 점유</strong>하므로, 그 시점에 Tx 구간을 안쪽 메서드로 분리해 <em>Tx① → PG approve(Tx 밖) → confirm/fail(Tx②)</em> 구조로 확장합니다 (self-invocation을 피해 별도 빈 또는 TransactionTemplate).</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">order/application/OrderFacade.kt</span>
+      </div>
+<pre><span class="cm">// PG 연동(O-F1) 시 이 메서드의 Tx 구간을 안쪽 메서드로 분리한다 — 외부 호출은 Tx 밖에 둔다</span>
+<span class="kw">@Component</span>
+<span class="kw">class</span> <span class="ty">OrderFacade</span>(
+    <span class="kw">private val</span> productService: <span class="ty">ProductService</span>,
+    <span class="kw">private val</span> couponService: <span class="ty">CouponService</span>,
+    <span class="kw">private val</span> inventoryService: <span class="ty">InventoryService</span>,
+    <span class="kw">private val</span> orderService: <span class="ty">OrderService</span>,
+) {
+    <span class="kw">@Transactional</span>
+    <span class="kw">fun</span> <span class="fn">place</span>(userId: <span class="ty">Long</span>, command: <span class="ty">OrderCreateCommand</span>): <span class="ty">OrderInfo</span> {
+        <span class="cm">// 상품 조회 → 쿠폰 use → 주문 생성(금액 게이트) → 재고 차감(비관락, 맨 마지막)</span>
+    }
+}</pre>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 570" role="img" aria-label="트랜잭션 경계 다이어그램. OrderController는 트랜잭션 없음. OrderFacade.place가 Tx1을 열고 각 도메인 서비스가 REQUIRED로 합류. 검증과 쿠폰 use, 주문 저장, 재고 FOR UPDATE가 같은 Tx1 안. 추후 PG approve는 Tx 밖, confirm과 fail은 Tx2.">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- Controller -->
+          <rect x="230" y="14" width="260" height="58" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="38" text-anchor="middle" fill="#4E5968">OrderController</text>
+          <text class="svg-s" x="360" y="58" text-anchor="middle" fill="#6B7684">POST /api/v1/orders · Tx 없음</text>
+          <line x1="360" y1="72" x2="360" y2="98" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#a1)"/>
+
+          <!-- Facade -->
+          <rect x="230" y="102" width="260" height="58" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="126" text-anchor="middle" fill="#4E5968">OrderFacade</text>
+          <text class="svg-s" x="360" y="146" text-anchor="middle" fill="#1B64DA">@Transactional — Tx① 소유 · 지휘</text>
+          <line x1="360" y1="160" x2="360" y2="188" stroke="#8B95A1" stroke-width="1.6" marker-end="url(#a1)"/>
+
+          <!-- Tx1 container -->
+          <rect x="40" y="192" width="640" height="262" rx="20" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.5" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="60" y="220" fill="#1B64DA">Tx① — OrderFacade.place @Transactional (서비스들 REQUIRED 합류)</text>
+
+          <!-- step 1: validate/snapshot/gate -->
+          <rect x="64" y="238" width="280" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="204" y="262" text-anchor="middle" fill="#1B64DA">① 검증 · 스냅샷 · 금액 게이트</text>
+          <text class="svg-s" x="204" y="282" text-anchor="middle" fill="#3182F6">빈 주문 → 상품 조회 → expected 3종</text>
+
+          <!-- coupon join -->
+          <line x1="344" y1="267" x2="396" y2="267" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
+          <rect x="400" y="238" width="256" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="528" y="262" text-anchor="middle" fill="#1B64DA">CouponService.use</text>
+          <text class="svg-s" x="528" y="282" text-anchor="middle" fill="#3182F6">REQUIRED — Tx① 에 합류</text>
+
+          <!-- step 2: inventory -->
+          <line x1="204" y1="296" x2="204" y2="328" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
+          <rect x="64" y="332" width="280" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="204" y="356" text-anchor="middle" fill="#1B64DA">② Order 저장</text>
+          <text class="svg-s" x="204" y="376" text-anchor="middle" fill="#3182F6">금액 게이트 · PENDING_PAYMENT</text>
+
+          <!-- step 3: save -->
+          <line x1="344" y1="361" x2="396" y2="361" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
+          <rect x="400" y="332" width="256" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="528" y="356" text-anchor="middle" fill="#1B64DA">③ 재고 FOR UPDATE</text>
+          <text class="svg-s" x="528" y="376" text-anchor="middle" fill="#3182F6">ID 정렬 · 비관락은 맨 마지막</text>
+
+          <text class="svg-s" x="360" y="430" text-anchor="middle" fill="#6B7684">예외 1건이면 전체 롤백 — 쿠폰 USED 도 함께 원복</text>
+
+          <!-- future -->
+          <line x1="360" y1="454" x2="360" y2="486" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a1)"/>
+          <rect x="130" y="490" width="220" height="56" rx="14" fill="#F9FAFB" stroke="#B0B8C1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-t" x="240" y="514" text-anchor="middle" fill="#6B7684">PG approve</text>
+          <text class="svg-s" x="240" y="534" text-anchor="middle" fill="#8B95A1">Tx 밖 — 외부 I/O</text>
+          <line x1="350" y1="518" x2="396" y2="518" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a1)"/>
+          <rect x="400" y="490" width="200" height="56" rx="14" fill="#F9FAFB" stroke="#B0B8C1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-t" x="500" y="514" text-anchor="middle" fill="#6B7684">Tx② confirm / fail</text>
+          <text class="svg-s" x="500" y="534" text-anchor="middle" fill="#8B95A1">추후 O-F1 (예정)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 트랜잭션 경계. Tx①의 주인은 <b>OrderFacade.place</b> 하나이고, 각 도메인 서비스는 REQUIRED로 합류한다. 점선은 PG 연동(O-F1) 시 추가될 부분.</figcaption>
+    </figure>
+
+    <div class="note"><span class="tag">참고</span>처음에는 Tx①을 OrderService.place에 두고 Facade를 비워뒀으나, 오케스트레이션과 Tx 경계가 갈라지는 문제로 <strong>Facade 소유로 리팩터링</strong>했습니다. PG가 들어오면 Tx 구간만 안쪽으로 분리합니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">COUPON DOUBLE-USE</p><h2 class="sec">쿠폰 이중사용 차단 — 3중 방어</h2></div>
+    </div>
+
+    <p class="lead">빠른 실패(status 가드) → 진짜 동시성 방어(@Version) → 데이터 구조 보장(UK). 층마다 역할이 다르다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>층</th><th>장치</th><th>막는 것</th><th>한계 / 보완</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>1차</td>
+            <td>status 가드 — <code>use()</code>가 USED면 <span class="term">ALREADY_USED</span> 409</td>
+            <td>이미 커밋된 사용을 같은 Tx 안에서 즉시 거절 (싼 실패)</td>
+            <td>동시 Tx 둘 다 AVAILABLE을 읽으면 통과 → 2차가 필요</td>
+          </tr>
+          <tr>
+            <td>2차</td>
+            <td><span class="term">@Version</span> 낙관락 — 커밋 시점 <code>WHERE version = ?</code></td>
+            <td>동시 주문 2건의 race — 한쪽만 커밋, 한쪽은 충돌 예외</td>
+            <td>충돌 측은 Tx 전체 롤백 (의도된 동작)</td>
+          </tr>
+          <tr>
+            <td>구조</td>
+            <td>UK <code>(user_id, coupon_id)</code></td>
+            <td>발급(grant) 중복 → 보유 행이 항상 1개</td>
+            <td>사용 경쟁이 “단일 행의 version 경쟁”으로 수렴하는 전제</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">coupon/domain/UserCoupon.kt</span>
+      </div>
+<pre><span class="kw">@Table</span>(name = <span class="st">"user_coupon"</span>, uniqueConstraints = [
+    <span class="ty">UniqueConstraint</span>(name = <span class="st">"uk_user_coupon_user_id_coupon_id"</span>,
+                     columnNames = [<span class="st">"user_id"</span>, <span class="st">"coupon_id"</span>]),   <span class="cm">// 구조: 보유 행 1개 보장</span>
+])
+<span class="kw">class</span> <span class="ty">UserCoupon</span>( ... ) : <span class="ty">BaseEntity</span>() {
+
+    <span class="kw">@Version</span>                                  <span class="cm">// 2차: 커밋 시점 충돌 감지</span>
+    <span class="kw">var</span> version: <span class="ty">Long</span> = <span class="st">0</span>
+
+    <span class="kw">fun</span> <span class="fn">use</span>(now: <span class="ty">LocalDateTime</span>) {
+        <span class="kw">if</span> (status == <span class="ty">UserCouponStatus</span>.USED) {  <span class="cm">// 1차: status 가드</span>
+            <span class="kw">throw</span> <span class="ty">ConflictException</span>(<span class="ty">CouponErrorCode</span>.ALREADY_USED)
+        }
+        status = <span class="ty">UserCouponStatus</span>.USED
+        usedAt = now
+    }
+}</pre>
+    </div>
+
+    <h3>동시 주문 2건 시나리오</h3>
+    <p>같은 유저가 같은 쿠폰으로 주문 A·B를 동시에 넣으면, 둘 다 <span class="term">AVAILABLE(version=0)</span>을 읽고 status 가드를 통과합니다. 승부는 <strong>커밋 시점</strong>에 납니다 — Hibernate가 <code>UPDATE ... WHERE id=? AND version=0</code>을 날릴 때 먼저 커밋한 쪽만 1행이 갱신되고, 나머지는 0행이라 <span class="term">OptimisticLockException</span>으로 트랜잭션 전체가 롤백됩니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 330" role="img" aria-label="동시 주문 2건의 쿠폰 낙관락 시나리오. 주문 A와 B가 둘 다 version 0을 읽고 status 가드를 통과하지만, 커밋 시점 UPDATE에서 A는 1행 갱신으로 성공, B는 0행 갱신으로 낙관락 충돌 예외와 함께 롤백된다.">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- time axis -->
+          <line x1="88" y1="30" x2="688" y2="30" stroke="#B0B8C1" stroke-width="1.4" marker-end="url(#a2)"/>
+          <text class="svg-l" x="660" y="20" text-anchor="end" fill="#8B95A1">time →</text>
+          <!-- commit point dashed -->
+          <line x1="496" y1="40" x2="496" y2="250" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <text class="svg-s" x="496" y="52" text-anchor="middle" fill="#6B7684">커밋 시점</text>
+
+          <!-- Lane A -->
+          <text class="svg-l" x="14" y="95" fill="#4E5968">주문 A</text>
+          <rect x="88" y="66" width="180" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="178" y="89" text-anchor="middle" fill="#1B64DA">SELECT user_coupon</text>
+          <text class="svg-s" x="178" y="107" text-anchor="middle" fill="#3182F6">version = 0</text>
+          <line x1="268" y1="94" x2="296" y2="94" stroke="#3182F6" stroke-width="1.6" marker-end="url(#a2)"/>
+          <rect x="300" y="66" width="170" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="385" y="89" text-anchor="middle" fill="#1B64DA">status 가드 통과</text>
+          <text class="svg-s" x="385" y="107" text-anchor="middle" fill="#3182F6">USED (메모리)</text>
+          <line x1="470" y1="94" x2="506" y2="94" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a2)"/>
+          <rect x="510" y="66" width="190" height="56" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-s" x="605" y="89" text-anchor="middle" fill="#0A8F5B">UPDATE … version=0</text>
+          <text class="svg-s" x="605" y="107" text-anchor="middle" fill="#0A8F5B">1 row · 커밋 성공</text>
+
+          <!-- Lane B -->
+          <text class="svg-l" x="14" y="205" fill="#4E5968">주문 B</text>
+          <rect x="88" y="176" width="180" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="178" y="199" text-anchor="middle" fill="#1B64DA">SELECT user_coupon</text>
+          <text class="svg-s" x="178" y="217" text-anchor="middle" fill="#3182F6">version = 0 (같은 값)</text>
+          <line x1="268" y1="204" x2="296" y2="204" stroke="#3182F6" stroke-width="1.6" marker-end="url(#a2)"/>
+          <rect x="300" y="176" width="170" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="385" y="199" text-anchor="middle" fill="#1B64DA">status 가드 통과</text>
+          <text class="svg-s" x="385" y="217" text-anchor="middle" fill="#3182F6">USED (메모리)</text>
+          <line x1="470" y1="204" x2="506" y2="204" stroke="#F04452" stroke-width="1.8" marker-end="url(#a2)"/>
+          <rect x="510" y="176" width="190" height="56" rx="13" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <text class="svg-s" x="605" y="199" text-anchor="middle" fill="#C9303C">UPDATE … version=0</text>
+          <text class="svg-s" x="605" y="217" text-anchor="middle" fill="#C9303C">0 row · 낙관락 충돌</text>
+
+          <text class="svg-s" x="396" y="288" text-anchor="middle" fill="#C9303C">B: OptimisticLockException → Tx① 전체 롤백 (재고·주문도 함께 원복)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 같은 쿠폰으로 동시 주문 2건. 둘 다 1차 가드는 통과하지만, 커밋 시점 version 비교에서 <b>한쪽만 성공</b>한다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">핵심</span>1차 status 가드는 <strong>성능 최적화(빠른 실패)</strong>이고, 진짜 동시성 방어는 <strong>@Version의 커밋 시점 충돌 감지</strong>입니다. 가드만으로는 동시 Tx의 race를 막을 수 없습니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">INVENTORY · PESSIMISTIC LOCK</p><h2 class="sec">재고 차감 — 비관락 + ID 정렬 데드락 차단</h2></div>
+    </div>
+
+    <p class="lead">인기 상품 재고는 줄 세워서 차감한다. 단, 줄 서는 순서를 전 주문이 똑같이 맞춰 데드락을 차단한다.</p>
+    <p>재고는 <span class="term">@Lock(PESSIMISTIC_WRITE)</span> 쿼리 — 즉 <code>SELECT ... FOR UPDATE</code> — 로 행을 선점한 뒤 <span class="term">decrease()</span>로 차감합니다. 도메인 메서드가 잔량 부족 시 <span class="term">STOCK_INSUFFICIENT</span> 409를 던지므로, 락 안에서 검사·차감이 원자적으로 일어나 <strong>오버셀이 불가능</strong>합니다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">inventory/infrastructure/InventoryJpaRepository.kt</span>
+      </div>
+<pre><span class="kw">@Lock</span>(<span class="ty">LockModeType</span>.PESSIMISTIC_WRITE)   <span class="cm">// SELECT … FOR UPDATE</span>
+<span class="kw">@Query</span>(<span class="st">"select i from Inventory i where i.productId in :productIds and i.deletedAt is null order by i.productId"</span>)
+<span class="kw">fun</span> <span class="fn">findAllForUpdateByProductIdIn</span>(<span class="kw">@Param</span>(<span class="st">"productIds"</span>) productIds: <span class="ty">List</span>&lt;<span class="ty">Long</span>&gt;): <span class="ty">List</span>&lt;<span class="ty">Inventory</span>&gt;</pre>
+    </div>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">order/application/OrderService.kt — place() 중</span>
+      </div>
+<pre><span class="cm">// FOR UPDATE 는 ID 정렬 순서로 — 교차 주문 데드락 차단</span>
+<span class="kw">val</span> inventories = inventoryRepository
+    .findAllByProductIdInForUpdate(productIds.distinct().sorted())
+    .associateBy { it.productId }
+command.items.forEach { line -&gt;
+    <span class="kw">val</span> inventory = inventories[line.productId]
+        ?: <span class="kw">throw</span> <span class="ty">NotFoundException</span>(<span class="ty">InventoryErrorCode</span>.INVENTORY_NOT_FOUND)
+    inventory.decrease(line.quantity.toLong())   <span class="cm">// 부족 시 STOCK_INSUFFICIENT 409</span>
+}</pre>
+    </div>
+
+    <h3>교차 주문 데드락 — 왜 정렬이 필요한가</h3>
+    <p>주문 A가 <em>[P1, P2]</em>, 주문 B가 <em>[P2, P1]</em> 순서로 락을 잡으면 서로의 두 번째 락을 기다리는 교착이 생깁니다. <span class="term">productIds.distinct().sorted()</span>가 모든 주문의 락 획득 순서를 <strong>productId 오름차순 단일 전역 순서</strong>로 통일해 사이클 자체를 제거합니다. <span class="term">distinct()</span>는 같은 상품이 여러 라인으로 들어와도 락 대상에 한 번만 올립니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 03">
+        <svg viewBox="0 0 720 320" role="img" aria-label="데드락 비교 다이어그램. 왼쪽은 정렬 없이 주문 A가 P1을 잡고 P2를 기다리고 주문 B가 P2를 잡고 P1을 기다려 상호 대기 교착. 오른쪽은 distinct sorted로 둘 다 P1부터 잡아 대기는 있어도 교착이 없다.">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- LEFT: deadlock -->
+          <text class="svg-t" x="185" y="26" text-anchor="middle" fill="#C9303C">정렬 없음 — 데드락</text>
+          <rect x="20" y="42" width="330" height="236" rx="18" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2" stroke-dasharray="6 5"/>
+          <text class="svg-l" x="62" y="72" fill="#4E5968">주문 A</text>
+          <text class="svg-l" x="276" y="72" fill="#4E5968">주문 B</text>
+          <rect x="130" y="84" width="110" height="44" rx="12" fill="#fff" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-t" x="185" y="111" text-anchor="middle" fill="#4E5968">P1 재고</text>
+          <rect x="130" y="194" width="110" height="44" rx="12" fill="#fff" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-t" x="185" y="221" text-anchor="middle" fill="#4E5968">P2 재고</text>
+          <!-- A: lock P1, wait P2 -->
+          <line x1="58" y1="106" x2="126" y2="106" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a3)"/>
+          <text class="svg-s" x="88" y="96" text-anchor="middle" fill="#0A8F5B">① lock</text>
+          <line x1="58" y1="216" x2="126" y2="216" stroke="#F04452" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a3)"/>
+          <text class="svg-s" x="88" y="206" text-anchor="middle" fill="#C9303C">② wait</text>
+          <!-- B: lock P2, wait P1 -->
+          <line x1="312" y1="216" x2="244" y2="216" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a3)"/>
+          <text class="svg-s" x="282" y="206" text-anchor="middle" fill="#0A8F5B">① lock</text>
+          <line x1="312" y1="106" x2="244" y2="106" stroke="#F04452" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a3)"/>
+          <text class="svg-s" x="282" y="96" text-anchor="middle" fill="#C9303C">② wait</text>
+          <text class="svg-s" x="185" y="264" text-anchor="middle" fill="#C9303C">상호 대기 → InnoDB 데드락</text>
+
+          <!-- RIGHT: sorted -->
+          <text class="svg-t" x="535" y="26" text-anchor="middle" fill="#0A8F5B">distinct().sorted() — 전역 순서</text>
+          <rect x="370" y="42" width="330" height="236" rx="18" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-l" x="412" y="72" fill="#4E5968">주문 A</text>
+          <text class="svg-l" x="626" y="72" fill="#4E5968">주문 B</text>
+          <rect x="480" y="84" width="110" height="44" rx="12" fill="#fff" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-t" x="535" y="111" text-anchor="middle" fill="#4E5968">P1 재고</text>
+          <rect x="480" y="194" width="110" height="44" rx="12" fill="#fff" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-t" x="535" y="221" text-anchor="middle" fill="#4E5968">P2 재고</text>
+          <!-- A: lock P1 then P2 -->
+          <line x1="408" y1="106" x2="476" y2="106" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a3)"/>
+          <text class="svg-s" x="438" y="96" text-anchor="middle" fill="#0A8F5B">① lock</text>
+          <line x1="535" y1="128" x2="535" y2="190" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a3)"/>
+          <text class="svg-s" x="535" y="166" text-anchor="middle" fill="#0A8F5B">② lock</text>
+          <!-- B: wait at P1 -->
+          <line x1="662" y1="106" x2="594" y2="106" stroke="#8B95A1" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a3)"/>
+          <text class="svg-s" x="630" y="96" text-anchor="middle" fill="#6B7684">① wait</text>
+          <text class="svg-s" x="535" y="264" text-anchor="middle" fill="#0A8F5B">둘 다 P1 → P2 — 대기는 있어도 교착 없음</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> 교차 주문 시나리오. 왼쪽은 A·B가 서로의 락을 기다리는 교착, 오른쪽은 전역 순서 통일로 <b>대기 사이클이 생기지 않는다</b>.</figcaption>
+    </figure>
+
+    <div class="note"><span class="tag">참고</span>애플리케이션의 <span class="term">sorted()</span>에 더해 JPQL에도 <span class="term">order by i.productId</span>가 있어, 결과 순서와 락 의도가 쿼리 레벨에서도 명시됩니다. 락 대기 자체는 허용하되 <strong>사이클(교착)만 제거</strong>하는 것이 목표입니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">ORDERING INSIDE TX①</p><h2 class="sec">Tx① 내부 작업 순서와 이유</h2></div>
+    </div>
+
+    <p class="lead">원칙은 하나 — 싼 검증은 처음에, 비싼 락은 마지막에. 락 점유 시간을 최소로 만든다.</p>
+    <p><span class="term">OrderFacade.place</span>의 단계는 임의 순서가 아닙니다. 실패 확률이 있는 검증을 앞에 배치해 <strong>락을 잡기 전에 떨어질 요청은 미리 떨어뜨리고</strong>, 비관락(재고)은 커밋 직전에 잡아 행 점유 시간을 최소화합니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>단계</th><th>실패 시</th><th>왜 이 위치인가</th></tr></thead>
+        <tbody>
+          <tr><td>①</td><td>빈 주문 검증 <code>items.isEmpty()</code></td><td>400</td><td>DB 접근 0 — 가장 싼 검증을 가장 먼저</td></tr>
+          <tr><td>②</td><td>활성 상품 조회 <code>findAllActiveByIdIn</code></td><td>404</td><td>일반 SELECT, 락 없음 — 존재하지 않는 상품을 조기 차단</td></tr>
+          <tr><td>③</td><td>스냅샷 생성 + 원금액 합산</td><td>—</td><td>주문 시점 가격·상품명을 고정 (이후 가격 변동과 무관)</td></tr>
+          <tr><td>④</td><td>쿠폰 <code>couponService.use</code> (REQUIRED)</td><td>404 / 409</td><td>낙관락이라 행 점유 없음 + ⑤의 할인액 계산에 필요</td></tr>
+          <tr><td>⑤</td><td>expected 3종 금액 게이트</td><td>409 PRICE_CHANGED</td><td>락 잡기 직전 마지막 게이트 — 사용자가 본 금액과 불일치 시 차단</td></tr>
+          <tr><td>⑥</td><td>주문 저장 (PENDING_PAYMENT)</td><td>—</td><td>락 잡기 전에 INSERT 까지 끝낸다 — 같은 Tx 라 실패 시 함께 롤백</td></tr>
+          <tr><td>⑦</td><td>재고 FOR UPDATE + <code>decrease()</code></td><td>404 / 409</td><td>비관락은 맨 마지막 — 점유 구간이 차감+커밋뿐</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>금액 게이트는 <span class="term">expectedOriginalAmount</span> · <span class="term">expectedDiscountAmount</span> · <span class="term">expectedTotalAmount</span> 세 값을 서버 계산과 전부 비교합니다. 어느 하나라도 다르면 — 가격이 바뀌었든 쿠폰 정책이 바뀌었든 — <strong>사용자가 화면에서 동의한 금액과 다른 결제</strong>이므로 409로 거절합니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG. 05">
+        <svg viewBox="0 0 1120 470" role="img" aria-label="Tx1 타임라인. place 7단계와 COMMIT이 가로로 나열되고, 아래에 세 구간 밴드. Tx1 밴드는 전 구간, 쿠폰 낙관락의 논리적 임계영역은 4단계부터 커밋까지 행 점유 없이, 재고 비관락의 물리적 임계영역은 6단계부터 커밋까지 FOR UPDATE 행 점유. 하단에 각 락을 선택한 이유 요약.">
+          <defs>
+            <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- 단계 박스 -->
+          <g>
+            <rect x="28" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="85" y="81" text-anchor="middle" fill="#4E5968">① 빈 주문 검증</text>
+            <text class="svg-s" x="85" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">DB 접근 0</text>
+
+            <rect x="162" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="219" y="81" text-anchor="middle" fill="#4E5968">② 상품 조회</text>
+            <text class="svg-s" x="219" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">일반 SELECT</text>
+
+            <rect x="296" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="353" y="81" text-anchor="middle" fill="#4E5968">③ 스냅샷 박제</text>
+            <text class="svg-s" x="353" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">원금액 합산</text>
+
+            <rect x="430" y="56" width="114" height="58" rx="12" fill="#E7F9F1" stroke="#15C47E"/>
+            <text class="svg-s" x="487" y="81" text-anchor="middle" fill="#0A8F5B">④ 쿠폰 use</text>
+            <text class="svg-s" x="487" y="99" text-anchor="middle" font-size="10" fill="#0A8F5B">version 스탬프</text>
+
+            <rect x="564" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="621" y="81" text-anchor="middle" fill="#4E5968">⑤ 금액 게이트</text>
+            <text class="svg-s" x="621" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">expected 3종</text>
+
+            <rect x="698" y="56" width="114" height="58" rx="12" fill="#fff" stroke="#B0B8C1"/>
+            <text class="svg-s" x="755" y="81" text-anchor="middle" fill="#4E5968">⑥ 주문 저장</text>
+            <text class="svg-s" x="755" y="99" text-anchor="middle" font-size="10" fill="#8B95A1">PENDING 박제</text>
+
+            <rect x="832" y="56" width="114" height="58" rx="12" fill="#FEEFEF" stroke="#F04452"/>
+            <text class="svg-s" x="889" y="81" text-anchor="middle" fill="#C9303C">⑦ 재고 차감</text>
+            <text class="svg-s" x="889" y="99" text-anchor="middle" font-size="10" fill="#C9303C">FOR UPDATE</text>
+
+            <rect x="966" y="56" width="114" height="58" rx="12" fill="#1B64DA" stroke="#1B64DA"/>
+            <text class="svg-s" x="1023" y="81" text-anchor="middle" fill="#fff">COMMIT</text>
+            <text class="svg-s" x="1023" y="99" text-anchor="middle" font-size="10" fill="#E8F3FF">version 비교·락 해제</text>
+          </g>
+
+          <!-- 단계 화살표 -->
+          <g stroke="#B0B8C1" stroke-width="1.4" marker-end="url(#a5)">
+            <line x1="144" y1="85" x2="158" y2="85"/>
+            <line x1="278" y1="85" x2="292" y2="85"/>
+            <line x1="412" y1="85" x2="426" y2="85"/>
+            <line x1="546" y1="85" x2="560" y2="85"/>
+            <line x1="680" y1="85" x2="694" y2="85"/>
+            <line x1="814" y1="85" x2="828" y2="85"/>
+            <line x1="948" y1="85" x2="962" y2="85"/>
+          </g>
+
+          <!-- 구간 가이드 점선 -->
+          <g stroke-dasharray="3 4" stroke-width="1.2">
+            <line x1="430" y1="118" x2="430" y2="222" stroke="#15C47E"/>
+            <line x1="832" y1="118" x2="832" y2="292" stroke="#F04452"/>
+            <line x1="1080" y1="118" x2="1080" y2="338" stroke="#8B95A1"/>
+          </g>
+
+          <!-- 밴드: Tx① -->
+          <rect x="28" y="152" width="1052" height="46" rx="12" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.6"/>
+          <text class="svg-s" x="44" y="180" fill="#1B64DA">Tx① — OrderFacade.place @Transactional</text>
+          <text class="svg-s" x="1064" y="180" text-anchor="end" fill="#1B64DA">어디서 실패해도 전부 롤백 — 부분 커밋 불가</text>
+
+          <!-- 밴드: 쿠폰 낙관락 -->
+          <rect x="430" y="222" width="650" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.6" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="446" y="242" fill="#0A8F5B">쿠폰 낙관락 — 논리적 임계영역 (행 점유 없음)</text>
+          <text class="svg-s" x="446" y="258" font-size="10" fill="#0A8F5B">④ version 스탬프 → COMMIT 비교까지가 충돌 윈도우 · 진 쪽은 Tx 전체 롤백</text>
+
+          <!-- 밴드: 재고 비관락 -->
+          <rect x="832" y="292" width="248" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.6"/>
+          <text class="svg-s" x="848" y="312" fill="#C9303C">재고 비관락 — 물리적 임계영역</text>
+          <text class="svg-s" x="848" y="328" font-size="10" fill="#C9303C">점유 = 차감 + 커밋뿐</text>
+
+          <!-- 왜 이 락인가 -->
+          <g>
+            <rect x="28" y="362" width="14" height="14" rx="4" fill="#E7F9F1" stroke="#15C47E"/>
+            <text class="svg-s" x="52" y="373" fill="#4E5968">낙관락(쿠폰)인 이유 — 경합 주체가 같은 유저뿐이라 충돌이 드묾. 임계영역을 만들지 않고(점유 0) 커밋 때 version 1회 비교가 가장 싸다</text>
+            <rect x="28" y="394" width="14" height="14" rx="4" fill="#FEEFEF" stroke="#F04452"/>
+            <text class="svg-s" x="52" y="405" fill="#4E5968">비관락(재고)인 이유 — 인기 상품 1행에 다수가 몰려 충돌이 잦음. 낙관락이면 재시도 폭증·오버셀 위험 → 줄 세우되 맨 마지막에 잡아 점유 최소화</text>
+            <rect x="28" y="426" width="14" height="14" rx="4" fill="#F4F9FF" stroke="#3182F6"/>
+            <text class="svg-s" x="52" y="437" fill="#4E5968">Tx① — 락이 ‘차단’을, 트랜잭션이 ‘되돌리기’를 맡는다. 게이트 409든 재고 부족이든 ④의 쿠폰 USED까지 한 덩어리로 원복</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 5.</b> Tx① 타임라인 위의 임계영역. 쿠폰은 임계영역을 <b>만들지 않는</b> 선택(낙관락), 재고는 임계영역을 <b>가장 짧게 만드는</b> 선택(비관락 + 맨 마지막 배치)이다.</figcaption>
+    </figure>
+
+    <blockquote>
+      <p>락은 잡는 순간부터 비용이다. 잡기 전에 떨어질 요청은 전부 미리 떨어뜨린다.</p>
+      <cite>— Tx① 단계 배치 원칙</cite>
+    </blockquote>
+
+    <div class="note key"><span class="tag">핵심</span>쿠폰 use(④)가 금액 게이트(⑤)보다 앞인 이유: 게이트가 비교할 <strong>할인액이 use의 반환값</strong>이기 때문입니다. 낙관락이라 행을 점유하지 않으므로 앞에 둬도 락 비용이 없고, 게이트 실패 시 USED 변경은 롤백으로 원복됩니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">ATOMICITY · ROLLBACK</p><h2 class="sec">원자성과 롤백 — 단일 Tx 합류가 만드는 안전</h2></div>
+    </div>
+
+    <p class="lead">게이트에서 죽든 재고에서 죽든, 쿠폰 USED까지 한 덩어리로 원복된다 — REQUIRED 합류 덕분에.</p>
+    <p><span class="term">CouponService.use</span>의 <span class="term">@Transactional</span>은 기본 전파(REQUIRED)라서 <span class="term">place()</span>가 연 Tx①에 <strong>합류</strong>합니다. 별도 트랜잭션이 아니므로, use 이후 어떤 단계에서 예외가 나도 — 금액 게이트 409, 재고 부족 409, 재고 없음 404 — 쿠폰의 <span class="term">status = USED</span> 변경은 커밋된 적이 없어 함께 사라집니다. <strong>“쿠폰만 사용되고 주문은 실패”하는 부분 커밋이 구조적으로 불가능</strong>합니다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">현재</span> REQUIRED — Tx① 합류</h4>
+        <p>쿠폰 use·재고 차감·주문 저장이 <strong>한 커밋</strong>으로 묶입니다. 어디서 실패해도 전부 원복 — 보상 로직이 필요 없습니다. 같은 DB 안의 작업이므로 이것이 가장 단순하고 정확한 선택입니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">반례</span> REQUIRES_NEW였다면</h4>
+        <p>use가 자기 Tx로 먼저 커밋 → 이후 금액 게이트가 실패하면 <strong>쿠폰만 소모된 채 주문은 없는</strong> 상태가 됩니다. 이를 되돌리려면 <span class="term">cancelUse()</span> 보상 호출 + 보상 실패 처리까지 필요 — 같은 DB에서 굳이 살 필요 없는 복잡도입니다.</p>
+      </div>
+    </div>
+
+    <div class="note"><span class="tag">참고</span><span class="term">UserCoupon.cancelUse()</span>가 이미 존재하지만 Tx① 롤백용이 아닙니다 — 같은 Tx 안에서는 롤백이 전부 처리합니다. 이 메서드는 <strong>PG 결제 실패(추후 Tx②) 시 이미 커밋된 USED를 되돌리는 보상용</strong>입니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">LIKE COUNT</p><h2 class="sec">좋아요 — 락 없이 정합성 지키기</h2></div>
+    </div>
+
+    <p class="lead">상태는 UK가 지키고, 카운터는 원자 UPDATE가 지킨다. 본 트랜잭션과 카운터 갱신은 분리한다.</p>
+    <p>좋아요의 진실 원본은 <span class="term">product_like</span> 행의 존재 여부입니다. <span class="term">(user_id, product_id)</span> UK가 같은 유저의 중복 좋아요를 구조적으로 차단하고, <span class="term">existsBy</span> 선검사 + 멱등 처리(이미 있으면 그대로 성공)는 UX용 빠른 경로입니다. 비정규화 카운터인 <span class="term">product.like_count</span>는 커밋 후 이벤트로 갱신합니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 04">
+        <svg viewBox="0 0 720 190" role="img" aria-label="좋아요 카운트 갱신 흐름. LikeService의 트랜잭션이 커밋된 후 AFTER_COMMIT과 Async로 이벤트 핸들러가 REQUIRES_NEW 트랜잭션을 열어 like_count를 원자 UPDATE로 증감한다.">
+          <defs>
+            <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="30" y="62" width="190" height="64" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="125" y="89" text-anchor="middle" fill="#1B64DA">LikeService — Tx</text>
+          <text class="svg-s" x="125" y="110" text-anchor="middle" fill="#3182F6">INSERT + UK 멱등</text>
+
+          <text class="svg-s" x="262" y="50" text-anchor="middle" fill="#6B7684">AFTER_COMMIT · @Async</text>
+          <line x1="220" y1="94" x2="298" y2="94" stroke="#8B95A1" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+
+          <rect x="302" y="62" width="200" height="64" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="402" y="89" text-anchor="middle" fill="#4E5968">이벤트 핸들러</text>
+          <text class="svg-s" x="402" y="110" text-anchor="middle" fill="#6B7684">REQUIRES_NEW</text>
+
+          <text class="svg-s" x="544" y="50" text-anchor="middle" fill="#6B7684">새 Tx</text>
+          <line x1="502" y1="94" x2="582" y2="94" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a4)"/>
+
+          <rect x="586" y="62" width="120" height="64" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="646" y="89" text-anchor="middle" fill="#0A8F5B">원자 UPDATE</text>
+          <text class="svg-s" x="646" y="110" text-anchor="middle" fill="#0A8F5B">c = c ± 1</text>
+
+          <text class="svg-s" x="360" y="166" text-anchor="middle" fill="#6B7684">갱신 실패는 로깅만 — 틀어지면 like_event / COUNT 로 재집계 (결과적 일관성)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 4.</b> like_count 갱신 경로. 본 토글 Tx 커밋 후 <b>비동기 새 Tx</b>에서 원자 증감 — 카운터 실패가 좋아요 자체를 실패시키지 않는다.</figcaption>
+    </figure>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">product/infrastructure/ProductJpaRepository.kt · ProductLikeCountEventHandler.kt</span>
+      </div>
+<pre><span class="cm">// 원자 증감 — read-modify-write 없음 → lost update 원천 차단</span>
+<span class="kw">@Modifying</span>(clearAutomatically = <span class="kw">true</span>)
+<span class="kw">@Query</span>(<span class="st">"update Product p set p.likeCount = p.likeCount + 1 where p.id = :id"</span>)
+<span class="kw">fun</span> <span class="fn">increaseLikeCount</span>(id: <span class="ty">Long</span>)
+
+<span class="cm">// 감소는 0 바닥 보장 — 음수로 내려가지 않는다</span>
+<span class="kw">@Query</span>(<span class="st">"update Product p set p.likeCount = case when p.likeCount &gt; 0 then p.likeCount - 1 else 0 end where p.id = :id"</span>)
+<span class="kw">fun</span> <span class="fn">decreaseLikeCount</span>(id: <span class="ty">Long</span>)
+
+<span class="cm">// 핸들러 — 커밋 후 비동기 새 Tx. 실패는 로깅만 (결과적 일관성)</span>
+<span class="kw">@Async</span>
+<span class="kw">@Transactional</span>(propagation = <span class="ty">Propagation</span>.REQUIRES_NEW)
+<span class="kw">@TransactionalEventListener</span>(phase = <span class="ty">TransactionPhase</span>.AFTER_COMMIT)
+<span class="kw">fun</span> <span class="fn">onLiked</span>(event: <span class="ty">ProductLikedEvent</span>) { productRepository.increaseLikeCount(event.productId) }</pre>
+    </div>
+
+    <p>같은 패턴으로 <span class="term">LikeEventHandler</span>가 좋아요 이력(<span class="term">like_event</span>)을 append합니다. 카운터가 틀어져도 이 이력 또는 <span class="term">product_like</span> COUNT로 재집계할 수 있다는 것이 “실패는 로깅만”을 허용하는 근거입니다.</p>
+
+    <div class="note warn"><span class="tag">주의</span>알려진 잔여 이슈: <span class="term">existsBy</span> 선검사 → <span class="term">save</span> 사이의 TOCTOU race는 현재 비범위(R1)로 남겨둔 상태입니다(코드 TODO 주석). race가 실제로 발생하면 UK 위반(<span class="term">DataIntegrityViolationException</span>)으로 떨어지며, 추후 advice 변환 또는 락으로 보강 예정입니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">NEXT STEPS</p><h2 class="sec">남은 일 — 검증과 확장</h2></div>
+    </div>
+
+    <p class="lead">설계는 코드에 들어갔지만, 동시성은 테스트로 증명하기 전까지 “주장”일 뿐이다.</p>
+    <p>락·version·원자 UPDATE가 실제 경합에서 약속대로 동작하는지 <strong>멀티스레드 동시성 통합 테스트 3종으로 검증 완료</strong>했습니다 (10스레드, <span class="term">CountDownLatch</span> 동시 출발, H2 MODE=MySQL).</p>
+
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>쿠폰 동시성 테스트</b> — 같은 쿠폰으로 10스레드 동시 주문 → 정확히 1건 성공, 9건은 낙관락 충돌/ALREADY_USED, 재고도 1개만 차감 <span class="tag">OrderConcurrencyIntegrationTest</span></li>
+      <li class="done"><span class="box"></span><b>재고 동시성 테스트</b> — 재고 5개에 10스레드 동시 주문 → 5건 성공·5건 STOCK_INSUFFICIENT, 최종 잔량 0 (초과 판매 없음) <span class="tag">OrderConcurrencyIntegrationTest</span></li>
+      <li class="done"><span class="box"></span><b>좋아요 동시성 테스트</b> — 10명 동시 like → like_count 정확히 10, 동시 unlike → 0 (비동기 핸들러 폴링 대기) <span class="tag">ProductLikeCountConcurrencyIntegrationTest</span></li>
+      <li><span class="box"></span><b>PG 연동 (O-F1)</b> — Facade가 place(Tx①) → approve(Tx 밖) → confirm/fail(Tx②) 지휘. 실패 시 보상: 재고 <span class="term">increase()</span> + 쿠폰 <span class="term">cancelUse()</span> <span class="tag">예정</span></li>
+      <li><span class="box"></span><b>UNKNOWN 상태 처리</b> — PG 응답 유실 시 <span class="term">markUnknown()</span> 후 재조회/배치 정산 설계 <span class="tag">예정</span></li>
+      <li class="done"><span class="box"></span><b>Tx① 설계 + 락 전략 구현</b> — 낙관락(쿠폰) · 비관락(재고) · 원자 UPDATE(좋아요) 코드 반영 완료 <span class="tag">DONE</span></li>
+    </ul>
+
+    <div class="note key"><span class="tag">핵심</span>PG가 들어와도 Tx①은 그대로입니다. 추가되는 것은 <strong>Tx 밖의 외부 호출과 Tx②(confirm/fail), 그리고 보상 경로</strong>뿐 — 이것이 Facade를 Tx 없이 비워둔 이유입니다.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers 커머스 · Week 4 — 동시성 보장 설계 (락 + 트랜잭션)<br>
+    근거: apps/commerce-api — OrderService · OrderFacade · CouponService · UserCoupon · InventoryJpaRepository · LikeService · ProductLikeCountEventHandler
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

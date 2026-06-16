@@ -36,6 +36,19 @@ spring:
       on-profile: local, test
 
 ---
+# local 전용: data.sql admin seed 실행 (구 account-api application-local.yaml에서 이관)
+# test 프로파일은 src/test/resources/application-test.yaml 의 sql.init.mode=never 가 우선 적용되어 seed 차단
+spring:
+  config:
+    activate:
+      on-profile: local
+  sql:
+    init:
+      mode: always
+  jpa:
+    defer-datasource-initialization: true
+
+---
 spring:
   config:
     activate:

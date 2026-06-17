@@ -1,0 +1,14 @@
+### 상품 목록 — 기본(최신순)
+GET {{commerce-api}}/api/v1/products
+
+### 상품 목록 — 좋아요순 + size
+GET {{commerce-api}}/api/v1/products?sort=LIKES_DESC&size=10
+
+### 상품 목록 — 가격 오름차순 + 브랜드 필터
+GET {{commerce-api}}/api/v1/products?sort=PRICE_ASC&brandId=1&size=10
+
+### 상품 목록 — 다음 페이지(cursor 는 직전 응답의 data.nextCursor 값을 넣는다)
+GET {{commerce-api}}/api/v1/products?sort=LIKES_DESC&size=10&cursor=PASTE_NEXT_CURSOR_HERE
+
+### 상품 상세
+GET {{commerce-api}}/api/v1/products/1

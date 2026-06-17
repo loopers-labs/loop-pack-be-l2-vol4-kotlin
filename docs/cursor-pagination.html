@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>커서 기반 keyset 페이지네이션 — Loopers</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Architecture · Pagination</span>
+      <h1 class="title">커서 기반<br><span class="hl">keyset 페이지네이션</span></h1>
+      <p class="lede">상품 목록은 OFFSET 대신 <b>마지막으로 본 행의 정렬키</b>를 커서로 들고 다음 페이지를 잘라낸다. 정렬마다 다른 커서 타입, 항상 <b>id</b>로 끝나는 타이브레이크, 그리고 base64 opaque 인코딩까지 — 지금 코드에 구현된 그대로 정리한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">PATTERN</span><span class="v">keyset (seek) pagination</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring Data · MySQL 8</span></div>
+        <div class="chip"><span class="k">SOURCE</span><span class="v">commerce-api 실측</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">왜 커서인가 (vs OFFSET)</a></li>
+      <li><a href="#s2">3계층 구조와 Cursor 타입</a></li>
+      <li><a href="#s3">조회 흐름 — findAll</a></li>
+      <li><a href="#s4">keyset이 자르는 경계</a></li>
+      <li><a href="#s5">정렬↔커서 검증 · opaque 인코딩</a></li>
+      <li><a href="#refs">코드 위치</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- 1 -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">WHY</p><h2 class="sec">왜 커서인가 (vs OFFSET)</h2></div>
+    </div>
+    <p class="lead">10만 건 환경에서 <span class="term">LIMIT ? OFFSET ?</span>는 뒷페이지로 갈수록 느려진다. 커서는 깊이와 무관하게 일정하다.</p>
+    <p>OFFSET 방식은 N번째 페이지를 위해 앞의 <strong>offset개 행을 읽고 버린다.</strong> 뒤로 갈수록 버리는 양이 늘어 비용이 선형으로 증가하고, 그 사이 행이 삽입/삭제되면 같은 행이 다시 보이거나 건너뛰는 <em>중복·누락</em>도 생긴다.</p>
+    <p>keyset(seek)은 "마지막으로 본 행의 정렬키"를 <strong>WHERE 조건</strong>으로 바꿔, 정렬 인덱스 위에서 그 지점으로 곧장 점프한다. 버리는 행이 없다.</p>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">OFFSET</span> 앞 페이지를 읽고 버림</h4><p>2번째 페이지부터 누적 비용↑. 깊은 페이지에서 풀스캔에 가까워지고, 삽입/삭제 시 행이 밀려 중복·누락.</p></div>
+      <div class="col o"><h4><span class="mk">KEYSET</span> 정렬키로 점프</h4><p>마지막 본 키 <span class="term">(like_count, id)</span>를 WHERE로. 페이지 깊이와 무관하게 일정. 단 임의 페이지 점프(7페이지로)는 못 한다 — 무한스크롤·다음 버튼에 적합.</p></div>
+    </div>
+
+    <div class="note key"><span class="tag">핵심</span>커서 = <strong>마지막으로 본 행의 정렬키 묶음</strong>. "몇 개 건너뛰어라"(OFFSET)가 아니라 <strong>"이 값 다음부터 줘"</strong>(seek)로 질문이 바뀐다.</div>
+  </section>
+
+  <!-- 2 -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STRUCTURE</p><h2 class="sec">3계층 구조와 Cursor 타입</h2></div>
+    </div>
+    <p class="lead">커서는 계층마다 다른 모습이다 — 밖에선 base64 문자열, 안에선 타입 있는 객체.</p>
+    <p><span class="term">Cursor</span>는 필드 없는 <strong>마커 인터페이스</strong>다. 정렬마다 키 구성이 달라 단일 타입에 못 묶기 때문에, 정렬별 구현체가 이 인터페이스를 구현한다. (sealed가 아닌 interface로 둬 추후 도메인 모듈 분리 시 다른 모듈에서도 구현체를 추가할 수 있게 한다.)</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">Cursor.kt · ProductCursors.kt</span></div>
+<pre><span class="cm">// shared/domain — 정렬별 구현체가 implement 하는 base</span>
+<span class="kw">interface</span> <span class="ty">Cursor</span>
+
+<span class="cm">// 최신순(id DESC) — id가 유니크 total-order라 단독으로 keyset 성립. 공용</span>
+<span class="kw">data class</span> <span class="ty">IdCursor</span>(<span class="kw">val</span> id: <span class="ty">Long</span>) : <span class="ty">Cursor</span>
+
+<span class="cm">// product/domain — 정렬별 복합 커서, 최종 타이브레이크는 항상 id</span>
+<span class="kw">data class</span> <span class="ty">PriceCursor</span>(<span class="kw">val</span> price: <span class="ty">Long</span>, <span class="kw">val</span> id: <span class="ty">Long</span>) : <span class="ty">Cursor</span>
+<span class="kw">data class</span> <span class="ty">LikeCountCursor</span>(<span class="kw">val</span> likeCount: <span class="ty">Long</span>, <span class="kw">val</span> id: <span class="ty">Long</span>) : <span class="ty">Cursor</span></pre>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>정렬 (ProductSort)</th><th>ORDER BY</th><th>커서 타입</th></tr></thead>
+        <tbody>
+          <tr><td>LATEST</td><td>id DESC</td><td>IdCursor(id)</td></tr>
+          <tr><td>PRICE_ASC</td><td>price ASC, id DESC</td><td>PriceCursor(price, id)</td></tr>
+          <tr><td>LIKES_DESC</td><td>like_count DESC, id DESC</td><td>LikeCountCursor(likeCount, id)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">왜 항상 id로 끝나나</span>like_count·price는 <strong>비유니크</strong>라 같은 값이 여럿이다. 동률 행의 순서가 매 쿼리 흔들리면 keyset 경계가 깨진다 → 유니크한 <strong>id를 마지막 타이브레이크</strong>로 붙여 전순서(total order)를 만든다.</div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 430" role="img" aria-label="요청은 위에서 아래로 디코드된 Cursor와 ScrollPosition을 거쳐 infra의 keyset 쿼리에 도달하고, 응답은 Window와 nextCursor가 되어 거슬러 올라와 interfaces에서 base64로 인코딩된다">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+            <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- interfaces (focus / TODO) -->
+          <rect x="110" y="46" width="500" height="86" rx="18" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="360" y="78" text-anchor="middle" fill="#1B64DA">interfaces · Controller</text>
+          <text class="svg-s" x="360" y="98" text-anchor="middle" fill="#3182F6">base64 String  ⇄  Cursor  (opaque 인코딩)</text>
+          <text class="svg-l" x="360" y="118" text-anchor="middle" fill="#C9303C">아직 미구현 · 컨트롤러에서 채울 부분</text>
+
+          <!-- application -->
+          <rect x="110" y="186" width="500" height="74" rx="18" fill="#F2F4F6" stroke="#D1D6DB" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="216" text-anchor="middle" fill="#333D4B">application · ProductService.list</text>
+          <text class="svg-s" x="360" y="236" text-anchor="middle" fill="#6B7684">(sort, brandId, cursor: Cursor?, size)</text>
+
+          <!-- infra -->
+          <rect x="110" y="314" width="500" height="86" rx="18" fill="#F2F4F6" stroke="#D1D6DB" stroke-width="1.3"/>
+          <text class="svg-t" x="360" y="346" text-anchor="middle" fill="#333D4B">infra · ProductRepositoryImpl.findAll</text>
+          <text class="svg-s" x="360" y="366" text-anchor="middle" fill="#6B7684">ScrollPosition.keyset() → Spring Data Window</text>
+          <text class="svg-s" x="360" y="384" text-anchor="middle" fill="#8B95A1">MySQL: ORDER BY + WHERE(seek) + LIMIT n+1</text>
+
+          <!-- down arrows (request, green) -->
+          <line x1="250" y1="132" x2="250" y2="184" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <line x1="250" y1="260" x2="250" y2="312" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="238" y="162" text-anchor="end" fill="#0A8F5B">Cursor</text>
+          <text class="svg-l" x="238" y="290" text-anchor="end" fill="#0A8F5B">ScrollPosition</text>
+
+          <!-- up arrows (response, blue) -->
+          <line x1="470" y1="184" x2="470" y2="132" stroke="#3182F6" stroke-width="2" marker-end="url(#a2)"/>
+          <line x1="470" y1="312" x2="470" y2="260" stroke="#3182F6" stroke-width="2" marker-end="url(#a2)"/>
+          <text class="svg-l" x="482" y="162" text-anchor="start" fill="#1B64DA">nextCursor</text>
+          <text class="svg-l" x="482" y="290" text-anchor="start" fill="#1B64DA">Window</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 요청(초록, 아래로)은 interfaces에서 <b>디코드</b>된 타입 커서가 되어 infra의 keyset 쿼리까지 내려가고, 응답(파랑, 위로)은 <b>Window→nextCursor</b>로 올라와 interfaces에서 base64로 <b>인코딩</b>된다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 3 -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">FLOW</p><h2 class="sec">조회 흐름 — findAll</h2></div>
+    </div>
+    <p class="lead">커서 → <span class="term">ScrollPosition</span> 변환, Spring Data <span class="term">Window</span> 조회, 그리고 마지막 행으로 다음 커서 생성. 세 단계다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">findAll</span>(<span class="pa">sort</span>, <span class="pa">brandId</span>, <span class="pa">cursor</span>, <span class="pa">size</span>) <span class="rt">→ CursorPage&lt;Product&gt;</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>① 위치 변환</td><td>cursor가 null이면 <span class="term">ScrollPosition.keyset()</span>(첫 페이지), 있으면 정렬키 맵으로 <span class="term">ScrollPosition.of(keys, FORWARD)</span></td></tr>
+        <tr><td>② 조회</td><td>brandId 유무로 <span class="term">findByStatusNot</span> / <span class="term">findByBrandIdAndStatusNot</span> 분기. Limit + Sort 전달 → <span class="term">Window&lt;Product&gt;</span></td></tr>
+        <tr><td>③ 다음 커서</td><td><span class="term">window.hasNext()</span>이고 비어있지 않으면 <span class="term">sort.nextCursor(마지막 행)</span>으로 다음 커서 생성, 아니면 null</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">ProductRepositoryImpl.kt — findAll</span></div>
+<pre><span class="kw">override fun</span> <span class="fn">findAll</span>(sort: <span class="ty">ProductSort</span>, brandId: <span class="ty">Long</span>?, cursor: <span class="ty">Cursor</span>?, size: <span class="ty">Int</span>): <span class="ty">CursorPage</span>&lt;<span class="ty">Product</span>&gt; {
+    <span class="kw">val</span> scrollPosition = <span class="fn">scrollPosition</span>(sort, cursor)        <span class="cm">// ① 커서 → 위치</span>
+    <span class="kw">val</span> window = <span class="kw">if</span> (brandId == <span class="kw">null</span>)
+        productJpaRepository.<span class="fn">findByStatusNot</span>(DELETED, scrollPosition, <span class="ty">Limit</span>.of(size), sort.<span class="fn">toSort</span>())
+    <span class="kw">else</span>
+        productJpaRepository.<span class="fn">findByBrandIdAndStatusNot</span>(brandId, DELETED, scrollPosition, <span class="ty">Limit</span>.of(size), sort.<span class="fn">toSort</span>())
+
+    <span class="kw">val</span> nextCursor = <span class="kw">if</span> (window.<span class="fn">hasNext</span>() &amp;&amp; window.content.<span class="fn">isNotEmpty</span>())
+        sort.<span class="fn">nextCursor</span>(window.content.<span class="fn">last</span>())          <span class="cm">// ③ 마지막 행 → 다음 커서</span>
+    <span class="kw">else null</span>
+
+    <span class="kw">return</span> <span class="ty">CursorPage</span>(window.content, window.<span class="fn">hasNext</span>(), nextCursor)
+}</pre>
+    </div>
+
+    <div class="note"><span class="tag">결과 래퍼</span><span class="term">CursorPage&lt;T&gt;(content, hasNext, nextCursor)</span> — <strong>nextCursor는 타입 있는 Cursor</strong>(base64 아님). 다음 페이지가 없으면 null. opaque 인코딩은 여기서 하지 않고 presentation으로 넘긴다.</div>
+  </section>
+
+  <!-- 4 -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">KEYSET</p><h2 class="sec">keyset이 자르는 경계</h2></div>
+    </div>
+    <p class="lead">LIKES_DESC 정렬에서 페이지1의 마지막 행이 곧 페이지2의 커서다. 동률은 id가 가른다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 300" role="img" aria-label="like_count 내림차순으로 정렬된 행들 중 페이지1의 마지막 행 like_count 280 id 42가 커서가 되고, 페이지2는 like_count가 280보다 작거나 280이면서 id가 42보다 작은 행을 가져온다. 동률인 410은 id로 구분된다">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <text class="svg-l" x="40" y="34" fill="#6B7684">ORDER BY like_count DESC, id DESC →</text>
+
+          <!-- page labels -->
+          <text class="svg-s" x="225" y="58" text-anchor="middle" fill="#1B64DA">페이지 1 (size=4)</text>
+          <text class="svg-s" x="551" y="58" text-anchor="middle" fill="#8B95A1">페이지 2</text>
+
+          <!-- row 1 -->
+          <rect x="40" y="70" width="92" height="62" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="86" y="98" text-anchor="middle" fill="#1B64DA">520</text>
+          <text class="svg-s" x="86" y="117" text-anchor="middle" fill="#3182F6">id 88</text>
+          <!-- row 2 -->
+          <rect x="144" y="70" width="92" height="62" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="190" y="98" text-anchor="middle" fill="#1B64DA">410</text>
+          <text class="svg-s" x="190" y="117" text-anchor="middle" fill="#3182F6">id 73</text>
+          <!-- row 3 (tie) -->
+          <rect x="248" y="70" width="92" height="62" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="294" y="98" text-anchor="middle" fill="#1B64DA">410</text>
+          <text class="svg-s" x="294" y="117" text-anchor="middle" fill="#3182F6">id 51</text>
+          <!-- row 4 (cursor) -->
+          <rect x="352" y="70" width="92" height="62" rx="13" fill="#E8F3FF" stroke="#1B64DA" stroke-width="2.4"/>
+          <text class="svg-t" x="398" y="98" text-anchor="middle" fill="#1B64DA">280</text>
+          <text class="svg-s" x="398" y="117" text-anchor="middle" fill="#1B64DA">id 42</text>
+
+          <!-- divider -->
+          <line x1="454" y1="64" x2="454" y2="138" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4"/>
+
+          <!-- row 5 -->
+          <rect x="466" y="70" width="92" height="62" rx="13" fill="#F2F4F6" stroke="#D1D6DB" stroke-width="1.3"/>
+          <text class="svg-t" x="512" y="98" text-anchor="middle" fill="#4E5968">255</text>
+          <text class="svg-s" x="512" y="117" text-anchor="middle" fill="#6B7684">id 90</text>
+          <!-- row 6 -->
+          <rect x="570" y="70" width="92" height="62" rx="13" fill="#F2F4F6" stroke="#D1D6DB" stroke-width="1.3"/>
+          <text class="svg-t" x="616" y="98" text-anchor="middle" fill="#4E5968">255</text>
+          <text class="svg-s" x="616" y="117" text-anchor="middle" fill="#6B7684">id 12</text>
+
+          <!-- cursor pointer -->
+          <line x1="398" y1="186" x2="398" y2="138" stroke="#1B64DA" stroke-width="2" marker-end="url(#a3)"/>
+          <text class="svg-l" x="398" y="204" text-anchor="middle" fill="#1B64DA">cursor = LikeCountCursor(280, 42)</text>
+
+          <!-- predicate box -->
+          <rect x="96" y="226" width="528" height="50" rx="14" fill="#F9FAFB" stroke="#E5E8EB" stroke-width="1.2"/>
+          <text class="svg-s" x="360" y="256" text-anchor="middle" fill="#4E5968">WHERE like_count &lt; 280  OR  (like_count = 280 AND id &lt; 42)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 페이지1의 마지막 행 <b>(280, id 42)</b>이 커서가 된다. 페이지2는 그 키 "다음"을 seek — like_count가 더 작거나, 같으면 id가 더 작은 행. 동률인 <b>410(id 73·51)</b>은 id로 안정 정렬되어 누락·중복이 없다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">핵심</span>커서가 <strong>like_count와 id 둘 다</strong> 들고 다니는 이유가 이 그림이다. like_count만으로는 동률 경계에서 어디까지 줬는지 알 수 없다 → id가 정확한 재개 지점을 박아준다.</div>
+  </section>
+
+  <!-- 5 -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">BOUNDARY</p><h2 class="sec">정렬↔커서 검증 · opaque 인코딩</h2></div>
+    </div>
+    <p class="lead">infra는 정렬과 커서 타입이 안 맞으면 400으로 끊는다. 그리고 base64 변환은 컨트롤러 몫이다.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">ProductRepositoryImpl.kt — scrollPosition</span></div>
+<pre><span class="kw">private fun</span> <span class="fn">scrollPosition</span>(sort: <span class="ty">ProductSort</span>, cursor: <span class="ty">Cursor</span>?): <span class="ty">ScrollPosition</span> {
+    <span class="kw">if</span> (cursor == <span class="kw">null</span>) <span class="kw">return</span> <span class="ty">ScrollPosition</span>.<span class="fn">keyset</span>()      <span class="cm">// 첫 페이지</span>
+
+    <span class="cm">// 정렬과 커서 타입은 짝이 맞아야 한다. 어긋나면 잘못된 입력 → 400</span>
+    <span class="kw">val</span> keys = <span class="kw">when</span> (sort) {
+        <span class="ty">LATEST</span>     -&gt; (cursor <span class="kw">as?</span> <span class="ty">IdCursor</span> ?: <span class="fn">invalidCursor</span>()).<span class="kw">let</span> { mapOf(<span class="st">"id"</span> <span class="kw">to</span> it.id) }
+        <span class="ty">PRICE_ASC</span>  -&gt; (cursor <span class="kw">as?</span> <span class="ty">PriceCursor</span> ?: <span class="fn">invalidCursor</span>()).<span class="kw">let</span> { mapOf(<span class="st">"price.amount"</span> <span class="kw">to</span> it.price, <span class="st">"id"</span> <span class="kw">to</span> it.id) }
+        <span class="ty">LIKES_DESC</span> -&gt; (cursor <span class="kw">as?</span> <span class="ty">LikeCountCursor</span> ?: <span class="fn">invalidCursor</span>()).<span class="kw">let</span> { mapOf(<span class="st">"likeCount"</span> <span class="kw">to</span> it.likeCount, <span class="st">"id"</span> <span class="kw">to</span> it.id) }
+    }
+    <span class="kw">return</span> <span class="ty">ScrollPosition</span>.<span class="fn">of</span>(keys, <span class="ty">Direction</span>.FORWARD)
+}
+<span class="cm">// invalidCursor() → BadRequestException(INVALID_PRODUCT_CURSOR) → ApiControllerAdvice가 400</span></pre>
+    </div>
+
+    <div class="note warn"><span class="tag">아직 비어 있는 한 조각</span>위 코드는 <strong>이미 타입이 있는 Cursor</strong>를 받는다. 하지만 HTTP로 들어오는 건 <strong>base64 문자열</strong>이다. 문자열 → 올바른 Cursor 구현체로 <strong>디코딩</strong>하고, 응답의 nextCursor를 다시 <strong>인코딩</strong>하는 일은 <span class="term">interfaces</span> 레이어(컨트롤러)에서 해야 한다 — 지금 미구현.</div>
+
+    <h3>opaque 인코딩 — 결정 포인트</h3>
+    <p>커서는 불투명(opaque) 문자열인데, 디코드하려면 어떤 타입인지 알아야 한다. 두 길이 있다.</p>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">A안</span> sort에 종속</h4><p>요청의 <span class="term">sort</span>로 디코딩 타입을 결정. infra의 짝 검증과 일치, 단순. sort가 1페이지와 다르면 타입 미스 → 400으로 자연히 걸림. <strong>실서비스 기본값.</strong></p></div>
+      <div class="col x"><h4><span class="mk">B안</span> 타입 태그 임베드</h4><p><span class="term">{type, keys}</span> JSON을 base64. 자기서술적이라 sort 없이도 복원되지만, 포맷·버전 관리 비용이 더 든다.</p></div>
+    </div>
+    <div class="note"><span class="tag">참고</span><span class="term">BrandRepositoryImpl</span>에 동일한 keyset 패턴(IdCursor 기반)이 이미 있어 인코딩 컨벤션 참고가 된다. 커서 인코딩은 <strong>도메인 키 구조를 그대로 노출하지 않도록</strong> opaque 처리한다(주석 규약).</div>
+  </section>
+
+  <!-- refs -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCE</p><h2 class="sec">코드 위치</h2></div>
+    </div>
+    <div class="ref primary"><span class="n">1</span><span class="b"><b>Cursor / CursorPage / IdCursor</b> — 공용 keyset 추상.<span class="src">apps/commerce-api/.../shared/domain/{Cursor, CursorPage, IdCursor}.kt</span></span></div>
+    <div class="ref primary"><span class="n">2</span><span class="b"><b>ProductSort / ProductCursors</b> — 정렬 화이트리스트 + 정렬별 복합 커서(Price·LikeCount).<span class="src">apps/commerce-api/.../product/domain/{ProductSort, ProductCursors}.kt</span></span></div>
+    <div class="ref primary"><span class="n">3</span><span class="b"><b>ProductRepositoryImpl.findAll / scrollPosition / nextCursor</b> — keyset 실제 동작 + 정렬↔커서 검증.<span class="src">apps/commerce-api/.../product/infrastructure/ProductRepositoryImpl.kt</span></span></div>
+    <div class="ref"><span class="n">4</span><span class="b"><b>BrandRepositoryImpl</b> — 동일 패턴(IdCursor) 참고 구현.<span class="src">apps/commerce-api/.../brand/infrastructure/BrandRepositoryImpl.kt</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers — 커서 기반 keyset 페이지네이션<br>
+    Cursor(interface) · 정렬별 구현체 · ScrollPosition/Window · opaque 인코딩(TODO)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

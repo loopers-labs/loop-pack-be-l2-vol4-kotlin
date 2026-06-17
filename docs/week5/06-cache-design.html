@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 5 · Redis 캐시 설계</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Week 5 · Cache</span>
+      <h1 class="title">상세는 선언적으로,<br><span class="hl">목록은 첫 페이지만</span></h1>
+      <p class="lede">캐시는 가속이지 의존이 아니다. 상세는 <b>@Cacheable(key=id)</b>로 단순하게, 목록은 키 카디널리티가 폭발하니 <b>가장 핫한 첫 페이지만</b> RedisTemplate으로 직접 다룬다. 미스에도 서비스는 살아 있어야 한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">상세</span><span class="v">@Cacheable · TTL 60s~5m</span></div>
+        <div class="chip"><span class="k">목록</span><span class="v">첫 페이지 · TTL 30~60s+지터</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-plan-steps.html"><span class="n">01</span>실행 플랜</a>
+    <a href="02-api-inventory.html"><span class="n">02</span>API 인벤토리</a>
+    <a href="03-data-distribution.html"><span class="n">03</span>데이터 분포</a>
+    <a href="04-index-explain.html"><span class="n">04</span>인덱스·EXPLAIN</a>
+    <a href="05-like-count-abc.html"><span class="n">05</span>집계 A/B/C</a>
+    <a class="cur" href="06-cache-design.html"><span class="n">06</span>캐시 설계</a>
+    <a href="07-pagination-benchmark.html"><span class="n">07</span>벤치마크 결과</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">구현 방식 선택</a></li>
+      <li><a href="#s2">캐시키 설계</a></li>
+      <li><a href="#s3">TTL · 무효화</a></li>
+      <li><a href="#s4">stampede · penetration</a></li>
+      <li><a href="#s5">미스 fallback</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">APPROACH</p><h2 class="sec">구현 방식 선택</h2></div>
+    </div>
+    <p class="lead">상세와 목록은 캐시 특성이 다르다. 상세는 단순 key=id라 선언적 @Cacheable이 깔끔하고, 목록은 세밀한 제어가 필요해 RedisTemplate을 직접 쓴다.</p>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">상세</span> @Cacheable</h4><p>key=<span class="term">id</span> 하나라 선언적 캐시가 명확. <span class="term">@CacheEvict</span>로 무효화도 간단. RedisCacheManager + JSON 직렬화 구성.</p></div>
+      <div class="col o"><h4><span class="mk">목록</span> RedisTemplate</h4><p>조합키·TTL 지터·negative caching·첫 페이지 한정 등 <strong>세밀 제어</strong>가 필요. 직접 다룬다.</p></div>
+    </div>
+    <div class="note warn"><span class="tag">선결 작업</span>현재 <span class="term">@EnableCaching</span>·CacheManager가 없고 <span class="term">RedisTemplate&lt;String,String&gt;</span>만 있다. 객체 캐싱하려면 <span class="term">spring-boot-starter-cache</span> 추가 + <strong>JSON(Jackson) 직렬화 RedisCacheManager</strong>를 새로 구성해야 한다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">KEY</p><h2 class="sec">캐시키 설계</h2></div>
+    </div>
+    <p class="lead">목록 키의 함정: 정렬+브랜드+커서+size를 다 넣으면 커서 때문에 키가 사실상 무한이 된다. 적중률은 바닥, 메모리는 폭발.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">캐시키 규칙</span>
+      </div>
+<pre><span class="cm">// 상세 — 단건</span>
+product:detail:{id}
+
+<span class="cm">// 목록 — 커서 없는 "첫 페이지"만 캐싱</span>
+products:list:{sort}:{brandId|all}:p1:{size}
+
+<span class="cm">// 커서가 붙은 딥 페이지는 캐싱하지 않는다 → 미스 → DB(인덱스로 충분히 빠름)</span></pre>
+    </div>
+    <div class="note key"><span class="tag">왜 첫 페이지만인가</span>트래픽은 <strong>첫 페이지에 압도적으로 쏠린다</strong>(인기 상품 1페이지가 가장 핫). 딥 페이지는 요청도 적고 키 종류가 무한이라 캐싱 효율이 낮다. 첫 페이지만 캐싱하는 게 <strong>적중률 대비 메모리 효율 최적</strong>이다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">TTL</p><h2 class="sec">TTL · 무효화</h2></div>
+    </div>
+    <p class="lead">좋아요 수는 계속 변한다. 목록을 매 좋아요마다 정밀 무효화하는 건 비현실적이라, 짧은 TTL로 약한 일관성을 받아들인다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>대상</th><th>TTL</th><th>무효화 전략</th></tr></thead>
+        <tbody>
+          <tr><td>상세</td><td>60s ~ 5m</td><td>좋아요 변경 시 해당 키 @CacheEvict</td></tr>
+          <tr><td>목록 첫 페이지</td><td>30s ~ 60s + 지터</td><td>TTL 자연 만료(약한 일관성)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">무효화 판단</span>목록은 정렬×브랜드 조합마다 키가 달라, 좋아요 1건에 영향받는 모든 목록 키를 정밀히 지우는 건 비현실적이다. <strong>짧은 TTL로 "최대 N초 지연"을 허용</strong>하는 게 합리적 — 과제 요구("TTL/키설계/무효화 중 1개+")도 충족한다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">DEFENSE</p><h2 class="sec">stampede · penetration</h2></div>
+    </div>
+    <p class="lead">캐시엔 고유한 실패 모드가 있다. 동시 만료(stampede)와 없는 키 반복 조회(penetration)를 미리 막는다.</p>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">stampede</span> 동시 만료</h4><p>같은 키가 동시에 만료되면 미스가 한꺼번에 DB로 몰린다. <strong>TTL 지터</strong>(±랜덤)로 만료 시점을 흩뿌린다. (선택) 단일 갱신 락.</p></div>
+      <div class="col x"><h4><span class="mk">penetration</span> 없는 키</h4><p>존재하지 않는 id를 반복 조회하면 매번 DB를 친다. <strong>negative caching</strong>(짧은 TTL 빈값 마커) 또는 존재 가드.</p></div>
+    </div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">RESILIENCE</p><h2 class="sec">미스 fallback</h2></div>
+    </div>
+    <p class="lead">과제의 마지막 요구: 캐시 미스에도 정상 동작. Redis가 죽어도 서비스는 DB로 응답해야 한다.</p>
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 170" role="img" aria-label="조회 요청이 캐시 히트면 즉시 응답, 미스나 Redis 장애면 DB로 폴백하여 정상 응답하는 흐름">
+          <defs>
+            <marker id="c1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="24" y="62" width="130" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <text class="svg-t" x="89" y="92" text-anchor="middle" fill="#1B64DA">조회 요청</text>
+          <rect x="210" y="62" width="130" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="275" y="92" text-anchor="middle" fill="#4E5968">Redis</text>
+          <rect x="400" y="14" width="150" height="46" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="475" y="42" text-anchor="middle" fill="#0A8F5B">히트 → 즉시 응답</text>
+          <rect x="400" y="110" width="150" height="46" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <text class="svg-t" x="475" y="138" text-anchor="middle" fill="#4E5968">미스/장애 → DB</text>
+          <rect x="600" y="110" width="96" height="46" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <text class="svg-t" x="648" y="138" text-anchor="middle" fill="#0A8F5B">정상</text>
+          <line x1="154" y1="87" x2="206" y2="87" stroke="#3182F6" stroke-width="2" marker-end="url(#c1)"/>
+          <line x1="340" y1="78" x2="396" y2="44" stroke="#15C47E" stroke-width="2" marker-end="url(#c1)"/>
+          <line x1="340" y1="96" x2="396" y2="130" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#c1)"/>
+          <line x1="550" y1="133" x2="596" y2="133" stroke="#15C47E" stroke-width="2" marker-end="url(#c1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 캐시는 빠른 길일 뿐. 미스든 Redis 장애든 <b>DB 경로로 폴백</b>해 항상 정상 응답한다.</figcaption>
+    </figure>
+    <div class="note key"><span class="tag">검증 (Step 7)</span><strong>Redis 컨테이너를 내린 상태</strong>에서 목록·상세가 정상 응답하는지 확인한다. 캐시 접근을 try 후 실패 시 조용히 DB로 가는 구조 — 캐시 예외가 비즈니스 실패가 되어선 안 된다.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 5 — Redis 캐시 설계<br>
+    상세 @Cacheable · 목록 첫 페이지 · 미스에도 정상
+  </footer>
+
+</div>
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 5 · 인덱스 전략과 EXPLAIN</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Week 5 · Index</span>
+      <h1 class="title">정렬 키 순서대로<br><span class="hl">복합 인덱스를 깐다</span></h1>
+      <p class="lede">keyset 페이지네이션은 <b>정렬 순서와 정확히 일치하는</b> 복합 인덱스가 있어야 filesort를 없앤다. 인덱스를 어노테이션이 아니라 수동 SQL로 붙였다 떼며, 같은 쿼리의 EXPLAIN 전후를 비교한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">목표</span><span class="v">filesort 제거 · rows≈LIMIT</span></div>
+        <div class="chip"><span class="k">측정</span><span class="v">EXPLAIN ANALYZE 전후</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-plan-steps.html"><span class="n">01</span>실행 플랜</a>
+    <a href="02-api-inventory.html"><span class="n">02</span>API 인벤토리</a>
+    <a href="03-data-distribution.html"><span class="n">03</span>데이터 분포</a>
+    <a class="cur" href="04-index-explain.html"><span class="n">04</span>인덱스·EXPLAIN</a>
+    <a href="05-like-count-abc.html"><span class="n">05</span>집계 A/B/C</a>
+    <a href="06-cache-design.html"><span class="n">06</span>캐시 설계</a>
+    <a href="07-pagination-benchmark.html"><span class="n">07</span>벤치마크 결과</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">인덱스 후보</a></li>
+      <li><a href="#s2">status 선두 딜레마</a></li>
+      <li><a href="#s3">커버링 인덱스 여부</a></li>
+      <li><a href="#s4">EXPLAIN 측정 절차</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CANDIDATES</p><h2 class="sec">인덱스 후보</h2></div>
+    </div>
+    <p class="lead">시나리오마다 필요한 인덱스가 다르다. 핵심 원칙: 동등 필터 컬럼을 앞에, 정렬 컬럼을 그 뒤에, 마지막에 타이브레이크 id.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>쿼리 시나리오</th><th>WHERE / ORDER BY</th><th>필요 복합 인덱스</th></tr></thead>
+        <tbody>
+          <tr><td>S1 인기상품</td><td>status 필터 · like_count,id 정렬</td><td>(status, like_count, id)</td></tr>
+          <tr><td>S2·S3 브랜드+좋아요</td><td>brand_id 필터 · like_count,id 정렬</td><td>(brand_id, like_count, id)</td></tr>
+          <tr><td>가격순(비교군)</td><td>brand_id 필터 · price,id 정렬</td><td>(brand_id, price, id)</td></tr>
+          <tr><td>최신순</td><td>id DESC</td><td>PK로 충분(추가 불필요)</td></tr>
+          <tr><td>방식 A 집계</td><td>product_like 조인 키</td><td>product_like(product_id)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">왜 이 순서인가</span>keyset 쿼리 <span class="term">WHERE brand_id=? AND (like_count,id)&lt;(?,?) ORDER BY like_count DESC, id DESC</span>는 <strong>brand_id로 진입 → (like_count,id) 정렬된 구간을 인덱스 순서대로 스캔</strong>한다. 컬럼 순서가 ORDER BY와 어긋나면 인덱스를 정렬에 못 쓰고 filesort로 떨어진다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">DILEMMA</p><h2 class="sec">status 선두 딜레마</h2></div>
+    </div>
+    <p class="lead">status는 값이 ACTIVE/DELETED 둘뿐이고 대부분 ACTIVE다. 카디널리티가 낮은 컬럼을 인덱스 선두에 두는 게 맞을까? 정답은 EXPLAIN으로 가른다.</p>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">(a)</span> status 선두</h4><p><span class="term">(status, like_count, id)</span> — status 동등 후 정렬. DELETED가 소수면 OK. 인덱스 하나로 필터+정렬 해결.</p></div>
+      <div class="col o"><h4><span class="mk">(b)</span> status 제외</h4><p><span class="term">(like_count, id)</span>만 두고 status는 인덱스 후 필터. DELETED가 극소수면 오히려 단순·가벼움.</p></div>
+    </div>
+    <div class="note"><span class="tag">실험 항목</span>(a)와 (b)를 둘 다 만들어 <strong>같은 S1 쿼리로 EXPLAIN 비교</strong>한다. 관전 포인트: rows examined, <span class="term">Extra</span> 컬럼의 filesort 유무, 실제 시간(EXPLAIN ANALYZE). 낮은 카디널리티 컬럼의 선두 배치가 득인지 실인지를 숫자로 결론낸다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">COVERING</p><h2 class="sec">커버링 인덱스 여부</h2></div>
+    </div>
+    <p class="lead">목록 응답이 필요한 컬럼을 인덱스가 전부 담으면 테이블 접근 없이 인덱스만으로 끝난다(커버링). 하지만 name 때문에 현실적이지 않다.</p>
+    <p>목록은 <span class="term">id, brand_id, name, price, like_count</span>를 반환한다. 완전 커버링하려면 이 컬럼이 전부 인덱스에 들어가야 하는데, <strong>name은 VARCHAR라 인덱스를 비대하게</strong> 만든다.</p>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">채택</span> 비커버링</h4><p>인덱스로 정렬+필터 후 PK 룩업으로 본문. <span class="term">Using index condition</span>. name 부담 없음 — 현실적 정답.</p></div>
+      <div class="col x"><h4><span class="mk">관찰용</span> 커버링</h4><p>name 빼고 <span class="term">(brand_id, like_count, id, price)</span>면 부분 커버링 가능. <span class="term">Using index</span> 관측은 되지만 효과 대비 인덱스 비용↑.</p></div>
+    </div>
+    <div class="note"><span class="tag">문서화 포인트</span>"커버링은 가능하나 name 때문에 비용 대비 효과가 낮다"를 <strong>EXPLAIN의 <span class="term">Using index</span> vs <span class="term">Using index condition</span></strong> 차이로 보여주고 트레이드오프로 기록한다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">MEASURE</p><h2 class="sec">EXPLAIN 측정 절차</h2></div>
+    </div>
+    <p class="lead">인덱스를 수동 SQL로 토글하며 같은 쿼리의 전후를 찍는다. JPA 어노테이션은 ddl-auto=create와 충돌하니 측정 단계엔 쓰지 않는다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">측정 루프 — before → 인덱스 → after</span>
+      </div>
+<pre><span class="cm">-- 1) BEFORE: 인덱스 없는 상태</span>
+<span class="kw">EXPLAIN ANALYZE</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> product
+<span class="kw">WHERE</span> brand_id = 1 <span class="kw">AND</span> status &lt;&gt; <span class="st">'DELETED'</span>
+<span class="kw">ORDER BY</span> like_count <span class="kw">DESC</span>, id <span class="kw">DESC</span> <span class="kw">LIMIT</span> 20;
+<span class="cm">-- → Using filesort, rows examined ≈ 브랜드 모집단 전체</span>
+
+<span class="cm">-- 2) 인덱스 생성</span>
+<span class="kw">CREATE INDEX</span> idx_brand_like_id <span class="kw">ON</span> product (brand_id, like_count, id);
+
+<span class="cm">-- 3) AFTER: 같은 쿼리 재실행</span>
+<span class="kw">EXPLAIN ANALYZE</span> <span class="cm">/* 동일 쿼리 */</span>;
+<span class="cm">-- → filesort 사라짐, rows examined ≈ LIMIT(20)</span>
+
+<span class="cm">-- 4) 다음 실험 위해 제거</span>
+<span class="kw">DROP INDEX</span> idx_brand_like_id <span class="kw">ON</span> product;</pre>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관찰 지표</th><th>BEFORE (예상)</th><th>AFTER (목표)</th></tr></thead>
+        <tbody>
+          <tr><td>Extra</td><td>Using filesort</td><td>Using index condition (filesort 없음)</td></tr>
+          <tr><td>rows examined</td><td>브랜드 모집단 전체(수만)</td><td>≈ LIMIT (수십)</td></tr>
+          <tr><td>actual time</td><td>큰 값</td><td>대폭 감소</td></tr>
+          <tr><td>k6 p95</td><td>baseline</td><td>단축</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">마무리</span>최종 선택된 인덱스만 <span class="term">@Table(indexes=...)</span>로 <span class="term">ProductJpaRepository</span>/엔티티에 코드화해 영속화한다. 측정용 실험 인덱스는 코드에 남기지 않는다.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 5 — 인덱스 전략과 EXPLAIN<br>
+    정렬 키 순서 = 인덱스 컬럼 순서 · 수동 SQL로 전후 비교
+  </footer>
+
+</div>
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

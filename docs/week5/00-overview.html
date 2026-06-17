@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 5 · 조회 병목 해결 — 개요</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Week 5 · Performance</span>
+      <h1 class="title">트래픽 조회 병목,<br><span class="hl">인덱스 · 비정규화 · 캐싱</span>으로 뚫기</h1>
+      <p class="lede">10만 상품 환경에서 <b>좋아요 순 정렬 · 브랜드 필터 · 인기 상품 조회</b>가 무너지는 지점을 찾고, <b>인덱스 → 집계 구조 비교 → Redis 캐싱</b> 순으로 전후를 측정하며 해결한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">조회 병목 해결</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · MySQL 8 · Redis</span></div>
+        <div class="chip"><span class="k">측정</span><span class="v">EXPLAIN ANALYZE · k6</span></div>
+        <div class="chip"><span class="k">데이터</span><span class="v">상품 10만 · 브랜드 500</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a class="cur" href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-plan-steps.html"><span class="n">01</span>실행 플랜</a>
+    <a href="02-api-inventory.html"><span class="n">02</span>API 인벤토리</a>
+    <a href="03-data-distribution.html"><span class="n">03</span>데이터 분포</a>
+    <a href="04-index-explain.html"><span class="n">04</span>인덱스·EXPLAIN</a>
+    <a href="05-like-count-abc.html"><span class="n">05</span>집계 A/B/C</a>
+    <a href="06-cache-design.html"><span class="n">06</span>캐시 설계</a>
+    <a href="07-pagination-benchmark.html"><span class="n">07</span>벤치마크 결과</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">문제 정의</a></li>
+      <li><a href="#s2">목표와 검증 기준</a></li>
+      <li><a href="#s3">현재 코드 상태</a></li>
+      <li><a href="#s4">확정된 의사결정</a></li>
+      <li><a href="#s5">전체 로드맵</a></li>
+      <li><a href="#s6">제출 체크리스트</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">PROBLEM</p><h2 class="sec">문제 정의</h2></div>
+    </div>
+    <p class="lead">트래픽이 늘면 가장 먼저 무너지는 건 "정렬·필터가 붙은 조회"다. 단건 PK 조회는 버티지만, 좋아요 순 정렬은 인덱스가 없으면 전체를 훑고 정렬한다.</p>
+    <p>이번 주차의 표적은 세 가지 조회다. 셋 다 <strong>정렬 키가 비-PK(좋아요 수)</strong>이거나 <strong>필터(브랜드)</strong>가 붙어, 데이터가 10만 건으로 늘면 풀스캔 + filesort로 떨어진다.</p>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">증상 1</span> 좋아요 순 정렬</h4><p><span class="term">ORDER BY like_count DESC, id DESC</span> — <em>like_count</em>는 비유니크라 복합 정렬 인덱스가 없으면 전체 정렬(filesort).</p></div>
+      <div class="col x"><h4><span class="mk">증상 2</span> 브랜드 필터</h4><p><span class="term">WHERE brand_id = ?</span> + 정렬 동시 적용. 필터 후 정렬을 한 인덱스로 못 풀면 모집단 전체를 정렬.</p></div>
+    </div>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">증상 3</span> 인기 상품</h4><p>브랜드 없이 <em>like_count</em> 상위 N. 핫 상품 소수 + 동률 타이브레이크(<span class="term">id DESC</span>)를 실제로 타는 가장 무거운 시나리오.</p></div>
+      <div class="col o"><h4><span class="mk">해법</span> 3단 접근</h4><p><strong>인덱스</strong>로 정렬·필터 비용 제거 → <strong>집계 구조(A/B/C)</strong> 비교 → <strong>Redis 캐싱</strong>으로 반복 조회 차단. 각 단계 전후를 측정.</p></div>
+    </div>
+    <div class="note key"><span class="tag">핵심 한 줄</span>병목의 진원지는 <strong>좋아요 순 정렬 + 브랜드 필터 + keyset 커서</strong>의 조합이다. 이 조합을 한 복합 인덱스로 해결하는 것이 1차 목표다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">GOAL</p><h2 class="sec">목표와 검증 기준</h2></div>
+    </div>
+    <p class="lead">"빨라졌다"는 느낌이 아니라 숫자로 증명한다. 같은 데이터·같은 쿼리 시나리오를 고정하고, 각 처방의 전후를 측정한다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>영역</th><th>해야 하는 것</th><th>검증 지표</th></tr></thead>
+        <tbody>
+          <tr><td>① 인덱스</td><td>브랜드 필터 + 좋아요순 정렬 구현, EXPLAIN으로 인덱스 최적화</td><td>filesort 제거 · rows examined 감소 · p95 단축</td></tr>
+          <tr><td>② 집계 구조</td><td>좋아요 집계 A/B/C 방식 직접 구현·비교, 등록/취소 동기화</td><td>읽기·쓰기 비용 · 정합성 · 운영복잡도 비교표</td></tr>
+          <tr><td>③ 캐시</td><td>상세·목록에 Redis 캐시. TTL·키설계·무효화</td><td>적중률 · 캐시 전후 처리량 · 미스 fallback</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">측정 시나리오 (고정)</span><strong>S1</strong> 인기 상품 첫 페이지(브랜드 없음) · <strong>S2</strong> 대형 브랜드 + 좋아요순(수만 모집단) · <strong>S3</strong> 소형 브랜드 + 좋아요순(수십 모집단). 세 방식·세 처방 모두 이 3개로 측정한다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">AS-IS</p><h2 class="sec">현재 코드 상태</h2></div>
+    </div>
+    <p class="lead">계획을 짜기 전에 코드를 먼저 읽었다. 일부는 이미 구현돼 있고, 일부는 비어 있다 — 이 사실이 작업 범위를 바꾼다.</p>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>비정규화 like_count 컬럼</b>이 이미 존재 — 방식 B는 절반 구현 상태(원자적 UPDATE + 이벤트 동기화) <span class="tag">B 부분완료</span></li>
+      <li class="done"><span class="box"></span><b>like_event append-only 이력 테이블</b> 존재 — 방식 A 재집계·C 갱신·정합성 보강의 공통 소스 <span class="tag">소스 확보</span></li>
+      <li class="done"><span class="box"></span><b>keyset 페이지네이션</b> 구현됨(Spring Data Window/ScrollPosition) <span class="tag">재사용</span></li>
+      <li class="done"><span class="box"></span><b>Redis·Docker 인프라</b> 구성됨(master/replica) <span class="tag">재사용</span></li>
+      <li><span class="box"></span><b>Product/Brand/Like REST 컨트롤러 미구현</b> — Service만 존재. 측정 엔드포인트를 새로 만들어야 함 <span class="tag">TODO</span></li>
+      <li><span class="box"></span><b>캐시 인프라 없음</b> — @EnableCaching·CacheManager 없음, RedisTemplate&lt;String,String&gt;만. 객체 캐싱용 JSON 직렬화 구성 필요 <span class="tag">TODO</span></li>
+      <li><span class="box"></span><b>이벤트 핸들러 정합성 갭</b> — like_count UPDATE 실패 시 warn 로그만 → 드리프트 가능. 재집계 배치로 보강 <span class="tag">TODO</span></li>
+    </ul>
+    <div class="note warn"><span class="tag">함정</span><span class="term">ddl-auto=create</span>(local)라 인덱스를 JPA 어노테이션으로 박으면 매 부팅 재생성된다. <strong>측정 단계의 인덱스는 수동 CREATE/DROP SQL로 토글</strong>하고, 최종 확정분만 어노테이션으로 코드화한다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">DECISIONS</p><h2 class="sec">확정된 의사결정</h2></div>
+    </div>
+    <p class="lead">착수 전에 합의한 네 가지. 작업 범위가 크게 갈리는 지점이라 먼저 못 박는다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>주제</th><th>선택지</th><th>결정</th></tr></thead>
+        <tbody>
+          <tr><td>측정 경로</td><td>컨트롤러 신규 vs Service만</td><td>컨트롤러 신규(목록·상세 2개 + permitAll)</td></tr>
+          <tr><td>집계 방식</td><td>택1 vs 전부 실험</td><td>A·B 완전 구현·측정 / C는 탐색적</td></tr>
+          <tr><td>캐시 구현</td><td>@Cacheable vs RedisTemplate</td><td>상세 @Cacheable + 목록 RedisTemplate</td></tr>
+          <tr><td>문서</td><td>md vs HTML 다파일</td><td>docs/week5 HTML 다파일(본 문서)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">방식 C에 대한 합의</span>MySQL 8.0은 네이티브 MaterializedView가 없어 "집계 테이블 + 갱신 메커니즘"을 직접 만들어야 한다. C는 필수 산출물이 아니라 <strong>개념 정리 + 어디에 반영하면 좋을지 탐색</strong>하는 단계로 둔다. 정합성 보강용 재집계 배치가 사실상 "MV 갱신 로직"의 실체라는 점을 연결해 다룬다.</div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">ROADMAP</p><h2 class="sec">전체 로드맵</h2></div>
+    </div>
+    <p class="lead">환경 구성 → 시딩 → 베이스라인 → 처방 → 재측정의 한 흐름. 측정이 처방을 앞뒤로 감싸야 "개선"을 숫자로 말할 수 있다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Step</th><th>내용</th><th>산출</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>로컬 인프라 기동(Docker MySQL+Redis), 서버 부팅, 측정 도구 확인</td><td>측정 환경</td></tr>
+          <tr><td>1</td><td>측정 엔드포인트 — Product 목록/상세 컨트롤러 + security permitAll</td><td>조회 API</td></tr>
+          <tr><td>2</td><td>빅테크 롱테일 시딩 — 브랜드 500 · 상품 10만 · 좋아요 롱테일</td><td>perf-seed-l5.sql</td></tr>
+          <tr><td>3</td><td>베이스라인 측정(인덱스 전) — EXPLAIN + k6</td><td>before 수치</td></tr>
+          <tr><td>4</td><td>인덱스 적용 + 재측정 — 복합 인덱스, 커버링 비교</td><td>after 수치</td></tr>
+          <tr><td>5</td><td>집계 A/B/C 비교 + 정합성 갭 보강(재집계 배치)</td><td>A/B/C 비교표</td></tr>
+          <tr><td>6</td><td>Redis 캐시 — 상세 @Cacheable + 목록 RedisTemplate</td><td>캐시 계층</td></tr>
+          <tr><td>7</td><td>캐시 후 측정 — 적중률·처리량·미스 fallback</td><td>cache 수치</td></tr>
+          <tr><td>8</td><td>문서화(HTML 다파일)</td><td>docs/week5</td></tr>
+          <tr><td>9</td><td>테스트 — 컨트롤러·통합·캐시·배치</td><td>green</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">다음 문서</span>각 Step의 디테일한 todolist는 <strong>01-실행 플랜</strong>에 있다. "무엇을 여는지"까지 명시된 체크 항목으로 정리했다.</div>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">SUBMISSION</p><h2 class="sec">제출 체크리스트</h2></div>
+    </div>
+    <p class="lead">과제 체크리스트 6항목과 본 계획의 매핑. 이 6개가 최종 완료 기준이다.</p>
+    <h3>🔖 Index</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>상품 목록 API에서 <b>brandId 기반 검색 · 좋아요 순 정렬</b>을 처리했다 <span class="tag">Step 1·4</span></li>
+      <li><span class="box"></span>필터·정렬 조건별 유즈케이스를 분석해 <b>인덱스를 적용하고 전후 성능을 비교</b>했다 <span class="tag">Step 3·4</span></li>
+    </ul>
+    <h3>❤️ Structure</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>목록/상세 조회 시 <b>좋아요 수 조회 및 좋아요 순 정렬</b>이 가능하도록 구조 개선했다 <span class="tag">Step 5</span></li>
+      <li><span class="box"></span>좋아요 적용/해제 시 <b>좋아요 수가 정상 동기화</b>되도록 했다 <span class="tag">Step 5</span></li>
+    </ul>
+    <h3>⚡ Cache</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>Redis 캐시 적용 + TTL/무효화 전략</b>을 적용했다 <span class="tag">Step 6</span></li>
+      <li><span class="box"></span><b>캐시 미스에도 서비스가 정상 동작</b>하도록 처리했다 <span class="tag">Step 6·7</span></li>
+    </ul>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 5 — 조회 병목 해결 · 개요<br>
+    인덱스 · 비정규화 · 캐싱 · EXPLAIN/k6 측정 기반
+  </footer>
+
+</div>
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

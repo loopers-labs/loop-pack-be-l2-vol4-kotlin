@@ -26,22 +26,26 @@ data class OrderDetail(
     val id: Long,
     val status: OrderStatus,
     val totalAmount: Long,
+    val discountAmount: Long,
     val usedPoint: Long,
     val actualAmount: Long,
     val earnPoint: Long,
     val orderedAt: ZonedDateTime,
     val items: List<OrderItemView>,
+    val appliedCoupon: AppliedCoupon?,
 ) {
     companion object {
         fun from(order: Order): OrderDetail = OrderDetail(
             id = order.id,
             status = order.status,
             totalAmount = order.totalAmount,
+            discountAmount = order.discountAmount,
             usedPoint = order.usedPoint,
             actualAmount = order.getActualAmount(),
             earnPoint = order.getEarnPoint(),
             orderedAt = order.orderedAt,
             items = order.items.list.map { OrderItemView.from(it) },
+            appliedCoupon = order.appliedCoupon,
         )
     }
 }
@@ -90,11 +94,13 @@ data class AdminOrderDetail(
     val loginId: String,
     val status: OrderStatus,
     val totalAmount: Long,
+    val discountAmount: Long,
     val usedPoint: Long,
     val actualAmount: Long,
     val earnPoint: Long,
     val orderedAt: ZonedDateTime,
     val items: List<OrderItemView>,
+    val appliedCoupon: AppliedCoupon?,
 ) {
     companion object {
         fun of(order: Order, loginId: String): AdminOrderDetail = AdminOrderDetail(
@@ -103,11 +109,13 @@ data class AdminOrderDetail(
             loginId = loginId,
             status = order.status,
             totalAmount = order.totalAmount,
+            discountAmount = order.discountAmount,
             usedPoint = order.usedPoint,
             actualAmount = order.getActualAmount(),
             earnPoint = order.getEarnPoint(),
             orderedAt = order.orderedAt,
             items = order.items.list.map { OrderItemView.from(it) },
+            appliedCoupon = order.appliedCoupon,
         )
     }
 }

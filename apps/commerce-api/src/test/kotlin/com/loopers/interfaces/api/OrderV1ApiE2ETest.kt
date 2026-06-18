@@ -4,6 +4,11 @@ import com.loopers.application.product.CreateProductCommand
 import com.loopers.application.user.SignupCommand
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
+import com.loopers.domain.coupon.CouponTemplate
+import com.loopers.domain.coupon.CouponTemplateRepositoryPort
+import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.UserCoupon
+import com.loopers.domain.coupon.UserCouponRepositoryPort
 import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.test.FakePaymentGateway
@@ -37,6 +42,8 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private val userApplicationService: UserApplicationServicePort,
     private val productAdminApplicationService: ProductAdminApplicationServicePort,
     private val brandRepositoryPort: BrandRepositoryPort,
+    private val couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
+    private val userCouponRepositoryPort: UserCouponRepositoryPort,
     private val fakePaymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -68,6 +75,21 @@ class OrderV1ApiE2ETest @Autowired constructor(
         productAdminApplicationService.createProduct(
             CreateProductCommand(name = "p", price = price, description = "d", brandId = brandId, quantity = quantity),
         ).id
+
+    private fun issueCoupon(userId: Long, value: Long = 5_000L): Long {
+        val templateId = couponTemplateRepositoryPort.save(
+            CouponTemplate.create(
+                name = "테스트 쿠폰",
+                type = CouponType.FIXED,
+                value = value,
+                minOrderAmount = 0L,
+                expiredAt = java.time.LocalDateTime.now().plusDays(1),
+            ),
+        ).id
+        return userCouponRepositoryPort.save(
+            UserCoupon.issue(couponTemplateId = templateId, userId = userId, issuedAt = java.time.LocalDateTime.now()),
+        ).id
+    }
 
     private fun authHeaders(loginId: String?, loginPw: String?): HttpHeaders = HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
@@ -171,6 +193,71 @@ class OrderV1ApiE2ETest @Autowired constructor(
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("쿠폰을 적용하면 할인된 금액과 쿠폰 스냅샷이 응답에 포함된다.")
+        @Test
+        fun returnsDiscount_whenCouponApplied() {
+            val userId = signup()
+            val productId = saveProduct(saveBrand(), price = 10_000L)
+            val couponId = issueCoupon(userId, value = 5_000L)
+
+            val response = postOrder(
+                body = mapOf(
+                    "items" to listOf(mapOf("productId" to productId, "quantity" to 1)),
+                    "couponId" to couponId,
+                ),
+                loginId = "tester01",
+                loginPw = "password1234",
+            )
+
+            val data = response.body?.data as? Map<*, *>
+            val coupon = data?.get("appliedCoupon") as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat((data?.get("totalAmount") as? Number)?.toLong()).isEqualTo(10_000L) },
+                { assertThat((data?.get("discountAmount") as? Number)?.toLong()).isEqualTo(5_000L) },
+                { assertThat((data?.get("actualAmount") as? Number)?.toLong()).isEqualTo(5_000L) },
+                { assertThat((coupon?.get("issuedCouponId") as? Number)?.toLong()).isEqualTo(couponId) },
+            )
+        }
+
+        @DisplayName("존재하지 않는 쿠폰으로 주문하면 404 응답을 받는다.")
+        @Test
+        fun returnsNotFound_whenCouponMissing() {
+            signup()
+            val productId = saveProduct(saveBrand())
+
+            val response = postOrder(
+                body = mapOf(
+                    "items" to listOf(mapOf("productId" to productId, "quantity" to 1)),
+                    "couponId" to 9999,
+                ),
+                loginId = "tester01",
+                loginPw = "password1234",
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+
+        @DisplayName("타 유저 소유 쿠폰으로 주문하면 403 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenOtherUserCoupon() {
+            val owner = signup(loginId = "owner01")
+            signup(loginId = "stranger01")
+            val productId = saveProduct(saveBrand(), price = 10_000L)
+            val ownerCoupon = issueCoupon(owner)
+
+            val response = postOrder(
+                body = mapOf(
+                    "items" to listOf(mapOf("productId" to productId, "quantity" to 1)),
+                    "couponId" to ownerCoupon,
+                ),
+                loginId = "stranger01",
+                loginPw = "password1234",
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }
     }
 

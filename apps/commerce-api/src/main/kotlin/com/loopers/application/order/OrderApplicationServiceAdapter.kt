@@ -1,26 +1,20 @@
 package com.loopers.application.order
 
 import com.loopers.domain.auth.AuthService
-import com.loopers.domain.brand.BrandService
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.order.AdminOrderDetail
 import com.loopers.domain.order.AdminOrderSummary
-import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderDetail
-import com.loopers.domain.order.OrderItem
-import com.loopers.domain.order.OrderItems
 import com.loopers.domain.order.OrderService
-import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.order.OrderSummary
 import com.loopers.domain.order.PaymentGateway
-import com.loopers.domain.product.ProductService
-import com.loopers.domain.stock.StockService
 import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.order.OrderAdminApplicationServicePort
 import com.loopers.interfaces.api.order.OrderApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -28,38 +22,26 @@ import java.time.ZonedDateTime
 @Service
 class OrderApplicationServiceAdapter(
     private val orderService: OrderService,
-    private val productService: ProductService,
-    private val brandService: BrandService,
-    private val stockService: StockService,
     private val userService: UserService,
     private val authService: AuthService,
+    private val orderPlacement: OrderPlacement,
     private val paymentGateway: PaymentGateway,
 ) : OrderApplicationServicePort,
     OrderAdminApplicationServicePort {
 
-    @Transactional
+    /**
+     * 트랜잭션 없이 조율한다: 주문 확정(트랜잭션) → 외부 결제(트랜잭션 밖) → 결제 결과 반영(트랜잭션).
+     * 외부 결제 호출이 DB 트랜잭션을 점유하지 않도록 경계를 분리한다.
+     */
     override fun createOrder(command: CreateOrderCommand): OrderDetail {
-        if (command.items.isEmpty()) {
-            throw CoreException(ErrorType.BAD_REQUEST, "주문 항목은 최소 1개여야 합니다.")
+        // 쿠폰 낙관적 락 충돌은 place 의 트랜잭션 커밋(flush) 시점에 발생하므로 트랜잭션 경계 밖인 여기서 잡는다.
+        val pending = try {
+            orderPlacement.place(command)
+        } catch (e: OptimisticLockingFailureException) {
+            throw CoreException(ErrorType.CONFLICT, "다른 주문에서 이미 사용된 쿠폰입니다. 다시 시도해 주세요.")
         }
-        userService.getById(command.userId)
-
-        val orderItems = buildOrderItems(command.items)
-
-        orderItems.forEach { stockService.decrease(productId = it.productId, quantity = it.quantity) }
-
-        val created = orderService.save(Order.create(userId = command.userId, items = OrderItems(orderItems)))
-        val pending = orderService.save(created.updateStatus(OrderStatus.PAYMENT_PENDING))
-
         val paymentResult = paymentGateway.requestPayment(orderId = pending.id, amount = pending.getActualAmount())
-
-        val finalized = if (paymentResult.success) {
-            orderService.save(pending.updateStatus(OrderStatus.PAYMENT_COMPLETED))
-        } else {
-            orderItems.forEach { stockService.restore(productId = it.productId, quantity = it.quantity) }
-            orderService.save(pending.cancel())
-        }
-
+        val finalized = orderPlacement.finalize(orderId = pending.id, paymentResult = paymentResult)
         return OrderDetail.from(finalized)
     }
 
@@ -107,27 +89,5 @@ class OrderApplicationServiceAdapter(
         val order = orderService.getById(orderId)
         val loginId = authService.findLoginIdsByUserIds(listOf(order.userId))[order.userId].orEmpty()
         return AdminOrderDetail.of(order, loginId)
-    }
-
-    private fun buildOrderItems(items: List<CreateOrderItemCommand>): List<OrderItem> {
-        val productIds = items.map { it.productId }
-        val productsById = productService.findAllByIds(productIds).associateBy { it.id }
-        productIds.forEach { pid ->
-            productsById[pid] ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다: $pid")
-        }
-        val brandIds = productsById.values.map { it.brandId }.distinct()
-        val brandsById = brandService.findAllByIds(brandIds).associateBy { it.id }
-        return items.map { ci ->
-            val product = productsById.getValue(ci.productId)
-            val brand = brandsById[product.brandId]
-                ?: throw CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다: ${product.brandId}")
-            OrderItem(
-                productId = product.id,
-                quantity = ci.quantity,
-                snapshotProductName = product.name,
-                snapshotPrice = product.price,
-                snapshotBrandName = brand.name,
-            )
-        }
     }
 }

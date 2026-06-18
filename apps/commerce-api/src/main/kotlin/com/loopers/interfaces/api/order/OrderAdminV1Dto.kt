@@ -31,11 +31,13 @@ class OrderAdminV1Dto {
         val loginId: String,
         val status: String,
         val totalAmount: Long,
+        val discountAmount: Long,
         val usedPoint: Long,
         val actualAmount: Long,
         val earnPoint: Long,
         val orderedAt: ZonedDateTime,
         val items: List<OrderV1Dto.OrderItemResponse>,
+        val appliedCoupon: OrderV1Dto.AppliedCouponResponse?,
     ) {
         companion object {
             fun from(detail: AdminOrderDetail): AdminOrderDetailResponse = AdminOrderDetailResponse(
@@ -44,11 +46,13 @@ class OrderAdminV1Dto {
                 loginId = detail.loginId,
                 status = detail.status.name,
                 totalAmount = detail.totalAmount,
+                discountAmount = detail.discountAmount,
                 usedPoint = detail.usedPoint,
                 actualAmount = detail.actualAmount,
                 earnPoint = detail.earnPoint,
                 orderedAt = detail.orderedAt,
                 items = detail.items.map { OrderV1Dto.OrderItemResponse.from(it) },
+                appliedCoupon = detail.appliedCoupon?.let { OrderV1Dto.AppliedCouponResponse.from(it) },
             )
         }
     }

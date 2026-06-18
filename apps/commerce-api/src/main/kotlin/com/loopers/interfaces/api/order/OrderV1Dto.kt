@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.order
 
 import com.loopers.application.order.CreateOrderCommand
 import com.loopers.application.order.CreateOrderItemCommand
+import com.loopers.domain.order.AppliedCoupon
 import com.loopers.domain.order.OrderDetail
 import com.loopers.domain.order.OrderItemView
 import com.loopers.domain.order.OrderSummary
@@ -10,10 +11,12 @@ import java.time.ZonedDateTime
 class OrderV1Dto {
     data class CreateOrderRequest(
         val items: List<CreateOrderItemRequest>,
+        val couponId: Long? = null,
     ) {
         fun toCommand(userId: Long): CreateOrderCommand = CreateOrderCommand(
             userId = userId,
             items = items.map { CreateOrderItemCommand(productId = it.productId, quantity = it.quantity) },
+            couponId = couponId,
         )
     }
 
@@ -42,26 +45,48 @@ class OrderV1Dto {
         }
     }
 
+    data class AppliedCouponResponse(
+        val issuedCouponId: Long,
+        val couponName: String,
+        val couponType: String,
+        val couponValue: Long,
+        val discountAmount: Long,
+    ) {
+        companion object {
+            fun from(snapshot: AppliedCoupon): AppliedCouponResponse = AppliedCouponResponse(
+                issuedCouponId = snapshot.issuedCouponId,
+                couponName = snapshot.couponName,
+                couponType = snapshot.couponType,
+                couponValue = snapshot.couponValue,
+                discountAmount = snapshot.discountAmount,
+            )
+        }
+    }
+
     data class OrderDetailResponse(
         val id: Long,
         val status: String,
         val totalAmount: Long,
+        val discountAmount: Long,
         val usedPoint: Long,
         val actualAmount: Long,
         val earnPoint: Long,
         val orderedAt: ZonedDateTime,
         val items: List<OrderItemResponse>,
+        val appliedCoupon: AppliedCouponResponse?,
     ) {
         companion object {
             fun from(detail: OrderDetail): OrderDetailResponse = OrderDetailResponse(
                 id = detail.id,
                 status = detail.status.name,
                 totalAmount = detail.totalAmount,
+                discountAmount = detail.discountAmount,
                 usedPoint = detail.usedPoint,
                 actualAmount = detail.actualAmount,
                 earnPoint = detail.earnPoint,
                 orderedAt = detail.orderedAt,
                 items = detail.items.map { OrderItemResponse.from(it) },
+                appliedCoupon = detail.appliedCoupon?.let { AppliedCouponResponse.from(it) },
             )
         }
     }

@@ -26,6 +26,9 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -253,8 +256,8 @@ class CreateOrderUsecaseTest {
             return products[id]?.takeUnless { it.isDeleted() }
         }
 
-        override fun findActiveAll(brandId: Long?, sort: ProductSort): List<ProductModel> {
-            return products.values.toList()
+        override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> {
+            return PageImpl(products.values.toList(), pageable, products.size.toLong())
         }
 
         override fun existsActiveById(id: Long): Boolean {

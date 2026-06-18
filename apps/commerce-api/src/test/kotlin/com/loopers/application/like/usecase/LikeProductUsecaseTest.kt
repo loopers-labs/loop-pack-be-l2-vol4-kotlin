@@ -16,6 +16,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -199,8 +202,8 @@ class LikeProductUsecaseTest {
             return products[id]?.takeUnless { it.isDeleted() }
         }
 
-        override fun findActiveAll(brandId: Long?, sort: ProductSort): List<ProductModel> {
-            return products.values.toList()
+        override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> {
+            return PageImpl(products.values.toList(), pageable, products.size.toLong())
         }
 
         override fun existsActiveById(id: Long): Boolean {

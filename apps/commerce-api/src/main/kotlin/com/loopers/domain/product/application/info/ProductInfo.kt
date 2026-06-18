@@ -8,7 +8,7 @@ data class ProductInfo(
     val brandId: Long,
     val name: String,
     val price: Long,
-    val deletedAtOrNull: ZonedDateTime?,
+    val deletedAt: ZonedDateTime?,
 ) {
     companion object {
         fun from(product: ProductModel): ProductInfo = ProductInfo(
@@ -16,7 +16,7 @@ data class ProductInfo(
             brandId = product.brandId,
             name = product.name.value,
             price = product.price.value,
-            deletedAtOrNull = product.deletedAtOrNull,
+            deletedAt = product.deletedAt,
         )
     }
 }

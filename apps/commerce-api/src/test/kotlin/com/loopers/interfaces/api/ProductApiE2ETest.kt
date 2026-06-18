@@ -35,6 +35,7 @@ class ProductApiE2ETest
         fun `존재하는_상품_ID면_상품_상세를_반환한다`() {
             val brand = brandService.register(브랜드_등록_커맨드())
             val product = productService.register(상품_등록_커맨드(brandId = brand.id))
+            likeService.initializeCount(product.id)
             likeService.like(userId = 1L, productId = product.id)
             likeService.like(userId = 2L, productId = product.id)
 
@@ -110,6 +111,9 @@ class ProductApiE2ETest
             val low = productService.register(상품_등록_커맨드(brandId = brand.id, name = "낮은 상품", price = 1_000))
             val high = productService.register(상품_등록_커맨드(brandId = brand.id, name = "높은 상품", price = 2_000))
             val middle = productService.register(상품_등록_커맨드(brandId = brand.id, name = "중간 상품", price = 3_000))
+            likeService.initializeCount(low.id)
+            likeService.initializeCount(high.id)
+            likeService.initializeCount(middle.id)
             likeService.like(userId = 1L, productId = low.id)
             likeService.like(userId = 1L, productId = high.id)
             likeService.like(userId = 2L, productId = high.id)

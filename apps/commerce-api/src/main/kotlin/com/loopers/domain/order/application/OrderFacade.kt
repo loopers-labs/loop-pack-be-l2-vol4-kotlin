@@ -1,5 +1,6 @@
 package com.loopers.domain.order.application
 
+import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.domain.order.application.command.OrderCreateCommand
 import com.loopers.domain.order.application.command.OrderItemCreateCommand
 import com.loopers.domain.order.application.info.OrderInfo
@@ -18,6 +19,8 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 class OrderFacade(
@@ -25,20 +28,33 @@ class OrderFacade(
     private val productService: ProductService,
     private val stockService: StockService,
     private val orderService: OrderService,
+    private val couponService: CouponService,
 ) {
     @Transactional
     fun placeOrder(command: OrderCreateCommand): OrderInfo {
-        userService.findById(command.userId)
+        userService.getById(command.userId)
         val idempotencyKey = command.idempotencyKey?.takeIf { it.isNotBlank() }
         idempotencyKey
-            ?.let { orderService.findByIdempotencyKey(it) }
+            ?.let { orderService.findByIdempotencyKeyOrNull(it) }
             ?.let { return OrderInfo.from(it) }
 
         val orderItems = aggregateItems(command.items)
-        val snapshots = productService.findOrderableSnapshots(orderItems.map { it.productId })
+        val snapshots = productService.getOrderableSnapshots(orderItems.map { it.productId })
         val items = createOrderItems(orderItems, snapshots)
-        val order = orderService.placeOrder(command.userId, items, idempotencyKey)
+        val totalPrice = items.fold(Money.ZERO) { acc, item -> acc + item.linePrice }
+        val discountPrice = command.issuedCouponId
+            ?.let { couponService.validateAndCalculateDiscount(command.userId, it, totalPrice) }
+            ?: Money.of(0)
+
         stockService.decreaseAll(orderItems.map { StockDecreaseCommand(it.productId, it.quantity) })
+        command.issuedCouponId?.let { couponService.useIssuedCoupon(it) }
+        val order = orderService.placeOrder(
+            orderedUserId = command.userId,
+            items = items,
+            idempotencyKey = idempotencyKey,
+            issuedCouponId = command.issuedCouponId,
+            discountPrice = discountPrice,
+        )
         return OrderInfo.from(order)
     }
 
@@ -76,5 +92,41 @@ class OrderFacade(
         } catch (e: ProductDomainException) {
             throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
+    }
+
+    @Transactional(readOnly = true)
+    fun findMyOrders(
+        userId: Long,
+        startAt: LocalDate?,
+        endAt: LocalDate?,
+    ): List<OrderInfo> {
+        userService.getById(userId)
+        return orderService.findByOrderedUserId(
+            orderedUserId = userId,
+            startAt = startAt?.atStartOfDay(DEFAULT_ZONE),
+            endAt = endAt?.plusDays(1)?.atStartOfDay(DEFAULT_ZONE),
+        ).map { OrderInfo.from(it) }
+    }
+
+    @Transactional(readOnly = true)
+    fun findMyOrder(userId: Long, orderId: Long): OrderInfo {
+        userService.getById(userId)
+        val order = orderService.getById(orderId)
+        if (!order.belongsTo(userId)) {
+            throw CoreException(ErrorType.NOT_FOUND)
+        }
+        return OrderInfo.from(order)
+    }
+
+    @Transactional(readOnly = true)
+    fun findAdminOrders(page: Int, size: Int): List<OrderInfo> =
+        orderService.findAll(page, size).map { OrderInfo.from(it) }
+
+    @Transactional(readOnly = true)
+    fun findAdminOrder(orderId: Long): OrderInfo =
+        OrderInfo.from(orderService.getById(orderId))
+
+    companion object {
+        private val DEFAULT_ZONE: ZoneId = ZoneId.systemDefault()
     }
 }

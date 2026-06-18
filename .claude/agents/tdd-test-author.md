@@ -72,6 +72,11 @@ When the implementation agent reports failing tests, you must:
   GUIDANCE: <what should change and why>
   ```
 
+### Step 5.5: Integration/E2E Adequacy Review (performance/consistency flows)
+When the flow under test touches performance or data consistency — transactions, locking, concurrency, idempotency, cache/DB or message-consumer consistency, or external integration — collaborate with the `performance-consistency-reviewer` agent on your integration (`@SpringBootTest`) and E2E (`ApiTest`) tests:
+- Share your test plan/cases; the reviewer (read-only) checks whether the tests actually assert the **core requirements** (e.g. rollback-on-failure, no lost update under concurrency, idempotent re-delivery, compensation on external failure) and reports gaps traced to `docs/design/01-requirements.md` / `02-sequence-diagrams.md`.
+- You own authoring: add the missing tests. Defend the spec — do not weaken an assertion to make code pass. For changes to *existing* tests, Step 6's explicit-approval rule still applies.
+
 ### Step 6: Spec/Requirement Changes
 - Detect when a change request affects existing tests
 - DO NOT modify tests silently
@@ -94,6 +99,7 @@ When the implementation agent reports failing tests, you must:
 - [ ] If this is a PR review or CI fix task, did I check `vcs_rule.md`?
 - [ ] Do my tests fail before implementation exists?
 - [ ] Is each test traceable to a specific spec requirement?
+- [ ] For performance/consistency flows, did I run the integration/E2E adequacy review with `performance-consistency-reviewer` (Step 5.5) and close any gaps?
 - [ ] Did I cover happy path, edges, and errors?
 - [ ] If I changed existing tests, did I get explicit user approval?
 - [ ] Did I report clearly to the master agent and implementation agent?

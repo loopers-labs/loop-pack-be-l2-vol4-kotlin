@@ -13,11 +13,11 @@ class BrandSteps {
         fun 브랜드_도메인_생성(
             id: Long = 기본_브랜드_ID,
             name: String = 기본_브랜드명,
-            deletedAtOrNull: ZonedDateTime? = null,
+            deletedAt: ZonedDateTime? = null,
         ): BrandModel = BrandModel(
             id = id,
             name = BrandName.of(name),
-            deletedAtOrNull = deletedAtOrNull,
+            deletedAt = deletedAt,
         )
 
         fun 브랜드_등록_커맨드(

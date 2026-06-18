@@ -41,7 +41,7 @@ class ProductServiceTest {
     fun `상품을_수정한다`() {
         val productRepository = mockk<ProductRepository>()
         val productService = ProductService(productRepository)
-        every { productRepository.findById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
+        every { productRepository.findByIdOrNull(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { productRepository.save(any()) } answers { firstArg() }
 
         val product = productService.update(
@@ -57,10 +57,10 @@ class ProductServiceTest {
     fun `존재하지_않는_상품_조회는_NOT_FOUND가_발생한다`() {
         val productRepository = mockk<ProductRepository>()
         val productService = ProductService(productRepository)
-        every { productRepository.findById(기본_상품_ID) } returns null
+        every { productRepository.findByIdOrNull(기본_상품_ID) } returns null
 
         val ex = assertThrows<CoreException> {
-            productService.findById(기본_상품_ID)
+            productService.getById(기본_상품_ID)
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -73,12 +73,12 @@ class ProductServiceTest {
         every { productRepository.findAllByIds(listOf(기본_상품_ID)) } returns listOf(
             상품_도메인_생성(
                 id = 기본_상품_ID,
-                deletedAtOrNull = ZonedDateTime.now(),
+                deletedAt = ZonedDateTime.now(),
             ),
         )
 
         val ex = assertThrows<CoreException> {
-            productService.findOrderableSnapshots(listOf(기본_상품_ID))
+            productService.getOrderableSnapshots(listOf(기본_상품_ID))
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
@@ -92,7 +92,7 @@ class ProductServiceTest {
             상품_도메인_생성(id = 기본_상품_ID),
         )
 
-        val snapshots = productService.findOrderableSnapshots(listOf(기본_상품_ID))
+        val snapshots = productService.getOrderableSnapshots(listOf(기본_상품_ID))
 
         assertThat(snapshots).hasSize(1)
         assertThat(snapshots[0].productId).isEqualTo(기본_상품_ID)
@@ -115,7 +115,7 @@ class ProductServiceTest {
         val deletedProducts = productService.softDeleteByBrandId(10L)
 
         assertThat(deletedProducts).hasSize(2)
-        assertThat(deletedProducts).allMatch { it.deletedAtOrNull != null }
+        assertThat(deletedProducts).allMatch { it.deletedAt != null }
         verify(exactly = 1) { productRepository.saveAll(any()) }
     }
 

@@ -46,6 +46,23 @@ For domain modeling, ubiquitous language, requirements traceability, sequence fl
 
 Treat these as the domain Single Source of Truth (fact source), distinct from `agent_rules` which contain work and architecture directives. When delegating any domain work, include the relevant `docs/design/*` files in each sub-agent's mandate alongside `agent_rules/`. If a sub-agent surfaces a conflict between code, `agent_rules`, and `docs/design`, do not silently pick a side — route back to the user for resolution.
 
+## Performance & Consistency Review Trigger
+
+Whenever a workstream touches code in the Facade → Service → Repository layers that is directly tied to **performance** or **data consistency** — transaction boundaries, locking (`@Lock`/`@Version`/distributed locks), persistence-context behavior, DB/query efficiency, or any external integration (Redis, Kafka/message queue, batch, external API) — delegate the analysis to the `performance-consistency-reviewer` sub-agent. Do NOT analyze it yourself; that crosses your no-execution boundary.
+
+In that delegation mandate, include the `workflow-analysis-skills` skill as a mandatory input (the reviewer anchors its methodology on it), plus `agent_rules/groundRules.md` and `docs/design/02-sequence-diagrams.md` (intended transaction boundaries). The reviewer is read-only and returns trade-off-oriented findings, not code changes — route any resulting fixes to an implementation sub-agent separately.
+
+When such a flow is also being covered by integration (`@SpringBootTest`) or E2E (`ApiTest`) tests, pair the `performance-consistency-reviewer` with the `tdd-test-author`: the reviewer assesses whether the tests assert the core performance/consistency requirements (rollback-on-failure, no lost update under concurrency, idempotent re-delivery, external-failure compensation) and reports gaps; the test author owns authoring the missing tests (and keeps its explicit-approval rule for changing existing ones). Facilitate this handoff as part of your inter-agent communication duty; do not collapse the two roles.
+
+## Exception Policy / Layering Review Trigger
+
+Whenever a workstream changes application services, controller advice, repository adapters, or domain exception classes, include exception-policy anti-pattern review in the mandate. Route the read-only inspection to `performance-consistency-reviewer` when the same flow touches Facade → Service → Repository layers, and require it to check for:
+- `runDomain`-style whole-use-case exception wrappers.
+- Broad domain exception to API error mapping inside services.
+- `DataIntegrityViolationException` blanket catch outside infrastructure adapters.
+- HTTP/ErrorType policy leaking into pure domain model, VO, or port packages.
+- Ownership/resource-hiding failures that should externally map to `404` per `docs/design/01-requirements.md`.
+
 ## Workflow Methodology
 
 **Phase 1 — Plan Formulation:**
@@ -69,6 +86,7 @@ Treat these as the domain Single Source of Truth (fact source), distinct from `a
 - Upon receiving a sub-agent's output, evaluate against acceptance criteria — NOT by re-doing or deep-diving into the content itself.
 - Focus supervision on: completeness, scope adherence, alignment with stated objective, and surface-level coherence.
 - If a deliverable falls short, route it back with specific, actionable feedback — do not fix it yourself.
+- For deliverables touching transactions, locking, consistency, DB/query efficiency, or external integration, use the `workflow-analysis-skills` skill's checklist (transaction boundary, persistence context, query timing, plus the reviewer's lock/consistency/efficiency extensions) as your acceptance criteria — judge against it rather than re-analyzing the code yourself.
 - Track progress across the plan and surface blockers early.
 
 **Phase 4 — Integration & Closure:**

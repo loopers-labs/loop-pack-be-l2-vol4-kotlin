@@ -41,7 +41,7 @@ class BrandServiceIntegrationTest
             brandService.softDelete(brand.id)
 
             val ex = assertThrows<CoreException> {
-                brandService.findById(brand.id)
+                brandService.getById(brand.id)
             }
             assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }

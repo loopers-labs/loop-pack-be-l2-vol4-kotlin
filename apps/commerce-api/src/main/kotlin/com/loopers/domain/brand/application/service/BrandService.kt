@@ -33,7 +33,7 @@ class BrandService(
         brandId: Long,
         command: BrandUpdateCommand,
     ): BrandModel {
-        val brand = findById(brandId)
+        val brand = getById(brandId)
         return try {
             brandRepository.save(
                 brand.rename(BrandName.of(command.name)),
@@ -45,13 +45,13 @@ class BrandService(
 
     @Transactional
     fun softDelete(brandId: Long): BrandModel {
-        val brand = findById(brandId)
+        val brand = getById(brandId)
         return brandRepository.save(brand.delete())
     }
 
     @Transactional(readOnly = true)
-    fun findById(brandId: Long): BrandModel {
-        val brand = brandRepository.findById(brandId) ?: throwNotFound()
+    fun getById(brandId: Long): BrandModel {
+        val brand = brandRepository.findByIdOrNull(brandId) ?: throwNotFound()
         try {
             brand.requireActive()
         } catch (e: BrandNotActiveException) {
@@ -61,7 +61,7 @@ class BrandService(
     }
 
     @Transactional(readOnly = true)
-    fun findByIds(brandIds: Set<Long>): List<BrandModel> {
+    fun getByIds(brandIds: Set<Long>): List<BrandModel> {
         if (brandIds.isEmpty()) {
             return emptyList()
         }

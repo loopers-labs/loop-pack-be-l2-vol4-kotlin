@@ -15,7 +15,7 @@ class BrandModelTest {
         val brand = 브랜드_도메인_생성()
 
         assertThat(brand.name.value).isEqualTo(기본_브랜드명)
-        assertThat(brand.deletedAtOrNull).isNull()
+        assertThat(brand.deletedAt).isNull()
     }
 
     @Test
@@ -51,7 +51,7 @@ class BrandModelTest {
         val deleted = brand.delete()
         val deletedAgain = deleted.delete()
 
-        assertThat(deleted.deletedAtOrNull).isNotNull()
-        assertThat(deletedAgain.deletedAtOrNull).isEqualTo(deleted.deletedAtOrNull)
+        assertThat(deleted.deletedAt).isNotNull()
+        assertThat(deletedAgain.deletedAt).isEqualTo(deleted.deletedAt)
     }
 }

@@ -27,9 +27,10 @@ class ProductFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val productFacade = ProductFacade(brandService, productService, stockService, likeService)
-        every { brandService.findById(10L) } returns 브랜드_도메인_생성(id = 10L)
+        every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { productService.register(상품_등록_커맨드()) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { stockService.initialize(기본_상품_ID, 10L) } returns 재고_도메인_생성(productId = 기본_상품_ID)
+        every { likeService.initializeCount(기본_상품_ID) } returns Unit
 
         val info = productFacade.registerProduct(상품_등록_커맨드())
 
@@ -46,19 +47,21 @@ class ProductFacadeTest {
         val stockService = mockk<StockService>()
         val productFacade = ProductFacade(brandService, productService, stockService, likeService)
         val command = 상품_등록_커맨드(initialStock = 15)
-        every { brandService.findById(10L) } returns 브랜드_도메인_생성(id = 10L)
+        every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { productService.register(command) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { stockService.initialize(기본_상품_ID, 15) } returns 재고_도메인_생성(
             productId = 기본_상품_ID,
             leftStock = 15,
         )
+        every { likeService.initializeCount(기본_상품_ID) } returns Unit
 
         productFacade.registerProduct(command)
 
         verifySequence {
-            brandService.findById(10L)
+            brandService.getById(10L)
             productService.register(command)
             stockService.initialize(기본_상품_ID, 15)
+            likeService.initializeCount(기본_상품_ID)
         }
     }
 
@@ -69,8 +72,8 @@ class ProductFacadeTest {
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
         val productFacade = ProductFacade(brandService, productService, stockService, likeService)
-        every { productService.findById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
-        every { brandService.findById(10L) } returns 브랜드_도메인_생성(id = 10L)
+        every { productService.getById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
+        every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { likeService.countByProductId(기본_상품_ID) } returns 3L
 
         val info = productFacade.getProduct(기본_상품_ID)
@@ -95,7 +98,7 @@ class ProductFacadeTest {
             상품_도메인_생성(id = 1L),
         )
         every { likeService.countByProductIds(setOf(2L, 1L)) } returns mapOf(2L to 3L)
-        every { brandService.findByIds(setOf(10L)) } returns listOf(브랜드_도메인_생성(id = 10L))
+        every { brandService.getByIds(setOf(10L)) } returns listOf(브랜드_도메인_생성(id = 10L))
 
         val infos = productFacade.findProducts(command)
 
@@ -121,7 +124,7 @@ class ProductFacadeTest {
             2L to 3L,
             3L to 2L,
         )
-        every { brandService.findByIds(setOf(10L)) } returns listOf(브랜드_도메인_생성(id = 10L))
+        every { brandService.getByIds(setOf(10L)) } returns listOf(브랜드_도메인_생성(id = 10L))
 
         val infos = productFacade.findProducts(command)
 

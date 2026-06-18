@@ -10,21 +10,21 @@ data class ProductModel(
     val brandId: Long,
     val name: ProductName,
     val price: Money,
-    val deletedAtOrNull: ZonedDateTime? = null,
+    val deletedAt: ZonedDateTime? = null,
 ) {
     fun changeName(name: ProductName): ProductModel = copy(name = name)
 
     fun changePrice(price: Money): ProductModel = copy(price = price)
 
     fun delete(): ProductModel {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             return this
         }
-        return copy(deletedAtOrNull = ZonedDateTime.now())
+        return copy(deletedAt = ZonedDateTime.now())
     }
 
     fun requireOrderable() {
-        if (deletedAtOrNull != null) {
+        if (deletedAt != null) {
             throw ProductNotOrderableException(id)
         }
     }

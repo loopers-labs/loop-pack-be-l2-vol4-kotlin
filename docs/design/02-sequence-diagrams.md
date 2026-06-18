@@ -8,12 +8,14 @@
 시퀀스 다이어그램은 API 호출 목록이 아니라 유스케이스의 책임 흐름을 보여주는 데 집중한다.
 따라서 API별 Controller 이름은 대부분 `CustomerAPI`, `AdminAPI` boundary로 추상화하고, 관련 endpoint는 각 다이어그램 아래에 별도로 남긴다.
 
+Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 정합성 검증에 한정하며, 별도 이슈가 없으면 Payment 도메인과 외부 결제 게이트웨이 구현을 새로 추가하지 않는다.
+
 검증 관점은 다음과 같다.
 
 - 사용자/관리자 인증 헤더가 API boundary에서 분리되는가?
 - 도메인 간 협력은 Facade에서 조합되고, Service끼리 직접 의존하지 않는가?
 - 여러 도메인 상태를 함께 바꾸는 유스케이스가 하나의 트랜잭션 경계 안에서 처리되는가?
-- 좋아요 멱등성, 재고 부족 전체 거부, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
+- 좋아요 멱등성, 재고 부족 전체 거부, 쿠폰 중복 사용 방지, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
 
 ## 표기 규칙
 
@@ -135,12 +137,12 @@ sequenceDiagram
     Customer->>CustomerAPI: 주문 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>OrderFacade: 주문 처리
-    Note over OrderFacade: TX1 — 주문·재고·결제 요청 기록
+    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·결제(REQUESTED) 요청 기록
     OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
     ProductService-->>OrderFacade: 상품명·단가
     OrderFacade->>StockService: 재고 차감
     StockService-->>OrderFacade: 차감 완료
-    OrderFacade->>OrderService: 주문 생성 (스냅샷 포함)
+    OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 포함)
     OrderService-->>OrderFacade: 주문 정보
     OrderFacade->>OrderRepository: 주문 저장
     OrderRepository-->>OrderFacade: 저장 완료
@@ -150,8 +152,9 @@ sequenceDiagram
     OrderFacade->>PaymentService: 외부 결제 승인 요청
     PaymentService->>PaymentGateway: 외부 결제 승인 요청
     PaymentGateway-->>PaymentService: 승인 결과
-    Note over OrderFacade: TX2 — 결제 결과 반영
+    Note over OrderFacade: TX2 — 결제 승인 반영
     PaymentService->>PaymentRepository: 결제 승인 기록 (APPROVED)
+    OrderFacade->>OrderService: 주문 확정 처리 (ORDERED)
     PaymentService-->>OrderFacade: 결제 정보
     OrderFacade-->>CustomerAPI: 주문 정보
     CustomerAPI-->>Customer: 주문 확정
@@ -170,7 +173,7 @@ sequenceDiagram
 
 - 상품 탐색은 `ProductFacade`로 묶고, 주문 생성의 핵심 책임인 스냅샷 생성, 재고 차감, 주문 저장, 결제 기록을 중심으로 표현한다.
 - 주문 항목에는 상품명과 단가 스냅샷이 저장되어 이후 상품 변경과 독립적으로 과거 주문을 보여준다.
-- 외부 결제 호출은 어떤 DB 트랜잭션에도 속하지 않는다. `OrderFacade` 는 (TX1 → 외부 호출 → TX2) 세 구간으로 유스케이스를 구성한다. outbox 는 결제수단과 외부 연동 방식이 구체화되면 추가한다.
+- 외부 결제 호출은 어떤 DB 트랜잭션에도 속하지 않는다. `OrderFacade` 는 (TX1 → 외부 호출 → TX2) 세 구간으로 유스케이스를 구성한다. 주문은 `PAYMENT_PENDING`으로 생성되고 결제 승인 TX2에서 `ORDERED`가 된다. outbox 는 결제수단과 외부 연동 방식이 구체화되면 추가한다.
 
 ## 4. User-J3 비밀번호 변경
 
@@ -343,8 +346,9 @@ sequenceDiagram
 
 ## 7. User-E3 결제 승인 실패
 
-외부 결제 시스템이 승인을 거절하거나 장애를 반환하면 결제 실패 기록을 남긴다.
-현재 설계는 결제 기록 테이블을 먼저 확정하고, outbox 는 결제수단과 연동 방식이 구체화되면 추가한다.
+외부 결제 시스템이 승인을 거절하거나 장애를 반환하면 주문 row는 실패 이력으로 유지하고, API 응답은 실패로 반환한다.
+TX2 실패 보상은 `PAYMENT_PENDING` 주문에 대해서만 수행해 중복 콜백이나 회복 프로세스가 재고와 쿠폰을 이중 복구하지 못하게 한다.
+이 다이어그램은 후속 결제 연동 단계의 보상 설계이며, Round 4 쿠폰/동시성 구현 필수 범위는 아니다.
 
 ```mermaid
 sequenceDiagram
@@ -354,6 +358,7 @@ sequenceDiagram
     participant OrderFacade
     participant ProductService
     participant StockService
+    participant CouponService
     participant OrderService
     participant OrderRepository
     participant PaymentService
@@ -364,12 +369,12 @@ sequenceDiagram
     Customer->>CustomerAPI: 주문 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>OrderFacade: 주문 처리
-    Note over OrderFacade: TX1 — 주문·재고·결제 요청 기록
+    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·쿠폰·결제(REQUESTED) 요청 기록
     OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
     ProductService-->>OrderFacade: 상품명·단가
     OrderFacade->>StockService: 재고 차감
     StockService-->>OrderFacade: 차감 완료
-    OrderFacade->>OrderService: 주문 생성 (스냅샷 포함)
+    OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 포함)
     OrderService-->>OrderFacade: 주문 정보
     OrderFacade->>OrderRepository: 주문 저장
     OrderRepository-->>OrderFacade: 저장 완료
@@ -380,18 +385,42 @@ sequenceDiagram
     PaymentService->>PaymentGateway: 외부 결제 승인 요청
     alt 결제 승인 거절
         PaymentGateway-->>PaymentService: 거절 결과
-        Note over OrderFacade: TX2 — 결제 실패 기록 + 재고 보상 복구
-        PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
-        OrderFacade->>StockService: 차감 재고 보상 복구
-        PaymentService-->>OrderFacade: 예외(결제 승인 실패)
+        Note over OrderFacade: TX2 — 실패 보상, PAYMENT_PENDING 가드
+        OrderFacade->>OrderService: 주문 실패 전이 요청
+        OrderService->>OrderRepository: 주문 잠금 조회
+        alt 주문 상태가 PAYMENT_PENDING
+            OrderService->>OrderRepository: 주문 상태 저장 (PAYMENT_FAILED)
+            PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
+            OrderFacade->>StockService: 차감 재고 보상 복구
+            alt 쿠폰 적용 주문
+                OrderFacade->>CouponService: 발급 쿠폰 사용 복구 (AVAILABLE)
+                OrderFacade->>OrderService: 실패 주문 쿠폰 연결 해제 (issuedCouponId = NULL)
+            else 쿠폰 미적용 주문
+                Note over OrderFacade: 쿠폰 복구 없음
+            end
+        else 이미 ORDERED/PAYMENT_FAILED/CANCELED
+            OrderService-->>OrderFacade: 보상 생략 (멱등 종료)
+        end
         OrderFacade-->>Advice: 예외(결제 승인 실패)
         Advice-->>Customer: 409 충돌
     else 외부 결제 시스템 장애
         PaymentGateway-->>PaymentService: 타임아웃 또는 장애
-        Note over OrderFacade: TX2 — 결제 실패 기록 + 재고 보상 복구
-        PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
-        OrderFacade->>StockService: 차감 재고 보상 복구
-        PaymentService-->>OrderFacade: 예외(외부 결제 시스템 실패)
+        Note over OrderFacade: TX2 — 실패 보상, PAYMENT_PENDING 가드
+        OrderFacade->>OrderService: 주문 실패 전이 요청
+        OrderService->>OrderRepository: 주문 잠금 조회
+        alt 주문 상태가 PAYMENT_PENDING
+            OrderService->>OrderRepository: 주문 상태 저장 (PAYMENT_FAILED)
+            PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
+            OrderFacade->>StockService: 차감 재고 보상 복구
+            alt 쿠폰 적용 주문
+                OrderFacade->>CouponService: 발급 쿠폰 사용 복구 (AVAILABLE)
+                OrderFacade->>OrderService: 실패 주문 쿠폰 연결 해제 (issuedCouponId = NULL)
+            else 쿠폰 미적용 주문
+                Note over OrderFacade: 쿠폰 복구 없음
+            end
+        else 이미 ORDERED/PAYMENT_FAILED/CANCELED
+            OrderService-->>OrderFacade: 보상 생략 (멱등 종료)
+        end
         OrderFacade-->>Advice: 예외(외부 결제 시스템 실패)
         Advice-->>Customer: 502 외부 시스템 실패
     end
@@ -403,9 +432,12 @@ sequenceDiagram
 
 핵심 포인트:
 
-- 결제 실패도 `payments` 에 기록해 주문 시도와 외부 승인 결과를 추적한다.
-- 재고 복구는 트랜잭션 롤백이 아니라 **보상 트랜잭션(TX2)** 이다. TX1 이 이미 커밋되어 자동 원복할 수 없기 때문이다.
-- TX1 commit 후 TX2 도달 전에 프로세스가 종료되면 `payments.status = REQUESTED` 잔여 상태가 남는다. 회수 전략(상태 폴링·웹훅·outbox)은 결제수단과 외부 연동 방식이 구체화될 때 확정한다.
+- 결제 실패도 `payments.status = FAILED`와 `orders.order_status = PAYMENT_FAILED`로 기록해 주문 시도와 외부 승인 결과를 추적한다.
+- 재고·쿠폰 복구는 트랜잭션 롤백이 아니라 **보상 트랜잭션(TX2)** 이다. TX1 이 이미 커밋되어 자동 원복할 수 없기 때문이다.
+- 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 상태 가드가 중복 콜백과 orphan 회복 프로세스의 이중 복구를 막는다.
+- 쿠폰 적용 주문의 결제 실패 보상은 발급 쿠폰을 `AVAILABLE`로 되돌리고 실패 주문의 `issuedCouponId`를 `NULL`로 분리한다.
+- 주문 row와 금액 스냅샷은 `PAYMENT_FAILED` 이력으로 유지되지만, `POST /api/v1/orders` 응답은 성공 생성(`201`)이 아니라 `409` 또는 `502`다.
+- TX1 commit 후 TX2 도달 전에 프로세스가 종료되면 `orders.order_status = PAYMENT_PENDING`, `payments.status = REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 회수 전략(상태 폴링·웹훅·outbox)은 결제수단과 외부 연동 방식이 구체화될 때 확정한다.
 
 ## 8. Admin-J1 신규 브랜드와 상품 등록
 
@@ -646,3 +678,222 @@ sequenceDiagram
 - 상품 단건 삭제는 브랜드 삭제와 달리 해당 상품만 soft delete 한다.
 - 관리자 작업 로그는 변경 저장 성공 후 기록한다. 브랜드 변경 시도처럼 실패한 요청은 성공 이력으로 기록하지 않는다.
 - 관리자 주문 조회는 읽기 작업이므로 `admin_operation_logs` 기록 대상이 아니다.
+
+## 12. User-J5 쿠폰 발급과 내 쿠폰 조회
+
+쿠폰 발급은 쿠폰 템플릿과 사용자 사이에 `IssuedCoupon`을 생성하는 흐름이다.
+한 사용자는 같은 쿠폰 템플릿을 한 번만 발급받을 수 있으며, DB unique 제약이 최종 중복을 막는다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant CustomerAPI
+    participant CouponFacade
+    participant CouponService
+    participant CouponRepository
+    participant IssuedCouponRepository
+    participant Advice as ApiControllerAdvice
+
+    Customer->>CustomerAPI: 쿠폰 발급 요청
+    Note over CustomerAPI: 고객 인증 (§1 참조)
+    CustomerAPI->>CouponFacade: 쿠폰 발급
+    Note over CouponFacade: @Transactional — 템플릿 검증 + 발급 저장
+    CouponFacade->>CouponService: 쿠폰 템플릿 발급
+    CouponService->>CouponRepository: 템플릿 조회
+    CouponRepository-->>CouponService: 쿠폰 템플릿
+    alt 템플릿 없음 또는 삭제/만료됨
+        CouponService-->>Advice: 예외(발급 불가 쿠폰)
+        Advice-->>Customer: 404 자원 없음 또는 409 충돌
+    else 이미 발급됨
+        CouponService->>IssuedCouponRepository: 사용자-템플릿 발급 여부 확인
+        IssuedCouponRepository-->>CouponService: 이미 존재
+        CouponService-->>Advice: 예외(쿠폰 중복 발급)
+        Advice-->>Customer: 409 충돌
+    else 발급 가능
+        CouponService->>IssuedCouponRepository: 발급 쿠폰 저장
+        IssuedCouponRepository-->>CouponService: 발급 쿠폰
+        CouponService-->>CouponFacade: 발급 쿠폰
+        CouponFacade-->>CustomerAPI: 발급 쿠폰
+        CustomerAPI-->>Customer: 201 생성됨
+    end
+
+    Customer->>CustomerAPI: 내 쿠폰 목록 조회
+    Note over CustomerAPI: 고객 인증 (§1 참조)
+    CustomerAPI->>CouponFacade: 내 쿠폰 조회
+    CouponFacade->>CouponService: 사용자별 발급 쿠폰 조회
+    CouponService->>IssuedCouponRepository: 사용자 ID 로 발급 쿠폰 조회
+    IssuedCouponRepository-->>CouponService: 발급 쿠폰 목록
+    Note over CouponService: AVAILABLE + expiredAt 경과 항목은 EXPIRED 표시 상태로 계산
+    CouponService-->>CouponFacade: 표시 상태가 포함된 쿠폰 목록
+    CouponFacade-->>CustomerAPI: 쿠폰 목록
+    CustomerAPI-->>Customer: 200 성공
+```
+
+관련 API:
+
+- `POST /api/v1/coupons/{couponId}/issue`
+- `GET /api/v1/users/me/coupons`
+
+핵심 포인트:
+
+- `CouponTemplate`은 관리자 정의이고, `IssuedCoupon`은 사용자 보유 상태다.
+- `issued_coupons(user_id, coupon_template_id)` unique 제약으로 중복 발급을 최종 차단한다.
+- `EXPIRED`는 저장 상태가 아니라 조회 응답을 만들 때 계산한 표시 상태다.
+- 발급 가능한 쿠폰 목록 조회(`GET /api/v1/coupons`)는 원문 필수 API가 아니므로 선택 확장 후보로 분리한다.
+
+## 13. User-J5 쿠폰 적용 주문
+
+쿠폰을 적용한 주문은 주문 생성, 재고 차감, 발급 쿠폰 사용 처리를 하나의 트랜잭션으로 묶는다.
+동일 발급 쿠폰으로 동시에 주문하더라도 한 주문만 성공해야 한다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant CustomerAPI
+    participant OrderFacade
+    participant ProductService
+    participant CouponService
+    participant IssuedCouponRepository
+    participant StockService
+    participant StockRepository
+    participant OrderService
+    participant OrderRepository
+    participant PaymentService
+    participant PaymentRepository
+    participant Advice as ApiControllerAdvice
+
+    Customer->>CustomerAPI: 주문 요청(items, couponId)
+    Note over CustomerAPI: 고객 인증 (§1 참조)
+    CustomerAPI->>OrderFacade: 쿠폰 적용 주문 처리
+    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·쿠폰·결제(REQUESTED) 요청 기록 원자성
+    OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
+    ProductService-->>OrderFacade: 상품명·단가·주문 가능 상태
+    OrderFacade->>CouponService: 발급 쿠폰 검증과 할인 계산
+    CouponService->>IssuedCouponRepository: 발급 쿠폰 조회 (낙관적 락 version 로드)
+    IssuedCouponRepository-->>CouponService: 발급 쿠폰 + 템플릿
+    alt 쿠폰 없음 또는 소유자 불일치
+        CouponService-->>Advice: 예외(쿠폰 없음)
+        Advice-->>Customer: 404 자원 없음
+    else 사용 불가 상태 또는 만료/최소 주문 금액 미달
+        CouponService-->>OrderFacade: 예외(쿠폰 사용 불가)
+        Note over OrderFacade: 트랜잭션 전체 롤백 — 재고와 주문 변경 없음
+        OrderFacade-->>Advice: 예외(쿠폰 사용 불가)
+        Advice-->>Customer: 409 충돌
+    else 쿠폰 사용 가능
+        CouponService-->>OrderFacade: 할인 금액
+        OrderFacade->>StockService: 재고 차감
+        Note over StockService: 상품 ID 정렬 순서로 PESSIMISTIC_WRITE 잠금 획득
+        StockService->>StockRepository: 정렬된 상품 ID 목록으로 재고 행 잠금 조회
+        StockRepository-->>StockService: 잠금된 재고 행
+        alt 재고 부족
+            StockService-->>OrderFacade: 예외(재고 부족)
+            Note over OrderFacade: 트랜잭션 전체 롤백 — 쿠폰도 USED로 변경되지 않음
+            OrderFacade-->>Advice: 예외(재고 부족)
+            Advice-->>Customer: 409 충돌
+        else 재고 충분
+            StockService->>StockRepository: 요청 수량만큼 차감
+            OrderFacade->>CouponService: 발급 쿠폰 사용 처리
+            CouponService->>IssuedCouponRepository: AVAILABLE 검증 후 USED 저장 (version 충돌 시 실패)
+            OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 + 할인 금액 + issuedCouponId)
+            OrderService-->>OrderFacade: 주문 정보
+            OrderFacade->>OrderRepository: 주문 저장
+            OrderRepository-->>OrderFacade: 저장 완료
+            OrderFacade->>PaymentService: 결제 요청 기록
+            PaymentService->>PaymentRepository: 결제 요청 기록 (REQUESTED)
+            Note over OrderFacade: TX1 commit — 외부 결제 승인/실패는 §3, §7 흐름에서 처리
+            OrderFacade-->>CustomerAPI: TX1 처리 결과
+            CustomerAPI-->>Customer: 결제 승인 후 201 또는 실패 응답
+        end
+    end
+```
+
+관련 API:
+
+- `POST /api/v1/orders`
+
+핵심 포인트:
+
+- 주문 요청의 쿠폰 필드는 외부 계약상 `couponId`이며, 내부에서는 발급 쿠폰 식별자 `issuedCouponId`로 매핑한다.
+- 발급 쿠폰은 비관적 락으로 잠그지 않고, 사용 가능(`AVAILABLE`) 상태를 검증한 뒤 `USED`로 전환하며 `version` 낙관적 락으로 동시 사용을 감지한다. 동일 쿠폰 동시 주문 중 하나만 성공하고 나머지는 version 충돌로 실패한다.
+- 여러 재고 행 잠금은 상품 ID 정렬 순서로 획득해 교착 가능성을 줄인다.
+- 쿠폰 검증, 재고 차감, 주문 저장, 결제 요청 기록 중 하나라도 실패하면 TX1 전체를 rollback한다.
+- TX1 이후 외부 결제 실패 보상은 §7의 후속 결제 연동 설계에서 다룬다. Round 4 구현 이슈는 결제 호출 전 쿠폰/재고/주문 원자성까지를 우선 범위로 둔다.
+
+## 14. Admin-J5 쿠폰 템플릿 운영
+
+관리자는 쿠폰 템플릿을 생성, 수정, soft delete하고 발급 이력을 조회한다.
+삭제된 템플릿은 신규 발급 대상에서 제외되지만 이미 발급된 쿠폰과 주문 스냅샷은 유지된다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant AdminAPI
+    participant CouponFacade
+    participant CouponService
+    participant CouponRepository
+    participant IssuedCouponRepository
+    participant Advice as ApiControllerAdvice
+
+    Admin->>AdminAPI: 쿠폰 템플릿 생성 요청
+    Note over AdminAPI: 관리자 인증 (§2 참조)
+    AdminAPI->>CouponFacade: 쿠폰 템플릿 생성
+    CouponFacade->>CouponService: 쿠폰 템플릿 생성
+    CouponService->>CouponRepository: 쿠폰 템플릿 저장
+    CouponRepository-->>CouponService: 쿠폰 템플릿
+    CouponService-->>CouponFacade: 쿠폰 템플릿
+    CouponFacade-->>AdminAPI: 쿠폰 템플릿
+    AdminAPI-->>Admin: 201 생성됨
+
+    Admin->>AdminAPI: 쿠폰 템플릿 수정 요청
+    Note over AdminAPI: 관리자 인증 (§2 참조)
+    AdminAPI->>CouponFacade: 쿠폰 템플릿 수정
+    CouponFacade->>CouponService: 쿠폰 템플릿 수정
+    alt 템플릿 없음 또는 삭제됨
+        CouponService-->>Advice: 예외(쿠폰 템플릿 없음)
+        Advice-->>Admin: 404 자원 없음
+    else 수정 가능
+        CouponService->>CouponRepository: 쿠폰 템플릿 저장
+        CouponRepository-->>CouponService: 수정된 템플릿
+        CouponService-->>CouponFacade: 수정된 템플릿
+        CouponFacade-->>AdminAPI: 수정된 템플릿
+        AdminAPI-->>Admin: 200 성공
+    end
+
+    Admin->>AdminAPI: 쿠폰 템플릿 삭제 요청
+    Note over AdminAPI: 관리자 인증 (§2 참조)
+    AdminAPI->>CouponFacade: 쿠폰 템플릿 삭제
+    CouponFacade->>CouponService: 쿠폰 템플릿 soft delete
+    CouponService->>CouponRepository: deletedAt 저장
+    CouponRepository-->>CouponService: 삭제된 템플릿
+    CouponService-->>CouponFacade: 처리 완료
+    CouponFacade-->>AdminAPI: 처리 완료
+    AdminAPI-->>Admin: 204 응답 본문 없음
+
+    Admin->>AdminAPI: 쿠폰 템플릿별 발급 이력 조회
+    Note over AdminAPI: 관리자 인증 (§2 참조)
+    AdminAPI->>CouponFacade: 발급 이력 조회
+    CouponFacade->>CouponService: 템플릿별 발급 쿠폰 조회
+    CouponService->>IssuedCouponRepository: couponTemplateId 로 발급 이력 조회
+    IssuedCouponRepository-->>CouponService: 발급 쿠폰 페이지
+    CouponService-->>CouponFacade: 발급 쿠폰 페이지
+    CouponFacade-->>AdminAPI: 발급 쿠폰 페이지
+    AdminAPI-->>Admin: 200 성공
+```
+
+관련 API:
+
+- `POST /api-admin/v1/coupons`
+- `PUT /api-admin/v1/coupons/{couponId}`
+- `DELETE /api-admin/v1/coupons/{couponId}`
+- `GET /api-admin/v1/coupons`
+- `GET /api-admin/v1/coupons/{couponId}`
+- `GET /api-admin/v1/coupons/{couponId}/issues`
+
+핵심 포인트:
+
+- 쿠폰 템플릿 삭제는 soft delete다.
+- 발급 쿠폰과 주문 할인 스냅샷은 템플릿 수정·삭제와 독립적으로 유지한다.
+- 관리자 쿠폰 변경 작업 로그가 필요해지면 `AdminOperationLog`의 대상 유형에 `COUPON_TEMPLATE`을 추가한다.

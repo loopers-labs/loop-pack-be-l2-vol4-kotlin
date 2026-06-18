@@ -20,7 +20,7 @@ class ProductModelTest {
         assertThat(product.brandId).isEqualTo(기본_브랜드_ID)
         assertThat(product.name.value).isEqualTo(기본_상품명)
         assertThat(product.price.value).isEqualTo(기본_가격)
-        assertThat(product.deletedAtOrNull).isNull()
+        assertThat(product.deletedAt).isNull()
     }
 
     @Test
@@ -60,7 +60,7 @@ class ProductModelTest {
         val deleted = product.delete()
         val deletedAgain = deleted.delete()
 
-        assertThat(deleted.deletedAtOrNull).isNotNull()
-        assertThat(deletedAgain.deletedAtOrNull).isEqualTo(deleted.deletedAtOrNull)
+        assertThat(deleted.deletedAt).isNotNull()
+        assertThat(deletedAgain.deletedAt).isEqualTo(deleted.deletedAt)
     }
 }

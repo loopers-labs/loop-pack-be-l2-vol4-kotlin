@@ -67,7 +67,7 @@ class ProductServiceIntegrationTest
             productService.softDelete(product.id)
 
             val ex = assertThrows<CoreException> {
-                productService.findById(product.id)
+                productService.getById(product.id)
             }
             assertThat(ex.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }

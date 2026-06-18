@@ -14,6 +14,8 @@ class OrderJpaEntity(
     var orderedUserId: Long,
     @Column(name = "idempotency_key", unique = true)
     var idempotencyKey: String? = null,
+    @Column(name = "issued_coupon_id")
+    var issuedCouponId: Long? = null,
     @Column(name = "total_price", nullable = false)
     var totalPrice: Long,
     @Column(name = "discount_price", nullable = false)
@@ -25,6 +27,7 @@ class OrderJpaEntity(
         id = id,
         orderedUserId = orderedUserId,
         idempotencyKey = idempotencyKey,
+        issuedCouponId = issuedCouponId,
         items = items,
         totalPrice = totalPrice,
         discountPrice = discountPrice,
@@ -35,6 +38,7 @@ class OrderJpaEntity(
         fun fromDomain(order: OrderModel): OrderJpaEntity = OrderJpaEntity(
             orderedUserId = order.orderedUserId,
             idempotencyKey = order.idempotencyKey,
+            issuedCouponId = order.issuedCouponId,
             totalPrice = order.totalPrice.value,
             discountPrice = order.discountPrice.value,
             paymentPrice = order.paymentPrice.value,

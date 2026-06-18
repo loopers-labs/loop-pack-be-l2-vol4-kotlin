@@ -6,26 +6,7 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface LikeJpaRepository : JpaRepository<LikeJpaEntity, LikeJpaId> {
-    fun existsByIdUserIdAndIdProductId(
-        userId: Long,
-        productId: Long,
-    ): Boolean
-
-    fun countByIdProductId(productId: Long): Long
-
-    @Query(
-        """
-        select l.id.productId as productId, count(l) as likeCount
-        from LikeJpaEntity l
-        where l.id.productId in :productIds
-        group by l.id.productId
-        """,
-    )
-    fun countByProductIds(
-        @Param("productIds") productIds: Set<Long>,
-    ): List<ProductLikeCountRow>
-
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query(
         value = """
             insert ignore into likes (user_id, product_id, created_at)
@@ -34,6 +15,19 @@ interface LikeJpaRepository : JpaRepository<LikeJpaEntity, LikeJpaId> {
         nativeQuery = true,
     )
     fun insertIgnore(
+        @Param("userId") userId: Long,
+        @Param("productId") productId: Long,
+    ): Int
+
+    @Modifying(clearAutomatically = true)
+    @Query(
+        value = """
+            delete from likes
+            where user_id = :userId and product_id = :productId
+        """,
+        nativeQuery = true,
+    )
+    fun deleteByUserIdAndProductId(
         @Param("userId") userId: Long,
         @Param("productId") productId: Long,
     ): Int

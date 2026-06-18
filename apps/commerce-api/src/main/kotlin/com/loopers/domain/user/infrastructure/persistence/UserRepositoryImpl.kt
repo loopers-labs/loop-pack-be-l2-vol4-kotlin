@@ -23,11 +23,11 @@ class UserRepositoryImpl(
             throw e
         }
 
-    override fun findById(id: Long): UserModel? = userJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
+    override fun findByIdOrNull(id: Long): UserModel? = userJpaRepository.findById(id).map { it.toDomain() }.orElse(null)
 
-    override fun findByLoginId(loginId: String): UserModel? = userJpaRepository.findByLoginId(loginId)?.toDomain()
+    override fun findByLoginIdOrNull(loginId: String): UserModel? = userJpaRepository.findByLoginId(loginId)?.toDomain()
 
-    override fun findByIdForUpdate(id: Long): UserModel? = userJpaRepository.findByIdForUpdate(id)?.toDomain()
+    override fun findByIdForUpdateOrNull(id: Long): UserModel? = userJpaRepository.findByIdForUpdate(id)?.toDomain()
 
     override fun updatePassword(id: Long, password: Password) {
         userJpaRepository.findById(id).orElseThrow().encodedPassword = password.encodedForPersistence()

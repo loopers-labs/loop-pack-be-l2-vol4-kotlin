@@ -62,4 +62,60 @@ class OrderRepositoryIntegrationTest
             assertThat(statistics.entityLoadCount).isZero()
             assertThat(statistics.entityInsertCount).isEqualTo(11L)
         }
+
+        @Test
+        fun `사용자_주문_목록_조회는_주문항목을_주문수만큼_조회하지_않는다`() {
+            val statistics = entityManagerFactory.unwrap(SessionFactory::class.java).statistics
+            repeat(3) { index ->
+                orderRepository.save(
+                    주문_도메인_생성(
+                        id = 0L,
+                        orderedUserId = 1L,
+                        items = listOf(
+                            주문항목_도메인_생성(productId = index * 10L + 1L, quantity = 1, unitPrice = 1_000),
+                            주문항목_도메인_생성(productId = index * 10L + 2L, quantity = 1, unitPrice = 2_000),
+                        ),
+                    ),
+                )
+            }
+
+            statistics.clear()
+            val orders = orderRepository.findByOrderedUserId(
+                orderedUserId = 1L,
+                startAt = null,
+                endAt = null,
+            )
+
+            assertThat(orders).hasSize(3)
+            assertThat(orders).allSatisfy { order ->
+                assertThat(order.items).hasSize(2)
+            }
+            assertThat(statistics.prepareStatementCount).isLessThanOrEqualTo(2L)
+        }
+
+        @Test
+        fun `관리자_주문_목록_조회는_주문항목을_주문수만큼_조회하지_않는다`() {
+            val statistics = entityManagerFactory.unwrap(SessionFactory::class.java).statistics
+            repeat(3) { index ->
+                orderRepository.save(
+                    주문_도메인_생성(
+                        id = 0L,
+                        orderedUserId = index + 1L,
+                        items = listOf(
+                            주문항목_도메인_생성(productId = index * 10L + 1L, quantity = 1, unitPrice = 1_000),
+                            주문항목_도메인_생성(productId = index * 10L + 2L, quantity = 1, unitPrice = 2_000),
+                        ),
+                    ),
+                )
+            }
+
+            statistics.clear()
+            val orders = orderRepository.findAll(page = 0, size = 20)
+
+            assertThat(orders).hasSize(3)
+            assertThat(orders).allSatisfy { order ->
+                assertThat(order.items).hasSize(2)
+            }
+            assertThat(statistics.prepareStatementCount).isLessThanOrEqualTo(2L)
+        }
     }

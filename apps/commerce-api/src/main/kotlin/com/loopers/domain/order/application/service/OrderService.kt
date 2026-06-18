@@ -5,10 +5,12 @@ import com.loopers.domain.order.model.OrderItemModel
 import com.loopers.domain.order.model.OrderModel
 import com.loopers.domain.order.port.OrderRepository
 import com.loopers.domain.product.exception.ProductDomainException
+import com.loopers.domain.product.vo.Money
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
 
 @Component
 class OrderService(
@@ -19,6 +21,8 @@ class OrderService(
         orderedUserId: Long,
         items: List<OrderItemModel>,
         idempotencyKey: String? = null,
+        issuedCouponId: Long? = null,
+        discountPrice: Money = Money.of(0),
     ): OrderModel =
         try {
             orderRepository.save(
@@ -26,6 +30,8 @@ class OrderService(
                     orderedUserId = orderedUserId,
                     items = items,
                     idempotencyKey = idempotencyKey,
+                    issuedCouponId = issuedCouponId,
+                    discountPrice = discountPrice,
                 ),
             )
         } catch (e: OrderDomainException) {
@@ -35,10 +41,26 @@ class OrderService(
         }
 
     @Transactional(readOnly = true)
-    fun findById(orderId: Long): OrderModel =
-        orderRepository.findById(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
+    fun getById(orderId: Long): OrderModel =
+        orderRepository.findByIdOrNull(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
 
     @Transactional(readOnly = true)
-    fun findByIdempotencyKey(idempotencyKey: String): OrderModel? =
-        orderRepository.findByIdempotencyKey(idempotencyKey)
+    fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel? =
+        orderRepository.findByIdempotencyKeyOrNull(idempotencyKey)
+
+    @Transactional(readOnly = true)
+    fun findByOrderedUserId(
+        orderedUserId: Long,
+        startAt: ZonedDateTime?,
+        endAt: ZonedDateTime?,
+    ): List<OrderModel> =
+        orderRepository.findByOrderedUserId(
+            orderedUserId = orderedUserId,
+            startAt = startAt,
+            endAt = endAt,
+        )
+
+    @Transactional(readOnly = true)
+    fun findAll(page: Int, size: Int): List<OrderModel> =
+        orderRepository.findAll(page, size)
 }

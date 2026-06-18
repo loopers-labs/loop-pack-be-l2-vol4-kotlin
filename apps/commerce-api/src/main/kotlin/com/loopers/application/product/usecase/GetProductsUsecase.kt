@@ -1,5 +1,6 @@
 package com.loopers.application.product.usecase
 
+import com.loopers.application.product.ProductCacheRepository
 import com.loopers.application.product.ProductInfo
 import com.loopers.application.product.ProductPageInfo
 import com.loopers.domain.brand.BrandRepository
@@ -17,11 +18,15 @@ class GetProductsUsecase(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
     private val productStockRepository: ProductStockRepository,
+    private val productCacheRepository: ProductCacheRepository,
 ) {
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
     fun execute(query: Query): ProductPageInfo {
+        val cacheQuery = query.toCacheQuery()
+        productCacheRepository.getList(cacheQuery)?.let { return it }
+
         val page = productRepository.findActiveAll(
             brandId = query.brandId,
             sort = query.sort,
@@ -49,6 +54,7 @@ class GetProductsUsecase(
             totalCount = page.totalElements,
             totalPages = page.totalPages,
         )
+        productCacheRepository.putList(cacheQuery, productPageInfo)
         return productPageInfo
     }
 
@@ -61,6 +67,15 @@ class GetProductsUsecase(
         init {
             if (page < 0) throw CoreException(ErrorType.BAD_REQUEST, "페이지 번호는 0 이상이어야 합니다.")
             if (size !in 1..100) throw CoreException(ErrorType.BAD_REQUEST, "페이지 크기는 1 이상 100 이하여야 합니다.")
+        }
+
+        fun toCacheQuery(): ProductCacheRepository.ProductListCacheQuery {
+            return ProductCacheRepository.ProductListCacheQuery(
+                brandId = brandId,
+                sort = sort,
+                page = page,
+                size = size,
+            )
         }
     }
 }

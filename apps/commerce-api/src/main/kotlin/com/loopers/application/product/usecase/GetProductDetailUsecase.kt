@@ -1,5 +1,6 @@
 package com.loopers.application.product.usecase
 
+import com.loopers.application.product.ProductCacheRepository
 import com.loopers.application.product.ProductInfo
 import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.ProductCatalogDomainService
@@ -15,11 +16,14 @@ class GetProductDetailUsecase(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
     private val productStockRepository: ProductStockRepository,
+    private val productCacheRepository: ProductCacheRepository,
 ) {
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
     fun execute(productId: Long): ProductInfo {
+        productCacheRepository.getDetail(productId)?.let { return it }
+
         val product = productRepository.findActiveById(productId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
         val brand = brandRepository.findActiveById(product.brandId)
@@ -27,7 +31,9 @@ class GetProductDetailUsecase(
 
         val stockQuantity = productStockRepository.findByProductId(productId)?.quantity ?: 0
 
-        return productCatalogDomainService.getDetail(product = product, brand = brand)
+        val productInfo = productCatalogDomainService.getDetail(product = product, brand = brand)
             .let { ProductInfo.from(it, stockQuantity) }
+        productCacheRepository.putDetail(productId = productId, product = productInfo)
+        return productInfo
     }
 }

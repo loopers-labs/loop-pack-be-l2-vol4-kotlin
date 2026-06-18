@@ -62,7 +62,6 @@ class ProductCatalogDomainServiceTest {
             description = "Product",
             price = BigDecimal("1000.00"),
             likeCount = likeCount,
-            stockQuantity = 10,
         )
     }
 }

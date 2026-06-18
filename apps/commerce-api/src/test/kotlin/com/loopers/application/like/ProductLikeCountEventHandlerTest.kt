@@ -55,7 +55,6 @@ class ProductLikeCountEventHandlerTest {
                     name = "Air Max",
                     description = "Shoes",
                     price = BigDecimal("120000.00"),
-                    stockQuantity = 10,
                 ).withId(10L),
             )
         }
@@ -79,6 +78,14 @@ class ProductLikeCountEventHandlerTest {
 
         override fun existsActiveById(id: Long): Boolean {
             return findActiveById(id) != null
+        }
+
+        override fun incrementLikeCount(productId: Long) {
+            findActiveById(productId)?.incrementLikeCount()
+        }
+
+        override fun decrementLikeCount(productId: Long) {
+            findActiveById(productId)?.decrementLikeCount()
         }
     }
 }

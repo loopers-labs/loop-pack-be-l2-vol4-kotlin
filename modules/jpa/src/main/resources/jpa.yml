@@ -58,7 +58,9 @@ spring:
 datasource:
   mysql-jpa:
     main:
-      maximum-pool-size: 10
+      # 동시성 테스트(스레드 10개)에서 AFTER_COMMIT + REQUIRES_NEW 리스너가
+      # 원본 트랜잭션 커넥션을 쥔 채 새 커넥션을 요청하므로, 풀은 동시 요청 수의 2배 이상이어야 한다.
+      maximum-pool-size: 20
       minimum-idle: 5
 
 ---

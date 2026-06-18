@@ -19,7 +19,7 @@ data class ProductInfo(
     )
 
     companion object {
-        fun from(detail: ProductDetail): ProductInfo {
+        fun from(detail: ProductDetail, stockQuantity: Int): ProductInfo {
             return ProductInfo(
                 id = detail.product.id,
                 brand = Brand(
@@ -30,7 +30,7 @@ data class ProductInfo(
                 name = detail.product.name,
                 description = detail.product.description,
                 price = detail.product.price,
-                stockQuantity = detail.product.stockQuantity,
+                stockQuantity = stockQuantity,
                 likeCount = detail.product.likeCount,
             )
         }

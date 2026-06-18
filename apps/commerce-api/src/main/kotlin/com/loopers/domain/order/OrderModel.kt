@@ -31,6 +31,18 @@ class OrderModel(
     var totalPrice: BigDecimal = BigDecimal.ZERO
         protected set
 
+    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
+    var discountAmount: BigDecimal = BigDecimal.ZERO
+        protected set
+
+    @Column(name = "paid_price", nullable = false, precision = 12, scale = 2)
+    var paidPrice: BigDecimal = BigDecimal.ZERO
+        protected set
+
+    @Column(name = "user_coupon_id")
+    var userCouponId: Long? = null
+        protected set
+
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     private val mutableItems: MutableList<OrderItemModel> = mutableListOf()
 
@@ -43,6 +55,7 @@ class OrderModel(
 
         items.forEach { addItem(it) }
         totalPrice = mutableItems.fold(BigDecimal.ZERO) { acc, item -> acc + item.subtotal() }
+        paidPrice = totalPrice
     }
 
     fun markAsPaid() {
@@ -61,6 +74,15 @@ class OrderModel(
 
     fun isPaid(): Boolean {
         return status == OrderStatus.PAID
+    }
+
+    fun applyCoupon(userCouponId: Long, discountAmount: BigDecimal) {
+        if (status != OrderStatus.PENDING) throw CoreException(ErrorType.BAD_REQUEST, "쿠폰을 적용할 수 없는 주문 상태입니다.")
+        if (discountAmount < BigDecimal.ZERO) throw CoreException(ErrorType.BAD_REQUEST, "할인 금액은 음수일 수 없습니다.")
+        if (discountAmount > totalPrice) throw CoreException(ErrorType.BAD_REQUEST, "할인 금액은 주문 금액을 초과할 수 없습니다.")
+        this.userCouponId = userCouponId
+        this.discountAmount = discountAmount
+        this.paidPrice = totalPrice - discountAmount
     }
 
     private fun addItem(item: OrderItemModel) {

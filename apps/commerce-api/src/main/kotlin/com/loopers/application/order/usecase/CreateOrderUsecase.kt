@@ -2,6 +2,8 @@ package com.loopers.application.order.usecase
 
 import com.loopers.application.order.OrderCommand
 import com.loopers.application.order.OrderInfo
+import com.loopers.domain.coupon.CouponRepository
+import com.loopers.domain.coupon.UserCouponRepository
 import com.loopers.domain.order.OrderDomainService
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.product.ProductRepository
@@ -11,12 +13,15 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
 
 @Component
 class CreateOrderUsecase(
     private val userService: UserService,
     private val productRepository: ProductRepository,
     private val productStockRepository: ProductStockRepository,
+    private val couponRepository: CouponRepository,
+    private val userCouponRepository: UserCouponRepository,
     private val orderRepository: OrderRepository,
 ) {
     private val orderDomainService = OrderDomainService()
@@ -24,10 +29,11 @@ class CreateOrderUsecase(
     @Transactional
     fun execute(command: OrderCommand): OrderInfo {
         val user = userService.getProfile(loginId = command.loginId, password = command.password)
-        val orderProducts = command.items.map { item ->
+        val couponApplication = command.couponId?.let { findCouponApplication(userCouponId = it, userId = user.id) }
+        val orderProducts = command.items.sortedBy { it.productId }.map { item ->
             val product = productRepository.findActiveById(item.productId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
-            val stock = productStockRepository.findByProductId(item.productId)
+            val stock = productStockRepository.findByProductIdForUpdate(item.productId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "상품 재고를 찾을 수 없습니다.")
 
             OrderDomainService.OrderProduct(
@@ -37,8 +43,21 @@ class CreateOrderUsecase(
             )
         }
 
-        return orderDomainService.create(userId = user.id, items = orderProducts)
+        return orderDomainService.create(
+            userId = user.id,
+            items = orderProducts,
+            couponApplication = couponApplication,
+            now = ZonedDateTime.now(),
+        )
             .let { orderRepository.save(it) }
             .let { OrderInfo.from(it) }
+    }
+
+    private fun findCouponApplication(userCouponId: Long, userId: Long): OrderDomainService.CouponApplication {
+        val userCoupon = userCouponRepository.findByIdAndUserId(id = userCouponId, userId = userId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다.")
+        val coupon = couponRepository.findActiveById(userCoupon.couponId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "쿠폰을 찾을 수 없습니다.")
+        return OrderDomainService.CouponApplication(coupon = coupon, userCoupon = userCoupon)
     }
 }

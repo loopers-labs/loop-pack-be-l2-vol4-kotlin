@@ -6,11 +6,18 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.math.BigDecimal
 
 @Entity
-@Table(name = "products")
+@Table(
+    name = "products",
+    indexes = [
+        Index(name = "idx_products_brand_deleted_likes_id", columnList = "brand_id, deleted_at, like_count, id"),
+        Index(name = "idx_products_deleted_likes_id", columnList = "deleted_at, like_count, id"),
+    ],
+)
 class ProductModel(
     brandId: Long,
     name: String,

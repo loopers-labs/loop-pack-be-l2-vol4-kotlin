@@ -1,6 +1,7 @@
 package com.loopers.application.product.usecase
 
 import com.loopers.application.product.ProductInfo
+import com.loopers.application.product.ProductPageInfo
 import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.ProductCatalogDomainService
 import com.loopers.domain.product.ProductRepository
@@ -20,8 +21,13 @@ class GetProductsUsecase(
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
-    fun execute(query: Query): List<ProductInfo> {
-        val products = productRepository.findActiveAll(brandId = query.brandId, sort = query.sort)
+    fun execute(query: Query): ProductPageInfo {
+        val page = productRepository.findActiveAll(
+            brandId = query.brandId,
+            sort = query.sort,
+            pageable = query.sort.toPageable(page = query.page, size = query.size),
+        )
+        val products = page.content
         val brandsById = products
             .map { it.brandId }
             .distinct()
@@ -33,12 +39,28 @@ class GetProductsUsecase(
         val stockByProductId = productStockRepository.findAllByProductIdIn(products.map { it.id })
             .associate { it.productId to it.quantity }
 
-        return productCatalogDomainService.getDetails(products = products, brandsById = brandsById)
+        val items = productCatalogDomainService.getDetails(products = products, brandsById = brandsById)
             .map { ProductInfo.from(it, stockByProductId[it.product.id] ?: 0) }
+
+        val productPageInfo = ProductPageInfo(
+            items = items,
+            page = page.number,
+            size = page.size,
+            totalCount = page.totalElements,
+            totalPages = page.totalPages,
+        )
+        return productPageInfo
     }
 
     data class Query(
         val brandId: Long? = null,
         val sort: ProductSort = ProductSort.LATEST,
-    )
+        val page: Int = 0,
+        val size: Int = 20,
+    ) {
+        init {
+            if (page < 0) throw CoreException(ErrorType.BAD_REQUEST, "페이지 번호는 0 이상이어야 합니다.")
+            if (size !in 1..100) throw CoreException(ErrorType.BAD_REQUEST, "페이지 크기는 1 이상 100 이하여야 합니다.")
+        }
+    }
 }

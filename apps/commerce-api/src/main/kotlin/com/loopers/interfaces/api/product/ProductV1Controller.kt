@@ -20,13 +20,17 @@ class ProductV1Controller(
     fun getProducts(
         @RequestParam(required = false) brandId: Long?,
         @RequestParam(required = false) sort: String?,
-    ): ApiResponse<List<ProductV1Dto.ProductResponse>> {
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): ApiResponse<ProductV1Dto.ProductPageResponse> {
         return getProductsUsecase.execute(
             GetProductsUsecase.Query(
                 brandId = brandId,
                 sort = ProductSort.from(sort),
+                page = page,
+                size = size,
             ),
-        ).map { ProductV1Dto.ProductResponse.from(it) }
+        ).let { ProductV1Dto.ProductPageResponse.from(it) }
             .let { ApiResponse.success(it) }
     }
 

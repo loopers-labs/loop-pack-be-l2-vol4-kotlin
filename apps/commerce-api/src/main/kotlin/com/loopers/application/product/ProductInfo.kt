@@ -36,3 +36,11 @@ data class ProductInfo(
         }
     }
 }
+
+data class ProductPageInfo(
+    val items: List<ProductInfo>,
+    val page: Int,
+    val size: Int,
+    val totalCount: Long,
+    val totalPages: Int,
+)

@@ -22,6 +22,9 @@ dependencies {
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))
 
+    // practice: standalone MySQL testcontainer (프로젝트와 무관한 연습용)
+    testImplementation("org.testcontainers:mysql")
+
     // archunit
     testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
 }

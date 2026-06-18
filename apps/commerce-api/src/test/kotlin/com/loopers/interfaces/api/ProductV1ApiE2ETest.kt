@@ -1,11 +1,14 @@
 package com.loopers.interfaces.api
 
 import com.loopers.application.product.CreateProductCommand
+import com.loopers.application.product.UpdateProductCommand
 import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.like.LikeService
+import com.loopers.interfaces.api.like.LikeApplicationServicePort
 import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -28,7 +31,9 @@ class ProductV1ApiE2ETest @Autowired constructor(
     private val brandRepositoryPort: BrandRepositoryPort,
     private val productApplicationService: ProductAdminApplicationServicePort,
     private val likeService: LikeService,
+    private val likeApplicationService: LikeApplicationServicePort,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     companion object {
         private const val PRODUCT_ENDPOINT = "/api/v1/products"
@@ -37,6 +42,7 @@ class ProductV1ApiE2ETest @Autowired constructor(
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     private fun getProduct(id: Long): org.springframework.http.ResponseEntity<ApiResponse<Any>> {
@@ -230,6 +236,63 @@ class ProductV1ApiE2ETest @Autowired constructor(
                 { assertThat((data?.get("totalElements") as? Number)?.toLong()).isEqualTo(5L) },
                 { assertThat((data?.get("totalPages") as? Number)?.toInt()).isEqualTo(3) },
             )
+        }
+    }
+
+    @DisplayName("상품 상세 캐싱 (Redis)")
+    @Nested
+    inner class DetailCaching {
+
+        @DisplayName("동일 상품을 두 번 조회해도 같은 응답을 반환한다(캐시 경유).")
+        @Test
+        fun returnsSameDetail_onRepeatedReads() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productApplicationService.createProduct(
+                CreateProductCommand(name = "에어맥스", price = 100000L, description = "d", brandId = brand.id, quantity = 30),
+            )
+
+            val first = getProduct(detail.id).body?.data as? Map<*, *>
+            val second = getProduct(detail.id).body?.data as? Map<*, *>
+
+            assertThat(second).isEqualTo(first)
+            assertThat(second?.get("name")).isEqualTo("에어맥스")
+        }
+
+        @DisplayName("상품을 수정하면 캐시가 무효화되어 다음 조회에 최신 값이 반영된다.")
+        @Test
+        fun reflectsUpdate_afterEviction() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productApplicationService.createProduct(
+                CreateProductCommand(name = "old", price = 100L, description = "d", brandId = brand.id, quantity = 30),
+            )
+            getProduct(detail.id) // 캐시 적재
+
+            productApplicationService.updateProduct(
+                UpdateProductCommand(id = detail.id, name = "new", price = 999L, description = "d2", brandId = brand.id, quantity = 30),
+            )
+
+            val data = getProduct(detail.id).body?.data as? Map<*, *>
+            assertAll(
+                { assertThat(data?.get("name")).isEqualTo("new") },
+                { assertThat((data?.get("price") as? Number)?.toLong()).isEqualTo(999L) },
+            )
+        }
+
+        @DisplayName("정적 필드는 캐시되어도 likeCount는 실시간으로 반영된다(변동 필드 분리).")
+        @Test
+        fun likeCountIsRealtime_evenWhenStaticCached() {
+            val brand = brandRepositoryPort.save(Brand.create(name = "Nike", description = "x"))
+            val detail = productApplicationService.createProduct(
+                CreateProductCommand(name = "p", price = 100L, description = "d", brandId = brand.id, quantity = 30),
+            )
+
+            val before = getProduct(detail.id).body?.data as? Map<*, *>
+            assertThat((before?.get("likeCount") as? Number)?.toLong()).isEqualTo(0L)
+
+            likeApplicationService.like(userId = 1L, productId = detail.id) // 상품 정적 캐시는 건드리지 않음
+
+            val after = getProduct(detail.id).body?.data as? Map<*, *>
+            assertThat((after?.get("likeCount") as? Number)?.toLong()).isEqualTo(1L)
         }
     }
 }

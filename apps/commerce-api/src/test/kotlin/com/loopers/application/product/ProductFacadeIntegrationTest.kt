@@ -8,6 +8,7 @@ import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.stock.StockJpaEntity
 import com.loopers.infrastructure.stock.StockJpaRepository
+import com.loopers.projection.product.ProductLikeCountQueryRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.paging.PageCondition
@@ -28,6 +29,7 @@ class ProductFacadeIntegrationTest @Autowired constructor(
     private val brandJpaRepository: BrandJpaRepository,
     private val productJpaRepository: ProductJpaRepository,
     private val stockJpaRepository: StockJpaRepository,
+    private val productLikeCountQueryRepository: ProductLikeCountQueryRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -54,12 +56,17 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             )
 
             // assert
+            val plcRow = productLikeCountQueryRepository.findById(product.id!!).orElse(null)
             assertAll(
                 { assertThat(product.id).isNotNull() },
                 { assertThat(product.brandId).isEqualTo(brand.id) },
                 { assertThat(product.name).isEqualTo("Loopers T-Shirt") },
                 { assertThat(product.stock).isEqualTo(10) },
                 { assertThat(product.soldOut).isFalse() },
+                { assertThat(plcRow).isNotNull() },
+                { assertThat(plcRow.productId).isEqualTo(product.id) },
+                { assertThat(plcRow.brandId).isEqualTo(brand.id) },
+                { assertThat(plcRow.likeCount).isEqualTo(0) },
             )
         }
 
@@ -94,12 +101,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
 
             // assert
             assertAll(
-                { assertThat(detail.product.id).isEqualTo(product.id) },
-                { assertThat(detail.product.name).isEqualTo("Loopers T-Shirt") },
-                { assertThat(detail.product.stock).isEqualTo(0) },
-                { assertThat(detail.product.soldOut).isTrue() },
-                { assertThat(detail.brand.id).isEqualTo(brand.id) },
-                { assertThat(detail.brand.name).isEqualTo("Loopers") },
+                { assertThat(detail.id).isEqualTo(product.id) },
+                { assertThat(detail.name).isEqualTo("Loopers T-Shirt") },
+                { assertThat(detail.brandName).isEqualTo("Loopers") },
+                { assertThat(detail.stock).isEqualTo(0) },
+                { assertThat(detail.soldOut).isTrue() },
             )
         }
     }
@@ -217,9 +223,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
             // assert
             val deletedProduct = productJpaRepository.findById(product.id).orElseThrow()
             val activeStock = stockJpaRepository.findByProductIdAndDeletedAtIsNull(product.id)
+            val plcRow = productLikeCountQueryRepository.findById(product.id).orElse(null)
             assertAll(
                 { assertThat(deletedProduct.deletedAt).isNotNull() },
                 { assertThat(activeStock).isNull() },
+                { assertThat(plcRow).isNull() },
             )
         }
     }
@@ -239,13 +247,11 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        likeCount = likeCount,
     )
 
     private fun saveProductWithStock(
@@ -254,7 +260,6 @@ class ProductFacadeIntegrationTest @Autowired constructor(
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
         stock: Int = 10,
-        likeCount: Int = 0,
     ): ProductJpaEntity {
         val product = productJpaRepository.save(
             newProductJpaEntity(
@@ -262,10 +267,16 @@ class ProductFacadeIntegrationTest @Autowired constructor(
                 name = name,
                 description = description,
                 price = price,
-                likeCount = likeCount,
             ),
         )
         stockJpaRepository.save(StockJpaEntity(productId = product.id, quantity = stock))
+        productLikeCountQueryRepository.save(
+            com.loopers.projection.product.ProductLikeCountProjectionEntity(
+                productId = product.id,
+                brandId = brandId,
+                likeCount = 0,
+            ),
+        )
         return product
     }
 }

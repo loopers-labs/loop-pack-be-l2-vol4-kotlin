@@ -7,8 +7,8 @@ import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.stock.StockJpaEntity
 import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.interfaces.api.product.ProductV1Dto
-import com.loopers.query.product.ProductLikeCountProjectionEntity
-import com.loopers.query.product.ProductLikeCountQueryRepository
+import com.loopers.projection.product.ProductLikeCountProjectionEntity
+import com.loopers.projection.product.ProductLikeCountQueryRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach

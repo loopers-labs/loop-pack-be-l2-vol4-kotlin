@@ -39,5 +39,19 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Worktrees ###
+.worktrees/
+
 ### Mac ###
 .DS_STORE
+
+### Local Docker seed data ###
+/docker/mysql/generated/*.csv
+!/docker/mysql/generated/.gitkeep
+
+### Local performance results ###
+/performance/results/*.json
+/performance/results/*.txt
+/performance/results/*.log
+/performance/results/*.stderr
+!/performance/results/.gitkeep

@@ -1,6 +1,7 @@
 package com.loopers.support.auth
 
 import com.loopers.domain.user.User
+import com.loopers.domain.user.UserRole
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -34,6 +35,7 @@ class CurrentUserArgumentResolverTest {
             name = "홍길동",
             birthdate = LocalDate.of(1990, 1, 1),
             email = "user@example.com",
+            role = UserRole.CONSUMER,
         )
         val request = MockHttpServletRequest().apply {
             setAttribute(AuthenticationInterceptor.CURRENT_USER_KEY, user)

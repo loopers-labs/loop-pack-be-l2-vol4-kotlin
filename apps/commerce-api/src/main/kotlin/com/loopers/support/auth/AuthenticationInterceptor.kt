@@ -2,6 +2,7 @@ package com.loopers.support.auth
 
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.UserService
+import com.loopers.domain.user.UserRole
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.servlet.http.HttpServletRequest
@@ -17,19 +18,34 @@ class AuthenticationInterceptor(
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         if (handler !is HandlerMethod) return true
 
+        val requiresAdmin =
+            handler.method.isAnnotationPresent(Admin::class.java) ||
+                handler.beanType.isAnnotationPresent(Admin::class.java)
         val requiresLogin =
             handler.method.isAnnotationPresent(LoginRequired::class.java) ||
-                handler.beanType.isAnnotationPresent(LoginRequired::class.java)
-        if (!requiresLogin) return true
+                handler.beanType.isAnnotationPresent(LoginRequired::class.java) ||
+                requiresAdmin
 
         val loginId = request.getHeader(LOGIN_ID_HEADER)
         val loginPw = request.getHeader(LOGIN_PW_HEADER)
+        if (!requiresLogin) {
+            if (loginId.isNullOrBlank() && loginPw.isNullOrBlank()) return true
+            if (loginId.isNullOrBlank() || loginPw.isNullOrBlank()) {
+                throw CoreException(ErrorType.UNAUTHORIZED, "인증 헤더가 필요합니다.")
+            }
+            request.setAttribute(CURRENT_USER_KEY, userService.authenticate(loginId, RawPassword(loginPw)))
+            return true
+        }
+
         if (loginId.isNullOrBlank() || loginPw.isNullOrBlank()) {
             throw CoreException(ErrorType.UNAUTHORIZED, "인증 헤더가 필요합니다.")
         }
 
         val user = userService.authenticate(loginId, RawPassword(loginPw))
         request.setAttribute(CURRENT_USER_KEY, user)
+        if (requiresAdmin && user.role != UserRole.ADMIN) {
+            throw CoreException(ErrorType.FORBIDDEN, "Admin role is required.")
+        }
         return true
     }
 

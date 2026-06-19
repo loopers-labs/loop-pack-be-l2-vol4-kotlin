@@ -4,6 +4,7 @@ import com.loopers.domain.user.FakePasswordEncoder
 import com.loopers.domain.user.FakeUserRepository
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.UserCommand
+import com.loopers.domain.user.UserRole
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -26,9 +27,38 @@ class AuthenticationInterceptorTest {
     private fun req(): MockHttpServletRequest = MockHttpServletRequest()
     private fun resp(): HttpServletResponse = MockHttpServletResponse()
 
+    private fun registerConsumer() {
+        userService.register(
+            UserCommand.Register(
+                loginId = "loopers01",
+                rawPassword = RawPassword("abcd1234"),
+                name = "Consumer",
+                birthdate = LocalDate.of(1990, 1, 1),
+                email = "user@example.com",
+            ),
+        )
+    }
+
     private fun handlerMethodFor(methodName: String): HandlerMethod {
         val method = TestController::class.java.getDeclaredMethod(methodName)
         return HandlerMethod(TestController(), method)
+    }
+
+    private fun adminClassHandlerMethod(): HandlerMethod {
+        val method = AdminClassController::class.java.getDeclaredMethod("adminClassAction")
+        return HandlerMethod(AdminClassController(), method)
+    }
+
+    private fun registerAdmin() {
+        userService.registerAdmin(
+            UserCommand.Register(
+                loginId = "admin01",
+                rawPassword = RawPassword("admin1234"),
+                name = "Admin",
+                birthdate = LocalDate.of(1988, 8, 8),
+                email = "admin@example.com",
+            ),
+        )
     }
 
     @Suppress("unused")
@@ -36,7 +66,16 @@ class AuthenticationInterceptorTest {
         @LoginRequired
         fun protectedAction() = Unit
 
+        @Admin
+        fun adminAction() = Unit
+
         fun publicAction() = Unit
+    }
+
+    @Suppress("unused")
+    @Admin
+    class AdminClassController {
+        fun adminClassAction() = Unit
     }
 
     @DisplayName("handler 가 HandlerMethod 가 아니면, true 를 반환하고 통과시킨다.")
@@ -89,5 +128,62 @@ class AuthenticationInterceptorTest {
         val stashed = request.getAttribute(AuthenticationInterceptor.CURRENT_USER_KEY) as? com.loopers.domain.user.User
         assertThat(stashed).isNotNull()
         assertThat(stashed!!.loginId).isEqualTo("loopers01")
+    }
+
+    @DisplayName("@Admin with missing headers throws UNAUTHORIZED.")
+    @Test
+    fun throwsUnauthorizedWhenHeadersMissingOnAdminEndpoint() {
+        val ex = assertThrows<CoreException> {
+            interceptor.preHandle(req(), resp(), handlerMethodFor("adminAction"))
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.UNAUTHORIZED)
+    }
+
+    @DisplayName("@Admin with a CONSUMER user throws FORBIDDEN.")
+    @Test
+    fun throwsForbiddenWhenConsumerUsesAdminEndpoint() {
+        registerConsumer()
+        val request = req().apply {
+            addHeader("X-Loopers-LoginId", "loopers01")
+            addHeader("X-Loopers-LoginPw", "abcd1234")
+        }
+
+        val ex = assertThrows<CoreException> {
+            interceptor.preHandle(request, resp(), handlerMethodFor("adminAction"))
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.FORBIDDEN)
+    }
+
+    @DisplayName("@Admin with an ADMIN user authenticates and stashes the user.")
+    @Test
+    fun authenticatesAndStashesAdminOnAdminEndpoint() {
+        registerAdmin()
+        val request = req().apply {
+            addHeader("X-Loopers-LoginId", "admin01")
+            addHeader("X-Loopers-LoginPw", "admin1234")
+        }
+
+        val result = interceptor.preHandle(request, resp(), handlerMethodFor("adminAction"))
+
+        assertThat(result).isTrue()
+        val stashed = request.getAttribute(AuthenticationInterceptor.CURRENT_USER_KEY) as? com.loopers.domain.user.User
+        assertThat(stashed).isNotNull()
+        assertThat(stashed!!.role).isEqualTo(UserRole.ADMIN)
+    }
+
+    @DisplayName("@Admin on a class protects all handler methods in that class.")
+    @Test
+    fun supportsAdminClassAnnotation() {
+        registerAdmin()
+        val request = req().apply {
+            addHeader("X-Loopers-LoginId", "admin01")
+            addHeader("X-Loopers-LoginPw", "admin1234")
+        }
+
+        val result = interceptor.preHandle(request, resp(), adminClassHandlerMethod())
+
+        assertThat(result).isTrue()
     }
 }

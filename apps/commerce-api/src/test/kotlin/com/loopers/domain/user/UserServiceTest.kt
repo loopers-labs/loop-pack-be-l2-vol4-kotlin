@@ -34,8 +34,57 @@ class UserServiceTest {
             assertAll(
                 { assertThat(saved.id).isNotZero() },
                 { assertThat(saved.loginId).isEqualTo("loopers01") },
+                { assertThat(saved.role).isEqualTo(UserRole.CONSUMER) },
                 { assertThat(repository.findByLoginId("loopers01")).isNotNull() },
             )
+        }
+
+        @DisplayName("registerAdmin creates an ADMIN user.")
+        @Test
+        fun registerAdminCreatesAdminUser() {
+            val saved = service.registerAdmin(
+                UserCommand.Register(
+                    loginId = "admin01",
+                    rawPassword = RawPassword("abcd1234"),
+                    name = "Admin",
+                    birthdate = LocalDate.of(1988, 8, 8),
+                    email = "admin@example.com",
+                ),
+            )
+
+            assertAll(
+                { assertThat(saved.id).isNotZero() },
+                { assertThat(saved.loginId).isEqualTo("admin01") },
+                { assertThat(saved.role).isEqualTo(UserRole.ADMIN) },
+            )
+        }
+
+        @DisplayName("registerAdmin reuses the same loginId uniqueness rule.")
+        @Test
+        fun registerAdminThrowsConflictWhenLoginIdAlreadyExists() {
+            service.register(
+                UserCommand.Register(
+                    loginId = "loopers01",
+                    rawPassword = RawPassword("abcd1234"),
+                    name = "Consumer",
+                    birthdate = LocalDate.of(1990, 1, 1),
+                    email = "user@example.com",
+                ),
+            )
+
+            val ex = assertThrows<CoreException> {
+                service.registerAdmin(
+                    UserCommand.Register(
+                        loginId = "loopers01",
+                        rawPassword = RawPassword("wxyz5678"),
+                        name = "Admin",
+                        birthdate = LocalDate.of(1988, 8, 8),
+                        email = "admin@example.com",
+                    ),
+                )
+            }
+
+            assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
         }
 
         @DisplayName("User 의 encryptedPassword 는 평문이 아닌 인코더가 만든 해시이다.")

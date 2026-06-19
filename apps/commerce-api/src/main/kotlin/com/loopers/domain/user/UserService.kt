@@ -13,7 +13,12 @@ class UserService(
     private val passwordEncoder: PasswordEncoder,
 ) {
     @Transactional
-    fun register(command: UserCommand.Register): User {
+    fun register(command: UserCommand.Register): User = register(command, UserRole.CONSUMER)
+
+    @Transactional
+    fun registerAdmin(command: UserCommand.Register): User = register(command, UserRole.ADMIN)
+
+    private fun register(command: UserCommand.Register, role: UserRole): User {
         if (userRepository.existsByLoginId(command.loginId)) {
             throw CoreException(ErrorType.CONFLICT, "이미 사용 중인 loginId 입니다.")
         }
@@ -24,6 +29,7 @@ class UserService(
             name = command.name,
             birthdate = command.birthdate,
             email = command.email,
+            role = role,
         )
         return userRepository.save(user)
     }

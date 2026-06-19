@@ -1,5 +1,6 @@
 package com.loopers.support.openapi
 
+import com.loopers.support.auth.Admin
 import com.loopers.support.auth.AuthenticationInterceptor
 import com.loopers.support.auth.CurrentUser
 import com.loopers.support.auth.LoginRequired
@@ -55,7 +56,9 @@ class OpenApiConfig {
 
     private fun HandlerMethod.requiresLogin(): Boolean =
         method.isAnnotationPresent(LoginRequired::class.java) ||
-            beanType.isAnnotationPresent(LoginRequired::class.java)
+            beanType.isAnnotationPresent(LoginRequired::class.java) ||
+            method.isAnnotationPresent(Admin::class.java) ||
+            beanType.isAnnotationPresent(Admin::class.java)
 
     companion object {
         private const val LOGIN_ID_SCHEME = "LoginId"

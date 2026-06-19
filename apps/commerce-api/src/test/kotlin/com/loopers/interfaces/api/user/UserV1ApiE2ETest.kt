@@ -1,5 +1,9 @@
 package com.loopers.interfaces.api.user
 
+import com.loopers.domain.user.PasswordEncoder
+import com.loopers.domain.user.RawPassword
+import com.loopers.domain.user.User
+import com.loopers.domain.user.UserRole
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
@@ -17,12 +21,14 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class UserV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userJpaRepository: UserJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val passwordEncoder: PasswordEncoder,
 ) {
     @AfterEach
     fun tearDown() {
@@ -51,6 +57,7 @@ class UserV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.loginId).isEqualTo("loopers01") },
                 { assertThat(response.body?.data?.name).isEqualTo("홍길*") },
                 { assertThat(response.body?.data?.email).isEqualTo("user@example.com") },
+                { assertThat(response.body?.data?.role).isEqualTo(UserRole.CONSUMER) },
                 { assertThat(userJpaRepository.existsByLoginId("loopers01")).isTrue() },
             )
         }
@@ -70,6 +77,26 @@ class UserV1ApiE2ETest @Autowired constructor(
             val response = testRestTemplate.exchange("/api/v1/users", HttpMethod.POST, HttpEntity(body), responseType)
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("blank name returns a 400 field validation message.")
+        @Test
+        fun returnsBadRequestWithFieldMessage_whenNameBlank() {
+            val body = mapOf(
+                "loginId" to "loopers01",
+                "password" to "abcd1234",
+                "name" to "",
+                "birthdate" to "1990-01-01",
+                "email" to "user@example.com",
+            )
+            val responseType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.MyInfoResponse>>() {}
+
+            val response = testRestTemplate.exchange("/api/v1/users", HttpMethod.POST, HttpEntity(body), responseType)
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(response.body?.meta?.message).contains("name") },
+            )
         }
 
         @DisplayName("이미 사용 중인 loginId 로 가입하면, 409 응답을 반환한다.")
@@ -226,6 +253,111 @@ class UserV1ApiE2ETest @Autowired constructor(
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+    }
+
+    @DisplayName("POST /api/v1/admin/users")
+    @Nested
+    inner class AdminSignUp {
+        private val infoType = object : ParameterizedTypeReference<ApiResponse<UserV1Dto.MyInfoResponse>>() {}
+
+        private fun authHeaders(loginId: String, password: String): HttpHeaders = HttpHeaders().apply {
+            add("X-Loopers-LoginId", loginId)
+            add("X-Loopers-LoginPw", password)
+        }
+
+        private fun saveAdmin() {
+            userJpaRepository.save(
+                User(
+                    loginId = "admin01",
+                    encryptedPassword = passwordEncoder.encode(RawPassword("admin1234")),
+                    name = "Admin",
+                    birthdate = LocalDate.of(1988, 8, 8),
+                    email = "admin@example.com",
+                    role = UserRole.ADMIN,
+                ),
+            )
+        }
+
+        private fun signUpConsumer() {
+            val body = mapOf(
+                "loginId" to "loopers01",
+                "password" to "abcd1234",
+                "name" to "Consumer",
+                "birthdate" to "1990-01-01",
+                "email" to "user@example.com",
+            )
+            testRestTemplate.exchange("/api/v1/users", HttpMethod.POST, HttpEntity(body), infoType)
+        }
+
+        @DisplayName("an authenticated admin can create another ADMIN user.")
+        @Test
+        fun createsAdminUser_whenAuthenticatedAdmin() {
+            saveAdmin()
+            val body = mapOf(
+                "loginId" to "newadmin",
+                "password" to "wxyz5678",
+                "name" to "Second Admin",
+                "birthdate" to "1991-02-03",
+                "email" to "newadmin@example.com",
+            )
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.POST,
+                HttpEntity(body, authHeaders("admin01", "admin1234")),
+                infoType,
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.loginId).isEqualTo("newadmin") },
+                { assertThat(response.body?.data?.role).isEqualTo(UserRole.ADMIN) },
+                { assertThat(userJpaRepository.findByLoginId("newadmin")?.role).isEqualTo(UserRole.ADMIN) },
+            )
+        }
+
+        @DisplayName("missing auth headers return 401.")
+        @Test
+        fun returnsUnauthorized_whenHeadersMissing() {
+            val body = mapOf(
+                "loginId" to "newadmin",
+                "password" to "wxyz5678",
+                "name" to "Second Admin",
+                "birthdate" to "1991-02-03",
+                "email" to "newadmin@example.com",
+            )
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.POST,
+                HttpEntity(body),
+                infoType,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @DisplayName("authenticated consumers return 403.")
+        @Test
+        fun returnsForbidden_whenAuthenticatedConsumer() {
+            signUpConsumer()
+            val body = mapOf(
+                "loginId" to "newadmin",
+                "password" to "wxyz5678",
+                "name" to "Second Admin",
+                "birthdate" to "1991-02-03",
+                "email" to "newadmin@example.com",
+            )
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/admin/users",
+                HttpMethod.POST,
+                HttpEntity(body, authHeaders("loopers01", "abcd1234")),
+                infoType,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }
     }
 }

@@ -6,6 +6,7 @@ import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.support.auth.CurrentUser
 import com.loopers.support.auth.LoginRequired
+import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -20,7 +21,7 @@ class UserV1Controller(
 ) : UserV1ApiSpec {
     @PostMapping
     override fun signUp(
-        @RequestBody request: UserV1Dto.SignUpRequest,
+        @RequestBody @Valid request: UserV1Dto.SignUpRequest,
     ): ApiResponse<UserV1Dto.MyInfoResponse> {
         val user = userService.register(request.toCommand())
         return ApiResponse.success(UserV1Dto.MyInfoResponse.from(user))
@@ -36,7 +37,7 @@ class UserV1Controller(
     @PatchMapping("/me/password")
     override fun changePassword(
         @CurrentUser user: User,
-        @RequestBody request: UserV1Dto.ChangePasswordRequest,
+        @RequestBody @Valid request: UserV1Dto.ChangePasswordRequest,
     ): ApiResponse<Unit> {
         userService.changePassword(user.id, RawPassword(request.oldPassword), RawPassword(request.newPassword))
         return ApiResponse.success(Unit)

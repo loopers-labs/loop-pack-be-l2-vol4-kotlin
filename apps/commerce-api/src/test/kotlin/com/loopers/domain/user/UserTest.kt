@@ -23,6 +23,7 @@ class UserTest {
                 name = "홍길동",
                 birthdate = LocalDate.of(1990, 1, 1),
                 email = "user@example.com",
+                role = UserRole.CONSUMER,
             )
 
             assertAll(
@@ -32,6 +33,21 @@ class UserTest {
                 { assertThat(user.birthdate).isEqualTo(LocalDate.of(1990, 1, 1)) },
                 { assertThat(user.email).isEqualTo("user@example.com") },
             )
+        }
+
+        @DisplayName("role is stored from the constructor.")
+        @Test
+        fun storesRole() {
+            val user = User(
+                loginId = "loopers01",
+                encryptedPassword = "hashed",
+                name = "Alice",
+                birthdate = LocalDate.of(1990, 1, 1),
+                email = "user@example.com",
+                role = UserRole.ADMIN,
+            )
+
+            assertThat(user.role).isEqualTo(UserRole.ADMIN)
         }
 
         @DisplayName("loginId 가 영숫자 4~20자 패턴을 벗어나면, BAD_REQUEST 예외를 던진다.")
@@ -44,6 +60,7 @@ class UserTest {
                     name = "홍길동",
                     birthdate = LocalDate.of(1990, 1, 1),
                     email = "user@example.com",
+                    role = UserRole.CONSUMER,
                 )
             }
 
@@ -60,6 +77,7 @@ class UserTest {
                     name = "   ",
                     birthdate = LocalDate.of(1990, 1, 1),
                     email = "user@example.com",
+                    role = UserRole.CONSUMER,
                 )
             }
 
@@ -76,6 +94,7 @@ class UserTest {
                     name = "홍길동",
                     birthdate = LocalDate.of(1990, 1, 1),
                     email = "not-an-email",
+                    role = UserRole.CONSUMER,
                 )
             }
 
@@ -92,6 +111,7 @@ class UserTest {
                     name = "홍길동",
                     birthdate = LocalDate.now().plusDays(1),
                     email = "user@example.com",
+                    role = UserRole.CONSUMER,
                 )
             }
 
@@ -108,6 +128,7 @@ class UserTest {
             name = "홍길동",
             birthdate = LocalDate.of(1990, 1, 1),
             email = "user@example.com",
+            role = UserRole.CONSUMER,
         )
 
         user.changePassword("new-hash")

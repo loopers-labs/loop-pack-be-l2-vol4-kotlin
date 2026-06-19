@@ -20,6 +20,7 @@ class ProductFacade(
     private val stockApplicationService: StockApplicationService,
     private val productLikeCountQueryRepository: ProductLikeCountQueryRepository,
     private val productLikeCountCommandRepository: ProductLikeCountCommandRepository,
+    private val productCacheService: ProductCacheService,
 ) {
     @Transactional
     fun createProduct(
@@ -46,6 +47,14 @@ class ProductFacade(
     }
 
     fun getProductDetail(productId: Long): ProductInfo {
+        productCacheService.getProductDetail(productId)?.let { return it }
+
+        return loadProductDetail(productId).also {
+            productCacheService.setProductDetail(productId, it)
+        }
+    }
+
+    private fun loadProductDetail(productId: Long): ProductInfo {
         val product = productApplicationService.getProduct(productId)
         val brand = brandApplicationService.getBrand(product.brandId)
         val stock = stockApplicationService.getStock(productId)
@@ -56,6 +65,14 @@ class ProductFacade(
     }
 
     fun getProducts(condition: ProductSearchCondition): PageResult<ProductSummaryInfo> {
+        productCacheService.getProductList(condition)?.let { return it }
+
+        return loadProducts(condition).also {
+            productCacheService.setProductList(condition, it)
+        }
+    }
+
+    private fun loadProducts(condition: ProductSearchCondition): PageResult<ProductSummaryInfo> {
         condition.brandId?.let { brandApplicationService.getBrand(it) }
 
         val products = productApplicationService.getProducts(condition)
@@ -104,7 +121,9 @@ class ProductFacade(
         val likeCount = productLikeCountQueryRepository.findById(productId)
             .map { it.likeCount }
             .orElse(0)
-        return ProductInfo.from(product, brand.name, stock, likeCount)
+        return ProductInfo.from(product, brand.name, stock, likeCount).also {
+            productCacheService.evictProductDetail(productId)
+        }
     }
 
     @Transactional
@@ -112,5 +131,6 @@ class ProductFacade(
         productApplicationService.deleteProduct(productId)
         stockApplicationService.deleteStock(productId)
         productLikeCountCommandRepository.deleteByProductId(productId)
+        productCacheService.evictProductDetail(productId)
     }
 }

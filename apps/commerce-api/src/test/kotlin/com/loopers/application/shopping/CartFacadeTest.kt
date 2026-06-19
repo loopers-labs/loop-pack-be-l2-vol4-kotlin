@@ -1,5 +1,6 @@
 package com.loopers.application.shopping
 
+import com.loopers.config.redis.InMemoryRedisTemplate
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
@@ -20,7 +21,7 @@ class CartFacadeTest {
     fun setUp() {
         cartRepository = FakeCartRepository()
         catalogPort = FakeCartCatalogPort()
-        cartApplicationService = CartApplicationService(cartRepository)
+        cartApplicationService = CartApplicationService(cartRepository, InMemoryRedisTemplate())
         cartFacade = CartFacade(cartApplicationService, catalogPort)
     }
 

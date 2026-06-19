@@ -1,5 +1,6 @@
 package com.loopers.application.shopping
 
+import com.loopers.config.redis.InMemoryRedisTemplate
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -11,7 +12,7 @@ class CartQueryFacadeTest {
     fun composesCartItemsWithCurrentCatalogInfo() {
         val cartRepository = FakeCartRepository()
         val catalogPort = FakeCartCatalogPort()
-        val cartApplicationService = CartApplicationService(cartRepository)
+        val cartApplicationService = CartApplicationService(cartRepository, InMemoryRedisTemplate())
         val cartFacade = CartFacade(cartApplicationService, catalogPort)
         val cartQueryFacade = CartQueryFacade(cartApplicationService, catalogPort)
         catalogPort.register(productId = 100L, productName = "현재 상품명", brandName = "현재 브랜드명", price = 12000L, stockQuantity = 8)
@@ -36,7 +37,7 @@ class CartQueryFacadeTest {
     fun keepsMissingCatalogProductAsNotOrderableLine() {
         val cartRepository = FakeCartRepository()
         val catalogPort = FakeCartCatalogPort()
-        val cartApplicationService = CartApplicationService(cartRepository)
+        val cartApplicationService = CartApplicationService(cartRepository, InMemoryRedisTemplate())
         val cartFacade = CartFacade(cartApplicationService, catalogPort)
         val cartQueryFacade = CartQueryFacade(cartApplicationService, catalogPort)
         catalogPort.register(productId = 100L, stockQuantity = 8)

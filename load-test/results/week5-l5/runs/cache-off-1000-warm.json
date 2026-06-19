@@ -1,0 +1,59 @@
+{
+  "run_id": "cache-off-1000-warm",
+  "cache": "off",
+  "tps": 1000,
+  "duration_s": 180.3,
+  "k6": {
+    "reqs": 176938,
+    "achieved_rps": 982.9475395623913,
+    "fail_rate": 0.002119386451751461,
+    "dropped": 3063,
+    "dur_avg": 146.21087574743814,
+    "dur_med": 13.516,
+    "dur_p90": 255.69320000000002,
+    "dur_p95": 763.7363499999998,
+    "dur_p99": 3097.84022,
+    "dur_max": 10000.216
+  },
+  "cgroup": {
+    "perf-app": {
+      "cpu_sec": 370.31,
+      "avg_cores": 2.053,
+      "mem_mb": 1378.1
+    },
+    "perf-mysql": {
+      "cpu_sec": 172.17,
+      "avg_cores": 0.955,
+      "mem_mb": 3204.5
+    },
+    "perf-redis-master": {
+      "cpu_sec": 1.69,
+      "avg_cores": 0.009,
+      "mem_mb": 3.7
+    },
+    "perf-redis-readonly": {
+      "cpu_sec": 1.65,
+      "avg_cores": 0.009,
+      "mem_mb": 3.5
+    }
+  },
+  "host_cpu": {
+    "avg": 0.7693,
+    "max": 0.8019,
+    "first": 0.771,
+    "last": 0.7283,
+    "delta": -0.0427
+  },
+  "process_cpu": {
+    "avg": 0.5277,
+    "max": 0.6955,
+    "first": 0.3701,
+    "last": 0.5239,
+    "delta": 0.1538
+  },
+  "redis": {
+    "hits": 0,
+    "misses": 0,
+    "hit_ratio": null
+  }
+}

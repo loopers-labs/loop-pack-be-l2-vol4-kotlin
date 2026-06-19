@@ -1,0 +1,23 @@
+# Mac 전용: Prometheus + Grafana. N100 을 원격 스크랩.
+# 사용: docker compose -f load-test/perf/monitoring-perf-compose.yml up -d
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: perf-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus-perf.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: perf-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus

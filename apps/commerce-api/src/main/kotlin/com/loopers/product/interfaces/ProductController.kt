@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/products")
 class ProductController(
     private val productService: ProductService,
+    private val productListQuery: ProductListQuery,
 ) {
     @GetMapping
     fun getProducts(
@@ -28,8 +29,12 @@ class ProductController(
         if (size !in 1..MAX_PAGE_SIZE) {
             throw BadRequestException(ProductErrorCode.INVALID_PAGE_SIZE)
         }
-        val page = productService.list(sort, brandId, ProductCursorCodec.decode(sort, cursor), size)
-        return ProductListResponse.from(sort, page)
+        val decoded = ProductCursorCodec.decode(sort, cursor)
+        return if (brandId == null && decoded == null) {
+            productListQuery.firstPage(sort, size)
+        } else {
+            ProductListResponse.from(sort, productService.list(sort, brandId, decoded, size))
+        }
     }
 
     @GetMapping("/{productId}")

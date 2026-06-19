@@ -111,17 +111,17 @@
   td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
   td:last-child{color:var(--blue-deep);font-weight:600}
   .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
-  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 46px;background:var(--g50);
     border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
   .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
-    flex:none;margin-top:1px;position:relative;background:var(--white)}
+    position:absolute;left:18px;top:15px;background:var(--white)}
   .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
   .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
   .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
     border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
   .checklist li b{color:var(--g900);font-weight:700}
   .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
-    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;display:inline-block;margin-left:8px;vertical-align:middle}
   .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
     border-bottom:1px solid var(--g100)}
   .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
@@ -242,7 +242,7 @@
       <li class="done"><span class="box"></span><b>like_event append-only 이력 테이블</b> 존재 — 방식 A 재집계·C 갱신·정합성 보강의 공통 소스 <span class="tag">소스 확보</span></li>
       <li class="done"><span class="box"></span><b>keyset 페이지네이션</b> 구현됨(Spring Data Window/ScrollPosition) <span class="tag">재사용</span></li>
       <li class="done"><span class="box"></span><b>Redis·Docker 인프라</b> 구성됨(master/replica) <span class="tag">재사용</span></li>
-      <li><span class="box"></span><b>Product/Brand/Like REST 컨트롤러 미구현</b> — Service만 존재. 측정 엔드포인트를 새로 만들어야 함 <span class="tag">TODO</span></li>
+      <li class="done"><span class="box"></span><b>Product 목록/상세 컨트롤러 구현 완료</b> — <span class="term">ProductController</span>(GET /products, /{id}) + 커서 코덱 + permitAll + size 가드 <span class="tag">DONE</span></li>
       <li><span class="box"></span><b>캐시 인프라 없음</b> — @EnableCaching·CacheManager 없음, RedisTemplate&lt;String,String&gt;만. 객체 캐싱용 JSON 직렬화 구성 필요 <span class="tag">TODO</span></li>
       <li><span class="box"></span><b>이벤트 핸들러 정합성 갭</b> — like_count UPDATE 실패 시 warn 로그만 → 드리프트 가능. 재집계 배치로 보강 <span class="tag">TODO</span></li>
     </ul>
@@ -303,13 +303,13 @@
     <p class="lead">과제 체크리스트 6항목과 본 계획의 매핑. 이 6개가 최종 완료 기준이다.</p>
     <h3>🔖 Index</h3>
     <ul class="checklist">
-      <li><span class="box"></span>상품 목록 API에서 <b>brandId 기반 검색 · 좋아요 순 정렬</b>을 처리했다 <span class="tag">Step 1·4</span></li>
+      <li class="done"><span class="box"></span>상품 목록 API에서 <b>brandId 기반 검색 · 좋아요 순 정렬</b>을 처리했다 <span class="tag">Step 1·4</span></li>
       <li><span class="box"></span>필터·정렬 조건별 유즈케이스를 분석해 <b>인덱스를 적용하고 전후 성능을 비교</b>했다 <span class="tag">Step 3·4</span></li>
     </ul>
     <h3>❤️ Structure</h3>
     <ul class="checklist">
-      <li><span class="box"></span>목록/상세 조회 시 <b>좋아요 수 조회 및 좋아요 순 정렬</b>이 가능하도록 구조 개선했다 <span class="tag">Step 5</span></li>
-      <li><span class="box"></span>좋아요 적용/해제 시 <b>좋아요 수가 정상 동기화</b>되도록 했다 <span class="tag">Step 5</span></li>
+      <li class="done"><span class="box"></span>목록/상세 조회 시 <b>좋아요 수 조회 및 좋아요 순 정렬</b>이 가능하도록 구조 개선했다 <span class="tag">Step 5</span></li>
+      <li class="done"><span class="box"></span>좋아요 적용/해제 시 <b>좋아요 수가 정상 동기화</b>되도록 했다 <span class="tag">Step 5</span></li>
     </ul>
     <h3>⚡ Cache</h3>
     <ul class="checklist">

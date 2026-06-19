@@ -69,3 +69,27 @@ spring:
 springdoc:
   api-docs:
     enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: perf
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+
+datasource:
+  mysql-jpa:
+    main:
+      jdbc-url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/loopers
+      username: ${MYSQL_USER:application}
+      password: "${MYSQL_PWD:application}"
+  redis:
+    master:
+      host: ${REDIS_MASTER_HOST:redis-master}
+      port: ${REDIS_MASTER_PORT:6379}
+    replicas:
+      - host: ${REDIS_REPLICA_1_HOST:redis-readonly}
+        port: ${REDIS_REPLICA_1_PORT:6379}

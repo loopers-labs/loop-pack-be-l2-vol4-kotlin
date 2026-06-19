@@ -33,7 +33,7 @@
 
 1. `docker-compose -f ./docker/infra-compose.yml up -d`로 MySQL/Redis를 띄운다.
 2. 로컬 프로필에서 애플리케이션을 한 번 실행해 Hibernate가 스키마를 생성하게 한다.
-3. `docs/superpowers/sql/2026-06-19-round5-product-performance.sql`을 실행해 20개 브랜드와 100,000개 상품을 준비한다.
+3. `docs/product-performance/round5-product-performance.sql`을 실행해 20개 브랜드와 100,000개 상품을 준비한다.
 4. 인덱스 없음, 후보 인덱스, 최종 인덱스 상태에서 `EXPLAIN ANALYZE`를 비교한다.
 
 | Query | Index | type/key | rows | Extra | actual time |

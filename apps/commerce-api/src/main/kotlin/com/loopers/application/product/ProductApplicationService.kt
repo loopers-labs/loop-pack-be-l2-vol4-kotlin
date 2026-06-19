@@ -55,6 +55,10 @@ class ProductApplicationService(
         return productRepository.save(product)
     }
 
+    fun findActiveIdsByBrandId(brandId: Long): List<Long> {
+        return productRepository.findActiveIdsByBrandId(brandId)
+    }
+
     @Transactional
     fun deleteProduct(id: Long) {
         getProduct(id)

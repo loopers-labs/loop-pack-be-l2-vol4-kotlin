@@ -33,4 +33,9 @@ class ProductRepositoryImpl(
         productJpaRepository.findByIdAndDeletedAtIsNull(id)
             ?.delete()
     }
+
+    override fun findActiveIdsByBrandId(brandId: Long): List<Long> {
+        return productJpaRepository.findByBrandIdAndDeletedAtIsNull(brandId)
+            .mapNotNull { it.id }
+    }
 }

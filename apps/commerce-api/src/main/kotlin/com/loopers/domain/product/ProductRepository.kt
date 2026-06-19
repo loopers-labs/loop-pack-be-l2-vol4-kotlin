@@ -10,4 +10,6 @@ interface ProductRepository {
     fun findAll(condition: ProductSearchCondition): PageResult<Product>
 
     fun delete(id: Long)
+
+    fun findActiveIdsByBrandId(brandId: Long): List<Long>
 }

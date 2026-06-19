@@ -9,7 +9,6 @@ class Product(
     name: String,
     description: String,
     price: ProductPrice,
-    likeCount: Int = 0,
 ) {
     var name: String = name
         private set
@@ -20,11 +19,8 @@ class Product(
     var price: ProductPrice = price
         private set
 
-    var likeCount: Int = likeCount
-        private set
-
     init {
-        validate(brandId = brandId, name = name, description = description, likeCount = likeCount)
+        validate(brandId = brandId, name = name, description = description)
     }
 
     fun rename(name: String) {
@@ -42,11 +38,10 @@ class Product(
     }
 
     companion object {
-        private fun validate(brandId: Long, name: String, description: String, likeCount: Int) {
+        private fun validate(brandId: Long, name: String, description: String) {
             if (brandId <= 0) throw CoreException(ErrorType.BAD_REQUEST, "유효하지 않은 브랜드 ID 입니다.")
             validateName(name)
             validateDescription(description)
-            if (likeCount < 0) throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수일 수 없습니다.")
         }
 
         private fun validateName(name: String) {

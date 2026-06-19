@@ -60,20 +60,4 @@ class ProductApplicationService(
         getProduct(id)
         productRepository.delete(id)
     }
-
-    @Transactional
-    fun increaseLikeCount(id: Long): Product {
-        if (!productRepository.increaseLikeCount(id)) {
-            throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다. id=$id")
-        }
-        return getProduct(id)
-    }
-
-    @Transactional
-    fun decreaseLikeCount(id: Long): Product {
-        if (!productRepository.decreaseLikeCountIfPositive(id)) {
-            throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수가 될 수 없습니다.")
-        }
-        return getProduct(id)
-    }
 }

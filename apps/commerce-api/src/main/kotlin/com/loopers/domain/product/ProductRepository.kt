@@ -9,9 +9,5 @@ interface ProductRepository {
 
     fun findAll(condition: ProductSearchCondition): PageResult<Product>
 
-    fun increaseLikeCount(id: Long): Boolean
-
-    fun decreaseLikeCountIfPositive(id: Long): Boolean
-
     fun delete(id: Long)
 }

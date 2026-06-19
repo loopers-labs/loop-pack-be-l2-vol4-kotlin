@@ -1,6 +1,5 @@
 package com.loopers.application.like
 
-import com.loopers.application.product.ProductApplicationService
 import com.loopers.domain.user.EncodedPassword
 import com.loopers.infrastructure.like.LikeJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
@@ -24,7 +23,6 @@ import java.util.concurrent.Executors
 @SpringBootTest
 class LikeFacadeConcurrencyTest @Autowired constructor(
     private val likeFacade: LikeFacade,
-    private val productApplicationService: ProductApplicationService,
     private val productJpaRepository: ProductJpaRepository,
     private val likeJpaRepository: LikeJpaRepository,
     private val userJpaRepository: UserJpaRepository,
@@ -38,16 +36,16 @@ class LikeFacadeConcurrencyTest @Autowired constructor(
     @DisplayName("좋아요 동시성 제어 시, ")
     @Nested
     inner class LikeConcurrently {
-        @DisplayName("여러 사용자가 동일 상품에 동시에 좋아요를 요청해도 좋아요 수가 정확히 집계된다.")
+        @DisplayName("여러 사용자가 동일 상품에 동시에 좋아요를 요청해도 likes 레코드가 정확히 생성된다.")
         @Test
-        fun aggregatesLikeCountCorrectly_whenDifferentUsersLikeSameProductConcurrently() {
+        fun aggregatesLikesCorrectly_whenDifferentUsersLikeSameProductConcurrently() {
             // arrange
             val users = (1..10).map { index ->
                 userJpaRepository.save(
                     newUserJpaEntity(loginId = "user$index", email = "user$index@example.com"),
                 )
             }
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act
             val results = runConcurrently(users.size) { index ->
@@ -55,24 +53,22 @@ class LikeFacadeConcurrencyTest @Autowired constructor(
             }
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             assertAll(
                 { assertThat(results).allSatisfy { assertThat(it.isSuccess).isTrue() } },
-                { assertThat(updatedProduct.likeCount).isEqualTo(users.size) },
                 { assertThat(likeJpaRepository.findAll()).hasSize(users.size) },
             )
         }
 
-        @DisplayName("여러 사용자가 동일 상품의 좋아요를 동시에 취소해도 좋아요 수가 정확히 집계된다.")
+        @DisplayName("여러 사용자가 동일 상품의 좋아요를 동시에 취소해도 likes 레코드가 정확히 soft delete 된다.")
         @Test
-        fun aggregatesLikeCountCorrectly_whenDifferentUsersCancelSameProductConcurrently() {
+        fun aggregatesLikesCorrectly_whenDifferentUsersCancelSameProductConcurrently() {
             // arrange
             val users = (1..10).map { index ->
                 userJpaRepository.save(
                     newUserJpaEntity(loginId = "user$index", email = "user$index@example.com"),
                 )
             }
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             users.forEach { likeFacade.addLike(userId = it.id, productId = product.id) }
 
             // act
@@ -81,10 +77,8 @@ class LikeFacadeConcurrencyTest @Autowired constructor(
             }
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             assertAll(
                 { assertThat(results).allSatisfy { assertThat(it.isSuccess).isTrue() } },
-                { assertThat(updatedProduct.likeCount).isEqualTo(0) },
                 { assertThat(likeJpaRepository.findAll()).allSatisfy { assertThat(it.deletedAt).isNotNull() } },
             )
         }
@@ -135,12 +129,10 @@ class LikeFacadeConcurrencyTest @Autowired constructor(
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        likeCount = likeCount,
     )
 }

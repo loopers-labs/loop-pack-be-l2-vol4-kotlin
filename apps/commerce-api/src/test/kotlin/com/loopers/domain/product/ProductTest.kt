@@ -21,7 +21,6 @@ class ProductTest {
             val name = "Loopers T-Shirt"
             val description = "매일 입기 좋은 티셔츠"
             val price = ProductPrice(10_000L)
-            val likeCount = 3
 
             // act
             val product = Product(
@@ -29,7 +28,6 @@ class ProductTest {
                 name = name,
                 description = description,
                 price = price,
-                likeCount = likeCount,
             )
 
             // assert
@@ -38,7 +36,6 @@ class ProductTest {
                 { assertThat(product.name).isEqualTo(name) },
                 { assertThat(product.description).isEqualTo(description) },
                 { assertThat(product.price).isEqualTo(price) },
-                { assertThat(product.likeCount).isEqualTo(likeCount) },
             )
         }
 
@@ -68,16 +65,6 @@ class ProductTest {
             // act & assert
             val result = assertThrows<CoreException> {
                 newProductWith(description = " ")
-            }
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-
-        @DisplayName("좋아요 수가 음수이면 BAD_REQUEST 예외가 발생한다.")
-        @Test
-        fun throwsBadRequest_whenLikeCountIsNegative() {
-            // act & assert
-            val result = assertThrows<CoreException> {
-                newProductWith(likeCount = -1)
             }
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
         }
@@ -165,12 +152,10 @@ class ProductTest {
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: ProductPrice = ProductPrice(10_000L),
-        likeCount: Int = 0,
     ) = Product(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        likeCount = likeCount,
     )
 }

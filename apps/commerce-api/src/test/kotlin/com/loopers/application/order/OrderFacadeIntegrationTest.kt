@@ -191,7 +191,6 @@ class OrderFacadeIntegrationTest @Autowired constructor(
                 name = name,
                 description = description,
                 price = price,
-                likeCount = 0,
             ),
         )
         stockJpaRepository.save(StockJpaEntity(productId = product.id, quantity = stock))

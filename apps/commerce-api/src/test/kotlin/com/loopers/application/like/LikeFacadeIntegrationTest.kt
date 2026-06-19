@@ -1,6 +1,5 @@
 package com.loopers.application.like
 
-import com.loopers.application.product.ProductApplicationService
 import com.loopers.domain.user.EncodedPassword
 import com.loopers.infrastructure.like.LikeJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
@@ -27,7 +26,6 @@ import java.util.concurrent.Executors
 @SpringBootTest
 class LikeFacadeIntegrationTest @Autowired constructor(
     private val likeFacade: LikeFacade,
-    private val productApplicationService: ProductApplicationService,
     private val productJpaRepository: ProductJpaRepository,
     private val likeJpaRepository: LikeJpaRepository,
     private val userJpaRepository: UserJpaRepository,
@@ -41,49 +39,46 @@ class LikeFacadeIntegrationTest @Autowired constructor(
     @DisplayName("좋아요 등록 시, ")
     @Nested
     inner class AddLike {
-        @DisplayName("상품이 존재하고 기존 좋아요가 없으면 좋아요를 등록하고 상품 좋아요 수를 증가시킨다.")
+        @DisplayName("상품이 존재하고 기존 좋아요가 없으면 좋아요를 등록한다.")
         @Test
-        fun addLike_increasesProductLikeCount_whenLikeDoesNotExist() {
+        fun addLike_whenLikeDoesNotExist() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act
             val result = likeFacade.addLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
+            val likes = likeJpaRepository.findAll()
             assertAll(
                 { assertThat(result.changed).isTrue() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(1) },
+                { assertThat(likes).hasSize(1) },
+                { assertThat(likes.first().deletedAt).isNull() },
             )
         }
 
-        @DisplayName("이미 활성 좋아요가 있으면 상품 좋아요 수를 변경하지 않는다.")
+        @DisplayName("이미 활성 좋아요가 있으면 변경하지 않는다.")
         @Test
         fun addLike_noOp_whenLikeIsAlreadyActive() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
 
             // act
             val result = likeFacade.addLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
-            assertAll(
-                { assertThat(result.changed).isFalse() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(1) },
-            )
+            assertThat(result.changed).isFalse()
         }
 
-        @DisplayName("취소된 좋아요가 있으면 복구하고 상품 좋아요 수를 증가시킨다.")
+        @DisplayName("취소된 좋아요가 있으면 복구한다.")
         @Test
-        fun addLike_restoresLikeAndIncreasesProductLikeCount() {
+        fun addLike_restoresLike() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
             likeFacade.cancelLike(userId = user.id, productId = product.id)
 
@@ -91,10 +86,10 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val result = likeFacade.addLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
+            val like = likeJpaRepository.findByUserIdAndProductId(userId = user.id, productId = product.id)
             assertAll(
                 { assertThat(result.changed).isTrue() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(1) },
+                { assertThat(like?.deletedAt).isNull() },
             )
         }
 
@@ -115,7 +110,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         @Test
         fun throwsNotFound_whenUserDoesNotExist() {
             // arrange
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act & assert
             val result = assertThrows<CoreException> {
@@ -129,7 +124,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         fun addLike_isIdempotent_whenSameRequestIsConcurrent() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act
             val results = runConcurrentlyCatching(10) {
@@ -138,13 +133,11 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val successResults = results.mapNotNull { it.getOrNull() }
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             val likes = likeJpaRepository.findAll()
             assertAll(
                 { assertThat(successResults.count { it.changed }).isEqualTo(1) },
                 { assertThat(likes).hasSize(1) },
                 { assertThat(likes.first().deletedAt).isNull() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(1) },
             )
         }
 
@@ -153,7 +146,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         fun addLike_restoresOnlyOnce_whenCanceledLikeRestoreIsConcurrent() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
             likeFacade.cancelLike(userId = user.id, productId = product.id)
 
@@ -163,12 +156,10 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             }
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             val like = likeJpaRepository.findByUserIdAndProductId(userId = user.id, productId = product.id)
             assertAll(
                 { assertThat(results.count { it.changed }).isEqualTo(1) },
                 { assertThat(like?.deletedAt).isNull() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(1) },
             )
         }
     }
@@ -176,51 +167,45 @@ class LikeFacadeIntegrationTest @Autowired constructor(
     @DisplayName("좋아요 취소 시, ")
     @Nested
     inner class CancelLike {
-        @DisplayName("활성 좋아요가 있으면 좋아요를 취소하고 상품 좋아요 수를 감소시킨다.")
+        @DisplayName("활성 좋아요가 있으면 좋아요를 취소한다.")
         @Test
-        fun cancelLike_decreasesProductLikeCount_whenLikeIsActive() {
+        fun cancelLike_whenLikeIsActive() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
 
             // act
             val result = likeFacade.cancelLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             val like = likeJpaRepository.findByUserIdAndProductId(userId = user.id, productId = product.id)
             assertAll(
                 { assertThat(result.changed).isTrue() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(0) },
                 { assertThat(like?.deletedAt).isNotNull() },
             )
         }
 
-        @DisplayName("좋아요가 없으면 상품 좋아요 수를 변경하지 않는다.")
+        @DisplayName("좋아요가 없으면 변경하지 않는다.")
         @Test
         fun cancelLike_noOp_whenLikeDoesNotExist() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act
             val result = likeFacade.cancelLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
-            assertAll(
-                { assertThat(result.changed).isFalse() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(0) },
-            )
+            assertThat(result.changed).isFalse()
         }
 
-        @DisplayName("이미 취소된 좋아요가 있으면 상품 좋아요 수를 변경하지 않는다.")
+        @DisplayName("이미 취소된 좋아요가 있으면 변경하지 않는다.")
         @Test
         fun cancelLike_noOp_whenLikeIsAlreadyCanceled() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
             likeFacade.cancelLike(userId = user.id, productId = product.id)
 
@@ -228,18 +213,14 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             val result = likeFacade.cancelLike(userId = user.id, productId = product.id)
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
-            assertAll(
-                { assertThat(result.changed).isFalse() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(0) },
-            )
+            assertThat(result.changed).isFalse()
         }
 
         @DisplayName("유저가 존재하지 않으면 NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenUserDoesNotExist() {
             // arrange
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
 
             // act & assert
             val result = assertThrows<CoreException> {
@@ -253,7 +234,7 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         fun cancelLike_isIdempotent_whenSameRequestIsConcurrent() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
+            val product = productJpaRepository.save(newProductJpaEntity())
             likeFacade.addLike(userId = user.id, productId = product.id)
 
             // act
@@ -262,12 +243,10 @@ class LikeFacadeIntegrationTest @Autowired constructor(
             }
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
             val like = likeJpaRepository.findByUserIdAndProductId(userId = user.id, productId = product.id)
             assertAll(
                 { assertThat(results.count { it.changed }).isEqualTo(1) },
                 { assertThat(like?.deletedAt).isNotNull() },
-                { assertThat(updatedProduct.likeCount).isEqualTo(0) },
             )
         }
     }
@@ -318,12 +297,10 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        likeCount = likeCount,
     )
 }

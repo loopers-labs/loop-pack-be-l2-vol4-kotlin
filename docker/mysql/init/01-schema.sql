@@ -76,7 +76,8 @@ CREATE TABLE product_stats (
     like_count BIGINT NOT NULL,
     product_id BIGINT NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_product_stats_product_id (product_id)
+    UNIQUE KEY uk_product_stats_product_id (product_id),
+    KEY idx_product_stats_deleted_like_count_product_id (deleted_at, like_count DESC, product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE carts (

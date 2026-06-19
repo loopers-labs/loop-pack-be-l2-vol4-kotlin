@@ -5,10 +5,19 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 
 @Entity
-@Table(name = "product_stats")
+@Table(
+    name = "product_stats",
+    indexes = [
+        Index(
+            name = "idx_product_stats_deleted_like_count_product_id",
+            columnList = "deleted_at, like_count DESC, product_id",
+        ),
+    ],
+)
 class ProductStats(
     @Column(name = "product_id", nullable = false, unique = true)
     val productId: Long,

@@ -2,6 +2,7 @@ package com.loopers.application.shopping
 
 import com.loopers.application.order.OrderCheckoutFacade
 import com.loopers.application.order.OrderInfo
+import com.loopers.config.redis.InMemoryRedisTemplate
 import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
@@ -93,7 +94,7 @@ class CartCheckoutFacadeTest {
     private class Fixture {
         val cartRepository = FakeCartRepository()
         val catalogPort = FakeCartCatalogPort()
-        val cartApplicationService = CartApplicationService(cartRepository)
+        val cartApplicationService = CartApplicationService(cartRepository, InMemoryRedisTemplate())
         val cartFacade = CartFacade(cartApplicationService, catalogPort)
         val orderCheckoutFacade: OrderCheckoutFacade = mock()
         val cartCheckoutFacade = CartCheckoutFacade(cartApplicationService, catalogPort, orderCheckoutFacade)

@@ -1,15 +1,22 @@
 package com.loopers.application.shopping
 
+import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.shopping.Cart
 import com.loopers.domain.shopping.CartItem
 import com.loopers.domain.shopping.CartRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Component
 class CartApplicationService(
     private val cartRepository: CartRepository,
+    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
+    private val redisTemplate: RedisTemplate<String, String>,
 ) {
     fun getItems(userId: Long): List<CartItemInfo> {
         val cart = cartRepository.findByUserId(userId) ?: return emptyList()
@@ -17,8 +24,14 @@ class CartApplicationService(
             .map { CartItemInfo(productId = it.productId, quantity = it.quantity) }
     }
 
-    fun countItems(userId: Long): Long =
-        cartRepository.countItemsByUserId(userId)
+    fun countItems(userId: Long): Long {
+        val cacheKey = countCacheKey(userId)
+        redisTemplate.opsForValue().get(cacheKey)?.let { return it.toLong() }
+
+        val count = cartRepository.countItemsByUserId(userId)
+        redisTemplate.opsForValue().set(cacheKey, count.toString())
+        return count
+    }
 
     fun addItem(userId: Long, productId: Long, quantity: Int, stockQuantity: Int) {
         validateQuantity(quantity)
@@ -33,6 +46,7 @@ class CartApplicationService(
             item.increaseQuantity(quantity)
             cartRepository.saveItem(item)
         }
+        evictCountCache(userId)
     }
 
     fun changeQuantity(userId: Long, productId: Long, quantity: Int, stockQuantity: Int) {
@@ -45,17 +59,20 @@ class CartApplicationService(
 
         item.changeQuantity(quantity)
         cartRepository.saveItem(item)
+        evictCountCache(userId)
     }
 
     fun removeItem(userId: Long, productId: Long) {
         val cart = cartRepository.findByUserId(userId) ?: return
         val item = cartRepository.findItem(cart.id, productId) ?: return
         cartRepository.deleteItem(item)
+        evictCountCache(userId)
     }
 
     fun clear(userId: Long) {
         val cart = cartRepository.findByUserId(userId) ?: return
         cartRepository.deleteItemsByCartId(cart.id)
+        evictCountCache(userId)
     }
 
     private fun getOrCreateCart(userId: Long): Cart =
@@ -72,4 +89,23 @@ class CartApplicationService(
             throw CoreException(ErrorType.BAD_REQUEST, "현재 재고보다 많은 수량은 쇼핑카트에 담을 수 없습니다.")
         }
     }
+
+    private fun evictCountCache(userId: Long) {
+        val cacheKey = countCacheKey(userId)
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            redisTemplate.delete(cacheKey)
+            return
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+            object : TransactionSynchronization {
+                override fun afterCommit() {
+                    redisTemplate.delete(cacheKey)
+                }
+            },
+        )
+    }
+
+    private fun countCacheKey(userId: Long): String =
+        "shopping:cart:count:user:$userId"
 }

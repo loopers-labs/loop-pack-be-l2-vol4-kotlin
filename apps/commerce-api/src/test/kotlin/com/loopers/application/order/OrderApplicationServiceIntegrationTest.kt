@@ -1,5 +1,8 @@
 package com.loopers.application.order
 
+import com.loopers.domain.order.OrderAmount
+import com.loopers.domain.order.OrderAmountCalculator
+import com.loopers.domain.order.OrderAmounts
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderItemPrice
 import com.loopers.domain.order.OrderQuantity
@@ -36,19 +39,63 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
         @DisplayName("유저 ID와 주문 상품이 유효하면 주문을 저장한다.")
         @Test
         fun createOrder_whenAllFieldsAreValid() {
+            // arrange
+            val items = listOf(newOrderItem(productId = 10L, quantity = OrderQuantity(2)))
+
             // act
-            val order = orderApplicationService.createOrder(
-                userId = 1L,
-                items = listOf(newOrderItem(productId = 10L, quantity = OrderQuantity(2))),
-            )
+            val order = createOrder(userId = 1L, items = items)
 
             // assert
             assertAll(
                 { assertThat(order.id).isNotNull() },
                 { assertThat(order.userId).isEqualTo(1L) },
+                { assertThat(order.userCouponId).isNull() },
                 { assertThat(order.status).isEqualTo(OrderStatus.PENDING_PAYMENT) },
-                { assertThat(order.totalPrice.amount).isEqualTo(20_000L) },
+                { assertThat(order.totalAmount.amount).isEqualTo(20_000L) },
+                { assertThat(order.discountAmount.amount).isEqualTo(0L) },
+                { assertThat(order.paymentAmount.amount).isEqualTo(20_000L) },
                 { assertThat(order.items).hasSize(1) },
+            )
+        }
+
+        @DisplayName("주어진 주문 금액 정보를 함께 저장한다.")
+        @Test
+        fun createOrder_persistsAmounts() {
+            // arrange
+            val items = listOf(newOrderItem(productId = 10L, quantity = OrderQuantity(2)))
+            val amounts = OrderAmounts.of(
+                totalAmount = OrderAmount(20_000L),
+                discountAmount = OrderAmount(1_000L),
+            )
+
+            // act
+            val order = createOrder(userId = 1L, items = items, amounts = amounts)
+
+            // assert - DB에서 재조회해 금액이 실제로 영속됐는지 확인
+            val fetched = orderApplicationService.getOrder(order.id!!)
+            assertAll(
+                { assertThat(fetched.totalAmount.amount).isEqualTo(20_000L) },
+                { assertThat(fetched.discountAmount.amount).isEqualTo(1_000L) },
+                { assertThat(fetched.paymentAmount.amount).isEqualTo(19_000L) },
+            )
+        }
+
+        @DisplayName("주어진 발급 쿠폰 ID를 함께 저장한다.")
+        @Test
+        fun createOrder_persistsUserCouponId() {
+            // arrange
+            val items = listOf(newOrderItem(productId = 10L, quantity = OrderQuantity(2)))
+
+            // act
+            val order = createOrder(userId = 1L, userCouponId = 100L, items = items)
+
+            // assert
+            val fetched = orderApplicationService.getOrder(order.id!!)
+            val entity = orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(order.id!!)
+            assertAll(
+                { assertThat(order.userCouponId).isEqualTo(100L) },
+                { assertThat(fetched.userCouponId).isEqualTo(100L) },
+                { assertThat(entity?.userCouponId).isEqualTo(100L) },
             )
         }
     }
@@ -60,7 +107,7 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun getOrder_whenOrderExists() {
             // arrange
-            val saved = orderApplicationService.createOrder(
+            val saved = createOrder(
                 userId = 1L,
                 items = listOf(newOrderItem(productId = 10L, quantity = OrderQuantity(2))),
             )
@@ -95,32 +142,40 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun markPaid() {
             // arrange
-            val saved = orderApplicationService.createOrder(
-                userId = 1L,
-                items = listOf(newOrderItem()),
-            )
+            val saved = createOrder(userId = 1L, items = listOf(newOrderItem()))
 
             // act
-            val order = orderApplicationService.markPaid(saved.id!!)
+            val result = orderApplicationService.markPaid(saved.id!!)
 
             // assert
-            assertThat(order.status).isEqualTo(OrderStatus.PAID)
+            assertThat(result).isInstanceOf(OrderConfirmResult.Confirmed::class.java)
+            assertThat((result as OrderConfirmResult.Confirmed).order.status).isEqualTo(OrderStatus.PAID)
         }
 
         @DisplayName("결제 실패 상태로 변경할 수 있다.")
         @Test
         fun markPaymentFailed() {
             // arrange
-            val saved = orderApplicationService.createOrder(
-                userId = 1L,
-                items = listOf(newOrderItem()),
-            )
+            val saved = createOrder(userId = 1L, items = listOf(newOrderItem()))
 
             // act
             val order = orderApplicationService.markPaymentFailed(saved.id!!)
 
             // assert
             assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_FAILED)
+        }
+
+        @DisplayName("취소 상태로 변경할 수 있다.")
+        @Test
+        fun cancelOrder() {
+            // arrange
+            val saved = createOrder(userId = 1L, items = listOf(newOrderItem()))
+
+            // act
+            val order = orderApplicationService.cancelOrder(saved.id!!)
+
+            // assert
+            assertThat(order.status).isEqualTo(OrderStatus.CANCELED)
         }
     }
 
@@ -130,14 +185,14 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
         @DisplayName("주문과 주문 상품을 함께 저장한다.")
         @Test
         fun saveOrder_savesOrderItems() {
-            // act
-            val order = orderApplicationService.createOrder(
-                userId = 1L,
-                items = listOf(
-                    newOrderItem(productId = 10L),
-                    newOrderItem(productId = 20L),
-                ),
+            // arrange
+            val items = listOf(
+                newOrderItem(productId = 10L),
+                newOrderItem(productId = 20L),
             )
+
+            // act
+            val order = createOrder(userId = 1L, items = items)
 
             // assert
             val entity = orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(order.id!!)
@@ -157,5 +212,17 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             productPrice = productPrice,
         ),
         quantity = quantity,
+    )
+
+    private fun createOrder(
+        userId: Long,
+        userCouponId: Long? = null,
+        items: List<OrderItem>,
+        amounts: OrderAmounts = OrderAmountCalculator.calculate(items),
+    ) = orderApplicationService.createOrder(
+        userId = userId,
+        userCouponId = userCouponId,
+        items = items,
+        amounts = amounts,
     )
 }

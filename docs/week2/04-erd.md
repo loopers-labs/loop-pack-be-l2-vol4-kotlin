@@ -10,9 +10,14 @@
 - `users.password`는 인코딩된 비밀번호를 저장하며, 평문 비밀번호는 저장하지 않는다.
 - 사용자는 `role` 컬럼으로 일반 사용자와 어드민을 구분하며, 별도 권한 테이블은 두지 않는다.
 - soft delete는 공통 `deleted_at` 컬럼으로 표현한다.
+- 재고는 상품 카탈로그 정보와 분리해 `stocks` 테이블에서 관리한다.
+- `stocks.product_id`는 상품별 재고를 식별하는 논리 참조이며, 한 상품은 하나의 재고 행을 가진다.
+- 상품 삭제 시 상품과 재고는 같은 유스케이스 트랜잭션에서 함께 soft delete한다.
 - 좋아요는 `(user_id, product_id)` 조합의 중복을 허용하지 않는다.
 - `likes`는 취소 후 재등록 시 기존 레코드의 `deleted_at`을 null로 복구한다.
 - 주문 상품은 원본 상품 ID와 주문 시점 상품 스냅샷을 함께 저장한다.
+- 쿠폰 정책 원본은 `coupons`에 저장하고, 사용자에게 발급된 쿠폰 1장은 `user_coupons`에 저장한다.
+- 동일한 쿠폰 정책은 한 사용자에게 여러 장 발급될 수 있으므로 `user_coupons.user_id + coupon_id`에는 unique constraint를 두지 않는다.
 - 결제 이력 테이블은 두지 않고, 외부 결제 결과는 주문 상태에 반영한다.
 - 주문 상태는 현재 설계 범위에서 `PENDING_PAYMENT`, `PAID`, `PAYMENT_FAILED`만 사용하며, 별도 상태 테이블은 두지 않는다.
 
@@ -50,9 +55,17 @@ erDiagram
         BIGINT brand_id "INDEX"
         VARCHAR name
         BIGINT price
-        INT stock
         INT like_count
         TEXT description
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
+    stocks {
+        BIGINT id PK
+        BIGINT product_id "INDEX, UK"
+        INT quantity
         DATETIME created_at
         DATETIME updated_at
         DATETIME deleted_at
@@ -90,9 +103,32 @@ erDiagram
         DATETIME deleted_at
     }
 
+    coupons {
+        BIGINT id PK
+        VARCHAR name
+        VARCHAR policy_type
+        BIGINT policy_value
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
+    user_coupons {
+        BIGINT id PK
+        BIGINT user_id "INDEX"
+        BIGINT coupon_id "INDEX"
+        DATETIME used_at
+        DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
+    }
+
     brands ||--o{ products : ""
+    products ||--|| stocks : ""
     users ||--o{ likes : ""
     products ||--o{ likes : ""
+    users ||--o{ user_coupons : ""
+    coupons ||--o{ user_coupons : ""
     users ||--o{ orders : ""
     orders ||--|{ order_items : ""
     products ||--o{ order_items : ""

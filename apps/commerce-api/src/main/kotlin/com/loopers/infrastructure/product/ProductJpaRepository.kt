@@ -12,32 +12,6 @@ interface ProductJpaRepository : JpaRepository<ProductJpaEntity, Long> {
     @Query(
         """
         update ProductJpaEntity p
-        set p.stock = p.stock - :quantity
-        where p.id = :id and p.deletedAt is null and p.stock >= :quantity
-        """,
-    )
-    fun deductStockIfEnough(
-        @Param("id") id: Long,
-        @Param("quantity") quantity: Int,
-    ): Int
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-        """
-        update ProductJpaEntity p
-        set p.stock = p.stock + :quantity
-        where p.id = :id and p.deletedAt is null
-        """,
-    )
-    fun restoreStock(
-        @Param("id") id: Long,
-        @Param("quantity") quantity: Int,
-    ): Int
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-        """
-        update ProductJpaEntity p
         set p.likeCount = p.likeCount + 1
         where p.id = :id and p.deletedAt is null
         """,
@@ -52,5 +26,5 @@ interface ProductJpaRepository : JpaRepository<ProductJpaEntity, Long> {
         where p.id = :id and p.deletedAt is null and p.likeCount > 0
         """,
     )
-    fun decreaseLikeCount(@Param("id") id: Long): Int
+    fun decreaseLikeCountIfPositive(@Param("id") id: Long): Int
 }

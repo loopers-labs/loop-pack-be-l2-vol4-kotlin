@@ -36,7 +36,7 @@ class UserJpaEntity(
     var email: String = email
         protected set
 
-    fun apply(user: User) {
+    fun updateFrom(user: User) {
         password = user.password
         name = user.name
         birthDate = user.birthDate

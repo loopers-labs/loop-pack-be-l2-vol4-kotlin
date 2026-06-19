@@ -318,14 +318,12 @@ class LikeFacadeIntegrationTest @Autowired constructor(
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        stock: Int = 10,
         likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        stock = stock,
         likeCount = likeCount,
     )
 }

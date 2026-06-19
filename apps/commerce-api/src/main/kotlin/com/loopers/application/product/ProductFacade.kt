@@ -1,41 +1,50 @@
 package com.loopers.application.product
 
 import com.loopers.application.brand.BrandApplicationService
+import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.product.ProductPrice
 import com.loopers.domain.product.ProductSearchCondition
-import com.loopers.domain.product.Stock
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.paging.PageResult
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 @Component
+@Transactional(readOnly = true)
 class ProductFacade(
     private val productApplicationService: ProductApplicationService,
     private val brandApplicationService: BrandApplicationService,
+    private val stockApplicationService: StockApplicationService,
 ) {
+    @Transactional
     fun createProduct(
         brandId: Long,
         name: String,
         description: String,
         price: Long,
-        stock: Int,
+        initialStock: Int = 0,
     ): ProductInfo {
         brandApplicationService.getBrand(brandId)
-        return productApplicationService.createProduct(
+        val product = productApplicationService.createProduct(
             brandId = brandId,
             name = name,
             description = description,
             price = ProductPrice(price),
-            stock = Stock(stock),
-        ).let { ProductInfo.from(it) }
+        )
+        val stock = stockApplicationService.createStock(
+            productId = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다."),
+            initialQuantity = initialStock,
+        )
+        return ProductInfo.from(product, stock)
     }
 
     fun getProductDetail(productId: Long): ProductDetailInfo {
         val product = productApplicationService.getProduct(productId)
         val brand = brandApplicationService.getBrand(product.brandId)
+        val stock = stockApplicationService.getStock(productId)
         return ProductDetailInfo(
-            product = ProductInfo.from(product),
+            product = ProductInfo.from(product, stock),
             brand = brand,
         )
     }
@@ -45,14 +54,21 @@ class ProductFacade(
 
         val products = productApplicationService.getProducts(condition)
         val brandIds = products.items.map { it.brandId }.distinct()
+        val productIds = products.items.map { product ->
+            product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다.")
+        }
         val brandMap = brandApplicationService.getBrands(brandIds)
             .associateBy { it.id }
+        val stockMap = stockApplicationService.getStocks(productIds)
 
         return PageResult(
             items = products.items.map { product ->
+                val productId = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다.")
                 val brand = brandMap[product.brandId]
                     ?: throw CoreException(ErrorType.NOT_FOUND, "브랜드를 찾을 수 없습니다. id=${product.brandId}")
-                ProductSummaryInfo.from(product, brand.name)
+                val stock = stockMap[productId]
+                    ?: throw CoreException(ErrorType.NOT_FOUND, "재고를 찾을 수 없습니다. productId=$productId")
+                ProductSummaryInfo.from(product, brand.name, stock)
             },
             page = products.page,
             size = products.size,
@@ -61,23 +77,26 @@ class ProductFacade(
         )
     }
 
+    @Transactional
     fun updateProduct(
         productId: Long,
         name: String,
         description: String,
         price: Long,
-        stock: Int,
     ): ProductInfo {
-        return productApplicationService.updateProduct(
+        val product = productApplicationService.updateProduct(
             id = productId,
             name = name,
             description = description,
             price = ProductPrice(price),
-            stock = Stock(stock),
-        ).let { ProductInfo.from(it) }
+        )
+        val stock = stockApplicationService.getStock(productId)
+        return ProductInfo.from(product, stock)
     }
 
+    @Transactional
     fun deleteProduct(productId: Long) {
         productApplicationService.deleteProduct(productId)
+        stockApplicationService.deleteStock(productId)
     }
 }

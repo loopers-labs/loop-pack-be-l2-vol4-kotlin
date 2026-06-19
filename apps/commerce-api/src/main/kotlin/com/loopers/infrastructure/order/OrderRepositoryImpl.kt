@@ -2,6 +2,7 @@ package com.loopers.infrastructure.order
 
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderRepository
+import com.loopers.domain.order.OrderStatus
 import org.springframework.stereotype.Component
 
 @Component
@@ -11,7 +12,7 @@ class OrderRepositoryImpl(
     override fun save(order: Order): Order {
         val entity = order.id
             ?.let { orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(order) }
+            ?.also { it.updateFrom(order) }
             ?: OrderJpaEntity.from(order)
 
         return orderJpaRepository.save(entity).toDomain()
@@ -20,5 +21,25 @@ class OrderRepositoryImpl(
     override fun find(id: Long): Order? {
         return orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(id)
             ?.toDomain()
+    }
+
+    override fun markPaidIfPending(id: Long): Boolean {
+        return updateStatusIfPending(id = id, targetStatus = OrderStatus.PAID)
+    }
+
+    override fun markPaymentFailedIfPending(id: Long): Boolean {
+        return updateStatusIfPending(id = id, targetStatus = OrderStatus.PAYMENT_FAILED)
+    }
+
+    override fun cancelIfPending(id: Long): Boolean {
+        return updateStatusIfPending(id = id, targetStatus = OrderStatus.CANCELED)
+    }
+
+    private fun updateStatusIfPending(id: Long, targetStatus: OrderStatus): Boolean {
+        return orderJpaRepository.updateStatusIfCurrent(
+            id = id,
+            currentStatus = OrderStatus.PENDING_PAYMENT,
+            targetStatus = targetStatus,
+        ) == 1
     }
 }

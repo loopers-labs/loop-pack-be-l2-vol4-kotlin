@@ -4,8 +4,6 @@ import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductPrice
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSearchCondition
-import com.loopers.domain.product.Stock
-import com.loopers.domain.product.StockQuantity
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.paging.PageResult
@@ -23,7 +21,6 @@ class ProductApplicationService(
         name: String,
         description: String,
         price: ProductPrice,
-        stock: Stock,
     ): Product {
         return productRepository.save(
             Product(
@@ -31,7 +28,6 @@ class ProductApplicationService(
                 name = name,
                 description = description,
                 price = price,
-                stock = stock,
             ),
         )
     }
@@ -51,13 +47,11 @@ class ProductApplicationService(
         name: String,
         description: String,
         price: ProductPrice,
-        stock: Stock,
     ): Product {
         val product = getProduct(id)
         product.rename(name)
         product.changeDescription(description)
         product.changePrice(price)
-        product.adjustStock(stock)
         return productRepository.save(product)
     }
 
@@ -65,25 +59,6 @@ class ProductApplicationService(
     fun deleteProduct(id: Long) {
         getProduct(id)
         productRepository.delete(id)
-    }
-
-    @Transactional
-    fun deductStock(id: Long, quantity: StockQuantity): Product {
-        val product = getProduct(id)
-        product.validateStockDeductible(quantity)
-
-        if (!productRepository.deductStockIfEnough(id = id, quantity = quantity)) {
-            throw CoreException(ErrorType.BAD_REQUEST, "재고가 부족합니다.")
-        }
-        return getProduct(id)
-    }
-
-    @Transactional
-    fun restoreStock(id: Long, quantity: StockQuantity): Product {
-        if (!productRepository.restoreStock(id = id, quantity = quantity)) {
-            throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다. id=$id")
-        }
-        return getProduct(id)
     }
 
     @Transactional
@@ -96,10 +71,7 @@ class ProductApplicationService(
 
     @Transactional
     fun decreaseLikeCount(id: Long): Product {
-        val product = getProduct(id)
-        product.validateLikeCountDecreasable() // 도메인 규칙 명세 & fast-fail (stale 가능)
-
-        if (!productRepository.decreaseLikeCount(id)) { // 실제 원자적 강제 — 동시성 안전망
+        if (!productRepository.decreaseLikeCountIfPositive(id)) {
             throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수가 될 수 없습니다.")
         }
         return getProduct(id)

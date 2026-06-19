@@ -3,7 +3,6 @@ package com.loopers.infrastructure.product
 import com.loopers.domain.BaseEntity
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductPrice
-import com.loopers.domain.product.Stock
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
@@ -22,7 +21,6 @@ class ProductJpaEntity(
     name: String,
     description: String,
     price: Long,
-    stock: Int,
     likeCount: Int,
 ) : BaseEntity() {
     @Column(name = "brand_id", nullable = false)
@@ -40,19 +38,14 @@ class ProductJpaEntity(
     var price: Long = price
         protected set
 
-    @Column(name = "stock", nullable = false)
-    var stock: Int = stock
-        protected set
-
     @Column(name = "like_count", nullable = false)
     var likeCount: Int = likeCount
         protected set
 
-    fun apply(product: Product) {
+    fun updateFrom(product: Product) {
         name = product.name
         description = product.description
         price = product.price.amount
-        stock = product.stock.value
         likeCount = product.likeCount
     }
 
@@ -63,7 +56,6 @@ class ProductJpaEntity(
             name = name,
             description = description,
             price = ProductPrice(price),
-            stock = Stock(stock),
             likeCount = likeCount,
         )
     }
@@ -75,7 +67,6 @@ class ProductJpaEntity(
                 name = product.name,
                 description = product.description,
                 price = product.price.amount,
-                stock = product.stock.value,
                 likeCount = product.likeCount,
             )
         }

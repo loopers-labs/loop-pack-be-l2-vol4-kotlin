@@ -1,11 +1,22 @@
 package com.loopers.application.order
 
-import com.loopers.application.product.ProductApplicationService
-import com.loopers.domain.product.Stock
+import com.loopers.application.payment.PaymentCommand
+import com.loopers.application.payment.PaymentCancelCommand
+import com.loopers.application.payment.PaymentGateway
+import com.loopers.application.payment.PaymentResult
+import com.loopers.application.stock.StockApplicationService
+import com.loopers.domain.coupon.Coupon
+import com.loopers.domain.coupon.CouponRepository
+import com.loopers.domain.coupon.DiscountPolicy
+import com.loopers.domain.coupon.UserCoupon
+import com.loopers.domain.coupon.UserCouponRepository
+import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.user.EncodedPassword
-import com.loopers.infrastructure.order.OrderJpaRepository
+import com.loopers.infrastructure.coupon.UserCouponJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.stock.StockJpaEntity
+import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.infrastructure.user.UserJpaEntity
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.support.error.CoreException
@@ -20,172 +31,171 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Primary
 import java.time.LocalDate
 
 @SpringBootTest
 class OrderFacadeIntegrationTest @Autowired constructor(
     private val orderFacade: OrderFacade,
-    private val productApplicationService: ProductApplicationService,
+    private val orderReleaseService: OrderReleaseService,
+    private val fakePaymentGateway: FakePaymentGateway,
+    private val stockApplicationService: StockApplicationService,
     private val productJpaRepository: ProductJpaRepository,
+    private val stockJpaRepository: StockJpaRepository,
     private val userJpaRepository: UserJpaRepository,
-    private val orderJpaRepository: OrderJpaRepository,
+    private val couponRepository: CouponRepository,
+    private val userCouponRepository: UserCouponRepository,
+    private val userCouponJpaRepository: UserCouponJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
     fun tearDown() {
+        fakePaymentGateway.reset()
         databaseCleanUp.truncateAllTables()
     }
 
-    @DisplayName("주문 생성 시, ")
+    @DisplayName("주문 결제 흐름 진행 시, ")
     @Nested
-    inner class CreateOrder {
-        @DisplayName("상품 재고를 차감하고 주문 스냅샷을 저장한다.")
+    inner class PlaceOrder {
+        @DisplayName("결제에 성공하면 주문을 결제 완료 상태로 확정한다.")
         @Test
-        fun createOrder_deductsStockAndSavesSnapshot() {
+        fun placeOrder_marksOrderPaid_whenPaymentSucceeds() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(
-                newProductJpaEntity(
-                    name = "Loopers T-Shirt",
-                    price = 10_000L,
-                    stock = 10,
-                ),
+            val product = saveProductWithStock(price = 10_000L, stock = 10)
+            val coupon = couponRepository.save(
+                Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L)),
             )
+            val userCoupon = userCouponRepository.save(
+                UserCoupon(userId = user.id, couponId = coupon.id!!),
+            )
+            fakePaymentGateway.nextResult = PaymentResult.SUCCESS
 
             // act
-            val order = orderFacade.createOrder(
+            val order = orderFacade.placeOrder(
                 CreateOrderCommand(
                     userId = user.id,
-                    items = listOf(
-                        CreateOrderItemCommand(productId = product.id, quantity = 3),
-                    ),
+                    items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
+                    userCouponId = userCoupon.id,
                 ),
             )
 
             // assert
-            val updatedProduct = productApplicationService.getProduct(product.id)
+            val usedCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
+            val remainingStock = stockApplicationService.getStock(product.id)
             assertAll(
-                { assertThat(order.userId).isEqualTo(user.id) },
-                { assertThat(order.totalPrice).isEqualTo(30_000L) },
-                { assertThat(order.items).hasSize(1) },
-                { assertThat(order.items.first().productName).isEqualTo("Loopers T-Shirt") },
-                { assertThat(order.items.first().productPrice).isEqualTo(10_000L) },
-                { assertThat(order.items.first().quantity).isEqualTo(3) },
-                { assertThat(updatedProduct.stock).isEqualTo(Stock(7)) },
+                { assertThat(order.status).isEqualTo(OrderStatus.PAID) },
+                { assertThat(order.paymentAmount).isEqualTo(9_000L) },
+                { assertThat(fakePaymentGateway.lastCommand?.orderId).isEqualTo(order.id) },
+                { assertThat(fakePaymentGateway.lastCommand?.userId).isEqualTo(user.id) },
+                { assertThat(fakePaymentGateway.lastCommand?.amount?.amount).isEqualTo(9_000L) },
+                { assertThat(fakePaymentGateway.cancelCommands).isEmpty() },
+                { assertThat(usedCoupon?.usedAt).isNotNull() },
+                { assertThat(remainingStock.quantity).isEqualTo(9) },
             )
         }
 
-        @DisplayName("존재하지 않는 상품이 포함되면 주문 생성에 실패한다.")
+        @DisplayName("결제에 실패하면 주문을 실패 상태로 변경하고 차감된 재고와 쿠폰 사용을 복구한다.")
         @Test
-        fun throwsNotFound_whenProductDoesNotExist() {
+        fun placeOrder_releasesOrder_whenPaymentFails() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
+            val product = saveProductWithStock(price = 10_000L, stock = 10)
+            val coupon = couponRepository.save(
+                Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L)),
+            )
+            val userCoupon = userCouponRepository.save(
+                UserCoupon(userId = user.id, couponId = coupon.id!!),
+            )
+            fakePaymentGateway.nextResult = PaymentResult.FAILED
 
-            // act & assert
-            val result = assertThrows<CoreException> {
-                orderFacade.createOrder(
-                    CreateOrderCommand(
-                        userId = user.id,
-                        items = listOf(CreateOrderItemCommand(productId = 999L, quantity = 1)),
-                    ),
-                )
-            }
-            assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
-        }
+            // act
+            val order = orderFacade.placeOrder(
+                CreateOrderCommand(
+                    userId = user.id,
+                    items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
+                    userCouponId = userCoupon.id,
+                ),
+            )
 
-        @DisplayName("재고가 부족하면 주문 생성에 실패하고 주문을 저장하지 않는다.")
-        @Test
-        fun throwsBadRequest_whenStockIsNotEnough() {
-            // arrange
-            val user = userJpaRepository.save(newUserJpaEntity())
-            val product = productJpaRepository.save(newProductJpaEntity(stock = 2))
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                orderFacade.createOrder(
-                    CreateOrderCommand(
-                        userId = user.id,
-                        items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 3)),
-                    ),
-                )
-            }
-
+            // assert
+            val restoredCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
+            val restoredStock = stockApplicationService.getStock(product.id)
             assertAll(
-                { assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
-                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+                { assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_FAILED) },
+                { assertThat(order.paymentAmount).isEqualTo(9_000L) },
+                { assertThat(fakePaymentGateway.lastCommand?.orderId).isEqualTo(order.id) },
+                { assertThat(fakePaymentGateway.lastCommand?.userId).isEqualTo(user.id) },
+                { assertThat(fakePaymentGateway.lastCommand?.amount?.amount).isEqualTo(9_000L) },
+                { assertThat(fakePaymentGateway.cancelCommands).isEmpty() },
+                { assertThat(restoredCoupon?.usedAt).isNull() },
+                { assertThat(restoredStock.quantity).isEqualTo(10) },
             )
         }
 
-        @DisplayName("주문 상품이 비어있으면 주문 생성에 실패한다.")
+        @DisplayName("결제는 성공했지만 주문 확정에 실패하면 결제 취소를 요청한다.")
         @Test
-        fun throwsBadRequest_whenItemsAreEmpty() {
+        fun placeOrder_cancelsPayment_whenConfirmFailsAfterPaymentSuccess() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                orderFacade.createOrder(
-                    CreateOrderCommand(
-                        userId = user.id,
-                        items = emptyList(),
-                    ),
-                )
-            }
-            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
-        }
-
-        @DisplayName("여러 상품 중 하나가 실패하면 전체 주문 생성과 재고 차감을 롤백한다.")
-        @Test
-        fun rollsBackStockDeduction_whenAnyProductFails() {
-            // arrange
-            val user = userJpaRepository.save(newUserJpaEntity())
-            val enoughProduct = productJpaRepository.save(newProductJpaEntity(name = "Enough", stock = 10))
-            val insufficientProduct = productJpaRepository.save(newProductJpaEntity(name = "Insufficient", stock = 1))
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                orderFacade.createOrder(
-                    CreateOrderCommand(
-                        userId = user.id,
-                        items = listOf(
-                            CreateOrderItemCommand(productId = enoughProduct.id, quantity = 3),
-                            CreateOrderItemCommand(productId = insufficientProduct.id, quantity = 2),
-                        ),
-                    ),
-                )
-            }
-
-            val enough = productApplicationService.getProduct(enoughProduct.id)
-            val insufficient = productApplicationService.getProduct(insufficientProduct.id)
-            assertAll(
-                { assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
-                { assertThat(enough.stock).isEqualTo(Stock(10)) },
-                { assertThat(insufficient.stock).isEqualTo(Stock(1)) },
-                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+            val product = saveProductWithStock(price = 10_000L, stock = 10)
+            val coupon = couponRepository.save(
+                Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L)),
             )
-        }
+            val userCoupon = userCouponRepository.save(
+                UserCoupon(userId = user.id, couponId = coupon.id!!),
+            )
+            fakePaymentGateway.nextResult = PaymentResult.SUCCESS
+            fakePaymentGateway.beforePayReturns = { command ->
+                orderReleaseService.markPaymentFailed(command.orderId)
+            }
 
-        @DisplayName("존재하지 않는 유저이면 주문 생성에 실패한다.")
-        @Test
-        fun throwsNotFound_whenUserDoesNotExist() {
-            // arrange
-            val product = productJpaRepository.save(newProductJpaEntity())
-
-            // act & assert
+            // act
             val result = assertThrows<CoreException> {
-                orderFacade.createOrder(
+                orderFacade.placeOrder(
                     CreateOrderCommand(
-                        userId = 999L,
+                        userId = user.id,
                         items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
+                        userCouponId = userCoupon.id,
                     ),
                 )
             }
 
+            // assert
+            val restoredCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
+            val restoredStock = stockApplicationService.getStock(product.id)
             assertAll(
-                { assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND) },
-                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+                { assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT) },
+                { assertThat(fakePaymentGateway.cancelCommands).hasSize(1) },
+                { assertThat(fakePaymentGateway.cancelCommands.single().orderId).isEqualTo(fakePaymentGateway.lastCommand?.orderId) },
+                { assertThat(fakePaymentGateway.cancelCommands.single().userId).isEqualTo(user.id) },
+                { assertThat(fakePaymentGateway.cancelCommands.single().amount.amount).isEqualTo(9_000L) },
+                { assertThat(restoredCoupon?.usedAt).isNull() },
+                { assertThat(restoredStock.quantity).isEqualTo(10) },
             )
         }
+    }
+
+    private fun saveProductWithStock(
+        brandId: Long = 1L,
+        name: String = "Loopers T-Shirt",
+        description: String = "매일 입기 좋은 티셔츠",
+        price: Long = 10_000L,
+        stock: Int = 10,
+    ): ProductJpaEntity {
+        val product = productJpaRepository.save(
+            ProductJpaEntity(
+                brandId = brandId,
+                name = name,
+                description = description,
+                price = price,
+                likeCount = 0,
+            ),
+        )
+        stockJpaRepository.save(StockJpaEntity(productId = product.id, quantity = stock))
+        return product
     }
 
     private fun newUserJpaEntity(
@@ -202,19 +212,36 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         email = email,
     )
 
-    private fun newProductJpaEntity(
-        brandId: Long = 1L,
-        name: String = "Loopers T-Shirt",
-        description: String = "매일 입기 좋은 티셔츠",
-        price: Long = 10_000L,
-        stock: Int = 10,
-        likeCount: Int = 0,
-    ) = ProductJpaEntity(
-        brandId = brandId,
-        name = name,
-        description = description,
-        price = price,
-        stock = stock,
-        likeCount = likeCount,
-    )
+    @TestConfiguration
+    class PaymentTestConfiguration {
+        @Bean
+        @Primary
+        fun fakePaymentGateway(): FakePaymentGateway {
+            return FakePaymentGateway()
+        }
+    }
+
+    class FakePaymentGateway : PaymentGateway {
+        var nextResult: PaymentResult = PaymentResult.SUCCESS
+        var lastCommand: PaymentCommand? = null
+        var beforePayReturns: ((PaymentCommand) -> Unit)? = null
+        val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
+
+        override fun pay(command: PaymentCommand): PaymentResult {
+            lastCommand = command
+            beforePayReturns?.invoke(command)
+            return nextResult
+        }
+
+        override fun cancel(command: PaymentCancelCommand) {
+            cancelCommands.add(command)
+        }
+
+        fun reset() {
+            nextResult = PaymentResult.SUCCESS
+            lastCommand = null
+            beforePayReturns = null
+            cancelCommands.clear()
+        }
+    }
 }

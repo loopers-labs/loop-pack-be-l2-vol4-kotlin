@@ -9,7 +9,6 @@ class Product(
     name: String,
     description: String,
     price: ProductPrice,
-    stock: Stock,
     likeCount: Int = 0,
 ) {
     var name: String = name
@@ -21,25 +20,12 @@ class Product(
     var price: ProductPrice = price
         private set
 
-    var stock: Stock = stock
-        private set
-
     var likeCount: Int = likeCount
         private set
 
     init {
         validate(brandId = brandId, name = name, description = description, likeCount = likeCount)
     }
-
-    fun validateStockDeductible(quantity: StockQuantity) {
-        stock.validateDeductible(quantity)
-    }
-
-    fun validateLikeCountDecreasable() {
-        if (likeCount <= 0) throw CoreException(ErrorType.BAD_REQUEST, "좋아요 수는 음수가 될 수 없습니다.")
-    }
-
-    fun isSoldOut(): Boolean = stock.isEmpty()
 
     fun rename(name: String) {
         validateName(name)
@@ -53,10 +39,6 @@ class Product(
 
     fun changePrice(price: ProductPrice) {
         this.price = price
-    }
-
-    fun adjustStock(stock: Stock) {
-        this.stock = stock
     }
 
     companion object {

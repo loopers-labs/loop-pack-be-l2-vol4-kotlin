@@ -3,7 +3,6 @@ package com.loopers.infrastructure.product
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSearchCondition
-import com.loopers.domain.product.StockQuantity
 import com.loopers.support.paging.PageResult
 import org.springframework.stereotype.Component
 
@@ -15,7 +14,7 @@ class ProductRepositoryImpl(
     override fun save(product: Product): Product {
         val entity = product.id
             ?.let { productJpaRepository.findByIdAndDeletedAtIsNull(it) }
-            ?.also { it.apply(product) }
+            ?.also { it.updateFrom(product) }
             ?: ProductJpaEntity.from(product)
 
         return productJpaRepository.save(entity).toDomain()
@@ -30,20 +29,12 @@ class ProductRepositoryImpl(
         return productQueryRepository.findAll(condition)
     }
 
-    override fun deductStockIfEnough(id: Long, quantity: StockQuantity): Boolean {
-        return productJpaRepository.deductStockIfEnough(id = id, quantity = quantity.value) == 1
-    }
-
-    override fun restoreStock(id: Long, quantity: StockQuantity): Boolean {
-        return productJpaRepository.restoreStock(id = id, quantity = quantity.value) == 1
-    }
-
     override fun increaseLikeCount(id: Long): Boolean {
         return productJpaRepository.increaseLikeCount(id) == 1
     }
 
-    override fun decreaseLikeCount(id: Long): Boolean {
-        return productJpaRepository.decreaseLikeCount(id) == 1
+    override fun decreaseLikeCountIfPositive(id: Long): Boolean {
+        return productJpaRepository.decreaseLikeCountIfPositive(id) == 1
     }
 
     override fun delete(id: Long) {

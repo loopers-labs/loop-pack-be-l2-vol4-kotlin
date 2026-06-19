@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Codex sub-agent definitions from Claude sub-agent files."""
+"""Generate Codex sub-agent definitions and skill mirrors from Claude files."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_AGENTS_DIR = REPO_ROOT / ".claude" / "agents"
 CODEX_AGENTS_DIR = REPO_ROOT / ".codex" / "agents"
 CODEX_MEMORY_DIR = REPO_ROOT / ".codex" / "agent-memory"
+CLAUDE_SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+AGENTS_SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 
 MEMORY_PATH_RE = re.compile(
     r"/Users/kwp/Desktop/Workspace/[^`\s]+/\.(?:claude|codex|Codex)/agent-memory/([A-Za-z0-9_-]+)/"
@@ -157,34 +159,121 @@ def check_agents(expected: dict[Path, str]) -> list[Path]:
     return drifted
 
 
+def expected_skill_files() -> dict[Path, bytes]:
+    if not CLAUDE_SKILLS_DIR.exists():
+        raise FileNotFoundError(f"Missing source directory: {CLAUDE_SKILLS_DIR}")
+
+    expected: dict[Path, bytes] = {}
+    for source_path in sorted(CLAUDE_SKILLS_DIR.rglob("*")):
+        if source_path.is_file():
+            target_path = AGENTS_SKILLS_DIR / source_path.relative_to(CLAUDE_SKILLS_DIR)
+            expected[target_path] = source_path.read_bytes()
+    return expected
+
+
+def expected_skill_dirs() -> set[Path]:
+    if not CLAUDE_SKILLS_DIR.exists():
+        raise FileNotFoundError(f"Missing source directory: {CLAUDE_SKILLS_DIR}")
+
+    expected = {AGENTS_SKILLS_DIR}
+    for source_path in sorted(CLAUDE_SKILLS_DIR.rglob("*")):
+        if source_path.is_dir():
+            expected.add(AGENTS_SKILLS_DIR / source_path.relative_to(CLAUDE_SKILLS_DIR))
+    return expected
+
+
+def deepest_first(paths: list[Path]) -> list[Path]:
+    return sorted(paths, key=lambda path: (len(path.parts), str(path)), reverse=True)
+
+
+def write_skills(expected_files: dict[Path, bytes], expected_dirs: set[Path]) -> list[Path]:
+    changed: list[Path] = []
+    if AGENTS_SKILLS_DIR.exists():
+        for target_path in deepest_first(list(AGENTS_SKILLS_DIR.rglob("*"))):
+            if target_path.is_file() and target_path not in expected_files:
+                target_path.unlink()
+                changed.append(target_path)
+            elif target_path.is_dir() and target_path not in expected_dirs:
+                try:
+                    target_path.rmdir()
+                    changed.append(target_path)
+                except OSError:
+                    pass
+
+    for target_dir in sorted(expected_dirs):
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+    for target_path, content in expected_files.items():
+        if not target_path.exists() or target_path.read_bytes() != content:
+            target_path.write_bytes(content)
+            changed.append(target_path)
+    return changed
+
+
+def check_skills(expected_files: dict[Path, bytes], expected_dirs: set[Path]) -> list[Path]:
+    drifted: list[Path] = []
+    for target_path, content in expected_files.items():
+        if not target_path.exists() or target_path.read_bytes() != content:
+            drifted.append(target_path)
+
+    if not AGENTS_SKILLS_DIR.exists():
+        drifted.append(AGENTS_SKILLS_DIR)
+        return drifted
+
+    for target_path in sorted(AGENTS_SKILLS_DIR.rglob("*")):
+        if target_path.is_file() and target_path not in expected_files:
+            drifted.append(target_path)
+        elif target_path.is_dir() and target_path not in expected_dirs:
+            drifted.append(target_path)
+    return drifted
+
+
+def print_paths(paths: list[Path]) -> None:
+    for path in paths:
+        print(f"  {path.relative_to(REPO_ROOT)}", file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",
-        help="verify generated Codex agent files are current without writing",
+        help="verify generated Codex agent files and mirrored skills are current without writing",
     )
     args = parser.parse_args()
 
-    expected = expected_agents()
+    expected_agent_files = expected_agents()
+    expected_skills = expected_skill_files()
+    expected_skill_directories = expected_skill_dirs()
     if args.check:
-        drifted = check_agents(expected)
-        if drifted:
-            print("Codex agent files are out of sync:", file=sys.stderr)
-            for path in drifted:
-                print(f"  {path.relative_to(REPO_ROOT)}", file=sys.stderr)
+        drifted_agents = check_agents(expected_agent_files)
+        drifted_skills = check_skills(expected_skills, expected_skill_directories)
+        if drifted_agents or drifted_skills:
+            print("Claude-generated Codex files are out of sync:", file=sys.stderr)
+            if drifted_agents:
+                print("Codex agent files:", file=sys.stderr)
+                print_paths(drifted_agents)
+            if drifted_skills:
+                print("Mirrored skill files/directories:", file=sys.stderr)
+                print_paths(drifted_skills)
             print("Run: python3 .codex/sync-from-claude.py", file=sys.stderr)
             return 1
-        print("Codex agent files are in sync.")
+        print("Codex agent files and mirrored skills are in sync.")
         return 0
 
-    changed = write_agents(expected)
-    if changed:
-        print("Updated Codex agent files:")
-        for path in changed:
-            print(f"  {path.relative_to(REPO_ROOT)}")
+    changed_agents = write_agents(expected_agent_files)
+    changed_skills = write_skills(expected_skills, expected_skill_directories)
+    if changed_agents or changed_skills:
+        if changed_agents:
+            print("Updated Codex agent files:")
+            for path in changed_agents:
+                print(f"  {path.relative_to(REPO_ROOT)}")
+        if changed_skills:
+            print("Updated mirrored skill files/directories:")
+            for path in changed_skills:
+                print(f"  {path.relative_to(REPO_ROOT)}")
     else:
-        print("Codex agent files are already in sync.")
+        print("Codex agent files and mirrored skills are already in sync.")
     return 0
 
 

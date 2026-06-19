@@ -20,6 +20,11 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") apply false
 }
 
+dependencies {
+    implementation("net.datafaker:datafaker:2.6.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -125,6 +130,23 @@ subprojects {
     configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
         version.set(properties["ktLintVersion"] as String)
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+tasks.register<JavaExec>("generateCatalogCsv") {
+    group = "dev data"
+    description = "Generate bulk catalog CSV files for local MySQL Docker initialization."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.loopers.tools.devdata.GenerateCatalogDataKt")
+    val output = providers.gradleProperty("catalogCsvOutput")
+        .orElse(layout.projectDirectory.dir("docker/mysql/generated").asFile.absolutePath)
+    args("--output", output.get())
+    providers.gradleProperty("catalogCsvBrandCount").orNull?.let { args("--brand-count", it) }
+    providers.gradleProperty("catalogCsvProductCount").orNull?.let { args("--product-count", it) }
+    providers.gradleProperty("catalogCsvSeed").orNull?.let { args("--seed", it) }
 }
 
 // module-container 는 task 를 실행하지 않도록 한다.

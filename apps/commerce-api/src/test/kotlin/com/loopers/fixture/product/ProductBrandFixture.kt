@@ -44,11 +44,13 @@ object ProductBrandFixture {
     fun createProductStat(
         id: Long = 1L,
         productId: Long = 1L,
+        brandId: Long = 1L,
         likeCount: Long = 0L,
     ): ProductStat {
         return ProductStat(
             id = id,
             productId = productId,
+            brandId = brandId,
             likeCount = likeCount,
         )
     }

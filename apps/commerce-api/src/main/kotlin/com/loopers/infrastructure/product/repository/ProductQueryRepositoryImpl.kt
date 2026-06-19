@@ -24,6 +24,10 @@ class ProductQueryRepositoryImpl(
         sort: ProductSort,
         pageable: Pageable,
     ): Page<ProductSummary> {
+        if (sort == ProductSort.LIKES_DESC) {
+            return findDisplayableSummariesByLikes(brandId = brandId, pageable = pageable)
+        }
+
         val content = queryFactory
             .select(
                 Projections.constructor(
@@ -60,8 +64,56 @@ class ProductQueryRepositoryImpl(
         }
     }
 
+    private fun findDisplayableSummariesByLikes(
+        brandId: Long?,
+        pageable: Pageable,
+    ): Page<ProductSummary> {
+        val content = queryFactory
+            .select(
+                Projections.constructor(
+                    ProductSummary::class.java,
+                    productEntity.id,
+                    productEntity.name,
+                    productEntity.price,
+                    productEntity.imageUrl,
+                    brandEntity.id,
+                    brandEntity.name,
+                    productStatEntity.likeCount,
+                ),
+            )
+            .from(productStatEntity)
+            .join(productEntity).on(productEntity.id.eq(productStatEntity.productId))
+            .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
+            .where(
+                productStatBrandIdEq(brandId),
+            )
+            .orderBy(
+                productStatEntity.likeCount.desc(),
+                productStatEntity.productId.desc(),
+            )
+            .offset(pageable.offset)
+            .limit(pageable.pageSize.toLong())
+            .fetch()
+
+        return PageableExecutionUtils.getPage(content, pageable) {
+            queryFactory
+                .select(productStatEntity.productId.count())
+                .from(productStatEntity)
+                .join(productEntity).on(productEntity.id.eq(productStatEntity.productId))
+                .join(brandEntity).on(brandEntity.id.eq(productEntity.brandId))
+                .where(
+                    productStatBrandIdEq(brandId),
+                )
+                .fetchOne() ?: 0L
+        }
+    }
+
     private fun brandIdEq(brandId: Long?): BooleanExpression? {
         return brandId?.let { productEntity.brandId.eq(it) }
+    }
+
+    private fun productStatBrandIdEq(brandId: Long?): BooleanExpression? {
+        return brandId?.let { productStatEntity.brandId.eq(it) }
     }
 
     private fun orderSpecifiers(sort: ProductSort): Array<OrderSpecifier<*>> {
@@ -75,9 +127,8 @@ class ProductQueryRepositoryImpl(
                 productEntity.id.desc(),
             )
             ProductSort.LIKES_DESC -> arrayOf(
-                productStatEntity.likeCount.coalesce(0L).desc(),
-                productEntity.createdAt.desc(),
-                productEntity.id.desc(),
+                productStatEntity.likeCount.desc(),
+                productStatEntity.productId.desc(),
             )
         }
     }

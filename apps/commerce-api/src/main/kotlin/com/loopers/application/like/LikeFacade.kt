@@ -27,7 +27,7 @@ class LikeFacade(
         val created = likeService.like(memberId = user.id, productId = product.id)
 
         if (created) {
-            productStatService.increaseLikeCount(product.id)
+            productStatService.increaseLikeCount(productId = product.id, brandId = product.brandId)
         }
     }
 
@@ -38,7 +38,7 @@ class LikeFacade(
         val deleted = likeService.unlike(memberId = user.id, productId = product.id)
 
         if (deleted) {
-            productStatService.decreaseLikeCount(product.id)
+            productStatService.decreaseLikeCount(productId = product.id, brandId = product.brandId)
         }
     }
 

@@ -6,6 +6,7 @@ import com.loopers.support.error.ErrorType
 class ProductStat(
     val id: Long = 0L,
     val productId: Long,
+    val brandId: Long,
     likeCount: Long,
 ) {
     var likeCount: Long = likeCount
@@ -14,6 +15,9 @@ class ProductStat(
     init {
         if (productId <= 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Product id must be positive.")
+        }
+        if (brandId <= 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Brand id must be positive.")
         }
         if (likeCount < 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Like count must not be negative.")
@@ -32,8 +36,8 @@ class ProductStat(
     }
 
     companion object {
-        fun empty(productId: Long): ProductStat {
-            return ProductStat(productId = productId, likeCount = 0L)
+        fun empty(productId: Long, brandId: Long): ProductStat {
+            return ProductStat(productId = productId, brandId = brandId, likeCount = 0L)
         }
     }
 }

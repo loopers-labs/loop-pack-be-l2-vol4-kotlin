@@ -52,7 +52,9 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
         fun returnsProductPage() {
             val brand = createBrand(name = "loopers")
             val product = createProduct(brandId = brand.id, name = "loopers hoodie")
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 3L),
+            )
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT?page=0&size=20",
@@ -220,7 +222,9 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
             val brand = createBrand(name = "loopers")
             val product = createProduct(brandId = brand.id, name = "loopers hoodie")
             createInventory(productId = product.id, quantity = 7L)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 3L),
+            )
             val request = AdminProductV1Dto.UpdateProductRequest(
                 name = "updated hoodie",
                 price = 20_000L,
@@ -414,7 +418,9 @@ class AdminProductV1ApiE2ETest @Autowired constructor(
             val brand = createBrand(name = "loopers")
             val product = createProduct(brandId = brand.id, name = "loopers hoodie")
             createInventory(productId = product.id, quantity = 7L)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 3L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 3L),
+            )
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}",

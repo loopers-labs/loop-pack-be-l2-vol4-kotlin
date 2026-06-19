@@ -79,7 +79,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 0L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 0L),
+            )
 
             testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
@@ -110,7 +112,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             }
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 0L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 0L),
+            )
             val executor = Executors.newFixedThreadPool(CONCURRENT_LIKE_COUNT)
             val startLatch = java.util.concurrent.CountDownLatch(1)
 
@@ -199,7 +203,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
             likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 1L),
+            )
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
@@ -222,7 +228,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 1L),
+            )
 
             val response = testRestTemplate.exchange(
                 "$PRODUCTS_ENDPOINT/${product.id}/likes",
@@ -247,7 +255,13 @@ class LikeV1ApiE2ETest @Autowired constructor(
             }
             val brand = createBrand()
             val product = createProduct(brandId = brand.id)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = CONCURRENT_LIKE_COUNT.toLong()))
+            productStatJpaRepository.save(
+                ProductStatEntity(
+                    productId = product.id,
+                    brandId = product.brandId,
+                    likeCount = CONCURRENT_LIKE_COUNT.toLong(),
+                ),
+            )
             members.forEach { member ->
                 likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
             }
@@ -339,8 +353,12 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val brand = createBrand()
             val firstProduct = createProduct(brandId = brand.id, name = "loopers hoodie")
             val secondProduct = createProduct(brandId = brand.id, name = "loopers cap")
-            productStatJpaRepository.save(ProductStatEntity(productId = firstProduct.id, likeCount = 3L))
-            productStatJpaRepository.save(ProductStatEntity(productId = secondProduct.id, likeCount = 5L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = firstProduct.id, brandId = firstProduct.brandId, likeCount = 3L),
+            )
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = secondProduct.id, brandId = secondProduct.brandId, likeCount = 5L),
+            )
             likeJpaRepository.save(LikeEntity(memberId = member.id, productId = firstProduct.id))
             likeJpaRepository.save(LikeEntity(memberId = member.id, productId = secondProduct.id))
 
@@ -364,7 +382,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val member = createMember()
             val brand = createBrand()
             val product = createProduct(brandId = brand.id, isDeleted = true)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 1L),
+            )
             likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
 
             val response = testRestTemplate.exchange(
@@ -386,7 +406,9 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val member = createMember()
             val brand = createBrand(isDeleted = true)
             val product = createProduct(brandId = brand.id)
-            productStatJpaRepository.save(ProductStatEntity(productId = product.id, likeCount = 1L))
+            productStatJpaRepository.save(
+                ProductStatEntity(productId = product.id, brandId = product.brandId, likeCount = 1L),
+            )
             likeJpaRepository.save(LikeEntity(memberId = member.id, productId = product.id))
 
             val response = testRestTemplate.exchange(

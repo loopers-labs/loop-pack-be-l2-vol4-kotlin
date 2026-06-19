@@ -13,11 +13,21 @@ class ProductStatTest {
     @DisplayName("상품 통계 생성")
     @Nested
     inner class Create {
+        @DisplayName("브랜드 ID는 양수여야 한다")
+        @Test
+        fun throwsBadRequest_whenBrandIdIsNotPositive() {
+            val result = assertThrows<CoreException> {
+                ProductStat(productId = 1L, brandId = 0L, likeCount = 0L)
+            }
+
+            assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
+        }
+
         @DisplayName("좋아요 수는 음수로 시작할 수 없다")
         @Test
         fun throwsBadRequest_whenLikeCountIsNegative() {
             val result = assertThrows<CoreException> {
-                ProductStat(productId = 1L, likeCount = -1L)
+                ProductStat(productId = 1L, brandId = 1L, likeCount = -1L)
             }
 
             assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST)
@@ -30,7 +40,7 @@ class ProductStatTest {
         @DisplayName("좋아요 수를 증가시킨다")
         @Test
         fun increasesLikeCount() {
-            val productStat = ProductStat(productId = 1L, likeCount = 0L)
+            val productStat = ProductStat(productId = 1L, brandId = 1L, likeCount = 0L)
 
             productStat.increaseLikeCount()
 
@@ -40,7 +50,7 @@ class ProductStatTest {
         @DisplayName("좋아요 수는 0 미만으로 감소할 수 없다")
         @Test
         fun throwsBadRequest_whenLikeCountWouldBeNegative() {
-            val productStat = ProductStat(productId = 1L, likeCount = 0L)
+            val productStat = ProductStat(productId = 1L, brandId = 1L, likeCount = 0L)
 
             val result = assertThrows<CoreException> {
                 productStat.decreaseLikeCount()

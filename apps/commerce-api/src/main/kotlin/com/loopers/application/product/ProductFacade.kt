@@ -2,6 +2,7 @@ package com.loopers.application.product
 
 import com.loopers.application.brand.BrandService
 import com.loopers.application.inventory.InventoryService
+import com.loopers.application.product.cache.ProductCacheService
 import com.loopers.application.product.dto.AdminProductDetailInfo
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductDetailInfo
@@ -21,17 +22,37 @@ class ProductFacade(
     private val inventoryService: InventoryService,
     private val productStatService: ProductStatService,
     private val productCatalogService: ProductCatalogService,
+    private val productCacheService: ProductCacheService,
 ) {
-    @Transactional(readOnly = true)
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
-        return productService.getProducts(command)
+        val cachedProducts = productCacheService.findList(command)
+
+        if (cachedProducts != null) {
+            productCacheService.refreshList(command)
+            return cachedProducts
+        }
+
+        val productSummaries = productService.getProducts(command)
+        productCacheService.saveList(command, productSummaries)
+
+        return productSummaries
     }
 
-    @Transactional(readOnly = true)
     fun getProduct(productId: Long): ProductDetailInfo {
+        productCacheService.findDetail(productId)?.let {
+            return it
+        }
+
+        val productDetail = getProductDetailFromDatabase(productId)
+        productCacheService.saveDetail(productId, productDetail)
+
+        return productDetail
+    }
+
+    private fun getProductDetailFromDatabase(productId: Long): ProductDetailInfo {
         val product = productService.getProduct(productId)
         val brand = brandService.getBrand(product.brandId)
-        val productStat = productStatService.getProductStat(product.id)
+        val productStat = productStatService.getProductStat(productId = product.id, brandId = product.brandId)
         val productCatalog = productCatalogService.display(
             product = product,
             brand = brand,
@@ -41,12 +62,11 @@ class ProductFacade(
         return ProductDetailInfo.from(productCatalog)
     }
 
-    @Transactional(readOnly = true)
     fun getProductForAdmin(productId: Long): AdminProductDetailInfo {
         val product = productService.getProduct(productId)
         val brand = brandService.getBrand(product.brandId)
         val inventory = inventoryService.getInventory(product.id)
-        val productStat = productStatService.getProductStat(product.id)
+        val productStat = productStatService.getProductStat(productId = product.id, brandId = product.brandId)
         val productCatalog = productCatalogService.displayForAdmin(
             product = product,
             brand = brand,
@@ -62,7 +82,9 @@ class ProductFacade(
         val brand = brandService.getBrand(command.brandId)
         val product = productService.createProduct(command)
         val inventory = inventoryService.createInventory(productId = product.id, quantity = command.quantity)
-        val productStat = productStatService.emptyStat(product.id)
+        val productStat = productStatService.save(
+            productStatService.emptyStat(productId = product.id, brandId = product.brandId),
+        )
         val productCatalog = productCatalogService.displayForAdmin(
             product = product,
             brand = brand,
@@ -79,13 +101,15 @@ class ProductFacade(
         val brand = brandService.getBrand(product.brandId)
         val inventory = inventoryService.getInventory(product.id)
         val updatedProduct = productService.updateProduct(product = product, command = command)
-        val productStat = productStatService.getProductStat(product.id)
+        val productStat = productStatService.getProductStat(productId = product.id, brandId = product.brandId)
         val productCatalog = productCatalogService.displayForAdmin(
             product = updatedProduct,
             brand = brand,
             productStat = productStat,
             inventory = inventory,
         )
+
+        productCacheService.evictDetail(productId)
 
         return AdminProductDetailInfo.from(productCatalog)
     }
@@ -95,5 +119,6 @@ class ProductFacade(
         val product = productService.getProduct(productId)
         brandService.getBrand(product.brandId)
         productService.deleteProduct(product)
+        productCacheService.evictDetail(productId)
     }
 }

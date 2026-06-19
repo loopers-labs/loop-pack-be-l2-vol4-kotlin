@@ -4,6 +4,7 @@ import com.loopers.domain.BaseEntity
 import com.loopers.domain.product.model.Product
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import org.hibernate.annotations.SQLRestriction
@@ -12,6 +13,12 @@ import org.hibernate.annotations.SQLRestriction
 @SQLRestriction("is_deleted = false")
 @Table(
     name = "product",
+    indexes = [
+        Index(
+            name = "idx_product_brand_deleted_id",
+            columnList = "brand_id, is_deleted, id",
+        ),
+    ],
     uniqueConstraints = [
         UniqueConstraint(
             name = "uk_product_brand_id_name",

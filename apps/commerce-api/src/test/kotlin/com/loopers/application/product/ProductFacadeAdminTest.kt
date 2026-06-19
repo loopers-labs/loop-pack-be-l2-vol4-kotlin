@@ -2,6 +2,9 @@ package com.loopers.application.product
 
 import com.loopers.application.brand.BrandService
 import com.loopers.application.inventory.InventoryService
+import com.loopers.application.product.cache.ProductCacheRepository
+import com.loopers.application.product.cache.ProductCacheService
+import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductCreateCommand
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.product.dto.ProductUpdateCommand
@@ -25,6 +28,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.springframework.core.task.SyncTaskExecutor
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
@@ -97,7 +101,7 @@ class ProductFacadeAdminTest {
             fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
             fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
             fixture.inventoryRepository.save(Inventory(productId = 10L, quantity = 7L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 5L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 5L))
 
             val result = fixture.productFacade.updateProduct(
                 productId = 10L,
@@ -315,7 +319,7 @@ class ProductFacadeAdminTest {
             fixture.brandRepository.save(createBrand(id = 1L, name = "loopers"))
             fixture.productRepository.save(createProduct(id = 10L, brandId = 1L))
             fixture.inventoryRepository.save(Inventory(productId = 10L, quantity = 7L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 3L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 3L))
 
             val result = fixture.productFacade.getProductForAdmin(10L)
 
@@ -422,12 +426,20 @@ class ProductFacadeAdminTest {
         val inventoryRepository = FakeInventoryRepository()
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
+        val productCacheRepository = FakeProductCacheRepository()
+        val productService = ProductService(productRepository)
+        val productCacheService = ProductCacheService(
+            productService = productService,
+            productCacheRepository = productCacheRepository,
+            taskExecutor = SyncTaskExecutor(),
+        )
         val productFacade = ProductFacade(
-            productService = ProductService(productRepository),
+            productService = productService,
             brandService = BrandService(brandRepository),
             inventoryService = InventoryService(inventoryRepository),
             productStatService = ProductStatService(productStatRepository),
             productCatalogService = ProductCatalogService(),
+            productCacheService = productCacheService,
         )
     }
 
@@ -595,6 +607,40 @@ class ProductFacadeAdminTest {
             productStats.removeIf { it.productId == productStat.productId }
             productStats.add(productStat)
             return productStat
+        }
+    }
+
+    private class FakeProductCacheRepository : ProductCacheRepository {
+        private val details = mutableMapOf<Long, ProductDetailInfo>()
+        private val lists = mutableMapOf<ProductListCommand, Page<ProductSummary>>()
+        private val locks = mutableSetOf<ProductListCommand>()
+
+        override fun findDetail(productId: Long): ProductDetailInfo? {
+            return details[productId]
+        }
+
+        override fun saveDetail(productId: Long, productDetail: ProductDetailInfo) {
+            details[productId] = productDetail
+        }
+
+        override fun evictDetail(productId: Long) {
+            details.remove(productId)
+        }
+
+        override fun findList(command: ProductListCommand): Page<ProductSummary>? {
+            return lists[command]
+        }
+
+        override fun saveList(command: ProductListCommand, productSummaries: Page<ProductSummary>) {
+            lists[command] = productSummaries
+        }
+
+        override fun acquireListRefreshLock(command: ProductListCommand): Boolean {
+            return locks.add(command)
+        }
+
+        override fun releaseListRefreshLock(command: ProductListCommand) {
+            locks.remove(command)
         }
     }
 

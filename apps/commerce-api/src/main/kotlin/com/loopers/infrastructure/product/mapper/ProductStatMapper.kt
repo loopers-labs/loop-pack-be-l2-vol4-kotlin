@@ -8,6 +8,7 @@ object ProductStatMapper {
         return ProductStat(
             id = productStat.id,
             productId = productStat.productId,
+            brandId = productStat.brandId,
             likeCount = productStat.likeCount,
         )
     }
@@ -15,6 +16,7 @@ object ProductStatMapper {
     fun toEntity(productStat: ProductStat): ProductStatEntity {
         return ProductStatEntity(
             productId = productStat.productId,
+            brandId = productStat.brandId,
             likeCount = productStat.likeCount,
         )
     }

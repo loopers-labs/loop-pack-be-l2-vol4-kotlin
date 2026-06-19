@@ -56,7 +56,7 @@ class LikeFacadeTest {
         fun ignoresDuplicateLike() {
             val fixture = LikeFacadeFixture()
             fixture.productRepository.save(createProduct(id = 10L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 1L))
             fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
             fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
@@ -99,7 +99,7 @@ class LikeFacadeTest {
         fun unlikesProduct() {
             val fixture = LikeFacadeFixture()
             fixture.productRepository.save(createProduct(id = 10L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 1L))
             fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
             fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
@@ -116,7 +116,7 @@ class LikeFacadeTest {
         fun ignoresAbsentLike() {
             val fixture = LikeFacadeFixture()
             fixture.productRepository.save(createProduct(id = 10L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 1L))
 
             fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
@@ -159,7 +159,7 @@ class LikeFacadeTest {
             val fixture = LikeFacadeFixture()
             fixture.brandRepository.save(createBrand(id = 1L))
             fixture.productRepository.save(createProduct(id = 10L))
-            fixture.productStatRepository.save(ProductStat(productId = 10L, likeCount = 1L))
+            fixture.productStatRepository.save(ProductStat(productId = 10L, brandId = 1L, likeCount = 1L))
             fixture.likeRepository.saveIfAbsent(Like(memberId = 1L, productId = 10L))
 
             val result = fixture.likeFacade.getLikedProducts(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, userId = 1L)

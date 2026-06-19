@@ -27,7 +27,7 @@ class ProductLikeService {
                 ?: return@mapNotNull null
 
             val productStat = statByProductId[product.id]
-                ?: ProductStat.empty(product.id)
+                ?: ProductStat.empty(productId = product.id, brandId = product.brandId)
 
             ProductSummary.from(
                 product = product,

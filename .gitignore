@@ -44,6 +44,7 @@ out/
 
 ### Mac ###
 .DS_STORE
+.DS_STORE?
 
 ### Local Docker seed data ###
 /docker/mysql/generated/*.csv

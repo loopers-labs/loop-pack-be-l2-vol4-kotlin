@@ -1,4 +1,7 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
   data:
     redis:
       repositories:
@@ -15,7 +18,19 @@ datasource:
         port: ${REDIS_REPLICA_1_PORT}
 
 ---
-spring.config.activate.on-profile: local, test
+spring.config.activate.on-profile: local
+
+datasource:
+  redis:
+    master:
+      host: in-memory
+      port: 0
+    replicas:
+      - host: in-memory
+        port: 0
+
+---
+spring.config.activate.on-profile: test
 
 datasource:
   redis:

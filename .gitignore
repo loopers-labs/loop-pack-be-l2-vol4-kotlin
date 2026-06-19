@@ -52,4 +52,6 @@ out/
 ### Local performance results ###
 /performance/results/*.json
 /performance/results/*.txt
+/performance/results/*.log
+/performance/results/*.stderr
 !/performance/results/.gitkeep

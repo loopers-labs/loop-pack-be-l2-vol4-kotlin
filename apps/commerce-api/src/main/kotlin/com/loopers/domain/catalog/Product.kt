@@ -7,10 +7,16 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 
 @Entity
-@Table(name = "products")
+@Table(
+    name = "products",
+    indexes = [
+        Index(name = "idx_products_brand_id", columnList = "brand_id"),
+    ],
+)
 class Product(
     @Column(name = "brand_id", nullable = false)
     val brandId: Long,

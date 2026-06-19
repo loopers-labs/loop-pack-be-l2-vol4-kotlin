@@ -42,7 +42,8 @@ CREATE TABLE products (
     name VARCHAR(150) NOT NULL,
     price BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    KEY idx_products_brand_id (brand_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE product_detail_images (

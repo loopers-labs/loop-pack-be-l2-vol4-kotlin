@@ -1,4 +1,7 @@
 -- Round5 상품 조회 성능 측정용 MySQL 8 스크립트
+-- WARNING: 이 스크립트는 개발/테스트 환경 전용이다.
+-- 아래 TRUNCATE 구문은 likes, product_stocks, products, brands 데이터를 모두 삭제한다.
+-- 운영 또는 보존해야 하는 데이터가 있는 DB에서는 절대 실행하지 않는다.
 -- 실행 전 local profile 앱을 한 번 띄워 Hibernate ddl-auto=create 로 스키마를 생성한다.
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -111,22 +114,24 @@ LIMIT 20 OFFSET 0;
 -- LIMIT 20 OFFSET 0;
 -- DROP INDEX idx_products_brand_likes_id ON products;
 
--- 최종 인덱스
+-- 최종 인덱스 측정 블록
+-- 아래 CREATE INDEX, ANALYZE TABLE, EXPLAIN ANALYZE 구문을 함께 선택 실행한다.
+-- 이미 Hibernate DDL로 최종 인덱스가 생성된 상태라면 CREATE INDEX 구문은 실행하지 않는다.
 -- CREATE INDEX idx_products_brand_deleted_likes_id ON products (brand_id, deleted_at, like_count, id);
 -- CREATE INDEX idx_products_deleted_likes_id ON products (deleted_at, like_count, id);
 -- ANALYZE TABLE products;
 
-EXPLAIN ANALYZE
-SELECT id, brand_id, name, price, like_count
-FROM products FORCE INDEX (idx_products_brand_deleted_likes_id)
-WHERE brand_id = 1
-  AND deleted_at IS NULL
-ORDER BY like_count DESC, id DESC
-LIMIT 20 OFFSET 0;
+-- EXPLAIN ANALYZE
+-- SELECT id, brand_id, name, price, like_count
+-- FROM products FORCE INDEX (idx_products_brand_deleted_likes_id)
+-- WHERE brand_id = 1
+--   AND deleted_at IS NULL
+-- ORDER BY like_count DESC, id DESC
+-- LIMIT 20 OFFSET 0;
 
-EXPLAIN ANALYZE
-SELECT id, brand_id, name, price, like_count
-FROM products FORCE INDEX (idx_products_deleted_likes_id)
-WHERE deleted_at IS NULL
-ORDER BY like_count DESC, id DESC
-LIMIT 20 OFFSET 0;
+-- EXPLAIN ANALYZE
+-- SELECT id, brand_id, name, price, like_count
+-- FROM products FORCE INDEX (idx_products_deleted_likes_id)
+-- WHERE deleted_at IS NULL
+-- ORDER BY like_count DESC, id DESC
+-- LIMIT 20 OFFSET 0;

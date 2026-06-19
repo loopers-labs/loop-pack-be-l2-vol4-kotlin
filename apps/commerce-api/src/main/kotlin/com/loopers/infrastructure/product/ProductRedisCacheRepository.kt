@@ -5,6 +5,7 @@ import com.loopers.application.product.ProductCacheRepository
 import com.loopers.application.product.ProductInfo
 import com.loopers.application.product.ProductPageInfo
 import com.loopers.config.redis.RedisConfig
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
@@ -16,34 +17,66 @@ class ProductRedisCacheRepository(
     private val redisTemplate: RedisTemplate<String, String>,
     private val objectMapper: ObjectMapper,
 ) : ProductCacheRepository {
+    private val log = LoggerFactory.getLogger(ProductRedisCacheRepository::class.java)
+
     override fun getDetail(productId: Long): ProductInfo? {
-        return redisTemplate.opsForValue().get(detailKey(productId))
-            ?.let { objectMapper.readValue(it, ProductInfo::class.java) }
+        val key = detailKey(productId)
+        return getValue(key)
+            ?.let { readValueOrNull(key = key, value = it, type = ProductInfo::class.java) }
     }
 
     override fun putDetail(productId: Long, product: ProductInfo) {
-        redisTemplate.opsForValue().set(
-            detailKey(productId),
-            objectMapper.writeValueAsString(product),
-            DETAIL_TTL,
-        )
+        val key = detailKey(productId)
+        runCatching {
+            redisTemplate.opsForValue().set(
+                key,
+                objectMapper.writeValueAsString(product),
+                DETAIL_TTL,
+            )
+        }.onFailure { log.warn("Failed to put product detail cache. key={}", key, it) }
     }
 
     override fun evictDetail(productId: Long) {
-        redisTemplate.delete(detailKey(productId))
+        val key = detailKey(productId)
+        runCatching { redisTemplate.delete(key) }
+            .onFailure { log.warn("Failed to evict product detail cache. key={}", key, it) }
     }
 
     override fun getList(query: ProductCacheRepository.ProductListCacheQuery): ProductPageInfo? {
-        return redisTemplate.opsForValue().get(listKey(query))
-            ?.let { objectMapper.readValue(it, ProductPageInfo::class.java) }
+        val key = listKey(query)
+        return getValue(key)
+            ?.let { readValueOrNull(key = key, value = it, type = ProductPageInfo::class.java) }
     }
 
     override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) {
-        redisTemplate.opsForValue().set(
-            listKey(query),
-            objectMapper.writeValueAsString(products),
-            LIST_TTL,
-        )
+        val key = listKey(query)
+        runCatching {
+            redisTemplate.opsForValue().set(
+                key,
+                objectMapper.writeValueAsString(products),
+                LIST_TTL,
+            )
+        }.onFailure { log.warn("Failed to put product list cache. key={}", key, it) }
+    }
+
+    private fun getValue(key: String): String? {
+        return runCatching { redisTemplate.opsForValue().get(key) }
+            .onFailure { log.warn("Failed to get product cache. key={}", key, it) }
+            .getOrNull()
+    }
+
+    private fun <T> readValueOrNull(key: String, value: String, type: Class<T>): T? {
+        return runCatching { objectMapper.readValue(value, type) }
+            .onFailure {
+                log.warn("Failed to deserialize product cache. key={}", key, it)
+                evictKey(key)
+            }
+            .getOrNull()
+    }
+
+    private fun evictKey(key: String) {
+        runCatching { redisTemplate.delete(key) }
+            .onFailure { log.warn("Failed to evict product cache. key={}", key, it) }
     }
 
     companion object {

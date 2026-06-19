@@ -86,6 +86,46 @@ class ProductRedisCacheRepositoryTest @Autowired constructor(
         )
     }
 
+    @DisplayName("상품 상세 캐시 값 역직렬화가 실패하면 cache miss로 처리하고 깨진 key를 삭제한다.")
+    @Test
+    fun returnsNullAndEvictsKey_whenDetailCacheValueIsCorrupted() {
+        // arrange
+        val key = ProductRedisCacheRepository.detailKey(1L)
+        redisTemplate.opsForValue().set(key, "{not-json")
+
+        // act
+        val result = productCacheRepository.getDetail(1L)
+
+        // assert
+        assertAll(
+            { assertThat(result).isNull() },
+            { assertThat(redisTemplate.hasKey(key)).isFalse() },
+        )
+    }
+
+    @DisplayName("상품 목록 캐시 값 역직렬화가 실패하면 cache miss로 처리하고 깨진 key를 삭제한다.")
+    @Test
+    fun returnsNullAndEvictsKey_whenListCacheValueIsCorrupted() {
+        // arrange
+        val query = ProductCacheRepository.ProductListCacheQuery(
+            brandId = null,
+            sort = ProductSort.LIKES_DESC,
+            page = 0,
+            size = 20,
+        )
+        val key = ProductRedisCacheRepository.listKey(query)
+        redisTemplate.opsForValue().set(key, "{not-json")
+
+        // act
+        val result = productCacheRepository.getList(query)
+
+        // assert
+        assertAll(
+            { assertThat(result).isNull() },
+            { assertThat(redisTemplate.hasKey(key)).isFalse() },
+        )
+    }
+
     private fun productInfo(id: Long, name: String): ProductInfo {
         return ProductInfo(
             id = id,

@@ -50,6 +50,36 @@ class ProductLikeCountEventHandlerTest {
             assertThat(fixture.productRepository.findActiveById(10L)?.likeCount).isEqualTo(0)
             assertThat(fixture.productCacheRepository.evictedDetailIds).containsExactly(10L, 10L)
         }
+
+        @DisplayName("상세 캐시 삭제가 실패해도 좋아요 생성 count 갱신은 유지한다.")
+        @Test
+        fun keepsIncrementedLikeCount_whenCacheEvictionFails() {
+            // arrange
+            val productRepository = InMemoryProductRepository()
+            productRepository.save(product().withId(10L))
+            val eventHandler = ProductLikeCountEventHandler(productRepository, FailingProductCacheRepository())
+
+            // act
+            eventHandler.handle(LikeCreatedEvent(productId = 10L))
+
+            // assert
+            assertThat(productRepository.findActiveById(10L)?.likeCount).isEqualTo(1)
+        }
+
+        @DisplayName("상세 캐시 삭제가 실패해도 좋아요 삭제 count 갱신은 유지한다.")
+        @Test
+        fun keepsDecrementedLikeCount_whenCacheEvictionFails() {
+            // arrange
+            val productRepository = InMemoryProductRepository()
+            productRepository.save(product(likeCount = 1).withId(10L))
+            val eventHandler = ProductLikeCountEventHandler(productRepository, FailingProductCacheRepository())
+
+            // act
+            eventHandler.handle(LikeDeletedEvent(productId = 10L))
+
+            // assert
+            assertThat(productRepository.findActiveById(10L)?.likeCount).isEqualTo(0)
+        }
     }
 
     private class Fixture {
@@ -112,5 +142,31 @@ class ProductLikeCountEventHandlerTest {
         override fun getList(query: ProductCacheRepository.ProductListCacheQuery): ProductPageInfo? = null
 
         override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) = Unit
+    }
+
+    private class FailingProductCacheRepository : ProductCacheRepository {
+        override fun getDetail(productId: Long): ProductInfo? = null
+
+        override fun putDetail(productId: Long, product: ProductInfo) = Unit
+
+        override fun evictDetail(productId: Long) {
+            throw IllegalStateException("cache eviction failed")
+        }
+
+        override fun getList(query: ProductCacheRepository.ProductListCacheQuery): ProductPageInfo? = null
+
+        override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) = Unit
+    }
+
+    companion object {
+        private fun product(likeCount: Int = 0): ProductModel {
+            return ProductModel(
+                brandId = 1L,
+                name = "Air Max",
+                description = "Shoes",
+                price = BigDecimal("120000.00"),
+                likeCount = likeCount,
+            )
+        }
     }
 }

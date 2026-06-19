@@ -7,6 +7,7 @@ import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.interfaces.api.product.ProductV1Dto
+import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
@@ -54,14 +55,16 @@ class ProductV1ApiE2ETest @Autowired constructor(
             val response = getProducts("/api/v1/products?sort=likes_desc")
 
             // assert
+            val body = checkNotNull(response.body) { "response.body must not be null" }
+            val data = checkNotNull(body.data) { "response.body.data must not be null" }
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(response.body!!.data!!.items.map { it.id }).containsExactly(top.id, second.id, third.id) },
-                { assertThat(response.body!!.data!!.items.first().stockQuantity).isEqualTo(9) },
-                { assertThat(response.body!!.data!!.page).isEqualTo(0) },
-                { assertThat(response.body!!.data!!.size).isEqualTo(20) },
-                { assertThat(response.body!!.data!!.totalCount).isEqualTo(3) },
-                { assertThat(response.body!!.data!!.totalPages).isEqualTo(1) },
+                { assertThat(data.items.map { it.id }).containsExactly(top.id, second.id, third.id) },
+                { assertThat(data.items.first().stockQuantity).isEqualTo(9) },
+                { assertThat(data.page).isEqualTo(0) },
+                { assertThat(data.size).isEqualTo(20) },
+                { assertThat(data.totalCount).isEqualTo(3) },
+                { assertThat(data.totalPages).isEqualTo(1) },
             )
         }
 
@@ -79,24 +82,50 @@ class ProductV1ApiE2ETest @Autowired constructor(
             val response = getProducts("/api/v1/products?brandId=${brand.id}&sort=likes_desc&page=0&size=1")
 
             // assert
+            val body = checkNotNull(response.body) { "response.body must not be null" }
+            val data = checkNotNull(body.data) { "response.body.data must not be null" }
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(response.body!!.data!!.items.map { it.id }).containsExactly(first.id) },
-                { assertThat(response.body!!.data!!.page).isEqualTo(0) },
-                { assertThat(response.body!!.data!!.size).isEqualTo(1) },
-                { assertThat(response.body!!.data!!.totalCount).isEqualTo(2) },
-                { assertThat(response.body!!.data!!.totalPages).isEqualTo(2) },
+                { assertThat(data.items.map { it.id }).containsExactly(first.id) },
+                { assertThat(data.page).isEqualTo(0) },
+                { assertThat(data.size).isEqualTo(1) },
+                { assertThat(data.totalCount).isEqualTo(2) },
+                { assertThat(data.totalPages).isEqualTo(2) },
             )
         }
 
-        @DisplayName("page/size 범위가 유효하지 않으면 400을 반환한다.")
+        @DisplayName("page가 음수이면 표준 400 응답을 반환한다.")
         @Test
-        fun returnsBadRequest_whenPagingIsInvalid() {
+        fun returnsBadRequest_whenPageIsNegative() {
             // act
-            val response = getProducts("/api/v1/products?page=-1&size=101")
+            val response = getProducts("/api/v1/products?page=-1")
 
             // assert
-            assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+            val body = checkNotNull(response.body) { "response.body must not be null" }
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(body.meta.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
+                { assertThat(body.meta.errorCode).isEqualTo(ErrorType.BAD_REQUEST.code) },
+                { assertThat(body.meta.message).isEqualTo("페이지 번호는 0 이상이어야 합니다.") },
+                { assertThat(body.data).isNull() },
+            )
+        }
+
+        @DisplayName("size가 허용 범위를 벗어나면 표준 400 응답을 반환한다.")
+        @Test
+        fun returnsBadRequest_whenSizeIsOutOfRange() {
+            // act
+            val response = getProducts("/api/v1/products?size=101")
+
+            // assert
+            val body = checkNotNull(response.body) { "response.body must not be null" }
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
+                { assertThat(body.meta.result).isEqualTo(ApiResponse.Metadata.Result.FAIL) },
+                { assertThat(body.meta.errorCode).isEqualTo(ErrorType.BAD_REQUEST.code) },
+                { assertThat(body.meta.message).isEqualTo("페이지 크기는 1 이상 100 이하여야 합니다.") },
+                { assertThat(body.data).isNull() },
+            )
         }
     }
 

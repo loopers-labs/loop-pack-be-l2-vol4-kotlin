@@ -10,6 +10,7 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -20,12 +21,16 @@ class GetProductsUsecase(
     private val productStockRepository: ProductStockRepository,
     private val productCacheRepository: ProductCacheRepository,
 ) {
+    private val log = LoggerFactory.getLogger(GetProductsUsecase::class.java)
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
     fun execute(query: Query): ProductPageInfo {
         val cacheQuery = query.toCacheQuery()
-        productCacheRepository.getList(cacheQuery)?.let { return it }
+        runCatching { productCacheRepository.getList(cacheQuery) }
+            .onFailure { log.warn("Failed to get product list cache. query={}", cacheQuery, it) }
+            .getOrNull()
+            ?.let { return it }
 
         val page = productRepository.findActiveAll(
             brandId = query.brandId,
@@ -54,7 +59,8 @@ class GetProductsUsecase(
             totalCount = page.totalElements,
             totalPages = page.totalPages,
         )
-        productCacheRepository.putList(cacheQuery, productPageInfo)
+        runCatching { productCacheRepository.putList(cacheQuery, productPageInfo) }
+            .onFailure { log.warn("Failed to put product list cache. query={}", cacheQuery, it) }
         return productPageInfo
     }
 

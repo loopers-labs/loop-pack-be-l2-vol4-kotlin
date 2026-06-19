@@ -29,12 +29,20 @@
   - 목록 key: `commerce-api:product:list:v1:brand:{brandId|all}:sort:{sort}:page:{page}:size:{size}`, TTL 30초
   - 좋아요 count 이벤트 처리 후 상세 캐시만 삭제한다. 목록 캐시는 짧은 TTL로 최신성 지연을 제한한다.
 
+## 더미 데이터 특성
+
+- 총 상품 수는 100,000건이다.
+- 브랜드는 20개이며, 각 브랜드에 5,000건씩 균등하게 분포한다.
+- `like_count`는 `(n * 17) % 10000` 수식으로 생성해 0~9,999 범위에 분포한다.
+- 삭제 상품은 `n % 25 = 0` 조건으로 생성하며, 전체의 약 4%가 `deleted_at != NULL` 상태다.
+- 실제 운영 데이터는 인기 상품 쏠림, 브랜드별 상품 수 불균형, 삭제 비율 차이가 있을 수 있으므로 EXPLAIN 결과를 해석할 때 데이터 분포 차이를 함께 고려해야 한다.
+
 ## EXPLAIN 측정 절차
 
 1. `docker-compose -f ./docker/infra-compose.yml up -d`로 MySQL/Redis를 띄운다.
 2. 로컬 프로필에서 애플리케이션을 한 번 실행해 Hibernate가 스키마를 생성하게 한다.
 3. `docs/product-performance/round5-product-performance.sql`을 실행해 20개 브랜드와 100,000개 상품을 준비한다.
-4. 인덱스 없음, 후보 인덱스, 최종 인덱스 상태에서 `EXPLAIN ANALYZE`를 비교한다.
+4. SQL 파일의 측정 블록을 순서대로 선택 실행하며, 인덱스 없음, 후보 인덱스, 최종 인덱스 상태에서 `EXPLAIN ANALYZE`를 비교한다.
 
 | Query | Index | type/key | rows | Extra | actual time |
 | --- | --- | --- | ---: | --- | ---: |

@@ -8,6 +8,7 @@ import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,11 +19,15 @@ class GetProductDetailUsecase(
     private val productStockRepository: ProductStockRepository,
     private val productCacheRepository: ProductCacheRepository,
 ) {
+    private val log = LoggerFactory.getLogger(GetProductDetailUsecase::class.java)
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
     fun execute(productId: Long): ProductInfo {
-        productCacheRepository.getDetail(productId)?.let { return it }
+        runCatching { productCacheRepository.getDetail(productId) }
+            .onFailure { log.warn("Failed to get product detail cache. productId={}", productId, it) }
+            .getOrNull()
+            ?.let { return it }
 
         val product = productRepository.findActiveById(productId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
@@ -33,7 +38,8 @@ class GetProductDetailUsecase(
 
         val productInfo = productCatalogDomainService.getDetail(product = product, brand = brand)
             .let { ProductInfo.from(it, stockQuantity) }
-        productCacheRepository.putDetail(productId = productId, product = productInfo)
+        runCatching { productCacheRepository.putDetail(productId = productId, product = productInfo) }
+            .onFailure { log.warn("Failed to put product detail cache. productId={}", productId, it) }
         return productInfo
     }
 }

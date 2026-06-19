@@ -11,6 +11,9 @@ interface CartV1ApiSpec {
     @Operation(summary = "쇼핑카트 조회")
     fun getCart(user: User): ApiResponse<CartV1Dto.CartResponse>
 
+    @Operation(summary = "쇼핑카트 상품 라인 수 조회")
+    fun countItems(user: User): ApiResponse<CartV1Dto.CountResponse>
+
     @Operation(summary = "쇼핑카트 상품 담기")
     fun addItem(user: User, request: CartV1Dto.AddItemRequest): ApiResponse<Unit>
 

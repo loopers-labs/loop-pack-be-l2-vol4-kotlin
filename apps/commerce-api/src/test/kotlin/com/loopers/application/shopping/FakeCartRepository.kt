@@ -27,6 +27,11 @@ class FakeCartRepository : CartRepository {
     override fun findItems(cartId: Long): List<CartItem> =
         items.values.filter { it.cartId == cartId }.sortedBy { it.id }
 
+    override fun countItemsByUserId(userId: Long): Long {
+        val cart = findByUserId(userId) ?: return 0
+        return items.values.count { it.cartId == cart.id }.toLong()
+    }
+
     override fun saveItem(item: CartItem): CartItem {
         assignIdIfNeeded(item, itemSequence)
         items[item.id] = item

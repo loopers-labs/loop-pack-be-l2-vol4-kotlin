@@ -17,6 +17,9 @@ class CartApplicationService(
             .map { CartItemInfo(productId = it.productId, quantity = it.quantity) }
     }
 
+    fun countItems(userId: Long): Long =
+        cartRepository.countItemsByUserId(userId)
+
     fun addItem(userId: Long, productId: Long, quantity: Int, stockQuantity: Int) {
         validateQuantity(quantity)
         val cart = getOrCreateCart(userId)

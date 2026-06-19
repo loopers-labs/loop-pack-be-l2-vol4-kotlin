@@ -29,4 +29,8 @@ class CartQueryFacade(
             },
         )
     }
+
+    @Transactional(readOnly = true)
+    fun countItems(userId: Long): Long =
+        cartApplicationService.countItems(userId)
 }

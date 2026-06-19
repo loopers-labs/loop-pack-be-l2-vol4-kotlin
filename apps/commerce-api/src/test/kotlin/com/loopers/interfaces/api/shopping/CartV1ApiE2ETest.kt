@@ -73,6 +73,40 @@ class CartV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    @DisplayName("GET /api/v1/cart/count 는 쇼핑카트에 담긴 상품 라인 수를 반환한다.")
+    @Test
+    fun countsCartProductLines() {
+        saveConsumer()
+        val firstProductId = createProduct(name = "Air Max", brandName = "Nike")
+        val secondProductId = createProduct(name = "Gazelle", brandName = "Adidas")
+        val unitType = object : ParameterizedTypeReference<ApiResponse<Unit>>() {}
+        val countType = object : ParameterizedTypeReference<ApiResponse<Map<String, Int>>>() {}
+        testRestTemplate.exchange(
+            "/api/v1/cart/items",
+            HttpMethod.POST,
+            HttpEntity(mapOf("productId" to firstProductId, "quantity" to 2), authHeaders()),
+            unitType,
+        )
+        testRestTemplate.exchange(
+            "/api/v1/cart/items",
+            HttpMethod.POST,
+            HttpEntity(mapOf("productId" to secondProductId, "quantity" to 3), authHeaders()),
+            unitType,
+        )
+
+        val countResponse = testRestTemplate.exchange(
+            "/api/v1/cart/count",
+            HttpMethod.GET,
+            HttpEntity<Any>(authHeaders()),
+            countType,
+        )
+
+        assertAll(
+            { assertThat(countResponse.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(countResponse.body?.data?.get("count")).isEqualTo(2) },
+        )
+    }
+
     @DisplayName("POST /api/v1/cart/checkout 은 기존 Order checkout 으로 넘기고 성공 후 쇼핑카트를 비운다.")
     @Test
     fun checksOutFromCartAndClearsCartAfterSuccess() {
@@ -118,12 +152,15 @@ class CartV1ApiE2ETest @Autowired constructor(
         )
     }
 
-    private fun createProduct(): Long {
-        val brand = catalogApplicationService.createBrand(CatalogCommand.CreateBrand("Nike"))
+    private fun createProduct(
+        name: String = "Air Max",
+        brandName: String = "Nike",
+    ): Long {
+        val brand = catalogApplicationService.createBrand(CatalogCommand.CreateBrand(brandName))
         return catalogApplicationService.createProduct(
             CatalogCommand.CreateProduct(
                 brandId = brand.brandId,
-                name = "Air Max",
+                name = name,
                 price = 129000L,
                 initialStock = 5,
                 detailImageUrls = emptyList(),

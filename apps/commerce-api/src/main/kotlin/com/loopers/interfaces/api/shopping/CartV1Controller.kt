@@ -33,6 +33,12 @@ class CartV1Controller(
             .let(CartV1Dto.CartResponse::from)
             .let(ApiResponse.Companion::success)
 
+    @GetMapping("/count")
+    override fun countItems(@CurrentUser user: User): ApiResponse<CartV1Dto.CountResponse> =
+        cartQueryFacade.countItems(user.id)
+            .let(CartV1Dto::CountResponse)
+            .let(ApiResponse.Companion::success)
+
     @PostMapping("/items")
     override fun addItem(
         @CurrentUser user: User,

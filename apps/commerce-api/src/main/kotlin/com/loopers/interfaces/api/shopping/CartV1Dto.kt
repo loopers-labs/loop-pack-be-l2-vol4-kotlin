@@ -60,6 +60,10 @@ class CartV1Dto {
         }
     }
 
+    data class CountResponse(
+        val count: Long,
+    )
+
     data class CartLineResponse(
         val productId: Long,
         val productName: String?,

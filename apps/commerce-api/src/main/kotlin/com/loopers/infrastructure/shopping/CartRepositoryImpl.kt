@@ -22,6 +22,9 @@ class CartRepositoryImpl(
     override fun findItems(cartId: Long): List<CartItem> =
         cartItemJpaRepository.findAllByCartIdOrderByIdAsc(cartId)
 
+    override fun countItemsByUserId(userId: Long): Long =
+        cartItemJpaRepository.countByUserId(userId)
+
     override fun saveItem(item: CartItem): CartItem =
         cartItemJpaRepository.save(item)
 

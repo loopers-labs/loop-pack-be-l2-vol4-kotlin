@@ -9,6 +9,8 @@ interface CartRepository {
 
     fun findItems(cartId: Long): List<CartItem>
 
+    fun countItemsByUserId(userId: Long): Long
+
     fun saveItem(item: CartItem): CartItem
 
     fun deleteItem(item: CartItem)

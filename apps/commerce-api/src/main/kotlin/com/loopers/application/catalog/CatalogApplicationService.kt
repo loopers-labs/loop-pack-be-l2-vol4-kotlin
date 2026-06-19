@@ -1,5 +1,6 @@
 package com.loopers.application.catalog
 
+import com.loopers.application.catalog.port.CatalogProductCacheInvalidationPort
 import com.loopers.domain.catalog.Brand
 import com.loopers.domain.catalog.BrandRepository
 import com.loopers.domain.catalog.CatalogCommand
@@ -23,6 +24,7 @@ class CatalogApplicationService(
     private val productStockRepository: ProductStockRepository,
     private val productStatsRepository: ProductStatsRepository,
     private val productDetailImageRepository: ProductDetailImageRepository,
+    private val cacheInvalidationPort: CatalogProductCacheInvalidationPort = CatalogProductCacheInvalidationPort.NoOp,
 ) {
     @Transactional(readOnly = true)
     fun getBrandInfo(brandId: Long): CatalogInfo.BrandInfo =
@@ -45,6 +47,7 @@ class CatalogApplicationService(
         }
         brand.changeName(command.name)
         return CatalogInfo.BrandInfo.from(brandRepository.save(brand))
+            .also { cacheInvalidationPort.evictBrandProducts(brandId) }
     }
 
     @Transactional
@@ -52,6 +55,7 @@ class CatalogApplicationService(
         val brand = getBrand(brandId)
         brand.activate()
         return CatalogInfo.BrandInfo.from(brandRepository.save(brand))
+            .also { cacheInvalidationPort.evictBrandProducts(brandId) }
     }
 
     @Transactional
@@ -59,6 +63,7 @@ class CatalogApplicationService(
         val brand = getBrand(brandId)
         brand.deactivate()
         return CatalogInfo.BrandInfo.from(brandRepository.save(brand))
+            .also { cacheInvalidationPort.evictBrandProducts(brandId) }
     }
 
     @Transactional
@@ -66,6 +71,7 @@ class CatalogApplicationService(
         val brand = getBrand(brandId)
         brand.delete()
         brandRepository.save(brand)
+        cacheInvalidationPort.evictBrandProducts(brandId)
     }
 
     @Transactional
@@ -88,6 +94,7 @@ class CatalogApplicationService(
                 ProductDetailImage(productId = product.id, imageUrl = imageUrl, sortOrder = index)
             },
         )
+        cacheInvalidationPort.evictProduct(product.id)
         return CatalogInfo.ProductInfo.from(product)
     }
 
@@ -105,6 +112,7 @@ class CatalogApplicationService(
             },
         )
         return CatalogInfo.ProductInfo.from(productRepository.save(product))
+            .also { cacheInvalidationPort.evictProduct(productId) }
     }
 
     @Transactional
@@ -112,6 +120,7 @@ class CatalogApplicationService(
         val product = getProduct(productId)
         product.activate()
         return CatalogInfo.ProductInfo.from(productRepository.save(product))
+            .also { cacheInvalidationPort.evictProduct(productId) }
     }
 
     @Transactional
@@ -119,6 +128,7 @@ class CatalogApplicationService(
         val product = getProduct(productId)
         product.suspend()
         return CatalogInfo.ProductInfo.from(productRepository.save(product))
+            .also { cacheInvalidationPort.evictProduct(productId) }
     }
 
     @Transactional
@@ -126,6 +136,7 @@ class CatalogApplicationService(
         val product = getProduct(productId)
         product.delete()
         productRepository.save(product)
+        cacheInvalidationPort.evictProduct(productId)
     }
 
     @Transactional
@@ -133,6 +144,7 @@ class CatalogApplicationService(
         val stock = getStock(command.productId)
         stock.add(command.quantity)
         productStockRepository.save(stock)
+        cacheInvalidationPort.evictProduct(command.productId)
     }
 
     @Transactional
@@ -140,6 +152,7 @@ class CatalogApplicationService(
         if (!productStockRepository.deductIfEnough(command.productId, command.quantity)) {
             throw CoreException(ErrorType.CONFLICT, "재고가 부족합니다.")
         }
+        cacheInvalidationPort.evictProduct(command.productId)
     }
 
     @Transactional
@@ -147,6 +160,7 @@ class CatalogApplicationService(
         val stock = getStock(command.productId)
         stock.restore(command.quantity)
         productStockRepository.save(stock)
+        cacheInvalidationPort.evictProduct(command.productId)
     }
 
     @Transactional
@@ -154,6 +168,7 @@ class CatalogApplicationService(
         if (!productStatsRepository.increaseLikeCount(productId)) {
             throw CoreException(ErrorType.NOT_FOUND, "상품 통계를 찾을 수 없습니다.")
         }
+        cacheInvalidationPort.evictProduct(productId)
     }
 
     @Transactional
@@ -161,6 +176,7 @@ class CatalogApplicationService(
         if (!productStatsRepository.decreaseLikeCount(productId)) {
             throw CoreException(ErrorType.CONFLICT, "좋아요 수를 감소시킬 수 없습니다.")
         }
+        cacheInvalidationPort.evictProduct(productId)
     }
 
     private fun getBrand(brandId: Long): Brand =

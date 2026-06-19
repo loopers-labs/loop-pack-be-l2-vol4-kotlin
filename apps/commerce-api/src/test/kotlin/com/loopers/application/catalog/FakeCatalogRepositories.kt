@@ -1,5 +1,6 @@
 package com.loopers.application.catalog
 
+import com.loopers.application.catalog.port.CatalogProductCacheInvalidationPort
 import com.loopers.domain.BaseEntity
 import com.loopers.domain.catalog.Brand
 import com.loopers.domain.catalog.BrandRepository
@@ -20,12 +21,15 @@ class FakeCatalogRepositories {
     val statsRepository = FakeProductStatsRepository()
     val imageRepository = FakeProductDetailImageRepository()
 
-    fun service() = CatalogApplicationService(
+    fun service(
+        cacheInvalidationPort: CatalogProductCacheInvalidationPort = CatalogProductCacheInvalidationPort.NoOp,
+    ) = CatalogApplicationService(
         brandRepository = brandRepository,
         productRepository = productRepository,
         productStockRepository = stockRepository,
         productStatsRepository = statsRepository,
         productDetailImageRepository = imageRepository,
+        cacheInvalidationPort = cacheInvalidationPort,
     )
 }
 

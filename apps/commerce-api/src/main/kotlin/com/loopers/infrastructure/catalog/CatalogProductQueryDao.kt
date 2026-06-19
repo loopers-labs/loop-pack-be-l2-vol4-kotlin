@@ -96,8 +96,12 @@ class CatalogProductQueryDao(
     }
 
     override fun findDisplayableProductDetail(productId: Long): CatalogInfo.ProductDetailRow? {
-        val row = findDisplayableProductsById(productId) ?: return null
-        val imageUrls = entityManager.createQuery(
+        val row = findDisplayableProduct(productId) ?: return null
+        return CatalogInfo.ProductDetailRow(product = row, detailImages = findProductDetailImages(productId))
+    }
+
+    override fun findProductDetailImages(productId: Long): List<String> =
+        entityManager.createQuery(
             """
             select image.imageUrl
               from ProductDetailImage image
@@ -108,10 +112,8 @@ class CatalogProductQueryDao(
             String::class.java,
         ).setParameter("productId", productId)
             .resultList
-        return CatalogInfo.ProductDetailRow(product = row, detailImages = imageUrls)
-    }
 
-    private fun findDisplayableProductsById(productId: Long): CatalogInfo.ProductDisplayRow? {
+    override fun findDisplayableProduct(productId: Long): CatalogInfo.ProductDisplayRow? {
         val query = entityManager.createQuery(
             """
             select p.id, p.name, b.id, b.name, p.price, stats.likeCount, stock.stockQuantity, stock.reservedQuantity

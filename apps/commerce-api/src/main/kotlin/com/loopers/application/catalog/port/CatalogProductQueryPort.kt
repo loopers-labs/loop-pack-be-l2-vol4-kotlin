@@ -14,5 +14,11 @@ interface CatalogProductQueryPort {
     ): List<CatalogInfo.ProductDisplayRow> =
         findDisplayableProducts(sort, page, size).filter { it.brandId == brandId }
 
+    fun findDisplayableProduct(productId: Long): CatalogInfo.ProductDisplayRow? =
+        findDisplayableProductDetail(productId)?.product
+
+    fun findProductDetailImages(productId: Long): List<String> =
+        findDisplayableProductDetail(productId)?.detailImages.orEmpty()
+
     fun findDisplayableProductDetail(productId: Long): CatalogInfo.ProductDetailRow?
 }

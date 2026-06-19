@@ -1,5 +1,6 @@
 package com.loopers.application.catalog
 
+import com.loopers.application.catalog.port.CatalogProductCacheInvalidationPort
 import com.loopers.domain.catalog.CatalogCommand
 import com.loopers.domain.catalog.ProductStatus
 import com.loopers.support.error.CoreException
@@ -82,6 +83,50 @@ class CatalogApplicationServiceTest {
             }
 
             assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
+        }
+    }
+
+    @DisplayName("캐시 무효화")
+    @Nested
+    inner class CacheInvalidation {
+        @DisplayName("상품 정보가 변경되면 해당 상품 item 캐시를 무효화한다.")
+        @Test
+        fun evictsProductCacheWhenProductIsUpdated() {
+            val cacheInvalidationPort = RecordingCacheInvalidationPort()
+            val repositories = FakeCatalogRepositories()
+            val service = repositories.service(cacheInvalidationPort)
+            val brand = service.createBrand(CatalogCommand.CreateBrand("Nike"))
+            val product = service.createProduct(CatalogCommand.CreateProduct(brand.brandId, "Air Max", 129000, 3, emptyList()))
+
+            service.updateProduct(product.productId, CatalogCommand.UpdateProduct("Air Max 90", 139000, emptyList()))
+
+            assertThat(cacheInvalidationPort.evictedProductIds).contains(product.productId)
+        }
+
+        @DisplayName("브랜드 정보가 변경되면 해당 브랜드의 cached product items 를 무효화한다.")
+        @Test
+        fun evictsBrandProductCachesWhenBrandIsUpdated() {
+            val cacheInvalidationPort = RecordingCacheInvalidationPort()
+            val repositories = FakeCatalogRepositories()
+            val service = repositories.service(cacheInvalidationPort)
+            val brand = service.createBrand(CatalogCommand.CreateBrand("Nike"))
+
+            service.updateBrand(brand.brandId, CatalogCommand.UpdateBrand("Nike Korea"))
+
+            assertThat(cacheInvalidationPort.evictedBrandIds).containsExactly(brand.brandId)
+        }
+    }
+
+    private class RecordingCacheInvalidationPort : CatalogProductCacheInvalidationPort {
+        val evictedProductIds = mutableListOf<Long>()
+        val evictedBrandIds = mutableListOf<Long>()
+
+        override fun evictProduct(productId: Long) {
+            evictedProductIds += productId
+        }
+
+        override fun evictBrandProducts(brandId: Long) {
+            evictedBrandIds += brandId
         }
     }
 }

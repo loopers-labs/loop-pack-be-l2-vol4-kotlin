@@ -55,6 +55,9 @@ class InMemoryRedisTemplate(
                     val key = args?.get(0) as String
                     val value = args[1] as String
                     store.setValue(key, value)
+                    if (args.size >= 3 && args[2] is Duration) {
+                        store.expire(key, args[2] as Duration)
+                    }
                     Unit
                 }
 

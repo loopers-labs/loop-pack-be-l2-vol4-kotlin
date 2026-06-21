@@ -91,9 +91,9 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
     @DisplayName("createOrder")
     @Nested
     inner class CreateOrder {
-        @DisplayName("주문 생성 시 PAYMENT_PENDING 으로 확정되고 재고가 선점(차감)된다.")
+        @DisplayName("주문 생성 시 CREATED 로 확정되고 재고가 선점(차감)된다.")
         @Test
-        fun placesPendingOrderAndDecreasesStock() {
+        fun placesCreatedOrderAndDecreasesStock() {
             val userId = signup()
             val brandId = saveBrand()
             val p1 = saveProduct(brandId = brandId, name = "p1", price = 1_000L, quantity = 5)
@@ -109,7 +109,7 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
                 ),
             )
 
-            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_PENDING)
+            assertThat(detail.status).isEqualTo(OrderStatus.CREATED)
             assertThat(detail.totalAmount).isEqualTo(4_000L)
             assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(3)
             assertThat(stockRepositoryPort.findByProductId(p2)?.quantity).isEqualTo(2)
@@ -199,7 +199,7 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
                 CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
             )
 
-            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_PENDING)
+            assertThat(detail.status).isEqualTo(OrderStatus.CREATED)
             assertThat(detail.totalAmount).isEqualTo(10_000L)
             assertThat(detail.discountAmount).isEqualTo(5_000L)
             assertThat(detail.actualAmount).isEqualTo(5_000L)

@@ -28,8 +28,7 @@ class OrderApplicationServiceAdapter(
     OrderAdminApplicationServicePort {
 
     /**
-     * 주문 생성만 수행한다: 재고/쿠폰을 선점하고 PAYMENT_PENDING 주문을 확정한다.
-     * 실제 결제는 별도 결제 API 의 책임이며, 결제 완료 시 PAYMENT_PENDING → PAYMENT_COMPLETED 로 전이된다.
+     * 주문 생성만 수행한다: 재고/쿠폰을 선점하고 CREATED 주문을 확정한다.
      */
     override fun createOrder(command: CreateOrderCommand): OrderDetail {
         // 쿠폰 낙관적 락 충돌은 place 의 트랜잭션 커밋(flush) 시점에 발생하므로 트랜잭션 경계 밖인 여기서 잡는다.

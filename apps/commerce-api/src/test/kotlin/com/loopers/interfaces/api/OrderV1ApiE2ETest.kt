@@ -121,7 +121,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
     @DisplayName("POST /api/v1/orders")
     @Nested
     inner class CreateOrder {
-        @DisplayName("정상 주문 시 200 응답이고 status=PAYMENT_PENDING 가 반환된다.")
+        @DisplayName("정상 주문 시 200 응답이고 status=CREATED 가 반환된다.")
         @Test
         fun returnsSuccess_whenValid() {
             signup()
@@ -136,7 +136,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val data = response.body?.data as? Map<*, *>
             assertAll(
                 { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
-                { assertThat(data?.get("status") as? String).isEqualTo("PAYMENT_PENDING") },
+                { assertThat(data?.get("status") as? String).isEqualTo("CREATED") },
                 { assertThat((data?.get("totalAmount") as? Number)?.toLong()).isEqualTo(2_000L) },
             )
         }

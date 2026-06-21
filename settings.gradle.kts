@@ -4,6 +4,7 @@ include(
     ":apps:commerce-api",
     ":apps:commerce-streamer",
     ":apps:commerce-batch",
+    ":apps:pg-simulator",
     ":modules:persistence-core",
     ":modules:jpa",
     ":modules:redis",

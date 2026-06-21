@@ -14,10 +14,22 @@ GET {{commerce-api}}/api/v1/products?sort=price_asc&page=0&size=20
 GET {{commerce-api}}/api/v1/products?sort=likes_desc&page=0&size=20
 
 ### 상품 목록 조회 — brandId 필터 + 정렬
-GET {{commerce-api}}/api/v1/products?brandId=1&sort=likes_desc&page=0&size=20
+GET {{commerce-api}}/api/v1/products?brandId=54&sort=likes_desc&page=2&size=20
 
 ### 상품 목록 조회 — 지원하지 않는 sort 값 (400)
 GET {{commerce-api}}/api/v1/products?sort=unknown
 
 ### 상품 목록 조회 — 빈 결과 (200)
 GET {{commerce-api}}/api/v1/products?brandId=99999
+
+### [캐시] 상품 상세 — 1회차(캐시 미스, DB) / 2회차(캐시 히트). 두 번 연속 호출해 응답속도 비교
+GET {{commerce-api}}/api/v1/products/1
+
+### [캐시] 상품 상세 — 같은 id 재조회 (Redis 히트)
+GET {{commerce-api}}/api/v1/products/1
+
+### [캐시] 브랜드 좋아요순 페이지 — brandId + likes_desc (1분 TTL 캐시). 두 번 연속 호출
+GET {{commerce-api}}/api/v1/products?brandId=1&sort=likes_desc&page=0&size=20
+
+### [캐시] 브랜드 좋아요순 페이지 — 동일 요청 재조회 (Redis 히트)
+GET {{commerce-api}}/api/v1/products?brandId=1&sort=likes_desc&page=0&size=20

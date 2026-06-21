@@ -11,12 +11,9 @@ import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepositoryPort
 import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.interfaces.api.user.UserApplicationServicePort
-import com.loopers.test.FakePaymentGateway
-import com.loopers.test.FakePaymentGatewayConfig
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -24,7 +21,6 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
-import org.springframework.context.annotation.Import
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -36,7 +32,6 @@ import java.net.URI
 import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(FakePaymentGatewayConfig::class)
 class OrderV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userApplicationService: UserApplicationServicePort,
@@ -44,14 +39,8 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private val brandRepositoryPort: BrandRepositoryPort,
     private val couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
     private val userCouponRepositoryPort: UserCouponRepositoryPort,
-    private val fakePaymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
-    @BeforeEach
-    fun setUp() {
-        fakePaymentGateway.reset()
-    }
-
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
@@ -132,7 +121,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
     @DisplayName("POST /api/v1/orders")
     @Nested
     inner class CreateOrder {
-        @DisplayName("정상 주문 시 200 응답이고 status=PAYMENT_COMPLETED 가 반환된다.")
+        @DisplayName("정상 주문 시 200 응답이고 status=PAYMENT_PENDING 가 반환된다.")
         @Test
         fun returnsSuccess_whenValid() {
             signup()
@@ -147,7 +136,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val data = response.body?.data as? Map<*, *>
             assertAll(
                 { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
-                { assertThat(data?.get("status") as? String).isEqualTo("PAYMENT_COMPLETED") },
+                { assertThat(data?.get("status") as? String).isEqualTo("PAYMENT_PENDING") },
                 { assertThat((data?.get("totalAmount") as? Number)?.toLong()).isEqualTo(2_000L) },
             )
         }

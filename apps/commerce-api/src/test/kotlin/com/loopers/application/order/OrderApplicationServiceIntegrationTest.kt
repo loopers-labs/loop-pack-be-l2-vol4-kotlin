@@ -19,25 +19,20 @@ import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import com.loopers.test.FakePaymentGateway
-import com.loopers.test.FakePaymentGatewayConfig
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
 
 @SpringBootTest
-@Import(FakePaymentGatewayConfig::class)
 class OrderApplicationServiceIntegrationTest @Autowired constructor(
     private val orderApplicationService: OrderApplicationServicePort,
     private val orderAdminApplicationService: OrderAdminApplicationServicePort,
@@ -47,14 +42,8 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
     private val stockRepositoryPort: StockRepositoryPort,
     private val couponTemplateRepositoryPort: CouponTemplateRepositoryPort,
     private val userCouponRepositoryPort: UserCouponRepositoryPort,
-    private val fakePaymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
-    @BeforeEach
-    fun setUp() {
-        fakePaymentGateway.reset()
-    }
-
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
@@ -102,9 +91,9 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
     @DisplayName("createOrder")
     @Nested
     inner class CreateOrder {
-        @DisplayName("결제 성공 시 PAYMENT_COMPLETED + 재고 차감 + 결제 게이트웨이 1회 호출.")
+        @DisplayName("주문 생성 시 PAYMENT_PENDING 으로 확정되고 재고가 선점(차감)된다.")
         @Test
-        fun paymentSuccess() {
+        fun placesPendingOrderAndDecreasesStock() {
             val userId = signup()
             val brandId = saveBrand()
             val p1 = saveProduct(brandId = brandId, name = "p1", price = 1_000L, quantity = 5)
@@ -120,12 +109,10 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
                 ),
             )
 
-            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_COMPLETED)
+            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_PENDING)
             assertThat(detail.totalAmount).isEqualTo(4_000L)
             assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(3)
             assertThat(stockRepositoryPort.findByProductId(p2)?.quantity).isEqualTo(2)
-            assertThat(fakePaymentGateway.invocations).hasSize(1)
-            assertThat(fakePaymentGateway.invocations.first().amount).isEqualTo(4_000L)
         }
 
         @DisplayName("스냅샷에 상품명/가격/브랜드명이 주문 시점 값으로 동결된다.")
@@ -143,22 +130,6 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             assertThat(detail.items.first().snapshotProductName).isEqualTo("에어맥스")
             assertThat(detail.items.first().snapshotPrice).isEqualTo(100_000L)
             assertThat(detail.items.first().snapshotBrandName).isEqualTo("Nike-original")
-        }
-
-        @DisplayName("결제 실패 시 CANCELLED + 재고가 복원된다.")
-        @Test
-        fun paymentFailureRestoresStock() {
-            fakePaymentGateway.alwaysSucceeds = false
-            val userId = signup()
-            val brandId = saveBrand()
-            val p1 = saveProduct(brandId = brandId, name = "p1", price = 1_000L, quantity = 5)
-
-            val detail = orderApplicationService.createOrder(
-                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 3))),
-            )
-
-            assertThat(detail.status).isEqualTo(OrderStatus.CANCELLED)
-            assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
         }
 
         @DisplayName("재고 부족 시 도메인 예외가 발생하고 트랜잭션 롤백으로 어떤 재고도 차감되지 않는다.")
@@ -183,7 +154,6 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
 
             assertThat(stockRepositoryPort.findByProductId(plenty)?.quantity).isEqualTo(10)
             assertThat(stockRepositoryPort.findByProductId(scarce)?.quantity).isEqualTo(1)
-            assertThat(fakePaymentGateway.invocations).isEmpty()
         }
 
         @DisplayName("없는 상품 ID로 주문하면 NOT_FOUND 예외가 발생한다.")
@@ -229,14 +199,13 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
                 CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 1)), couponId = couponId),
             )
 
-            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_COMPLETED)
+            assertThat(detail.status).isEqualTo(OrderStatus.PAYMENT_PENDING)
             assertThat(detail.totalAmount).isEqualTo(10_000L)
             assertThat(detail.discountAmount).isEqualTo(5_000L)
             assertThat(detail.actualAmount).isEqualTo(5_000L)
             assertThat(detail.appliedCoupon?.issuedCouponId).isEqualTo(couponId)
             assertThat(detail.appliedCoupon?.couponType).isEqualTo("FIXED")
             assertThat(userCouponRepositoryPort.findById(couponId)?.status).isEqualTo(CouponStatus.USED)
-            assertThat(fakePaymentGateway.invocations.first().amount).isEqualTo(5_000L)
         }
 
         @DisplayName("정률 쿠폰은 주문 금액 비율로 할인된다.")
@@ -255,26 +224,6 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             assertThat(detail.totalAmount).isEqualTo(20_000L)
             assertThat(detail.discountAmount).isEqualTo(2_000L)
             assertThat(detail.actualAmount).isEqualTo(18_000L)
-        }
-
-        @DisplayName("결제 실패 시 쿠폰이 AVAILABLE 로 복원되고 재고도 복원되며 주문은 CANCELLED 된다.")
-        @Test
-        fun restoresCouponAndStock_whenPaymentFails() {
-            fakePaymentGateway.alwaysSucceeds = false
-            val userId = signup()
-            val brandId = saveBrand()
-            val p1 = saveProduct(brandId = brandId, name = "p1", price = 10_000L, quantity = 5)
-            val templateId = saveCouponTemplate(type = CouponType.FIXED, value = 5_000L)
-            val couponId = issueCoupon(templateId, userId)
-
-            val detail = orderApplicationService.createOrder(
-                CreateOrderCommand(userId = userId, items = listOf(CreateOrderItemCommand(p1, 2)), couponId = couponId),
-            )
-
-            assertThat(detail.status).isEqualTo(OrderStatus.CANCELLED)
-            assertThat(userCouponRepositoryPort.findById(couponId)?.status).isEqualTo(CouponStatus.AVAILABLE)
-            assertThat(userCouponRepositoryPort.findById(couponId)?.usedAt).isNull()
-            assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
         }
 
         @DisplayName("타 유저 소유 쿠폰으로 주문하면 FORBIDDEN 이고 재고/쿠폰은 그대로다(롤백).")
@@ -296,7 +245,6 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             assertThat(result.errorType).isEqualTo(ErrorType.FORBIDDEN)
             assertThat(userCouponRepositoryPort.findById(ownerCoupon)?.status).isEqualTo(CouponStatus.AVAILABLE)
             assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
-            assertThat(fakePaymentGateway.invocations).isEmpty()
         }
 
         @DisplayName("이미 사용된 쿠폰으로 주문하면 BAD_REQUEST 이다.")
@@ -336,7 +284,6 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
 
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
             assertThat(stockRepositoryPort.findByProductId(p1)?.quantity).isEqualTo(5)
-            assertThat(fakePaymentGateway.invocations).isEmpty()
         }
 
         @DisplayName("최소 주문 금액 미달 쿠폰이면 BAD_REQUEST 이다.")

@@ -9,12 +9,9 @@ import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.interfaces.api.order.OrderApplicationServicePort
 import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.interfaces.api.user.UserApplicationServicePort
-import com.loopers.test.FakePaymentGateway
-import com.loopers.test.FakePaymentGatewayConfig
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -22,7 +19,6 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
-import org.springframework.context.annotation.Import
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -32,21 +28,14 @@ import org.springframework.http.ResponseEntity
 import java.time.LocalDate
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(FakePaymentGatewayConfig::class)
 class OrderAdminV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userApplicationService: UserApplicationServicePort,
     private val productAdminApplicationService: ProductAdminApplicationServicePort,
     private val orderApplicationService: OrderApplicationServicePort,
     private val brandRepositoryPort: BrandRepositoryPort,
-    private val fakePaymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
-    @BeforeEach
-    fun setUp() {
-        fakePaymentGateway.reset()
-    }
-
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()

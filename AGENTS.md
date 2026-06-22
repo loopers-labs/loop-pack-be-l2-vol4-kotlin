@@ -16,14 +16,15 @@
 
 - Codex sub-agent 정의는 `.codex/agents/*.toml` 을 사용한다.
 - Claude sub-agent 정의는 `.claude/agents/*.md` 를 원천으로 유지하고, Codex 정의는 생성물로 취급한다.
+- 프로젝트 skill 정의는 `.claude/skills/**` 를 원천으로 유지하고, `.agents/skills/**` 는 생성물로 취급한다.
 - 사용자가 멀티에이전트/병렬 작업/위임을 요청하면 작업 성격에 맞는 Codex sub-agent 를 사용한다.
 - sub-agent 에게 작업을 위임할 때는 아래 문서 확인 기준에서 해당하는 `CLAUDE.md`, `agent_rules/*`, `docs/design/*` 를 명시적으로 입력 조건에 포함한다.
 
 ## 자동 동기화
 
-- `.claude/agents/*.md` 변경 후에는 `python3 .codex/sync-from-claude.py` 로 `.codex/agents/*.toml` 을 갱신한다.
-- `.codex/sync-from-claude.py` 는 Codex agent memory 경로를 현재 저장소의 `.codex/agent-memory/<agent>/` 로 보정한다.
-- 이 저장소는 `.githooks/` 를 hooksPath 로 사용한다. checkout/merge 후에는 자동 갱신하고, commit 전에는 `.codex/agents` 를 재생성해 drift 를 막는다.
+- `.claude/agents/*.md` 또는 `.claude/skills/**` 변경 후에는 `python3 .codex/sync-from-claude.py` 로 `.codex/agents/*.toml` 과 `.agents/skills/**` 를 갱신한다.
+- `.codex/sync-from-claude.py` 는 Codex agent memory 경로를 현재 저장소의 `.codex/agent-memory/<agent>/` 로 보정하고, Claude skill 을 `.agents/skills/**` 로 미러링한다.
+- 이 저장소는 `.githooks/` 를 hooksPath 로 사용한다. checkout/merge 후에는 자동 갱신하고, commit 전에는 `.codex/agents` 와 `.agents/skills` 를 재생성해 drift 를 막는다.
 - hooksPath 가 설정되지 않았으면 `git config core.hooksPath .githooks` 를 한 번 실행한다.
 
 ## 문서 확인 기준

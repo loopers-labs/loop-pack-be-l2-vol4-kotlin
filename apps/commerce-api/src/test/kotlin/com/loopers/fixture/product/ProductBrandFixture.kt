@@ -1,8 +1,8 @@
 package com.loopers.fixture.product
 
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.product.Product
-import com.loopers.domain.productstat.ProductStat
+import com.loopers.domain.brand.model.Brand
+import com.loopers.domain.product.model.Product
+import com.loopers.domain.product.model.ProductStat
 
 object ProductBrandFixture {
     fun createBrand(
@@ -44,11 +44,13 @@ object ProductBrandFixture {
     fun createProductStat(
         id: Long = 1L,
         productId: Long = 1L,
+        brandId: Long = 1L,
         likeCount: Long = 0L,
     ): ProductStat {
         return ProductStat(
             id = id,
             productId = productId,
+            brandId = brandId,
             likeCount = likeCount,
         )
     }

@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.like
 
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.like.dto.LikeV1Dto
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 

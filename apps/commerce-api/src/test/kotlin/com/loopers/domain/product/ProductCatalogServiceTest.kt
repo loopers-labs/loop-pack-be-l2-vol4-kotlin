@@ -1,7 +1,8 @@
 package com.loopers.domain.product
 
+import com.loopers.domain.inventory.model.Inventory
+import com.loopers.domain.product.service.ProductCatalogService
 import com.loopers.fixture.product.ProductBrandFixture
-import com.loopers.domain.inventory.Inventory
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested

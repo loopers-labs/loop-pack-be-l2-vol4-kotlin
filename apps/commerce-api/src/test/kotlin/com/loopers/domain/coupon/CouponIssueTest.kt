@@ -1,5 +1,9 @@
 package com.loopers.domain.coupon
 
+import com.loopers.domain.coupon.enums.CouponIssueDisplayStatus
+import com.loopers.domain.coupon.enums.CouponIssueStatus
+import com.loopers.domain.coupon.enums.DiscountType
+import com.loopers.domain.coupon.model.CouponIssue
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested

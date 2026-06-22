@@ -1,9 +1,9 @@
 package com.loopers.application.user
 
 import com.loopers.domain.user.PasswordEncoder
-import com.loopers.domain.user.User
-import com.loopers.domain.user.UserAccountService
-import com.loopers.domain.user.UserRepository
+import com.loopers.domain.user.model.User
+import com.loopers.domain.user.repository.UserRepository
+import com.loopers.domain.user.service.UserAccountService
 import com.loopers.fixture.user.UserFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType

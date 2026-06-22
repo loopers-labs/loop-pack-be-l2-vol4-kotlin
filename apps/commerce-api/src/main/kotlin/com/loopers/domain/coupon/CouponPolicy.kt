@@ -1,5 +1,6 @@
 package com.loopers.domain.coupon
 
+import com.loopers.domain.coupon.enums.DiscountType
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.time.ZonedDateTime

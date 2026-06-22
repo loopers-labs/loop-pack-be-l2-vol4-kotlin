@@ -1,8 +1,9 @@
 package com.loopers.application.user
 
-import com.loopers.domain.user.UserAccountService
-import com.loopers.domain.user.UserRepository
-import com.loopers.domain.user.UserSignUpCommand
+import com.loopers.application.user.dto.UserInfo
+import com.loopers.application.user.dto.UserSignUpCommand
+import com.loopers.domain.user.repository.UserRepository
+import com.loopers.domain.user.service.UserAccountService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component

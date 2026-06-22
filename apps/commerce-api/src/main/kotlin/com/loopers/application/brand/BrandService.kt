@@ -2,8 +2,8 @@ package com.loopers.application.brand
 
 import com.loopers.application.brand.dto.BrandCreateCommand
 import com.loopers.application.brand.dto.BrandUpdateCommand
-import com.loopers.domain.brand.Brand
-import com.loopers.domain.brand.BrandRepository
+import com.loopers.domain.brand.model.Brand
+import com.loopers.domain.brand.repository.BrandRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page

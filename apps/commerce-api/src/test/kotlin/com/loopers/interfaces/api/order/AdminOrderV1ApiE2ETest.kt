@@ -1,11 +1,12 @@
 package com.loopers.interfaces.api.order
 
 import com.loopers.domain.order.OrderStatus
-import com.loopers.infrastructure.order.OrderEntity
-import com.loopers.infrastructure.order.OrderItemEntity
-import com.loopers.infrastructure.order.OrderJpaRepository
+import com.loopers.infrastructure.order.entity.OrderEntity
+import com.loopers.infrastructure.order.entity.OrderItemEntity
+import com.loopers.infrastructure.order.repository.OrderJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import com.loopers.interfaces.api.order.dto.AdminOrderV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach

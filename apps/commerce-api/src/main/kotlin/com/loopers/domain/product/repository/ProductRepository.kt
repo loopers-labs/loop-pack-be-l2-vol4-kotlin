@@ -1,0 +1,31 @@
+package com.loopers.domain.product.repository
+
+import com.loopers.domain.product.ProductSort
+import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.domain.product.model.Product
+import org.springframework.data.domain.Page
+
+interface ProductRepository {
+    fun findById(productId: Long): Product?
+
+    fun findAllByIds(productIds: Collection<Long>): List<Product>
+
+    fun findAllByBrandId(brandId: Long): List<Product>
+
+    fun findDisplayableSummaries(
+        brandId: Long?,
+        sort: ProductSort,
+        page: Int,
+        size: Int,
+    ): Page<ProductSummary>
+
+    fun existsByBrandIdAndName(brandId: Long, name: String): Boolean
+
+    fun existsByBrandIdAndNameAndIdNot(brandId: Long, name: String, productId: Long): Boolean
+
+    fun save(product: Product): Product
+
+    fun update(product: Product): Product
+
+    fun updateAll(products: Collection<Product>): List<Product>
+}

@@ -1,11 +1,12 @@
 package com.loopers.interfaces.api.brand
 
-import com.loopers.infrastructure.brand.BrandEntity
-import com.loopers.infrastructure.brand.BrandJpaRepository
-import com.loopers.infrastructure.product.ProductEntity
-import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.brand.entity.BrandEntity
+import com.loopers.infrastructure.brand.repository.BrandJpaRepository
+import com.loopers.infrastructure.product.entity.ProductEntity
+import com.loopers.infrastructure.product.repository.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import com.loopers.interfaces.api.brand.dto.AdminBrandV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -17,12 +18,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.data.repository.findByIdOrNull
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AdminBrandV1ApiE2ETest @Autowired constructor(

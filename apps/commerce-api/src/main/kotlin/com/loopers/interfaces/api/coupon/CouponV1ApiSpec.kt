@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.interfaces.api.ApiResponse
+import com.loopers.interfaces.api.coupon.dto.CouponV1Dto
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 

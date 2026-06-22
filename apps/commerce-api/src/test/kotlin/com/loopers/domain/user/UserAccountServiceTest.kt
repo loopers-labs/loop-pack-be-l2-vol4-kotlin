@@ -1,5 +1,6 @@
 package com.loopers.domain.user
 
+import com.loopers.domain.user.service.UserAccountService
 import com.loopers.fixture.user.UserFixture
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType

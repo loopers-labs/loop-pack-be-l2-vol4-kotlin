@@ -1,8 +1,9 @@
 package com.loopers.infrastructure.coupon
 
-import com.loopers.domain.coupon.Coupon
-import com.loopers.domain.coupon.CouponRepository
-import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.enums.DiscountType
+import com.loopers.domain.coupon.model.Coupon
+import com.loopers.domain.coupon.repository.CouponRepository
+import com.loopers.infrastructure.coupon.repository.CouponJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp

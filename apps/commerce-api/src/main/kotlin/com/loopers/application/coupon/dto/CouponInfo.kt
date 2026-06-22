@@ -1,7 +1,7 @@
 package com.loopers.application.coupon.dto
 
-import com.loopers.domain.coupon.Coupon
-import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.enums.DiscountType
+import com.loopers.domain.coupon.model.Coupon
 import java.time.ZonedDateTime
 
 data class CouponInfo(

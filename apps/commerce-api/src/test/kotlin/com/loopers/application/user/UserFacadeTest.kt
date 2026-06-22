@@ -1,6 +1,7 @@
 package com.loopers.application.user
 
 import com.loopers.application.coupon.CouponService
+import com.loopers.application.user.dto.UserInfo
 import com.loopers.fixture.user.UserFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName

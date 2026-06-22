@@ -2,8 +2,8 @@ package com.loopers.application.order
 
 import com.loopers.application.order.dto.OrderInfo
 import com.loopers.application.order.dto.OrderSummaryInfo
-import com.loopers.domain.order.Order
-import com.loopers.domain.order.OrderRepository
+import com.loopers.domain.order.model.Order
+import com.loopers.domain.order.repository.OrderRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.data.domain.Page

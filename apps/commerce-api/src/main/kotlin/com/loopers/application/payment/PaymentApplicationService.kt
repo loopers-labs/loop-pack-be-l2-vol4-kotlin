@@ -27,6 +27,11 @@ class PaymentApplicationService(
         return getPayment(transactionKey)
     }
 
+    @Transactional
+    fun createPayment(payment: Payment): Payment {
+        return paymentRepository.save(payment)
+    }
+
     @Transactional(readOnly = true)
     fun getPayment(transactionKey: String): Payment {
         return paymentRepository.findByTransactionKey(transactionKey)

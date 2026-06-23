@@ -1,9 +1,9 @@
 package com.loopers.application.order
 
-import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentCancelCommand
+import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
-import com.loopers.application.payment.PaymentResult
+import com.loopers.application.payment.PaymentStatus
 import com.loopers.domain.order.Order
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -21,9 +21,10 @@ class OrderFacade(
         val paymentCommand = preparedOrder.toPaymentCommand()
         val paymentResult = paymentGateway.pay(paymentCommand)
 
-        return when (paymentResult) {
-            PaymentResult.SUCCESS -> confirmAfterPaymentSuccess(preparedOrder, paymentCommand)
-            PaymentResult.FAILED -> orderReleaseService.markPaymentFailed(preparedOrder.idOrThrow())
+        return when (paymentResult.status) {
+            PaymentStatus.SUCCESS -> confirmAfterPaymentSuccess(preparedOrder, paymentCommand)
+            PaymentStatus.FAILED -> orderReleaseService.markPaymentFailed(preparedOrder.idOrThrow())
+            PaymentStatus.PENDING -> preparedOrder
         }.let { OrderInfo.from(it) }
     }
 
@@ -34,7 +35,6 @@ class OrderFacade(
         val result = try {
             orderConfirmService.confirm(preparedOrder.idOrThrow())
         } catch (e: RuntimeException) {
-            // 예기치 못한 실패(주문 조회 불가 등) — 결제는 성공했으므로 결제 취소 후 전파
             paymentGateway.cancel(paymentCommand.toCancelCommand())
             throw e
         }
@@ -43,7 +43,6 @@ class OrderFacade(
             is OrderConfirmResult.Confirmed -> result.order
             is OrderConfirmResult.AlreadyPaid -> result.order
             is OrderConfirmResult.AlreadyTerminated -> {
-                // 결제는 성공했으나 주문이 이미 취소/실패로 종료됨 → 결제 취소(환불) 후 실패로 알림
                 paymentGateway.cancel(paymentCommand.toCancelCommand())
                 throw CoreException(
                     ErrorType.CONFLICT,
@@ -58,6 +57,9 @@ class OrderFacade(
             orderId = idOrThrow(),
             userId = userId,
             amount = paymentAmount,
+            cardType = "",
+            cardNo = "",
+            callbackUrl = "",
         )
     }
 

@@ -3,7 +3,8 @@ package com.loopers.infrastructure.product
 import com.loopers.domain.product.ProductModel
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
-import org.springframework.data.domain.Sort
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
 
 @Component
@@ -18,17 +19,12 @@ class ProductRepositoryImpl(
         return productJpaRepository.findByIdAndDeletedAtIsNull(id)
     }
 
-    override fun findActiveAll(brandId: Long?, sort: ProductSort): List<ProductModel> {
-        val jpaSort = when (sort) {
-            ProductSort.LATEST -> Sort.by(Sort.Direction.DESC, "id")
-            ProductSort.PRICE_ASC -> Sort.by(Sort.Order.asc("price"), Sort.Order.asc("id"))
-            ProductSort.LIKES_DESC -> Sort.by(Sort.Order.desc("likeCount"), Sort.Order.desc("id"))
-        }
-
+    override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> {
+        val sortedPageable = sort.toPageable(page = pageable.pageNumber, size = pageable.pageSize)
         return if (brandId == null) {
-            productJpaRepository.findAllByDeletedAtIsNull(jpaSort)
+            productJpaRepository.findAllByDeletedAtIsNull(sortedPageable)
         } else {
-            productJpaRepository.findAllByBrandIdAndDeletedAtIsNull(brandId = brandId, sort = jpaSort)
+            productJpaRepository.findAllByBrandIdAndDeletedAtIsNull(brandId = brandId, pageable = sortedPageable)
         }
     }
 

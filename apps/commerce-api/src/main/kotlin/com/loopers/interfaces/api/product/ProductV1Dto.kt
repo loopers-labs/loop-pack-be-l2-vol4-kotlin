@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.product
 
 import com.loopers.application.product.ProductInfo
+import com.loopers.application.product.ProductPageInfo
 import java.math.BigDecimal
 
 class ProductV1Dto {
@@ -33,6 +34,26 @@ class ProductV1Dto {
                     price = info.price,
                     stockQuantity = info.stockQuantity,
                     likeCount = info.likeCount,
+                )
+            }
+        }
+    }
+
+    data class ProductPageResponse(
+        val items: List<ProductResponse>,
+        val page: Int,
+        val size: Int,
+        val totalCount: Long,
+        val totalPages: Int,
+    ) {
+        companion object {
+            fun from(info: ProductPageInfo): ProductPageResponse {
+                return ProductPageResponse(
+                    items = info.items.map { ProductResponse.from(it) },
+                    page = info.page,
+                    size = info.size,
+                    totalCount = info.totalCount,
+                    totalPages = info.totalPages,
                 )
             }
         }

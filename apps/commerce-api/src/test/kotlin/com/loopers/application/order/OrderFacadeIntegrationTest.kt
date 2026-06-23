@@ -1,11 +1,5 @@
 package com.loopers.application.order
 
-import com.loopers.application.payment.PaymentCancelCommand
-import com.loopers.application.payment.PaymentCommand
-import com.loopers.application.payment.PaymentGateway
-import com.loopers.application.payment.PaymentResult
-import com.loopers.application.payment.PaymentStatus
-import com.loopers.application.payment.PaymentTransactionInfo
 import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponRepository
@@ -21,8 +15,6 @@ import com.loopers.infrastructure.stock.StockJpaEntity
 import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.infrastructure.user.UserJpaEntity
 import com.loopers.infrastructure.user.UserJpaRepository
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -30,19 +22,13 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.context.TestConfiguration
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Primary
 import java.time.LocalDate
 
 @SpringBootTest
 class OrderFacadeIntegrationTest @Autowired constructor(
     private val orderFacade: OrderFacade,
-    private val orderReleaseService: OrderReleaseService,
-    private val fakePaymentGateway: FakePaymentGateway,
     private val stockApplicationService: StockApplicationService,
     private val productJpaRepository: ProductJpaRepository,
     private val stockJpaRepository: StockJpaRepository,
@@ -54,16 +40,15 @@ class OrderFacadeIntegrationTest @Autowired constructor(
 ) {
     @AfterEach
     fun tearDown() {
-        fakePaymentGateway.reset()
         databaseCleanUp.truncateAllTables()
     }
 
-    @DisplayName("주문 결제 흐름 진행 시, ")
+    @DisplayName("주문 생성 시, ")
     @Nested
     inner class PlaceOrder {
-        @DisplayName("결제에 성공하면 주문을 결제 완료 상태로 확정한다.")
+        @DisplayName("재고 차감과 쿠폰 사용 후 PENDING_PAYMENT 상태의 주문을 생성한다.")
         @Test
-        fun placeOrder_marksOrderPaid_whenPaymentSucceeds() {
+        fun placeOrder_createsOrderWithPendingPaymentStatus() {
             // arrange
             val user = userJpaRepository.save(newUserJpaEntity())
             val product = saveProductWithStock(price = 10_000L, stock = 10)
@@ -73,7 +58,6 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             val userCoupon = userCouponRepository.save(
                 UserCoupon(userId = user.id, couponId = coupon.id!!),
             )
-            fakePaymentGateway.nextStatus = PaymentStatus.SUCCESS
 
             // act
             val order = orderFacade.placeOrder(
@@ -88,94 +72,10 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             val usedCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
             val remainingStock = stockApplicationService.getStock(product.id)
             assertAll(
-                { assertThat(order.status).isEqualTo(OrderStatus.PAID) },
+                { assertThat(order.status).isEqualTo(OrderStatus.PENDING_PAYMENT) },
                 { assertThat(order.paymentAmount).isEqualTo(9_000L) },
-                { assertThat(fakePaymentGateway.lastCommand?.orderId).isEqualTo(order.id) },
-                { assertThat(fakePaymentGateway.lastCommand?.userId).isEqualTo(user.id) },
-                { assertThat(fakePaymentGateway.lastCommand?.amount?.amount).isEqualTo(9_000L) },
-                { assertThat(fakePaymentGateway.cancelCommands).isEmpty() },
                 { assertThat(usedCoupon?.usedAt).isNotNull() },
                 { assertThat(remainingStock.quantity).isEqualTo(9) },
-            )
-        }
-
-        @DisplayName("결제에 실패하면 주문을 실패 상태로 변경하고 차감된 재고와 쿠폰 사용을 복구한다.")
-        @Test
-        fun placeOrder_releasesOrder_whenPaymentFails() {
-            // arrange
-            val user = userJpaRepository.save(newUserJpaEntity())
-            val product = saveProductWithStock(price = 10_000L, stock = 10)
-            val coupon = couponRepository.save(
-                Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L)),
-            )
-            val userCoupon = userCouponRepository.save(
-                UserCoupon(userId = user.id, couponId = coupon.id!!),
-            )
-            fakePaymentGateway.nextStatus = PaymentStatus.FAILED
-
-            // act
-            val order = orderFacade.placeOrder(
-                CreateOrderCommand(
-                    userId = user.id,
-                    items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
-                    userCouponId = userCoupon.id,
-                ),
-            )
-
-            // assert
-            val restoredCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
-            val restoredStock = stockApplicationService.getStock(product.id)
-            assertAll(
-                { assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_FAILED) },
-                { assertThat(order.paymentAmount).isEqualTo(9_000L) },
-                { assertThat(fakePaymentGateway.lastCommand?.orderId).isEqualTo(order.id) },
-                { assertThat(fakePaymentGateway.lastCommand?.userId).isEqualTo(user.id) },
-                { assertThat(fakePaymentGateway.lastCommand?.amount?.amount).isEqualTo(9_000L) },
-                { assertThat(fakePaymentGateway.cancelCommands).isEmpty() },
-                { assertThat(restoredCoupon?.usedAt).isNull() },
-                { assertThat(restoredStock.quantity).isEqualTo(10) },
-            )
-        }
-
-        @DisplayName("결제는 성공했지만 주문 확정에 실패하면 결제 취소를 요청한다.")
-        @Test
-        fun placeOrder_cancelsPayment_whenConfirmFailsAfterPaymentSuccess() {
-            // arrange
-            val user = userJpaRepository.save(newUserJpaEntity())
-            val product = saveProductWithStock(price = 10_000L, stock = 10)
-            val coupon = couponRepository.save(
-                Coupon(name = "1000원 할인", policy = DiscountPolicy.FixedAmount(1_000L)),
-            )
-            val userCoupon = userCouponRepository.save(
-                UserCoupon(userId = user.id, couponId = coupon.id!!),
-            )
-            fakePaymentGateway.nextStatus = PaymentStatus.SUCCESS
-            fakePaymentGateway.beforePayReturns = { command ->
-                orderReleaseService.markPaymentFailed(command.orderId)
-            }
-
-            // act
-            val result = assertThrows<CoreException> {
-                orderFacade.placeOrder(
-                    CreateOrderCommand(
-                        userId = user.id,
-                        items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
-                        userCouponId = userCoupon.id,
-                    ),
-                )
-            }
-
-            // assert
-            val restoredCoupon = userCouponJpaRepository.findByIdAndDeletedAtIsNull(userCoupon.id!!)
-            val restoredStock = stockApplicationService.getStock(product.id)
-            assertAll(
-                { assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT) },
-                { assertThat(fakePaymentGateway.cancelCommands).hasSize(1) },
-                { assertThat(fakePaymentGateway.cancelCommands.single().orderId).isEqualTo(fakePaymentGateway.lastCommand?.orderId) },
-                { assertThat(fakePaymentGateway.cancelCommands.single().userId).isEqualTo(user.id) },
-                { assertThat(fakePaymentGateway.cancelCommands.single().amount.amount).isEqualTo(9_000L) },
-                { assertThat(restoredCoupon?.usedAt).isNull() },
-                { assertThat(restoredStock.quantity).isEqualTo(10) },
             )
         }
     }
@@ -212,45 +112,4 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         birthDate = birthDate,
         email = email,
     )
-
-    @TestConfiguration
-    class PaymentTestConfiguration {
-        @Bean
-        @Primary
-        fun fakePaymentGateway(): FakePaymentGateway {
-            return FakePaymentGateway()
-        }
-    }
-
-    class FakePaymentGateway : PaymentGateway {
-        var nextStatus: PaymentStatus = PaymentStatus.SUCCESS
-        var lastCommand: PaymentCommand? = null
-        var beforePayReturns: ((PaymentCommand) -> Unit)? = null
-        val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
-
-        override fun pay(command: PaymentCommand): PaymentResult {
-            lastCommand = command
-            beforePayReturns?.invoke(command)
-            return PaymentResult(
-                transactionKey = "fake:TR:${System.currentTimeMillis()}",
-                status = nextStatus,
-                reason = null,
-            )
-        }
-
-        override fun cancel(command: PaymentCancelCommand) {
-            cancelCommands.add(command)
-        }
-
-        override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
-            throw UnsupportedOperationException()
-        }
-
-        fun reset() {
-            nextStatus = PaymentStatus.SUCCESS
-            lastCommand = null
-            beforePayReturns = null
-            cancelCommands.clear()
-        }
-    }
 }

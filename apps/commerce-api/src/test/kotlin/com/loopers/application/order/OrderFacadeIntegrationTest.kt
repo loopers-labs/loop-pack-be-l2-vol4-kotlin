@@ -1,9 +1,11 @@
 package com.loopers.application.order
 
-import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentCancelCommand
+import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
 import com.loopers.application.payment.PaymentResult
+import com.loopers.application.payment.PaymentStatus
+import com.loopers.application.payment.PaymentTransactionInfo
 import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponRepository
@@ -71,7 +73,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             val userCoupon = userCouponRepository.save(
                 UserCoupon(userId = user.id, couponId = coupon.id!!),
             )
-            fakePaymentGateway.nextResult = PaymentResult.SUCCESS
+            fakePaymentGateway.nextStatus = PaymentStatus.SUCCESS
 
             // act
             val order = orderFacade.placeOrder(
@@ -109,7 +111,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             val userCoupon = userCouponRepository.save(
                 UserCoupon(userId = user.id, couponId = coupon.id!!),
             )
-            fakePaymentGateway.nextResult = PaymentResult.FAILED
+            fakePaymentGateway.nextStatus = PaymentStatus.FAILED
 
             // act
             val order = orderFacade.placeOrder(
@@ -147,7 +149,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
             val userCoupon = userCouponRepository.save(
                 UserCoupon(userId = user.id, couponId = coupon.id!!),
             )
-            fakePaymentGateway.nextResult = PaymentResult.SUCCESS
+            fakePaymentGateway.nextStatus = PaymentStatus.SUCCESS
             fakePaymentGateway.beforePayReturns = { command ->
                 orderReleaseService.markPaymentFailed(command.orderId)
             }
@@ -221,7 +223,7 @@ class OrderFacadeIntegrationTest @Autowired constructor(
     }
 
     class FakePaymentGateway : PaymentGateway {
-        var nextResult: PaymentResult = PaymentResult.SUCCESS
+        var nextStatus: PaymentStatus = PaymentStatus.SUCCESS
         var lastCommand: PaymentCommand? = null
         var beforePayReturns: ((PaymentCommand) -> Unit)? = null
         val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
@@ -229,15 +231,23 @@ class OrderFacadeIntegrationTest @Autowired constructor(
         override fun pay(command: PaymentCommand): PaymentResult {
             lastCommand = command
             beforePayReturns?.invoke(command)
-            return nextResult
+            return PaymentResult(
+                transactionKey = "fake:TR:${System.currentTimeMillis()}",
+                status = nextStatus,
+                reason = null,
+            )
         }
 
         override fun cancel(command: PaymentCancelCommand) {
             cancelCommands.add(command)
         }
 
+        override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
+            throw UnsupportedOperationException()
+        }
+
         fun reset() {
-            nextResult = PaymentResult.SUCCESS
+            nextStatus = PaymentStatus.SUCCESS
             lastCommand = null
             beforePayReturns = null
             cancelCommands.clear()

@@ -36,7 +36,7 @@ class PgPaymentGateway(
 
         return PaymentResult(
             transactionKey = data.transactionKey,
-            status = PaymentStatus.valueOf(data.status),
+            status = toPaymentStatus(data.status),
             reason = data.reason,
         )
     }
@@ -48,6 +48,19 @@ class PgPaymentGateway(
     override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
         // TODO: PG 결제 상태 확인 API 연동
         throw UnsupportedOperationException("아직 구현되지 않았습니다.")
+    }
+
+    companion object {
+        private val PG_STATUS_MAP = mapOf(
+            "PENDING" to PaymentStatus.PENDING,
+            "SUCCESS" to PaymentStatus.SUCCESS,
+            "FAILED" to PaymentStatus.FAILED,
+        )
+
+        fun toPaymentStatus(pgStatus: String): PaymentStatus {
+            return PG_STATUS_MAP[pgStatus]
+                ?: throw CoreException(ErrorType.INTERNAL_ERROR, "알 수 없는 PG 상태입니다. status=$pgStatus")
+        }
     }
 
     data class PgPaymentRequest(

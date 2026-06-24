@@ -1,0 +1,38 @@
+package com.loopers.infrastructure.payment
+
+object PgSimulatorPaymentDto {
+    data class PaymentRequest(
+        val orderId: String,
+        val cardType: String,
+        val cardNo: String,
+        val amount: Long,
+        val callbackUrl: String,
+    )
+
+    data class TransactionResponse(
+        val transactionKey: String,
+        val status: String,
+        val reason: String?,
+    )
+
+    data class TransactionDetailResponse(
+        val transactionKey: String,
+        val orderId: String,
+        val cardType: String,
+        val cardNo: String,
+        val amount: Long,
+        val status: String,
+        val reason: String?,
+    )
+
+    data class ApiResponse<T>(
+        val meta: Meta,
+        val data: T?,
+    ) {
+        data class Meta(
+            val result: String,
+            val errorCode: String?,
+            val message: String?,
+        )
+    }
+}

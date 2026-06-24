@@ -1,5 +1,7 @@
 package com.loopers.interfaces.api
 
+import com.loopers.application.order.OrderCheckoutFacade
+import com.loopers.application.payment.PaymentCallbackApplicationService
 import com.loopers.domain.catalog.ProductStats
 import com.loopers.domain.order.OrderCancelReason
 import com.loopers.domain.order.OrderCommand
@@ -9,7 +11,6 @@ import com.loopers.domain.user.PasswordEncoder
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserRole
-import com.loopers.application.order.OrderCheckoutFacade
 import com.loopers.infrastructure.catalog.ProductStatsJpaRepository
 import com.loopers.infrastructure.catalog.ProductStockJpaRepository
 import com.loopers.infrastructure.like.ProductLikeHistoryJpaRepository
@@ -54,6 +55,7 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
     private val stockReservationJpaRepository: StockReservationJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val orderCheckoutFacade: OrderCheckoutFacade,
+    private val paymentCallbackApplicationService: PaymentCallbackApplicationService,
     private val paymentGateway: FakePaymentGateway,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -466,12 +468,29 @@ class AcceptanceV1ApiE2ETest @Autowired constructor(
             authHeaders(loginId),
         )
 
-    private fun pay(loginId: String, orderId: Long): ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> =
-        post(
+    private fun pay(loginId: String, orderId: Long): ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> {
+        val requested = post<OrderV1Dto.OrderResponse>(
             "/api/v1/orders/$orderId/payment",
-            mapOf("paymentKey" to "payment-key-$orderId"),
+            mapOf(
+                "cardType" to "SAMSUNG",
+                "cardNo" to "1234-5678-1234-5678",
+            ),
             authHeaders(loginId),
         )
+        if (requested.statusCode == HttpStatus.OK && requested.body?.data?.status == OrderStatus.PAYMENT_PENDING) {
+            paymentCallbackApplicationService.handle(
+                PaymentCallbackApplicationService.Command(
+                    transactionKey = "payment-$orderId",
+                    orderId = orderId,
+                    amount = requested.body?.data?.paymentAmount ?: 0L,
+                    status = "SUCCESS",
+                    reason = "정상 승인되었습니다.",
+                ),
+            )
+            return get("/api/v1/orders/$orderId", authHeaders(loginId))
+        }
+        return requested
+    }
 
     private fun cancel(loginId: String, orderId: Long): ResponseEntity<ApiResponse<OrderV1Dto.OrderResponse>> =
         post("/api/v1/orders/$orderId/cancel", null, authHeaders(loginId))

@@ -1,6 +1,7 @@
 package com.loopers.application.order
 
 import com.loopers.application.coupon.CouponApplicationService
+import com.loopers.application.payment.PaymentCallbackApplicationService
 import com.loopers.domain.catalog.ProductStock
 import com.loopers.domain.coupon.CouponCommand
 import com.loopers.domain.coupon.CouponType
@@ -39,6 +40,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     private val stockReservationJpaRepository: StockReservationJpaRepository,
     private val paymentJpaRepository: PaymentJpaRepository,
     private val paymentGateway: FakePaymentGateway,
+    private val callbackApplicationService: PaymentCallbackApplicationService,
     private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -69,6 +71,18 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
             cardType = "SAMSUNG",
             cardNo = "1234-5678-1234-5678",
         )
+
+    private fun completePayment(orderId: Long, amount: Long = 2000L) {
+        callbackApplicationService.handle(
+            PaymentCallbackApplicationService.Command(
+                transactionKey = "payment-$orderId",
+                orderId = orderId,
+                amount = amount,
+                status = "SUCCESS",
+                reason = "정상 승인되었습니다.",
+            ),
+        )
+    }
 
     @Test
     fun checkoutRollbackLeavesNoOrderOrReservationWhenReservationFails() {
@@ -200,6 +214,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
 
         val ex = assertThrows<CoreException> {
             facade.pay(payCommand(checkout.orderId))
+            completePayment(checkout.orderId)
         }
 
         val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
@@ -258,6 +273,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
         facade.pay(payCommand(checkout.orderId))
+        completePayment(checkout.orderId)
 
         val canceled = facade.cancel(OrderCommand.Cancel(checkout.orderId))
 
@@ -280,6 +296,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
         facade.pay(payCommand(checkout.orderId))
+        completePayment(checkout.orderId)
         stockReservationJpaRepository.deleteAll(stockReservationJpaRepository.findAllByOrderId(checkout.orderId))
         stockReservationJpaRepository.flush()
 
@@ -305,6 +322,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         productStockJpaRepository.saveAndFlush(stock)
         assertThrows<CoreException> {
             facade.pay(payCommand(checkout.orderId))
+            completePayment(checkout.orderId)
         }
         stock.reservedQuantity = 2
         productStockJpaRepository.saveAndFlush(stock)
@@ -334,6 +352,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         productStockJpaRepository.saveAndFlush(stock)
         assertThrows<CoreException> {
             facade.pay(payCommand(checkout.orderId))
+            completePayment(checkout.orderId)
         }
 
         repeat(3) {
@@ -366,6 +385,7 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())
         facade.pay(payCommand(checkout.orderId))
+        completePayment(checkout.orderId)
         facade.startShipping(OrderCommand.StartShipping(checkout.orderId))
 
         val ex = assertThrows<CoreException> {

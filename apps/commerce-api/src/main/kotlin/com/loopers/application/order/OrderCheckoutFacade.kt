@@ -73,42 +73,33 @@ class OrderCheckoutFacade(
             throw CoreException(ErrorType.CONFLICT, "예약이 만료되었습니다.")
         }
 
-        val requested = paymentApplicationService.recordApproveRequested(order.id, command.paymentKey)
+        val payment = paymentApplicationService.getByOrderId(order.id)
         val pgResult = paymentGateway.approve(
             PaymentCommand.Approve(
+                userId = command.userId,
                 orderId = order.id,
-                paymentRequestId = requested.paymentRequestId,
-                paymentKey = command.paymentKey,
-                amount = requested.requestedAmount,
+                paymentRequestId = payment.paymentRequestId,
+                cardType = command.cardType,
+                cardNo = command.cardNo,
+                amount = payment.requestedAmount,
             ),
         )
-        if (!pgResult.success || pgResult.pgTransactionId == null || pgResult.approvedAmount == null) {
+        if (!pgResult.success || pgResult.pgTransactionId == null) {
             paymentApplicationService.recordApproveFailed(
                 orderId = order.id,
                 pgStatus = pgResult.pgStatus,
-                failureReason = pgResult.failureReason ?: "PG 승인에 실패했습니다.",
+                failureReason = pgResult.failureReason ?: "PG 승인 요청에 실패했습니다.",
                 rawResponseSummary = pgResult.rawResponseSummary,
             )
-            throw CoreException(ErrorType.BAD_REQUEST, pgResult.failureReason ?: "결제 승인에 실패했습니다.")
+            throw CoreException(ErrorType.BAD_REQUEST, pgResult.failureReason ?: "결제 승인 요청에 실패했습니다.")
         }
 
-        paymentApplicationService.recordApproveSucceeded(
+        paymentApplicationService.recordApproveRequested(
             orderId = order.id,
+            paymentKey = pgResult.pgTransactionId,
             pgTransactionId = pgResult.pgTransactionId,
-            approvedAmount = pgResult.approvedAmount,
-            pgStatus = pgResult.pgStatus,
-            rawResponseSummary = pgResult.rawResponseSummary,
         )
-
-        return runCatching {
-            paymentCompletionApplicationService.completePaymentPending(order.id)
-        }.getOrElse { throwable ->
-            paymentCompletionApplicationService.markCompletionFailed(
-                order.id,
-                throwable.message ?: throwable.javaClass.simpleName,
-            )
-            throw throwable
-        }
+        return orderApplicationService.getDetail(order.id)
     }
 
     fun cancel(command: OrderCommand.Cancel): OrderInfo.Detail {
@@ -128,6 +119,7 @@ class OrderCheckoutFacade(
         val payment = paymentApplicationService.recordVerifyRequested(orderId)
         val pgResult = paymentGateway.verify(
             PaymentCommand.Verify(
+                userId = orderApplicationService.getDetail(orderId).userId,
                 orderId = orderId,
                 paymentRequestId = payment.paymentRequestId,
                 paymentKey = payment.paymentKey,
@@ -169,6 +161,7 @@ class OrderCheckoutFacade(
             ?: throw CoreException(ErrorType.CONFLICT, "PG 거래 식별자가 없는 결제는 취소할 수 없습니다.")
         val pgResult = paymentGateway.cancel(
             PaymentCommand.Cancel(
+                userId = payment.orderId.let { orderApplicationService.getDetail(it).userId },
                 orderId = orderId,
                 pgTransactionId = pgTransactionId,
                 amount = payment.approvedAmount ?: payment.requestedAmount,

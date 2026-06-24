@@ -37,15 +37,20 @@ class PaymentApplicationServiceTest @Autowired constructor(
     }
 
     @Test
-    fun recordApproveRequestedStoresPaymentKeyAndAppendsEvent() {
+    fun recordApproveRequestedStoresPaymentKeyAndTransactionKeyAndAppendsEvent() {
         paymentApplicationService.createReady(orderId = 1L, requestedAmount = 3000L)
 
-        paymentApplicationService.recordApproveRequested(orderId = 1L, paymentKey = "payment-key-1")
+        paymentApplicationService.recordApproveRequested(
+            orderId = 1L,
+            paymentKey = "payment-key-1",
+            pgTransactionId = "pg-tx-1",
+        )
 
         val payment = paymentRepository.findByOrderId(1L)!!
         val events = paymentEventRepository.findByOrderId(1L)
         assertAll(
             { assertThat(payment.paymentKey).isEqualTo("payment-key-1") },
+            { assertThat(payment.pgTransactionId).isEqualTo("pg-tx-1") },
             { assertThat(events.map { it.eventType }).containsExactly(PaymentEventType.REQUEST_CREATED, PaymentEventType.APPROVE_REQUESTED) },
         )
     }
@@ -53,7 +58,11 @@ class PaymentApplicationServiceTest @Autowired constructor(
     @Test
     fun recordApproveSucceededApprovesPaymentAndAppendsEvent() {
         paymentApplicationService.createReady(orderId = 1L, requestedAmount = 3000L)
-        paymentApplicationService.recordApproveRequested(orderId = 1L, paymentKey = "payment-key-1")
+        paymentApplicationService.recordApproveRequested(
+            orderId = 1L,
+            paymentKey = "payment-key-1",
+            pgTransactionId = "pg-tx-1",
+        )
 
         paymentApplicationService.recordApproveSucceeded(
             orderId = 1L,

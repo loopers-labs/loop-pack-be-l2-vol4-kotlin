@@ -38,3 +38,6 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### load test 결과물 (생성물) ###
+load-test/results/

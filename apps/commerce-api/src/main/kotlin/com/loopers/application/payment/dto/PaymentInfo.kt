@@ -8,6 +8,7 @@ import com.loopers.domain.payment.PaymentStatus
 data class PaymentInfo(
     val paymentId: Long,
     val orderId: Long,
+    val orderNumber: String,
     val memberId: Long,
     val amount: Long,
     val cardType: CardType,
@@ -22,6 +23,7 @@ data class PaymentInfo(
             return PaymentInfo(
                 paymentId = payment.id,
                 orderId = payment.orderId,
+                orderNumber = payment.orderNumber,
                 memberId = payment.memberId,
                 amount = payment.amount,
                 cardType = payment.cardType,

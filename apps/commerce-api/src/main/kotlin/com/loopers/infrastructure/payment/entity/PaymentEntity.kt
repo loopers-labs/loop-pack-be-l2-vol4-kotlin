@@ -24,6 +24,9 @@ class PaymentEntity(
     @Column(name = "order_id", nullable = false)
     var orderId: Long,
 
+    @Column(name = "order_number", nullable = false)
+    var orderNumber: String,
+
     @Column(name = "member_id", nullable = false)
     var memberId: Long,
 
@@ -49,6 +52,7 @@ class PaymentEntity(
 ) : BaseEntity() {
     fun update(payment: Payment) {
         orderId = payment.orderId
+        orderNumber = payment.orderNumber
         memberId = payment.memberId
         amount = payment.amount
         cardType = payment.cardType

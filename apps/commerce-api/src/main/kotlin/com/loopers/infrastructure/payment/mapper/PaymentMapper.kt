@@ -8,6 +8,7 @@ object PaymentMapper {
         return Payment(
             id = entity.id,
             orderId = entity.orderId,
+            orderNumber = entity.orderNumber,
             memberId = entity.memberId,
             amount = entity.amount,
             cardType = entity.cardType,
@@ -21,6 +22,7 @@ object PaymentMapper {
     fun toEntity(payment: Payment): PaymentEntity {
         return PaymentEntity(
             orderId = payment.orderId,
+            orderNumber = payment.orderNumber,
             memberId = payment.memberId,
             amount = payment.amount,
             cardType = payment.cardType,

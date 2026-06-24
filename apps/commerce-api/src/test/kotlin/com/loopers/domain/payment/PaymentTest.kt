@@ -16,6 +16,7 @@ class PaymentTest {
 
         assertThat(payment.status).isEqualTo(PaymentStatus.REQUESTING)
         assertThat(payment.amount).isEqualTo(10_000L)
+        assertThat(payment.orderNumber).isNotBlank()
     }
 
     @Test

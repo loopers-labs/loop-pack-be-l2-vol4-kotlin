@@ -8,6 +8,7 @@ import com.loopers.support.error.ErrorType
 class Payment(
     val id: Long = 0L,
     val orderId: Long,
+    val orderNumber: String,
     val memberId: Long,
     val amount: Long,
     val cardType: CardType,
@@ -28,6 +29,9 @@ class Payment(
     init {
         if (orderId <= 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Order id must be positive.")
+        }
+        if (orderNumber.isBlank()) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Order number must not be blank.")
         }
         if (memberId <= 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Member id must be positive.")
@@ -123,6 +127,7 @@ class Payment(
 
             return Payment(
                 orderId = order.id,
+                orderNumber = order.orderNumber,
                 memberId = order.memberId,
                 amount = order.totalAmount,
                 cardType = cardType,

@@ -1,0 +1,33 @@
+package com.loopers.infrastructure.payment.mapper
+
+import com.loopers.domain.payment.Payment
+import com.loopers.infrastructure.payment.entity.PaymentEntity
+
+object PaymentMapper {
+    fun toDomain(entity: PaymentEntity): Payment {
+        return Payment(
+            id = entity.id,
+            orderId = entity.orderId,
+            memberId = entity.memberId,
+            amount = entity.amount,
+            cardType = entity.cardType,
+            cardNo = entity.cardNo,
+            status = entity.status,
+            transactionKey = entity.transactionKey,
+            reason = entity.reason,
+        )
+    }
+
+    fun toEntity(payment: Payment): PaymentEntity {
+        return PaymentEntity(
+            orderId = payment.orderId,
+            memberId = payment.memberId,
+            amount = payment.amount,
+            cardType = payment.cardType,
+            cardNo = payment.cardNo,
+            status = payment.status,
+            transactionKey = payment.transactionKey,
+            reason = payment.reason,
+        )
+    }
+}

@@ -30,4 +30,12 @@ class Inventory(
 
         this.quantity -= quantity
     }
+
+    fun restore(quantity: Long) {
+        if (quantity <= 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Restore quantity must be positive.")
+        }
+
+        this.quantity += quantity
+    }
 }

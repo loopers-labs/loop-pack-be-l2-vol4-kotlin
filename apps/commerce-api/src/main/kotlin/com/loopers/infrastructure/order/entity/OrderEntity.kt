@@ -54,4 +54,8 @@ class OrderEntity(
         items.add(item)
         item.order = this
     }
+
+    fun updateStatus(status: OrderStatus) {
+        this.status = status
+    }
 }

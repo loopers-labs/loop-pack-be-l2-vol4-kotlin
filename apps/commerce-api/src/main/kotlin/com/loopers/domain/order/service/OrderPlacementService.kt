@@ -59,7 +59,7 @@ class OrderPlacementService {
         val discountAmount = couponIssue?.use(memberId = memberId, orderAmount = originalAmount) ?: 0L
 
         return OrderPlacementResult(
-            order = Order.createCompleted(
+            order = Order.createPendingPayment(
                 memberId = memberId,
                 items = orderItems,
                 discountAmount = discountAmount,

@@ -1,6 +1,8 @@
 package com.loopers.application.payment
 
 import com.loopers.application.payment.usecase.SyncPaymentResultUsecase
+import com.loopers.domain.coupon.UserCouponRepository
+import com.loopers.domain.coupon.UserCouponStatus
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.CardType
@@ -24,6 +26,7 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
     private val paymentRepository: PaymentRepository,
     private val orderRepository: OrderRepository,
     private val productStockRepository: ProductStockRepository,
+    private val userCouponRepository: UserCouponRepository,
     private val fixtures: PaymentTestFixtures,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
@@ -62,6 +65,23 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.FAILED)
         assertThat(productStockRepository.findByProductId(ctx.productId)!!.quantity)
             .isEqualTo(stockBefore + ctx.quantity)
+    }
+
+    @Test
+    fun `실패 콜백이면 쿠폰 적용 주문은 재고 복구와 함께 쿠폰이 원복된다`() {
+        val ctx = fixtures.pendingOrderWithCoupon() // 쿠폰이 USED 로 적용된 PENDING 주문
+        val stockBefore = productStockRepository.findByProductId(ctx.productId)!!.quantity
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-4")
+
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-4", ctx.orderId, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
+        )
+
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.FAILED)
+        assertThat(productStockRepository.findByProductId(ctx.productId)!!.quantity)
+            .isEqualTo(stockBefore + ctx.quantity)
+        assertThat(userCouponRepository.findByIdAndUserId(ctx.userCouponId!!, ctx.userId)?.status)
+            .isEqualTo(UserCouponStatus.AVAILABLE)
     }
 
     @Test

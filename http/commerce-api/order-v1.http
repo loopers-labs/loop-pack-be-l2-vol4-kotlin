@@ -1,0 +1,10 @@
+### Request payment through commerce API
+POST {{commerce-api}}/api/v1/orders/{{orderId}}/payment
+X-Loopers-LoginId: consumer01
+X-Loopers-LoginPw: password
+Content-Type: application/json
+
+{
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-1234-5678"
+}

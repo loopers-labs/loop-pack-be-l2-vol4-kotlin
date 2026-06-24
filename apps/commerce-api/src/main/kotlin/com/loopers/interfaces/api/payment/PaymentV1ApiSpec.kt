@@ -16,4 +16,14 @@ interface PaymentV1ApiSpec {
         password: String,
         request: PaymentV1Dto.PaymentRequest,
     ): ApiResponse<PaymentV1Dto.PaymentResponse>
+
+    @Operation(
+        summary = "결제 조회",
+        description = "로그인한 회원의 결제 상태와 연결된 주문 상태를 조회합니다.",
+    )
+    fun getPayment(
+        loginId: String,
+        password: String,
+        paymentId: Long,
+    ): ApiResponse<PaymentV1Dto.PaymentResponse>
 }

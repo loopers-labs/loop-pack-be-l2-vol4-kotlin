@@ -17,6 +17,16 @@ class PaymentFacade(
     private val userService: UserService,
     private val pgPaymentClient: PgPaymentClient,
 ) {
+    fun getPayment(
+        loginId: String,
+        rawPassword: String,
+        paymentId: Long,
+    ): PaymentInfo {
+        val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
+
+        return paymentService.getPayment(memberId = user.id, paymentId = paymentId)
+    }
+
     fun requestPayment(
         loginId: String,
         rawPassword: String,

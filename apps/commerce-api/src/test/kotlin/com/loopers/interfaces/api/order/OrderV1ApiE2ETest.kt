@@ -93,7 +93,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(response.body?.data?.memberId).isEqualTo(member.id) },
-                { assertThat(response.body?.data?.status).isEqualTo(OrderStatus.COMPLETED) },
+                { assertThat(response.body?.data?.status).isEqualTo(OrderStatus.PENDING_PAYMENT) },
                 { assertThat(response.body?.data?.totalAmount).isEqualTo(25_000L) },
                 { assertThat(response.body?.data?.items).hasSize(2) },
                 { assertThat(orders).hasSize(1) },

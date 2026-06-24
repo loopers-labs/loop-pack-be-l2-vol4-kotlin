@@ -1,0 +1,28 @@
+package com.loopers.infrastructure.payment
+
+import com.loopers.domain.payment.PaymentModel
+import com.loopers.domain.payment.PaymentStatus
+import jakarta.persistence.LockModeType
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
+import java.time.ZonedDateTime
+
+interface PaymentJpaRepository : JpaRepository<PaymentModel, Long> {
+    fun findByOrderId(orderId: Long): PaymentModel?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PaymentModel p WHERE p.orderId = :orderId")
+    fun findByOrderIdForUpdate(@Param("orderId") orderId: Long): PaymentModel?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PaymentModel p WHERE p.transactionKey = :transactionKey")
+    fun findByTransactionKeyForUpdate(@Param("transactionKey") transactionKey: String): PaymentModel?
+
+    @Query("SELECT p FROM PaymentModel p WHERE p.status = :status AND p.createdAt < :threshold")
+    fun findByStatusAndCreatedAtBefore(
+        @Param("status") status: PaymentStatus,
+        @Param("threshold") threshold: ZonedDateTime,
+    ): List<PaymentModel>
+}

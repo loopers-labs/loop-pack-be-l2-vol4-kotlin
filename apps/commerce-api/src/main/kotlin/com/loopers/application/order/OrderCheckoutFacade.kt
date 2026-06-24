@@ -117,6 +117,7 @@ class OrderCheckoutFacade(
 
     private fun retryFailedCompletion(orderId: Long): OrderInfo.Detail {
         val payment = paymentApplicationService.recordVerifyRequested(orderId)
+        // FAILED orders may already be paid, so recovery verifies PG state before replaying internal completion.
         val pgResult = paymentGateway.verify(
             PaymentCommand.Verify(
                 userId = orderApplicationService.getDetail(orderId).userId,
@@ -159,6 +160,7 @@ class OrderCheckoutFacade(
         val payment = paymentApplicationService.recordCancelRequested(orderId)
         val pgTransactionId = payment.pgTransactionId
             ?: throw CoreException(ErrorType.CONFLICT, "PG 거래 식별자가 없는 결제는 취소할 수 없습니다.")
+        // Provider cancellation is the point of no return; local stock/payment rollback happens only after success.
         val pgResult = paymentGateway.cancel(
             PaymentCommand.Cancel(
                 userId = payment.orderId.let { orderApplicationService.getDetail(it).userId },

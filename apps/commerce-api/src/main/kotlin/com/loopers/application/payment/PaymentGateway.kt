@@ -1,19 +1,22 @@
 package com.loopers.application.payment
 
 /**
- * Application port for PG communication; implementations translate commerce payment commands into provider-specific calls.
+ * Application port for provider communication.
+ *
+ * Implementations may perform network I/O and must not be called from a DB transaction. Application services persist the
+ * recoverable payment state before and after these calls.
  */
 interface PaymentGateway {
-    /** Requests a PG transaction for a ready payment. */
+    /** Starts provider approval for a ready payment request. */
     fun approve(command: PaymentCommand.Approve): PgResult
 
-    /** Reads the provider state for a previously requested PG transaction. */
+    /** Re-checks provider state for recovery without creating another user payment attempt. */
     fun verify(command: PaymentCommand.Verify): PgResult
 
-    /** Requests provider-side cancellation for an approved transaction. */
+    /** Reverses an approved provider transaction before local cancellation state is committed. */
     fun cancel(command: PaymentCommand.Cancel): PgResult
 
-    /** Normalized PG response used by application services without leaking provider DTOs. */
+    /** Normalized provider response used by application services without leaking provider DTOs. */
     data class PgResult(
         val success: Boolean,
         val pgStatus: String,

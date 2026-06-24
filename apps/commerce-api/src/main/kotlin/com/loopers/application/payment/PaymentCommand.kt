@@ -4,7 +4,10 @@ import com.loopers.domain.payment.PgProvider
 
 class PaymentCommand {
     /**
-     * Approve starts a PG simulator transaction for a ready payment.
+     * Starts the first provider approval attempt for a ready payment.
+     *
+     * This may create or confirm the provider transaction, so callers must run it outside any DB transaction and persist
+     * enough local state before/after the call to recover from process failure.
      */
     data class Approve(
         val userId: Long,
@@ -17,7 +20,10 @@ class PaymentCommand {
     )
 
     /**
-     * Verify reads the PG simulator's current state for an existing transaction.
+     * Re-reads provider state for a transaction that may already have been approved.
+     *
+     * Verify is for recovery paths such as failed internal completion, callbacks, or batch retry; it must not represent a
+     * new user payment attempt or a duplicate approval request.
      */
     data class Verify(
         val userId: Long,
@@ -30,7 +36,9 @@ class PaymentCommand {
     )
 
     /**
-     * Cancel requests PG-side reversal for an already completed transaction.
+     * Requests provider-side reversal for an approved transaction.
+     *
+     * The local order, stock, and payment cancellation must be committed only after provider cancellation succeeds.
      */
     data class Cancel(
         val userId: Long,

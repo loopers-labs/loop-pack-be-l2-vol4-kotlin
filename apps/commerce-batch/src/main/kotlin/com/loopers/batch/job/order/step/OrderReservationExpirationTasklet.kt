@@ -38,6 +38,7 @@ class OrderReservationExpirationTasklet(
     }
 
     private fun expireOrder(orderId: Long) {
+        // Expiration deliberately targets only PAYMENT_PENDING orders; FAILED orders may already have approved PG payment.
         val reservations = jdbcTemplate.queryForList(
             """
             select id, product_id, quantity

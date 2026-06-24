@@ -196,6 +196,7 @@ class PaymentApplicationService(
         failureReason: String?,
         rawResponseSummary: String?,
     ) {
+        // Snapshot after the projection mutation so the audit log describes the committed local result.
         paymentEventRepository.save(
             PaymentEvent(
                 orderId = payment.orderId,

@@ -44,6 +44,7 @@ class PaymentCompletionRetryTasklet(
         val requestedAmount = (payment["requested_amount"] as Number).toLong()
         appendPaymentEvent(orderId, "VERIFY_REQUESTED", null, "verify requested")
 
+        // Batch cannot depend on commerce-api services, so it mirrors the same projection/event transitions in SQL.
         runCatching {
             transactionTemplate.executeWithoutResult {
                 completeOrder(orderId, pgTransactionId, requestedAmount)

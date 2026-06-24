@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GET /api/v1/users/me — commerce-api</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈 네비게이션. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>계정 · REST API</span>
+      <h1 class="title">GET<br><span class="hl">/api/v1/users/me</span></h1>
+      <p class="lede">인증 필터를 통과한 <b>로그인 사용자 본인</b>의 프로필을 조회한다. 컨트롤러는 인증 단계에서 주입된 <b>request attribute</b>만 읽는다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">AUTH</span><span class="v">ACCOUNT_ID · LOGIN_ID 헤더</span></div>
+        <div class="chip"><span class="k">REQUEST</span><span class="v">없음</span></div>
+        <div class="chip"><span class="k">RESPONSE</span><span class="v">AccountMeResponse</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="index.html"><span class="n">◆</span>인덱스</a>
+    <a href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a class="cur" href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요</a></li>
+      <li><a href="#s2">요청 · 응답</a></li>
+      <li><a href="#s3">시퀀스 다이어그램</a></li>
+      <li><a href="#s4">비즈니스 로직</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ===================== S1 개요 ===================== -->
+    <section id="s1" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">01</div>
+        <div>
+          <p class="sec-eyebrow">OVERVIEW</p>
+          <h2 class="sec">개요</h2>
+        </div>
+      </div>
+
+      <p class="lead">인증된 사용자가 자기 자신의 계정 프로필을 조회하는 엔드포인트다.</p>
+
+      <p>이 API는 요청 본문을 받지 않는다. 누가 호출하는지는 <strong>인증 필터</strong>가 먼저 판별한 뒤,
+      컨트롤러에 <em>request attribute</em>로 넘겨준다. 즉 컨트롤러는 토큰/헤더를 직접 파싱하지 않고
+      이미 검증된 신원(<span class="term">accountId</span>, <span class="term">loginId</span>)만 받아 조회를 위임한다.</p>
+
+      <p>인증은 <span class="term">AccountHeaderAuthenticationFilter</span>가 담당한다. 요청에 담긴
+      <span class="term">X-Loopers-LoginId</span> / <span class="term">X-Loopers-LoginPw</span> 헤더로
+      로그인 사용자를 확인하고, 성공하면 <span class="term">accountId</span>(Long)와
+      <span class="term">loginId</span>(String)를 <code>HttpServletRequest</code> attribute에 심는다.
+      컨트롤러는 <code>@RequestAttribute</code>로 이 두 값을 주입받는다.</p>
+
+      <div class="note key">
+        <span class="tag">CONTEXT</span>
+        외부 라우트는 평가 스펙에 맞춰 <strong>/api/v1/users</strong>를 쓰지만, 내부 도메인/패키지/테이블은
+        <strong>account</strong> 명칭을 유지한다. 응답 JSON 필드는 도메인 필드명(<code>loginId</code>, <code>email</code> ...)
+        그대로라 외부에 <code>account</code>라는 단어가 노출되지 않는다.
+      </div>
+    </section>
+
+    <!-- ===================== S2 요청 · 응답 ===================== -->
+    <section id="s2" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">02</div>
+        <div>
+          <p class="sec-eyebrow">REQUEST &amp; RESPONSE</p>
+          <h2 class="sec">요청 · 응답</h2>
+        </div>
+      </div>
+
+      <h3>인증 요구 (RequestAttribute)</h3>
+      <p>요청 본문은 없다. 대신 인증 필터가 주입한 두 attribute가 컨트롤러 파라미터로 바인딩된다.
+      attribute가 없으면 바인딩이 실패한다(아래 비즈니스 로직 참고).</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Attribute 키</th><th>타입</th><th>출처</th><th>설명</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>accountId</td>
+              <td>Long</td>
+              <td>인증 필터</td>
+              <td>인증 성공 시 주입되는 계정 PK. 조회 대상 식별에 사용</td>
+            </tr>
+            <tr>
+              <td>loginId</td>
+              <td>String</td>
+              <td>인증 필터</td>
+              <td>인증된 로그인 ID. 응답에 그대로 반영</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>두 키는 <span class="term">AccountAuthenticationAttributes</span> 상수로 정의되어
+      필터(쓰기)와 컨트롤러(읽기)가 같은 문자열을 공유한다 —
+      <code>ACCOUNT_ID = "accountId"</code>, <code>LOGIN_ID = "loginId"</code>.</p>
+
+      <h3>컨트롤러 시그니처</h3>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">AccountController.kt</span>
+        </div>
+        <pre><span class="cm">// /api/v1/users 매핑. /me 는 인증된 본인 조회</span>
+<span class="kw">@GetMapping</span>(<span class="st">"/me"</span>)
+<span class="kw">fun</span> <span class="fn">getMe</span>(
+    <span class="kw">@RequestAttribute</span>(AccountAuthenticationAttributes.ACCOUNT_ID) accountId: <span class="ty">Long</span>,
+    <span class="kw">@RequestAttribute</span>(AccountAuthenticationAttributes.LOGIN_ID) loginId: <span class="ty">String</span>,
+): <span class="ty">AccountMeResponse</span> =
+    accountService.getMe(accountId, loginId).toResponse()</pre>
+      </div>
+
+      <h3>응답 — AccountMeResponse</h3>
+      <p>application 레이어의 <span class="term">AccountMeInfo</span>를 <code>toResponse()</code>로 변환한 DTO다.
+      <strong>name 은 마스킹된 값</strong>이라는 점이 핵심이다(원문 그대로 반환하지 않음).</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>필드</th><th>타입</th><th>출처</th><th>설명</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>loginId</td>
+              <td>String</td>
+              <td>request attribute</td>
+              <td>인증된 로그인 ID. DB 재조회 없이 attribute 값을 그대로 전달</td>
+            </tr>
+            <tr>
+              <td>name</td>
+              <td>String</td>
+              <td>account.maskedName()</td>
+              <td>마스킹된 이름. 마지막 글자를 <code>*</code>로 가림 (1글자면 전체 <code>*</code>)</td>
+            </tr>
+            <tr>
+              <td>birthDate</td>
+              <td>LocalDate</td>
+              <td>account.birthDate</td>
+              <td>생년월일</td>
+            </tr>
+            <tr>
+              <td>email</td>
+              <td>String</td>
+              <td>account.email.value</td>
+              <td>이메일 (Email VO 의 내부 값)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note key">
+        <span class="tag">RESPONSE WRAPPING</span>
+        컨트롤러는 <code>AccountMeResponse</code>를 그대로 반환하고, 성공 응답은
+        <strong>ApiResponseBodyAdvice</strong>(<code>@RestControllerAdvice</code> + <code>ResponseBodyAdvice</code>)가
+        공통 <strong>ApiResponse</strong>로 래핑한다. 즉 실제 응답 body 는
+        <code>{ isSuccess, status, code, message, data, timestamp }</code> 형태이고
+        <code>data</code> 안에 위 4개 필드가 담긴다. 컨트롤러는 <code>ApiResponse</code>를 직접 만들지 않는다.
+      </div>
+
+      <details class="tg">
+        <summary><span class="tw">JSON</span>성공 응답 예시 (래핑 후)<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+        <div class="tg-body">
+          <div class="code">
+            <div class="code-bar">
+              <span class="dot" style="background:#F04452"></span>
+              <span class="dot" style="background:#FFB836"></span>
+              <span class="dot" style="background:#15C47E"></span>
+              <span class="fn">200 OK</span>
+            </div>
+            <pre>{
+  <span class="st">"isSuccess"</span>: <span class="ty">true</span>,
+  <span class="st">"status"</span>: <span class="ty">200</span>,
+  <span class="st">"code"</span>: <span class="ty">null</span>,
+  <span class="st">"message"</span>: <span class="ty">null</span>,
+  <span class="st">"data"</span>: {
+    <span class="st">"loginId"</span>: <span class="st">"loopers01"</span>,
+    <span class="st">"name"</span>: <span class="st">"홍길*"</span>,
+    <span class="st">"birthDate"</span>: <span class="st">"1996-03-09"</span>,
+    <span class="st">"email"</span>: <span class="st">"loopers@example.com"</span>
+  },
+  <span class="st">"timestamp"</span>: <span class="st">"2026-06-17T09:00:00+09:00"</span>
+}</pre>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ===================== S3 시퀀스 다이어그램 ===================== -->
+    <section id="s3" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">03</div>
+        <div>
+          <p class="sec-eyebrow">SEQUENCE</p>
+          <h2 class="sec">시퀀스 다이어그램</h2>
+        </div>
+      </div>
+
+      <p>인증 필터가 헤더로 신원을 검증해 request attribute 를 주입하면, 컨트롤러는 그 값만 읽어
+      application → domain/repository 로 조회를 위임한다.</p>
+
+      <figure class="fig-wide">
+        <div class="fig-box" data-fig="SEQ-02">
+          <svg viewBox="0 0 1120 470" role="img" aria-label="GET /api/v1/users/me 시퀀스: 클라이언트가 로그인 헤더와 함께 요청하면 인증 필터가 검증 후 accountId·loginId 를 request attribute 로 주입하고, AccountController.getMe 가 AccountService 를 거쳐 AccountRepository 로 DB 조회를 수행한 뒤 마스킹된 프로필을 응답한다.">
+            <defs>
+              <marker id="arrMe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#3182F6"/>
+              </marker>
+              <marker id="arrMeBack" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#8B95A1"/>
+              </marker>
+            </defs>
+
+            <!-- lifelines: x centers -->
+            <!-- Client 70 / Filter 280 / Controller 510 / Service 720 / Repository 920 / DB 1060 -->
+
+            <!-- participant boxes -->
+            <g>
+              <rect x="10" y="14" width="120" height="40" rx="11" fill="#E8F3FF" stroke="#3182F6"/>
+              <text x="70" y="39" text-anchor="middle" class="svg-t" fill="#1B64DA">Client</text>
+
+              <rect x="206" y="14" width="148" height="40" rx="11" fill="#E8F3FF" stroke="#3182F6"/>
+              <text x="280" y="33" text-anchor="middle" class="svg-l" fill="#1B64DA">Authentication</text>
+              <text x="280" y="47" text-anchor="middle" class="svg-l" fill="#1B64DA">Filter</text>
+
+              <rect x="438" y="14" width="144" height="40" rx="11" fill="#F9FAFB" stroke="#D1D6DB"/>
+              <text x="510" y="33" text-anchor="middle" class="svg-l" fill="#333D4B">AccountController</text>
+              <text x="510" y="47" text-anchor="middle" class="svg-l" fill="#6B7684">.getMe</text>
+
+              <rect x="654" y="14" width="132" height="40" rx="11" fill="#F9FAFB" stroke="#D1D6DB"/>
+              <text x="720" y="39" text-anchor="middle" class="svg-l" fill="#333D4B">AccountService</text>
+
+              <rect x="850" y="14" width="140" height="40" rx="11" fill="#F9FAFB" stroke="#D1D6DB"/>
+              <text x="920" y="39" text-anchor="middle" class="svg-l" fill="#333D4B">AccountRepository</text>
+
+              <rect x="1018" y="14" width="84" height="40" rx="11" fill="#F2F4F6" stroke="#B0B8C1"/>
+              <text x="1060" y="39" text-anchor="middle" class="svg-l" fill="#4E5968">DB</text>
+            </g>
+
+            <!-- lifelines -->
+            <g stroke="#D1D6DB" stroke-dasharray="3 5">
+              <line x1="70" y1="54" x2="70" y2="440"/>
+              <line x1="280" y1="54" x2="280" y2="440"/>
+              <line x1="510" y1="54" x2="510" y2="440"/>
+              <line x1="720" y1="54" x2="720" y2="440"/>
+              <line x1="920" y1="54" x2="920" y2="440"/>
+              <line x1="1060" y1="54" x2="1060" y2="440"/>
+            </g>
+
+            <!-- 1: Client -> Filter (GET /me + headers) -->
+            <line x1="70" y1="92" x2="280" y2="92" stroke="#3182F6" stroke-width="2" marker-end="url(#arrMe)"/>
+            <circle cx="62" cy="92" r="9" fill="#3182F6"/><text x="62" y="95.5" text-anchor="middle" class="svg-l" fill="#fff">1</text>
+            <text x="175" y="85" text-anchor="middle" class="svg-s" fill="#4E5968">GET /me + X-Loopers-LoginId/LoginPw</text>
+
+            <!-- self: Filter 토큰/헤더 검증 + attribute 주입 -->
+            <rect x="206" y="118" width="148" height="42" rx="9" fill="#E8F3FF" stroke="#3182F6"/>
+            <text x="280" y="135" text-anchor="middle" class="svg-s" fill="#1B64DA">헤더 검증 → authenticate</text>
+            <text x="280" y="151" text-anchor="middle" class="svg-s" fill="#1B64DA">accountId·loginId 주입</text>
+            <circle cx="198" cy="139" r="9" fill="#3182F6"/><text x="198" y="142.5" text-anchor="middle" class="svg-l" fill="#fff">2</text>
+
+            <!-- 3: Filter -> Controller (chain w/ attributes) -->
+            <line x1="280" y1="192" x2="510" y2="192" stroke="#3182F6" stroke-width="2" marker-end="url(#arrMe)"/>
+            <circle cx="272" cy="192" r="9" fill="#3182F6"/><text x="272" y="195.5" text-anchor="middle" class="svg-l" fill="#fff">3</text>
+            <text x="395" y="185" text-anchor="middle" class="svg-s" fill="#4E5968">filterChain → @RequestAttribute 바인딩</text>
+
+            <!-- 4: Controller -> Service getMe(accountId, loginId) -->
+            <line x1="510" y1="226" x2="720" y2="226" stroke="#3182F6" stroke-width="2" marker-end="url(#arrMe)"/>
+            <circle cx="502" cy="226" r="9" fill="#3182F6"/><text x="502" y="229.5" text-anchor="middle" class="svg-l" fill="#fff">4</text>
+            <text x="615" y="219" text-anchor="middle" class="svg-s" fill="#4E5968">getMe(accountId, loginId)</text>
+
+            <!-- 5: Service -> Repository findById -->
+            <line x1="720" y1="260" x2="920" y2="260" stroke="#3182F6" stroke-width="2" marker-end="url(#arrMe)"/>
+            <circle cx="712" cy="260" r="9" fill="#3182F6"/><text x="712" y="263.5" text-anchor="middle" class="svg-l" fill="#fff">5</text>
+            <text x="820" y="253" text-anchor="middle" class="svg-s" fill="#4E5968">findById(accountId)</text>
+
+            <!-- 6: Repository -> DB select -->
+            <line x1="920" y1="294" x2="1060" y2="294" stroke="#3182F6" stroke-width="2" marker-end="url(#arrMe)"/>
+            <circle cx="912" cy="294" r="9" fill="#3182F6"/><text x="912" y="297.5" text-anchor="middle" class="svg-l" fill="#fff">6</text>
+            <text x="990" y="287" text-anchor="middle" class="svg-s" fill="#4E5968">SELECT account</text>
+
+            <!-- 7: DB -> Service (Account or null) -->
+            <line x1="1060" y1="328" x2="720" y2="328" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrMeBack)"/>
+            <circle cx="1068" cy="328" r="9" fill="#8B95A1"/><text x="1068" y="331.5" text-anchor="middle" class="svg-l" fill="#fff">7</text>
+            <text x="880" y="321" text-anchor="middle" class="svg-s" fill="#6B7684">Account? (없으면 NotFoundException)</text>
+
+            <!-- 8: Service -> Controller (AccountMeInfo, maskedName) -->
+            <line x1="720" y1="362" x2="510" y2="362" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrMeBack)"/>
+            <circle cx="728" cy="362" r="9" fill="#8B95A1"/><text x="728" y="365.5" text-anchor="middle" class="svg-l" fill="#fff">8</text>
+            <text x="615" y="355" text-anchor="middle" class="svg-s" fill="#6B7684">AccountMeInfo (maskedName)</text>
+
+            <!-- 9: Controller -> Client (ApiResponse wrap) -->
+            <line x1="510" y1="404" x2="70" y2="404" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrMeBack)"/>
+            <circle cx="518" cy="404" r="9" fill="#8B95A1"/><text x="518" y="407.5" text-anchor="middle" class="svg-l" fill="#fff">9</text>
+            <text x="290" y="397" text-anchor="middle" class="svg-s" fill="#6B7684">200 OK · ApiResponse&lt;AccountMeResponse&gt;</text>
+          </svg>
+        </div>
+        <figcaption><b>인증 필터</b>가 별도 참여자로서 헤더 검증과 attribute 주입을 책임지고,
+        컨트롤러는 검증된 신원만 받아 조회를 위임한다. 7번에서 계정이 없으면 <b>NotFoundException</b>으로 전환된다.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===================== S4 비즈니스 로직 ===================== -->
+    <section id="s4" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">04</div>
+        <div>
+          <p class="sec-eyebrow">BUSINESS LOGIC</p>
+          <h2 class="sec">비즈니스 로직</h2>
+        </div>
+      </div>
+
+      <h3>1. 인증 — 이 경로는 인증 필요</h3>
+      <p>보안 설정상 <span class="term">GET /api/v1/users/me</span>는 인증이 필요하다.
+      <span class="term">AccountSecurityConfig</span>는 <code>POST /api/v1/users</code>(회원가입)와
+      상품 조회/actuator/swagger 만 <code>permitAll()</code>로 열고, 나머지는
+      <code>anyRequest().authenticated()</code>로 막는다. <code>/me</code>는 어느 permitAll 매처에도
+      해당하지 않으므로 인증 대상이다.</p>
+
+      <p>인증 자체는 <span class="term">AccountHeaderAuthenticationFilter</span>가 수행한다.
+      <code>X-Loopers-LoginId</code> / <code>X-Loopers-LoginPw</code> 헤더로
+      <code>accountService.authenticate(...)</code>를 호출해 검증하고, 성공 시
+      <code>request.setAttribute(...)</code>로 <span class="term">accountId</span>·<span class="term">loginId</span>를 주입한다.</p>
+
+      <h3>2. 인증 attribute 누락 / 인증 실패 시</h3>
+      <div class="cols">
+        <div class="col x">
+          <h4><span class="mk">FILTER</span>헤더가 둘 다 없음</h4>
+          <p>필터는 attribute 를 심지 않고 그대로 체인을 통과시킨다. 이후 Spring Security 인가 단계에서
+          미인증 요청으로 걸려 <strong>AccountAuthenticationEntryPoint</strong>가 <strong>401</strong>로 응답한다.</p>
+        </div>
+        <div class="col x">
+          <h4><span class="mk">FILTER</span>헤더가 비었거나 인증 실패</h4>
+          <p>loginId/password 가 blank 이거나 인증에 실패하면(<code>UnauthorizedException</code>)
+          엔트리포인트를 통해 <strong>401 UNAUTHORIZED</strong>로 응답한다. 컨트롤러까지 도달하지 않는다.</p>
+        </div>
+      </div>
+      <p>정상 인증을 거쳐야만 attribute 가 존재하므로, 컨트롤러의 <code>@RequestAttribute</code> 바인딩은
+      인증된 요청에서만 성립한다.</p>
+
+      <h3>3. 사용자 미존재 시 — NotFoundException</h3>
+      <p>인증은 통과했지만 <code>accountId</code>로 계정을 못 찾으면(이론상 인증 직후 삭제 등) application 레이어가
+      예외를 던진다.</p>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">AccountService.getMe</span>
+        </div>
+        <pre><span class="kw">@Transactional</span>(readOnly = <span class="ty">true</span>)
+<span class="kw">fun</span> <span class="fn">getMe</span>(accountId: <span class="ty">Long</span>, loginId: <span class="ty">String</span>): <span class="ty">AccountMeInfo</span> {
+    <span class="kw">val</span> account = accountRepository.findById(accountId)
+        ?: <span class="kw">throw</span> <span class="fn">NotFoundException</span>(AccountErrorCode.ACCOUNT_NOT_FOUND)
+
+    <span class="kw">return</span> <span class="fn">AccountMeInfo</span>(
+        loginId = loginId,                 <span class="cm">// attribute 값 그대로</span>
+        name = account.<span class="fn">maskedName</span>(),       <span class="cm">// 마스킹</span>
+        birthDate = account.birthDate,
+        email = account.email.value,
+    )
+}</pre>
+      </div>
+      <p><code>NotFoundException(AccountErrorCode.ACCOUNT_NOT_FOUND)</code> →
+      에러코드 <code>ACCOUNT:ACCOUNT_NOT_FOUND</code>, 메시지 "계정을 찾을 수 없습니다." →
+      <code>ApiControllerAdvice</code>가 <strong>404 NOT FOUND</strong>로 매핑한다.</p>
+
+      <h3>4. 트랜잭션 — readOnly</h3>
+      <p><code>getMe</code>는 <span class="term">@Transactional(readOnly = true)</span>로 선언된다.
+      조회만 수행하므로 dirty checking/flush 가 불필요하고, 읽기 전용 힌트로 명시한다.
+      트랜잭션 경계는 <strong>application(Service) 레이어</strong>에 둔다.</p>
+
+      <h3>5. 이름 마스킹</h3>
+      <p>응답의 <code>name</code>은 도메인 VO <span class="term">AccountName</span>의 <code>masked()</code> 결과다.
+      1글자면 전체를 <code>*</code>로, 2글자 이상이면 마지막 글자만 <code>*</code>로 가린다
+      (예: "홍길동" → "홍길*"). <code>loginId</code>·<code>email</code>은 마스킹 없이 그대로 반환한다.</p>
+
+      <div class="note">
+        <span class="tag">RESPONSE WRAPPING</span>
+        성공 시 컨트롤러는 <code>AccountMeResponse</code>만 반환하고,
+        <strong>ApiResponseBodyAdvice</strong>가 공통 <strong>ApiResponse</strong>로 래핑한다.
+        실패 시에는 advice/entry point 가 <code>ApiResponse.fail(...)</code> 경로로 에러 응답을 직렬화한다.
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서<br>
+    Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

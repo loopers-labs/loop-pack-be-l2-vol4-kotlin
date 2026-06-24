@@ -432,7 +432,7 @@
           <foreignObject x="628" y="246" width="416" height="66"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">이 VM만의 커널 (또 하나)</div></div></foreignObject>
         </svg>
       </div>
-      <figcaption><b>그림 2.</b> 컨테이너 이미지는 <b>userland(OS 윗부분)만</b> 담고 커널은 호스트 것을 공유한다. VM은 <b>자기 커널 + OS를 통째로</b> 들고 온다 — 그래서 컨테이너가 가볍다.<a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a></figcaption>
+      <figcaption><b>그림 3.</b> 컨테이너 이미지는 <b>userland(OS 윗부분)만</b> 담고 커널은 호스트 것을 공유한다. VM은 <b>자기 커널 + OS를 통째로</b> 들고 온다 — 그래서 컨테이너가 가볍다.<a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a></figcaption>
     </figure>
 
     <div class="note"><span class="tag">그래서</span>이미지엔 <strong>커널도 loopback도 네트워크 스택도 안 들어 있습니다.</strong> 이미지는 "프로그램 파일 세트"일 뿐이고, <strong>네트워크와 localhost는 커널이 런타임에</strong> 붙여줍니다 (§5). 그래서 이미지를 우분투→알파인으로 바꿔도 localhost 동작은 똑같아요 — 커널 소관이라서.</div>
@@ -474,7 +474,7 @@
           <foreignObject x="768" y="132" width="264" height="86"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">컨테이너 B = commerce</div><div class="s">결국 프로세스 하나</div></div></foreignObject>
         </svg>
       </div>
-      <figcaption><b>그림 3.</b> 컨테이너는 <b>하나의 커널 위에서 namespace(시야 가림)+cgroup(자원 제한)을 입은 프로세스</b>다. 호스트에서 <span class="term">ps</span> 로 보면 그냥 프로세스로 보인다.<a href="#r6" class="cite">[6]</a></figcaption>
+      <figcaption><b>그림 4.</b> 컨테이너는 <b>하나의 커널 위에서 namespace(시야 가림)+cgroup(자원 제한)을 입은 프로세스</b>다. 호스트에서 <span class="term">ps</span> 로 보면 그냥 프로세스로 보인다.<a href="#r6" class="cite">[6]</a></figcaption>
     </figure>
   </section>
 
@@ -515,7 +515,7 @@
           <text class="svg-s" x="658" y="352" fill="#6B7684">→ 컨테이너는 VM 안에서 또 한 겹 격리 (③ ≠ ②)</text>
         </svg>
       </div>
-      <figcaption><b>그림 4.</b> <b>커널은 2개</b>(ⓐ Darwin · ⓑ 리눅스 VM), <b>localhost는 3개</b>(①맥 · ②VM · ③컨테이너). ②와 ③은 같은 커널 ⓑ가 만들지만 <b>namespace가 달라 서로 못 닿는다.</b><a href="#r5" class="cite">[5]</a></figcaption>
+      <figcaption><b>그림 5.</b> <b>커널은 2개</b>(ⓐ Darwin · ⓑ 리눅스 VM), <b>localhost는 3개</b>(①맥 · ②VM · ③컨테이너). ②와 ③은 같은 커널 ⓑ가 만들지만 <b>namespace가 달라 서로 못 닿는다.</b><a href="#r5" class="cite">[5]</a></figcaption>
     </figure>
 
     <div class="note warn"><span class="tag">자주 하는 오해</span>"컨테이너의 localhost = VM의 localhost"가 <strong>아닙니다.</strong> 컨테이너는 VM 안에서 <strong>또 한 겹</strong> 격리돼 자기만의 localhost(③)를 씁니다. 컨테이너가 VM의 localhost(②)를 보는 건 오직 <span class="term">--network host</span> 일 때뿐이고, 그래도 맥(①)엔 못 닿습니다.</div>
@@ -567,7 +567,7 @@
           <text class="svg-s" x="560" y="300" text-anchor="middle" fill="#0A8F5B">docker run 할 때마다 → 새 칸(namespace) + 그 안에 새 lo 하나</text>
         </svg>
       </div>
-      <figcaption><b>그림 5.</b> 커널 <b>1개</b>가 <span class="term">docker run</span> 때마다 네트워크 네임스페이스를 새로 찍고, <b>찍을 때마다 그 안에 localhost(lo)를 하나씩</b> 넣는다. 그래서 "커널 1개 → localhost 여러 개"는 모순이 아니다.<a href="#r6" class="cite">[6]</a></figcaption>
+      <figcaption><b>그림 6.</b> 커널 <b>1개</b>가 <span class="term">docker run</span> 때마다 네트워크 네임스페이스를 새로 찍고, <b>찍을 때마다 그 안에 localhost(lo)를 하나씩</b> 넣는다. 그래서 "커널 1개 → localhost 여러 개"는 모순이 아니다.<a href="#r6" class="cite">[6]</a></figcaption>
     </figure>
 
     <h3>왜 격리되나 (메커니즘)</h3>
@@ -635,7 +635,7 @@
           <text class="svg-s" x="820" y="442" text-anchor="middle" fill="#0A8F5B">→ 전선 / virtio 통해 밖으로</text>
         </svg>
       </div>
-      <figcaption><b>그림 6B.</b> localhost 는 <b>L3에서 lo로 턴</b>해 NIC·L2·L1 하드웨어를 안 거치고 제자리로 돌아온다. 다른 IP는 <b>L1 물리 NIC까지 내려가</b> 밖으로 나간다. "막힘"이 아니라 <b>나가는 길에 안 들어섬</b>이다.</figcaption>
+      <figcaption><b>그림 7.</b> localhost 는 <b>L3에서 lo로 턴</b>해 NIC·L2·L1 하드웨어를 안 거치고 제자리로 돌아온다. 다른 IP는 <b>L1 물리 NIC까지 내려가</b> 밖으로 나간다. "막힘"이 아니라 <b>나가는 길에 안 들어섬</b>이다.</figcaption>
     </figure>
 
     <h3>하드웨어 관점 — lo는 하드웨어가 아니다</h3>
@@ -689,7 +689,7 @@
           <text class="svg-s" x="430" y="404" text-anchor="middle" fill="#0A8F5B">host.docker.internal = 이 진짜 NIC 경로로 맥까지 (IP 주소로만 진입)</text>
         </svg>
       </div>
-      <figcaption><b>그림 6C.</b> <span class="term">lo</span> 는 하드웨어가 없는 소프트웨어라 <b>자기 자신에서 턴</b>한다. 맥에 닿으려면 <b>eth0 → veth → docker0 → VM NIC → en0</b> 라는 진짜 NIC 경로를 타야 하고, 그 길은 IP 주소로만 들어간다.<a href="#r1" class="cite">[1]</a></figcaption>
+      <figcaption><b>그림 8.</b> <span class="term">lo</span> 는 하드웨어가 없는 소프트웨어라 <b>자기 자신에서 턴</b>한다. 맥에 닿으려면 <b>eth0 → veth → docker0 → VM NIC → en0</b> 라는 진짜 NIC 경로를 타야 하고, 그 길은 IP 주소로만 들어간다.<a href="#r1" class="cite">[1]</a></figcaption>
     </figure>
 
     <div class="note warn"><span class="tag">"막힘"이 아니라 "길이 없음"</span>방화벽이 가로막는 게 아닙니다. localhost 패킷은 <strong>L3에서 lo로 턴</strong>해 자기 namespace 스택 안에서 끝나므로, 다른 칸·다른 머신으로 가는 <strong>NIC 경로에 진입 자체를 안 합니다.</strong> 그래서 "왜 안 가나"의 답은 <strong>"갈 길로 안 들어서서"</strong> 입니다.</div>
@@ -744,7 +744,7 @@
           <text class="svg-s" x="730" y="392" fill="#C9303C">✕ 컨테이너가 localhost:8080 하면 → 자기 자신 (포워더 없음) → commerce 못 감</text>
         </svg>
       </div>
-      <figcaption><b>그림 7.</b> <b>맥→컨테이너</b>는 도커가 맥 localhost:8082에 심어둔 <b>포워더</b> 덕에 닿는다(publish). <b>컨테이너→맥</b>은 그런 포워더가 없어 localhost로 못 가고 <b>host.docker.internal</b> 을 쓴다.<a href="#r3" class="cite">[3]</a></figcaption>
+      <figcaption><b>그림 9.</b> <b>맥→컨테이너</b>는 도커가 맥 localhost:8082에 심어둔 <b>포워더</b> 덕에 닿는다(publish). <b>컨테이너→맥</b>은 그런 포워더가 없어 localhost로 못 가고 <b>host.docker.internal</b> 을 쓴다.<a href="#r3" class="cite">[3]</a></figcaption>
     </figure>
 
     <ul class="checklist">
@@ -830,7 +830,7 @@
           <text class="svg-s" x="840" y="588" text-anchor="middle" fill="#6B7684">외부와 일절 통신 안 함</text>
         </svg>
       </div>
-      <figcaption><b>그림 8.</b> 기본 bridge=IP로만 · 사용자 정의 bridge=이름으로 · host=호스트와 통째 공유 · none=고립.<a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a></figcaption>
+      <figcaption><b>그림 10.</b> 기본 bridge=IP로만 · 사용자 정의 bridge=이름으로 · host=호스트와 통째 공유 · none=고립.<a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a></figcaption>
     </figure>
 
     <div class="tbl-wrap">
@@ -903,7 +903,7 @@
           <text class="svg-s" x="560" y="478" text-anchor="middle" fill="#C9303C">단, commerce-api 코드 바꿀 때마다 이미지 재빌드</text>
         </svg>
       </div>
-      <figcaption><b>그림 9.</b> A=둘 다 bootRun · B=pg만 컨테이너 · C=둘 다 컨테이너. 셋 다 동작하지만 호스트네임과 비용이 다르다.</figcaption>
+      <figcaption><b>그림 11.</b> A=둘 다 bootRun · B=pg만 컨테이너 · C=둘 다 컨테이너. 셋 다 동작하지만 호스트네임과 비용이 다르다.</figcaption>
     </figure>
 
     <div class="cols">
@@ -911,7 +911,7 @@
       <div class="col o"><h4><span class="mk">곧</span>멀티 PG · 반복 기동</h4><p>멀티 PG로 가면 <strong>B(pg만 컨테이너)</strong> 가 균형점. callbackUrl만 <span class="term">host.docker.internal</span> 프로퍼티로 빼면 됩니다.</p></div>
     </div>
 
-    <div class="note key"><span class="tag">전체 한 줄</span><strong>localhost = 자기 자신</strong>(namespace당 1개). 남을 부르려면 <strong>이름</strong>(컨테이너끼리) 이나 <strong>host.docker.internal</strong>(컨테이너→맥), 들어올 땐 <strong>publish</strong>(맥→컨테이너). 커널은 공유, localhost는 칸막이마다 따로 — 이 한 문장이 그림 1~9의 결론입니다.</div>
+    <div class="note key"><span class="tag">전체 한 줄</span><strong>localhost = 자기 자신</strong>(namespace당 1개). 남을 부르려면 <strong>이름</strong>(컨테이너끼리) 이나 <strong>host.docker.internal</strong>(컨테이너→맥), 들어올 땐 <strong>publish</strong>(맥→컨테이너). 커널은 공유, localhost는 칸막이마다 따로 — 이 한 문장이 그림 1~11의 결론입니다.</div>
 
     <a class="xlink" href="01-docker-network-pg-local.html">
       <span class="ic">→</span>

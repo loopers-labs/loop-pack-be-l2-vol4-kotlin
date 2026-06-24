@@ -15,6 +15,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
 
+    // external pg (feign + circuit breaker)
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+
+    // wiremock for external pg stubbing
+    testImplementation("org.springframework.cloud:spring-cloud-starter-contract-stub-runner")
+
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 

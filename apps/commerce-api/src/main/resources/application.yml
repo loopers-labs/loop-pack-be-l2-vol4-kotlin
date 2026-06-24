@@ -48,6 +48,11 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
+  timelimiter:
+    configs:
+      default:
+        # 서킷 활성 시 각 Feign 호출을 감싸는 TimeLimiter. read-timeout(2s) 의도와 맞춘다.
+        timeout-duration: 2s
 
 springdoc:
   use-fqn: true

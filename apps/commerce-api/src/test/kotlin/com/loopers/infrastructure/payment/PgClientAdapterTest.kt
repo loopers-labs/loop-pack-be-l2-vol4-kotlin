@@ -66,7 +66,7 @@ class PgClientAdapterTest @Autowired constructor(
     fun `타임아웃이면 서킷 fallback 으로 결과 불명(PENDING) 을 반환한다`() {
         stubFor(
             post(urlPathEqualTo("/api/v1/payments")).willReturn(
-                aResponse().withFixedDelay(5000) // read-timeout(2s) 초과 → fallback
+                aResponse().withFixedDelay(5000) // TimeLimiter(2s) 초과 → 서킷 fallback
                     .withHeader("Content-Type", "application/json")
                     .withBody("""{"meta":{"result":"SUCCESS"},"data":{"transactionKey":"tx-late"}}"""),
             ),

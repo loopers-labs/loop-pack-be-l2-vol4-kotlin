@@ -8,8 +8,11 @@ import com.loopers.application.payment.usecase.RequestPaymentUsecase
 import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -72,10 +75,32 @@ class RequestPaymentUsecaseIntegrationTest @Autowired constructor(
     @Test
     fun `PENDING 이 아닌 주문은 결제할 수 없다`() {
         val ctx = fixtures.paidOrder()
-        org.assertj.core.api.Assertions.assertThatThrownBy {
+        assertThatThrownBy {
             requestPaymentUsecase.request(
                 RequestPaymentCommand(ctx.loginId, ctx.password, ctx.orderId, CardType.SAMSUNG, "1234-5678-9012-3456"),
             )
-        }.isInstanceOf(com.loopers.support.error.CoreException::class.java)
+        }.isInstanceOf(CoreException::class.java)
+            .satisfies({ assertThat((it as CoreException).errorType).isEqualTo(ErrorType.CONFLICT) })
+    }
+
+    @Test
+    fun `이미 결제가 진행 중인 주문은 중복 결제할 수 없다`() {
+        val ctx = fixtures.pendingOrder()
+        stubFor(
+            post(urlPathEqualTo("/api/v1/payments")).willReturn(
+                aResponse().withHeader("Content-Type", "application/json")
+                    .withBody("""{"meta":{"result":"SUCCESS"},"data":{"transactionKey":"tx-1","status":"PENDING"}}"""),
+            ),
+        )
+        requestPaymentUsecase.request(
+            RequestPaymentCommand(ctx.loginId, ctx.password, ctx.orderId, CardType.SAMSUNG, "1234-5678-9012-3456"),
+        )
+
+        assertThatThrownBy {
+            requestPaymentUsecase.request(
+                RequestPaymentCommand(ctx.loginId, ctx.password, ctx.orderId, CardType.SAMSUNG, "1234-5678-9012-3456"),
+            )
+        }.isInstanceOf(CoreException::class.java)
+            .satisfies({ assertThat((it as CoreException).errorType).isEqualTo(ErrorType.CONFLICT) })
     }
 }

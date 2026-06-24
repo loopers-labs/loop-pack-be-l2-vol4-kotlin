@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.UUID
 
 data class PendingOrderContext(
     val loginId: String,
@@ -33,19 +34,20 @@ class PaymentTestFixtures(
     private val orderRepository: OrderRepository,
     private val transactionTemplate: TransactionTemplate,
 ) {
-    private val loginId = "paymenttester"
     private val password = "Password1!"
     private val quantity = 1
     private val productPrice = BigDecimal("10000")
 
     fun pendingOrder(): PendingOrderContext {
+        // UserModel 은 loginId 에 영숫자만 허용(^[A-Za-z0-9]+$) → UUID 하이픈 제거
+        val loginId = "paymenttester" + UUID.randomUUID().toString().replace("-", "").take(8)
         val user = userService.signUp(
             UserService.SignUpCommand(
                 loginId = loginId,
                 password = password,
                 name = "결제테스터",
                 birthDate = LocalDate.of(1990, 1, 1),
-                email = "paymenttester@loopers.com",
+                email = "$loginId@loopers.com",
             ),
         )
         val product = productRepository.save(

@@ -61,13 +61,14 @@ class RequestPaymentUsecase(
 
         // (3) 접수 성공 시 transactionKey 짧은 트랜잭션으로 기록. 미수신이면 PENDING 유지(reconciliation).
         val txKey = result.transactionKey
-        if (txKey != null) {
-            transactionTemplate.execute {
-                val reloaded = paymentRepository.findByOrderIdForUpdate(order.id)
-                if (reloaded != null && reloaded.transactionKey == null) reloaded.assignTransactionKey(txKey)
-            }
-        }
+            ?: return PaymentInfo.from(savedPayment)
 
-        return PaymentInfo.from(paymentRepository.findById(savedPayment.id)!!)
+        val recorded = transactionTemplate.execute {
+            val reloaded = paymentRepository.findByOrderIdForUpdate(order.id)
+                ?: throw CoreException(ErrorType.NOT_FOUND, "결제 정보를 찾을 수 없습니다.")
+            if (reloaded.transactionKey == null) reloaded.assignTransactionKey(txKey)
+            reloaded
+        }!!
+        return PaymentInfo.from(recorded)
     }
 }

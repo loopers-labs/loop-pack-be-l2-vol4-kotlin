@@ -101,6 +101,27 @@ class PaymentService(
     }
 
     @Transactional
+    fun applyPgTransaction(
+        paymentId: Long,
+        transactionKey: String,
+        status: PgTransactionStatus,
+        reason: String?,
+    ): PaymentInfo {
+        val payment = paymentRepository.findByIdForUpdate(paymentId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
+        val order = orderRepository.findByIdForUpdate(payment.orderId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+
+        return applyPgTransaction(
+            payment = payment,
+            order = order,
+            transactionKey = transactionKey,
+            status = status,
+            reason = reason,
+        )
+    }
+
+    @Transactional
     fun handleCallback(command: PaymentCommand.Callback): PaymentInfo {
         val payment = paymentRepository.findByTransactionKeyForUpdate(command.transactionKey)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
@@ -111,11 +132,48 @@ class PaymentService(
             throw CoreException(ErrorType.BAD_REQUEST, "Payment callback does not match payment request.")
         }
 
-        when (command.status) {
-            PgTransactionStatus.PENDING -> return PaymentInfo.from(payment, order.status)
+        return applyPgTransaction(
+            payment = payment,
+            order = order,
+            transactionKey = command.transactionKey,
+            status = command.status,
+            reason = command.reason,
+        )
+    }
+
+    @Transactional
+    fun markConfirmationNotFound(paymentId: Long): PaymentInfo {
+        val payment = paymentRepository.findByIdForUpdate(paymentId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
+        val order = orderRepository.findByIdForUpdate(payment.orderId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+
+        payment.markRequestFailed("Payment gateway has no transaction for this order.")
+
+        return paymentRepository.save(payment)
+            .let { PaymentInfo.from(it, order.status) }
+    }
+
+    private fun applyPgTransaction(
+        payment: Payment,
+        order: Order,
+        transactionKey: String,
+        status: PgTransactionStatus,
+        reason: String?,
+    ): PaymentInfo {
+        when (status) {
+            PgTransactionStatus.PENDING -> {
+                if (payment.status in setOf(PaymentStatus.REQUESTING, PaymentStatus.PENDING_CONFIRMATION)) {
+                    payment.markPending(transactionKey = transactionKey, reason = reason)
+                    return paymentRepository.save(payment)
+                        .let { PaymentInfo.from(it, order.status) }
+                }
+
+                return PaymentInfo.from(payment, order.status)
+            }
             PgTransactionStatus.SUCCESS -> {
                 val shouldCompleteOrder = order.status == OrderStatus.PENDING_PAYMENT
-                payment.succeed(transactionKey = command.transactionKey, reason = command.reason)
+                payment.succeed(transactionKey = transactionKey, reason = reason)
                 if (shouldCompleteOrder) {
                     order.completePayment()
                     orderRepository.updateStatus(order)
@@ -124,7 +182,7 @@ class PaymentService(
             PgTransactionStatus.FAILED -> {
                 val shouldRestoreReservation =
                     payment.status != PaymentStatus.FAILED && order.status == OrderStatus.PENDING_PAYMENT
-                payment.fail(transactionKey = command.transactionKey, reason = command.reason)
+                payment.fail(transactionKey = transactionKey, reason = reason)
                 if (shouldRestoreReservation) {
                     order.failPayment()
                     restoreOrderReservations(order)

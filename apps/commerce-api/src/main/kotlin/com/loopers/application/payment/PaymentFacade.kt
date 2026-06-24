@@ -31,6 +31,31 @@ class PaymentFacade(
         return paymentService.getPayment(memberId = user.id, paymentId = paymentId)
     }
 
+    fun syncPayment(
+        loginId: String,
+        rawPassword: String,
+        paymentId: Long,
+    ): PaymentInfo {
+        val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
+        val payment = paymentService.getPayment(memberId = user.id, paymentId = paymentId)
+        val transactions = pgPaymentClient.findTransactionsByOrder(
+            PgPaymentCommand.FindByOrder(
+                userId = user.id.toString(),
+                orderNumber = payment.orderNumber,
+            ),
+        )
+
+        val transaction = transactions.firstOrNull()
+            ?: return paymentService.markConfirmationNotFound(payment.paymentId)
+
+        return paymentService.applyPgTransaction(
+            paymentId = payment.paymentId,
+            transactionKey = transaction.transactionKey,
+            status = transaction.status,
+            reason = transaction.reason,
+        )
+    }
+
     fun requestPayment(
         loginId: String,
         rawPassword: String,

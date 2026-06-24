@@ -43,6 +43,22 @@ class PaymentV1Controller(
             .let(ApiResponse.Companion::success)
     }
 
+    @PostMapping("/{paymentId}/sync")
+    override fun syncPayment(
+        @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
+        @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
+        @PathVariable paymentId: Long,
+    ): ApiResponse<PaymentV1Dto.PaymentResponse> {
+        LoopersHeaders.validateUser(loginId = loginId, password = password)
+
+        return paymentFacade.syncPayment(
+            loginId = loginId,
+            rawPassword = password,
+            paymentId = paymentId,
+        ).let(PaymentV1Dto.PaymentResponse::from)
+            .let(ApiResponse.Companion::success)
+    }
+
     @PostMapping
     override fun requestPayment(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,

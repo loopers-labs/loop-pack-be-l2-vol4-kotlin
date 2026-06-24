@@ -28,6 +28,16 @@ interface PaymentV1ApiSpec {
     ): ApiResponse<PaymentV1Dto.PaymentResponse>
 
     @Operation(
+        summary = "결제 상태 동기화",
+        description = "PG 주문별 결제 조회를 통해 타임아웃 등으로 확인이 필요한 결제 상태를 복구합니다.",
+    )
+    fun syncPayment(
+        loginId: String,
+        password: String,
+        paymentId: Long,
+    ): ApiResponse<PaymentV1Dto.PaymentResponse>
+
+    @Operation(
         summary = "PG 결제 콜백 수신",
         description = "PG 비동기 결제 결과를 수신해 내부 결제 상태와 주문 상태를 갱신합니다.",
     )

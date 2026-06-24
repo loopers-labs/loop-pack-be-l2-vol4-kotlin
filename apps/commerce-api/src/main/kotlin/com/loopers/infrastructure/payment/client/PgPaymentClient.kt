@@ -45,6 +45,21 @@ class PgPaymentClient(
         }
     }
 
+    fun findTransactionsByOrder(command: PgPaymentCommand.FindByOrder): List<PgPaymentResult> {
+        return runCatching {
+            circuitBreaker.executeSupplier {
+                findPayments(command)
+            }
+        }.getOrElse { throwable ->
+            when {
+                throwable is CallNotPermittedException -> throw PgPaymentCircuitOpenException(throwable)
+                throwable.isTimeout() -> throw PgPaymentTimeoutException(throwable)
+                throwable is RestClientException -> throw PgPaymentRequestException(throwable)
+                else -> throw PgPaymentRequestException(throwable)
+            }
+        }
+    }
+
     private fun requestPayment(command: PgPaymentCommand.Request): PgPaymentResult {
         val response = restClient.post()
             .uri("/api/v1/payments")
@@ -73,6 +88,30 @@ class PgPaymentClient(
         )
     }
 
+    private fun findPayments(command: PgPaymentCommand.FindByOrder): List<PgPaymentResult> {
+        val response = restClient.get()
+            .uri { builder ->
+                builder.path("/api/v1/payments")
+                    .queryParam("orderId", command.orderNumber)
+                    .build()
+            }
+            .header("X-USER-ID", command.userId)
+            .retrieve()
+            .body(object : ParameterizedTypeReference<PgApiResponse<PgOrderResponse>>() {})
+            ?: throw PgPaymentRequestException(IllegalStateException("PG response body is empty."))
+
+        return response.data
+            ?.transactions
+            ?.map {
+                PgPaymentResult(
+                    transactionKey = it.transactionKey,
+                    status = it.status,
+                    reason = it.reason,
+                )
+            }
+            ?: emptyList()
+    }
+
     private fun Throwable.isTimeout(): Boolean {
         return this is ResourceAccessException &&
             generateSequence(this as Throwable?) { it.cause }
@@ -96,6 +135,11 @@ class PgPaymentClient(
         val status: PgTransactionStatus,
         val reason: String?,
     )
+
+    private data class PgOrderResponse(
+        val orderId: String,
+        val transactions: List<PgTransactionResponse>,
+    )
 }
 
 object PgPaymentCommand {
@@ -105,6 +149,11 @@ object PgPaymentCommand {
         val cardType: CardType,
         val cardNo: String,
         val amount: Long,
+    )
+
+    data class FindByOrder(
+        val userId: String,
+        val orderNumber: String,
     )
 }
 

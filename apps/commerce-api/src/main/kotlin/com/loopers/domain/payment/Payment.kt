@@ -67,7 +67,10 @@ class Payment(
     }
 
     fun markRequestFailed(reason: String?) {
-        if (status != PaymentStatus.REQUESTING) {
+        if (status == PaymentStatus.REQUEST_FAILED) {
+            return
+        }
+        if (status !in setOf(PaymentStatus.REQUESTING, PaymentStatus.PENDING_CONFIRMATION)) {
             throw CoreException(ErrorType.BAD_REQUEST, "Payment request cannot fail from current status.")
         }
 

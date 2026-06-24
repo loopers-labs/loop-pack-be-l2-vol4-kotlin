@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 생성 플로우 — 현재 상태 + Payment 연동 지점</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Round 6 · 주문 → 결제 연동 준비</span>
+      <h1 class="title">주문 생성 플로우<br><span class="hl">현재 상태와 Payment 연동 지점</span></h1>
+      <p class="lede"><span class="term">POST /api/v1/orders</span> 한 번이 들어올 때 <b>어떤 데이터가 오가고 무엇이 저장되는지</b>를 큰 그림으로 본 뒤, <b>세부 스텝</b>으로 쪼갠다. 결제는 아직 코드에 없고 <b>PENDING_PAYMENT</b>에서 끝나므로, Round 6에서 붙을 자리를 점선으로 표시한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">주문 생성 플로우</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · JPA</span></div>
+        <div class="chip"><span class="k">SOURCE</span><span class="v">commerce-api 현재 코드</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-plan.html"><span class="n">00</span>계획</a>
+    <a href="01-docker-network-pg-local.html"><span class="n">01</span>도커 네트워크</a>
+    <a href="02-container-network-deep-dive.html"><span class="n">02</span>컨테이너 네트워크</a>
+    <a class="cur" href="03-order-flow-current.html"><span class="n">03</span>주문 플로우</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">큰 그림 — 무엇이 오가고 저장되나</a></li>
+      <li><a href="#s2">세부 스텝 — place() 한 줄씩</a></li>
+      <li><a href="#s3">요청 · 응답 데이터</a></li>
+      <li><a href="#s4">저장되는 데이터 (테이블)</a></li>
+      <li><a href="#s5">Payment 연동 지점 (Round 6)</a></li>
+      <li><a href="#s6">근거 파일</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">BIG PICTURE</p><h2 class="sec">큰 그림 — 무엇이 오가고 저장되나</h2></div>
+    </div>
+
+    <p class="lead">주문 한 건은 <strong>단일 트랜잭션</strong> 안에서 네 협력자를 순서대로 부르고, 그 결과로 두 테이블이 새로 생기고 두 곳의 상태가 바뀐다.</p>
+    <p><span class="term">OrderController</span>는 인증 필터가 넣어준 <span class="term">userId</span>와 요청 본문만 받아 <span class="term">OrderFacade.place()</span>에 위임한다. <span class="term">place()</span>는 <strong>@Transactional</strong> 하나로 묶여 있고, 외부 호출(결제 PG)은 아직 없다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FLOW">
+        <svg viewBox="0 0 1120 660" role="img" aria-label="주문 생성 플로우: 사용자가 OrderController로 요청하면 OrderFacade.place 트랜잭션이 ProductService·CouponService·OrderService·InventoryService를 순서대로 호출하고 orders·order_item 테이블을 생성하며 user_coupon과 inventory 상태를 변경한다. 결제는 PENDING_PAYMENT 이후 별도 흐름으로 Round 6에서 추가된다.">
+          <defs>
+            <marker id="oa1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- 사용자 -->
+          <rect x="20" y="248" width="120" height="84" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="20" y="248" width="120" height="84"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">사용자</div><div class="s">인증 헤더</div></div></foreignObject>
+
+          <!-- 요청/응답 화살표 -->
+          <line x1="142" y1="276" x2="194" y2="276" stroke="#4E5968" stroke-width="2" marker-end="url(#oa1)"/>
+          <text class="svg-l" x="168" y="266" text-anchor="middle" fill="#4E5968">요청</text>
+          <line x1="194" y1="304" x2="142" y2="304" stroke="#15C47E" stroke-width="2" marker-end="url(#oa1)"/>
+          <text class="svg-l" x="168" y="324" text-anchor="middle" fill="#0A8F5B">응답</text>
+
+          <!-- OrderController -->
+          <rect x="194" y="248" width="146" height="84" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="194" y="248" width="146" height="84"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">OrderController</div><div class="s">POST /api/v1/orders</div></div></foreignObject>
+
+          <line x1="340" y1="290" x2="386" y2="290" stroke="#4E5968" stroke-width="2" marker-end="url(#oa1)"/>
+
+          <!-- 트랜잭션 컨테이너 -->
+          <rect x="388" y="64" width="410" height="486" rx="22" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="408" y="92" fill="#1B64DA">OrderFacade.place()</text>
+          <text class="svg-s" x="408" y="111" fill="#3182F6">@Transactional · 단일 트랜잭션</text>
+
+          <!-- step 1 -->
+          <rect x="408" y="128" width="370" height="82" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="408" y="128" width="370" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① ProductService.getActiveProducts(ids)</div><div class="s">활성 상품 조회 → 가격·이름·브랜드ID</div></div></foreignObject>
+          <!-- step 2 (optional, dashed) -->
+          <rect x="408" y="222" width="370" height="82" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4" stroke-dasharray="6 4"/>
+          <foreignObject x="408" y="222" width="370" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">② CouponService.use(...)  · couponId 있을 때만</div><div class="s">쿠폰 검증 · 사용(낙관락) → 할인액 반환</div></div></foreignObject>
+          <!-- step 3 -->
+          <rect x="408" y="316" width="370" height="82" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="408" y="316" width="370" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">③ OrderService.create(...)</div><div class="s">스냅샷 · 금액 검증(PRICE_CHANGED) · 저장</div></div></foreignObject>
+          <!-- step 4 -->
+          <rect x="408" y="410" width="370" height="82" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="408" y="410" width="370" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">④ InventoryService.decreaseStock(...)</div><div class="s">재고 비관락 차감 — 맨 마지막(점유 최소)</div></div></foreignObject>
+
+          <!-- step→DB 화살표 -->
+          <line x1="778" y1="169" x2="840" y2="169" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#oa1)"/>
+          <line x1="778" y1="263" x2="840" y2="263" stroke="#15C47E" stroke-width="2" marker-end="url(#oa1)"/>
+          <line x1="778" y1="357" x2="840" y2="357" stroke="#15C47E" stroke-width="2" marker-end="url(#oa1)"/>
+          <line x1="778" y1="451" x2="840" y2="451" stroke="#15C47E" stroke-width="2" marker-end="url(#oa1)"/>
+
+          <!-- DB 효과 -->
+          <rect x="842" y="128" width="256" height="82" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="842" y="128" width="256" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">product</div><div class="s">읽기 (변경 없음)</div></div></foreignObject>
+          <rect x="842" y="222" width="256" height="82" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <foreignObject x="842" y="222" width="256" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">user_coupon</div><div class="s">UPDATE · used 표시</div></div></foreignObject>
+          <rect x="842" y="316" width="256" height="82" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <foreignObject x="842" y="316" width="256" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">orders + order_item</div><div class="s">INSERT · status=PENDING_PAYMENT</div></div></foreignObject>
+          <rect x="842" y="410" width="256" height="82" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <foreignObject x="842" y="410" width="256" height="82"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">inventory</div><div class="s">UPDATE · SELECT … FOR UPDATE</div></div></foreignObject>
+
+          <!-- payment (점선, 추가 예정) -->
+          <line x1="970" y1="398" x2="970" y2="560" stroke="#F04452" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#oa1)"/>
+          <text class="svg-l" x="982" y="478" text-anchor="start" fill="#C9303C">이후</text>
+          <rect x="388" y="562" width="710" height="80" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4" stroke-dasharray="6 4"/>
+          <foreignObject x="388" y="562" width="710" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">Round 6 추가 예정 — 결제는 별도 흐름</div><div class="s">POST /api/v1/payments → Payment(transactionKey, status=PENDING) 생성 · Order엔 transactionKey 필드 없음</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 주문 생성의 데이터 흐름. <b>파란 박스</b>=트랜잭션 내 호출 순서, <b>초록</b>=쓰기, <b>회색</b>=읽기. <b>빨간 점선</b>=현재 없고 Round 6에서 붙을 결제. 재고 차감(④)을 <b>맨 마지막</b>에 둬 비관락 점유 시간을 최소화한다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">한 문장</span>주문은 <strong>상품 조회 → (쿠폰) → 주문 저장 → 재고 차감</strong> 순서로 한 트랜잭션 안에서 끝나고, 마지막 상태는 항상 <strong>PENDING_PAYMENT</strong>다. 결제는 이 다음에 별도로 일어난다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STEP BY STEP</p><h2 class="sec">세부 스텝 — place() 한 줄씩</h2></div>
+    </div>
+
+    <p class="lead"><span class="term">OrderFacade.place(userId, command)</span>가 위에서 아래로 실행하는 그대로다. 각 스텝의 입력·처리·결과(저장)를 분리해 본다.</p>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">place</span>(<span class="pa">command</span>) <span class="rt">→ OrderInfo</span><span class="mut">@Transactional · 상태 변경</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>입력</td><td>OrderCreateCommand(userId, items, couponId?, expected 금액 3종) — userId 포함</td></tr>
+        <tr><td>가드</td><td>items 비어 있으면 <span class="term">BadRequestException(EMPTY_ORDER_ITEMS)</span></td></tr>
+        <tr><td>책임</td><td>아래 ①~④ 오케스트레이션 + 트랜잭션 경계</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="note key"><span class="tag">컨벤션</span>인증된 <strong>principal(userId)은 command에 담는다.</strong> command가 작업에 필요한 입력을 모두 가지는 단일 객체이기 때문이다. 단 값은 <span class="term">@RequestAttribute(ACCOUNT_ID)</span>(인증)에서만 채우고 <strong>요청 DTO 필드로 두지 않는다.</strong> Microsoft eShop(CreateOrderCommand)·DDD/CQRS 권위 출처가 따르는 패턴.</div>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">①  productService.getActiveProducts</span>(<span class="pa">productIds</span>) <span class="rt">→ Map&lt;Long, Product&gt;</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>처리</td><td>요청 라인의 productId로 활성 상품을 모아 조회</td></tr>
+        <tr><td>사용</td><td>가격 합으로 <span class="term">originalAmount</span> 계산 (price × quantity 합)</td></tr>
+        <tr><td>저장</td><td>없음 (읽기 전용)</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">②  couponService.use</span>(<span class="pa">userId, couponId, originalAmount, now</span>) <span class="rt">→ Money(할인액)</span><span class="mut">couponId 있을 때만</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>처리</td><td>UserCoupon·Coupon 조회 → <span class="term">validateUsable</span> → <span class="term">userCoupon.use(now)</span></td></tr>
+        <tr><td>정합성</td><td>낙관락 + 중복 사용 차단. 할인액은 <span class="term">DiscountPolicy.calculateDiscount</span></td></tr>
+        <tr><td>저장</td><td>user_coupon UPDATE(used). couponId 없으면 할인액 <span class="term">Money(0)</span></td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">③  orderService.create</span>(<span class="pa">command, products, discount</span>) <span class="rt">→ OrderInfo</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>스냅샷</td><td>라인마다 <span class="term">OrderItemSnapshot</span>(productId, brandId, productName, brandName=null, unitPrice, quantity)</td></tr>
+        <tr><td>금액 검증</td><td>계산한 original/discount/total ≠ 요청의 expected 3종 → <span class="term">ConflictException(PRICE_CHANGED)</span></td></tr>
+        <tr><td>생성</td><td><span class="term">Order.create()</span> → status=PENDING_PAYMENT, item 추가, 할인 적용</td></tr>
+        <tr><td>저장</td><td>orders + order_item INSERT (cascade ALL)</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">④  inventoryService.decreaseStock</span>(<span class="pa">lines</span>) <span class="rt">→ Unit</span><span class="mut">비관락 · 맨 마지막</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>처리</td><td>productId 정렬 후 <span class="term">findAllByProductIdInForUpdate</span>(SELECT … FOR UPDATE) → 각 <span class="term">inventory.decrease(qty)</span></td></tr>
+        <tr><td>왜 마지막</td><td>행 점유(락) 시간을 최소화 — 외부 조회·검증을 모두 끝낸 뒤 잠근다</td></tr>
+        <tr><td>저장</td><td>inventory UPDATE (재고 차감)</td></tr>
+      </tbody></table></div>
+    </div>
+
+    <div class="note"><span class="tag">반환</span><span class="term">OrderInfo</span>가 컨트롤러로 돌아가 <span class="term">OrderCreateResponse</span>로 변환된다 — <strong>orderId · status(PENDING_PAYMENT) · originalAmount · discountAmount · totalAmount</strong>.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">CONTRACT</p><h2 class="sec">요청 · 응답 데이터</h2></div>
+    </div>
+
+    <p class="lead">클라이언트가 보내는 것과 받는 것. 금액 3종(expected)을 요청에 함께 실어 <strong>서버 계산값과 다르면 거절</strong>(PRICE_CHANGED)한다.</p>
+
+    <h3>요청 — OrderCreateRequest</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td>items</td><td>List&lt;{productId, quantity}&gt;</td><td>주문 라인</td></tr>
+        <tr><td>couponId</td><td>Long?</td><td>선택 — 있으면 쿠폰 사용</td></tr>
+        <tr><td>expectedOriginalAmount</td><td>Long</td><td>클라이언트가 본 원금액</td></tr>
+        <tr><td>expectedDiscountAmount</td><td>Long</td><td>클라이언트가 본 할인액</td></tr>
+        <tr><td>expectedTotalAmount</td><td>Long</td><td>클라이언트가 본 결제 예정액</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note"><span class="tag">인증</span>본문에 userId는 없다. <span class="term">X-Loopers-LoginId / Pw</span> 헤더 → <span class="term">AccountHeaderAuthenticationFilter</span> → <span class="term">@RequestAttribute(ACCOUNT_ID)</span>로 주입된 뒤 <span class="term">request.toCommand(userId)</span>로 command에 합쳐진다.</div>
+
+    <h3>응답 — OrderCreateResponse</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>필드</th><th>타입</th><th>값</th></tr></thead>
+      <tbody>
+        <tr><td>orderId</td><td>Long</td><td>생성된 주문 id</td></tr>
+        <tr><td>status</td><td>OrderStatus</td><td>PENDING_PAYMENT</td></tr>
+        <tr><td>originalAmount</td><td>Long</td><td>서버 확정 원금액</td></tr>
+        <tr><td>discountAmount</td><td>Long</td><td>서버 확정 할인액</td></tr>
+        <tr><td>totalAmount</td><td>Long</td><td>서버 확정 결제 예정액</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">PERSISTENCE</p><h2 class="sec">저장되는 데이터 (테이블)</h2></div>
+    </div>
+
+    <p class="lead">주문 한 건이 만들어내는 것: <strong>새 행 2종</strong>(orders · order_item)과 <strong>상태 변경 2종</strong>(user_coupon · inventory).</p>
+
+    <h3>orders — 새 행 1개</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>컬럼</th><th>타입</th><th>값 / 비고</th></tr></thead>
+      <tbody>
+        <tr><td>user_id</td><td>Long</td><td>주문자 (updatable=false)</td></tr>
+        <tr><td>ordered_at</td><td>LocalDateTime</td><td>생성 시각</td></tr>
+        <tr><td>coupon_id</td><td>Long?</td><td>사용한 쿠폰 (nullable)</td></tr>
+        <tr><td>original_amount</td><td>Money</td><td>원금액</td></tr>
+        <tr><td>discount_amount</td><td>Money</td><td>할인액</td></tr>
+        <tr><td>total_amount</td><td>Money</td><td>original − discount</td></tr>
+        <tr><td>status</td><td>String(20)</td><td>PENDING_PAYMENT</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>order_item — 라인 수만큼 (1:N)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>컬럼</th><th>타입</th><th>값 / 비고</th></tr></thead>
+      <tbody>
+        <tr><td>order_id</td><td>Long</td><td>FK → orders</td></tr>
+        <tr><td>product_id</td><td>Long</td><td>주문 시점 상품</td></tr>
+        <tr><td>brand_id</td><td>Long?</td><td>스냅샷</td></tr>
+        <tr><td>product_name</td><td>String</td><td>주문 시점 이름(스냅샷)</td></tr>
+        <tr><td>brand_name</td><td>String?</td><td>현재 항상 null로 저장</td></tr>
+        <tr><td>unit_price</td><td>Money</td><td>주문 시점 단가(스냅샷)</td></tr>
+        <tr><td>quantity</td><td>Int</td><td>≥ 1 (init 검증)</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">상태①</span> user_coupon</h4><p>couponId가 있을 때만 <strong>used</strong>로 UPDATE (낙관락, 중복 사용 차단). 새 행 아님.</p></div>
+      <div class="col x"><h4><span class="mk">상태②</span> inventory</h4><p>해당 상품 재고를 <strong>FOR UPDATE</strong>로 잠그고 차감 UPDATE. 새 행 아님.</p></div>
+    </div>
+
+    <div class="note warn"><span class="tag">결제 흔적 없음</span>이 시점에 <strong>payment 관련 데이터는 한 줄도 생기지 않는다.</strong> Order에는 <span class="term">transactionKey</span> 필드조차 없다. 결제는 §5의 별도 흐름.</div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">ROUND 6</p><h2 class="sec">Payment 연동 지점 (추가 예정)</h2></div>
+    </div>
+
+    <p class="lead">현재 플로우는 <strong>PENDING_PAYMENT</strong>에서 끝난다. 결제는 여기서부터 <strong>별도 요청·별도 도메인</strong>으로 이어질 예정이며, 아직 코드에 없다.</p>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">지금</span> 코드에 있는 것</h4><p>Order의 상태 전이 메서드 <span class="term">confirmPayment()</span> / <span class="term">failPayment()</span> / <span class="term">markUnknown()</span>와 상태머신만 준비돼 있다. 호출하는 쪽은 아직 없음.</p></div>
+      <div class="col o"><h4><span class="mk">예정</span> Round 6에서 붙는 것</h4><p>별도 <span class="term">POST /api/v1/payments</span> → Payment 도메인이 transactionKey·status 보관 → 콜백/조회로 PAID/FAILED 확정.</p></div>
+    </div>
+
+    <h3>Payment에 들어갈 데이터 (계획)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>필드</th><th>출처</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>orderId</td><td>요청</td><td>어떤 주문의 결제인지</td></tr>
+        <tr><td>amount</td><td>주문 확정 금액</td><td>주문의 totalAmount</td></tr>
+        <tr><td>cardType / cardNo</td><td>요청 → PG 제출</td><td>PG로만 전달</td></tr>
+        <tr><td>transactionKey</td><td>PG 응답</td><td>제출 성공 시 수신·저장</td></tr>
+        <tr><td>status</td><td>도메인</td><td>PENDING → PAID / FAILED</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note"><span class="tag">설계 근거</span>위 결제 흐름의 결정(별도 Payment 도메인 · 비동기 접수 · Fallback 시 UNKNOWN)은 <a href="00-plan.html" style="color:var(--blue-deep);font-weight:700">00-plan</a>의 D1~D4에 정리돼 있다. 이 페이지는 <strong>현재 코드 사실</strong>까지만 다루고, 결제 흐름 상세는 그 문서를 따른다.</div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCE FILES</p><h2 class="sec">근거 파일</h2></div>
+    </div>
+    <p>이 문서의 모든 내용은 아래 현재 코드에서 직접 확인한 것이다 (추측 없음).</p>
+    <div class="note"><span class="tag">commerce-api</span>
+      <strong>order/interfaces/OrderController.kt</strong> — 요청/응답 DTO<br>
+      <strong>order/application/OrderFacade.kt</strong> — place() 오케스트레이션·트랜잭션 경계<br>
+      <strong>order/application/OrderService.kt</strong> — 스냅샷·금액 검증·저장<br>
+      <strong>order/domain/Order.kt · OrderItem.kt · OrderStatus.kt</strong> — 엔티티·상태머신<br>
+      <strong>coupon/application/CouponService.kt</strong> · <strong>inventory/application/InventoryService.kt</strong> · <strong>product/application/ProductService.kt</strong> — 협력 도메인
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    주문 생성 플로우 — 현재 상태 + Payment 연동 지점<br>
+    commerce-api 현재 코드 기준 · Round 6 결제 연동은 00-plan 참조
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

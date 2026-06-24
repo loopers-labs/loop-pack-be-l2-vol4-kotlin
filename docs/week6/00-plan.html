@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 6 — PG 결제 연동 계획</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:880px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:4px 10px;box-sizing:border-box;overflow:hidden;line-height:1.22;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:13.5px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:10.5px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  /* decision card */
+  .dec{border:1px solid var(--g200);border-radius:20px;padding:22px 24px;margin:16px 0;background:var(--white);transition:.18s}
+  .dec:hover{border-color:#cfe4ff;box-shadow:var(--shadow-sm)}
+  .dec .dh{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+  .dec .id{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;background:var(--red);
+    border-radius:9px;padding:5px 10px;flex:none}
+  .dec .q{font-size:16.5px;font-weight:800;color:var(--g900)}
+  .dec .pend{margin-left:auto;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--red-deep);
+    background:var(--red-bg);border:1px solid #f8d4d4;border-radius:100px;padding:4px 11px;flex:none}
+  .dec .opts{display:flex;flex-direction:column;gap:8px}
+  .dec .opt{display:flex;gap:11px;align-items:flex-start;font-size:14.5px;line-height:1.55;color:var(--g700)}
+  .dec .opt .mk{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--g600);background:var(--g100);
+    border-radius:7px;padding:2px 8px;flex:none;margin-top:1px}
+  .dec .opt.rec .mk{background:var(--blue);color:#fff}
+  .dec .opt.rec{color:var(--g800)}
+  .dec .opt b{color:var(--g900);font-weight:700}
+  .dec .dep{margin-top:12px;font-size:12.5px;color:var(--g500);font-family:var(--mono)}
+  /* checklist (phases) */
+  .checklist{list-style:none;margin:22px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:15px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.5}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;background:var(--white)}
+  .checklist li .ph{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:3px 8px;flex:none;margin-top:1px}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .meta{font-family:var(--mono);font-size:11px;font-weight:700;border-radius:7px;padding:3px 8px;
+    margin-left:auto;flex:none;align-self:center}
+  .checklist li .meta.dep{color:var(--red-deep);background:var(--red-bg)}
+  .checklist li .meta.opt{color:var(--g600);background:var(--g200)}
+  .checklist li .meta.core{color:var(--green-deep);background:var(--green-bg)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers Round 6 · Week 6</span>
+      <h1 class="title">PG 결제 연동 + Resilience<br><span class="hl">결정 포인트 & Todo</span></h1>
+      <p class="lede">이번 주 작업의 두 축: <b>무엇을 결정해야 하는지(O1~O7)</b> 와 <b>Phase별 Todo(0~9)</b>. 확정된 설계(D1~D4)는 위에서 받치고, 빨간 카드가 아직 정해야 할 것들이다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">MUST</span><span class="v">Fallback · Timeout · CircuitBreaker</span></div>
+        <div class="chip"><span class="k">NICE</span><span class="v">Retry</span></div>
+        <div class="chip"><span class="k">대상</span><span class="v">pg-simulator (직접연동)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">확정 설계 (D1~D4)</a></li>
+      <li><a href="#s2">비동기 접수 흐름</a></li>
+      <li><a href="#s3">결정 포인트 (O1~O7)</a></li>
+      <li><a href="#s4">Todo (Phase 0~9)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===== S1 확정 ===== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">DECIDED</p><h2 class="sec">확정 설계 (D1~D4)</h2></div>
+    </div>
+    <p class="lead">이미 합의한 4가지. 나머지 설계는 이 위에서 이어진다.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>결정</th><th>한 줄 근거</th></tr></thead>
+      <tbody>
+        <tr><td>D1</td><td>별도 Payment 도메인</td><td>transactionKey/status를 payment 패키지가 보관, Order는 전이 메서드로만 연결</td></tr>
+        <tr><td>D2</td><td>Feign + resilience4j (명시적 어노테이션)</td><td>@FeignClient(HTTP) + @CircuitBreaker, Timeout=readTimeout. 동작이 코드에 드러남</td></tr>
+        <tr><td>D3</td><td>Fallback 시 주문 = UNKNOWN</td><td>결제됐을 수 있어 FAILED 단정 금지 → 조회로 확정</td></tr>
+        <tr><td>D4</td><td>비동기 접수 모델</td><td>제출까지만 동기·PENDING 즉시 반환. 1~5s 승인은 안 기다림</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ===== S2 흐름 ===== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">FLOW · D4</p><h2 class="sec">비동기 접수 흐름</h2></div>
+    </div>
+    <p class="lead">동기 구간은 'PG 제출'까지. 최종 결과(PAID/FAILED)는 비동기로 콜백·조회를 통해 도착한다.</p>
+    <figure>
+      <div class="fig-box" data-fig="FIG.1">
+        <svg viewBox="0 0 900 430" role="img" aria-label="결제 비동기 접수 흐름: 동기 구간에서 주문확정 후 PG 제출(서킷브레이커/타임아웃 보호)하고 PENDING을 즉시 반환하며, 실패 시 Fallback으로 주문을 UNKNOWN 처리한다. 비동기 구간에서 PG 승인 결과가 콜백으로 도착해 PAID/FAILED로 갱신되고, 콜백 유실/UNKNOWN은 reconcile 조회로 확정한다.">
+          <defs>
+            <marker id="wpa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#8B95A1"/>
+            </marker>
+          </defs>
+
+          <!-- 동기 band label -->
+          <text x="20" y="26" font-family="var(--mono)" font-size="11" font-weight="700" fill="#15C47E">동기 구간 — 즉시 응답</text>
+
+          <!-- Client -->
+          <rect x="20" y="48" width="108" height="54" rx="13" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="20" y="48" width="108" height="54"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Client</div><div class="s">POST</div></div></foreignObject>
+          <!-- 주문확정 -->
+          <rect x="158" y="48" width="150" height="54" rx="13" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="158" y="48" width="150" height="54"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">주문확정 (Tx)</div><div class="s">조회·권한·금액</div></div></foreignObject>
+          <!-- PG 제출 -->
+          <rect x="338" y="40" width="186" height="70" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.5"/>
+          <foreignObject x="338" y="40" width="186" height="70"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">PG 제출 호출 (Tx 밖)</div><div class="s">CircuitBreaker · readTimeout</div></div></foreignObject>
+          <!-- PENDING 반환 -->
+          <rect x="700" y="58" width="180" height="62" rx="13" fill="#E7F9F1" stroke="#15C47E"/>
+          <foreignObject x="700" y="58" width="180" height="62"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">PENDING 즉시 반환</div><div class="s">Payment PENDING 저장</div></div></foreignObject>
+          <!-- Fallback UNKNOWN -->
+          <rect x="338" y="138" width="186" height="50" rx="13" fill="#FEEFEF" stroke="#F04452"/>
+          <foreignObject x="338" y="138" width="186" height="50"><div class="fo red" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Fallback → 주문 UNKNOWN</div><div class="s">타임아웃·서킷오픈</div></div></foreignObject>
+
+          <!-- arrows sync -->
+          <line x1="128" y1="75" x2="156" y2="75" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <line x1="308" y1="75" x2="336" y2="75" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <line x1="524" y1="72" x2="698" y2="80" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <text x="600" y="62" font-family="var(--mono)" font-size="10.5" font-weight="700" fill="#0A8F5B">성공</text>
+          <line x1="431" y1="110" x2="431" y2="136" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <line x1="524" y1="163" x2="700" y2="108" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#wpa)"/>
+
+          <!-- divider -->
+          <line x1="20" y1="222" x2="880" y2="222" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="6 5"/>
+          <text x="880" y="216" text-anchor="end" font-family="var(--mono)" font-size="11" font-weight="700" fill="#8B95A1">⌄ 1~5s 뒤 · 비동기 구간 — 나중에</text>
+
+          <!-- async band -->
+          <rect x="20" y="248" width="156" height="54" rx="13" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="20" y="248" width="156" height="54"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">PG 승인 처리</div><div class="s">성공70·한도20·카드10</div></div></foreignObject>
+          <rect x="206" y="248" width="120" height="54" rx="13" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="206" y="248" width="120" height="54"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">콜백 수신</div><div class="s">유실 가능</div></div></foreignObject>
+          <rect x="356" y="248" width="180" height="54" rx="13" fill="#E7F9F1" stroke="#15C47E"/>
+          <foreignObject x="356" y="248" width="180" height="54"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">PAID / FAILED 갱신</div><div class="s">Order 전이</div></div></foreignObject>
+          <rect x="600" y="240" width="280" height="70" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.5"/>
+          <foreignObject x="600" y="240" width="280" height="70"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">안전망: reconcile</div><div class="s">콜백 유실·UNKNOWN → GET 조회로 확정</div></div></foreignObject>
+
+          <line x1="176" y1="275" x2="204" y2="275" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <line x1="326" y1="275" x2="354" y2="275" stroke="#8B95A1" stroke-width="2" marker-end="url(#wpa)"/>
+          <line x1="600" y1="275" x2="538" y2="275" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#wpa)"/>
+        </svg>
+        <figcaption><b>resilience4j는 'PG 제출 호출'만 감싼다.</b> 제출이 끊기면 Fallback→UNKNOWN, 이후 <b>reconcile</b>이 최종 상태를 맞춘다.</figcaption>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ===== S3 결정 포인트 ===== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">TO DECIDE · 핵심</p><h2 class="sec">결정 포인트 (O1~O7)</h2></div>
+    </div>
+    <p class="lead">아직 정하지 않은 것들. <span class="term">PENDING</span> 배지가 결정 대기. 추천(파란 칩)에 동의/반대를 주면 확정한다.</p>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O2</span><span class="q">Timeout 값 + CircuitBreaker 임계값</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span>readTimeout <b>0.8~1s</b> (pg 요청지연 max 500ms 기준 여유). CB: failureRate <b>50%</b>, slidingWindow <b>20</b>, waitInOpen <b>10s</b>, slowCall threshold ~1s</span></div>
+        <div class="opt"><span class="mk">대안</span><span>더 공격적(타임아웃 600ms·failureRate 40%) — 빠른 차단이지만 정상요청도 끊길 위험</span></div>
+      </div>
+      <div class="dep">→ Phase 1 application.yml에 바로 박힘. 가장 먼저 결정</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O3</span><span class="q">멱등성 / Retry — POST는 비멱등</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><b>주문당 활성 결제 1건 가드</b> + Retry는 <b>조회(GET)에만</b> 적용. 제출 POST 무지성 재시도 금지(중복 거래)</span></div>
+        <div class="opt"><span class="mk">대안</span><span>우리쪽 멱등키 발급 후 제출 — pg-simulator가 키 dedup 안 하므로 효과 제한적</span></div>
+      </div>
+      <div class="dep">→ Phase 4 결제 플로우 + Phase 8 Retry 설계 좌우</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O1</span><span class="q">reconcile 실행 위치 (무엇을 맞추는지는 확정)</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><b>@Scheduled (commerce-api)</b> — payment 도메인·Feign·전이 재사용, 코드 최소. (수동 API도 같이)</span></div>
+        <div class="opt"><span class="mk">대안</span><span>Spring Batch(commerce-batch) — 학습 가치 있으나 HTTP client·payment 접근을 배치 앱에 중복</span></div>
+        <div class="opt"><span class="mk">대안</span><span>수동 API만 먼저 — 자동화는 나중</span></div>
+      </div>
+      <div class="dep">→ 대상 = PENDING 콜백유실 + UNKNOWN 타임아웃 건을 GET 조회로 PAID/FAILED 확정. Phase 6</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O4</span><span class="q">클라이언트 최종 결과 전달</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><b>주문/결제 상태 폴링 API</b> (최소안). PENDING 반환 후 클라이언트가 상태 조회</span></div>
+        <div class="opt"><span class="mk">대안</span><span>SSE/push — 과제 범위엔 과함</span></div>
+      </div>
+      <div class="dep">→ Phase 4~5</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O5</span><span class="q">콜백 수신 세부</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><code>/payments/callback</code> 인증 필터 제외 + body 검증 + <b>콜백·reconcile 중복 도착 멱등 처리</b></span></div>
+      </div>
+      <div class="dep">→ Phase 5</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O6</span><span class="q">테스트 전략 (외부 호출)</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><b>gateway mock bean</b>(서비스 단위) + 핵심 E2E는 <b>pg-simulator 실제 기동</b></span></div>
+        <div class="opt"><span class="mk">대안</span><span>MockWebServer 도입 — 신규 의존성, HTTP 레벨까지 검증</span></div>
+      </div>
+      <div class="dep">→ Phase 7</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O7</span><span class="q">글쓰기 트랙 (후순위)</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">추천</span><span><b>Design Doc</b> — 비동기 접수·UNKNOWN·reconcile 의사결정이 글감으로 강함</span></div>
+        <div class="opt"><span class="mk">대안</span><span>Retrospective / Challenge Story / Benchmark</span></div>
+      </div>
+      <div class="dep">→ Phase 9 (선택)</div>
+    </div>
+
+    <div class="note key"><span class="tag">결정 순서</span><strong>O2 → O3 → O1 → O6</strong> 순으로 정하면 의존 관계상 막힘 없이 구현으로 넘어간다. (O2는 Phase 1, O3은 Phase 4, O1은 Phase 6, O6은 Phase 7)</div>
+
+    <h3>확장 트랙 — 해보고 싶은 것 (must-have 이후)</h3>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O8</span><span class="q">Observability 범위 + 알람 신호 — 어디까지?</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt"><span class="mk">Tier1</span><span>기존 <b>Micrometer→Prometheus→Grafana</b> + <code>resilience4j-micrometer</code>. CB 메트릭 + Grafana 알람. 과제 observability 충족·최소</span></div>
+        <div class="opt rec"><span class="mk">Tier2</span><span><b>OTel 확장</b> — Micrometer Observation(이미 on)→OTLP→<b>OTel Collector</b>→Tempo(trace)+Prometheus[+Loki]→Grafana. 결제 1건 <b>lifecycle 분산추적</b> + Collector에서 <b>알람 추출</b>(span-derived metric·tail-sampling). Tier1→Tier2 additive. ⚠️ 미니프로젝트급 스코프(학습 투자)</span></div>
+        <div class="opt"><span class="mk">알람</span><span>공통: ✅CB CLOSED→OPEN ✅UNKNOWN 백로그 임계 ❌개별 실패(노이즈)</span></div>
+      </div>
+      <div class="dep">→ 어디까지 갈지 고민 중. onStateTransition→구조적 WARN, 페이징은 메트릭 기반. Phase 10</div>
+    </div>
+
+    <div class="dec">
+      <div class="dh"><span class="id">O9</span><span class="q">멀티 PG 폴백 안전 정책 ⚠️ 이중결제 함정</span><span class="pend">PENDING</span></div>
+      <div class="opts">
+        <div class="opt rec"><span class="mk">규칙</span><span>pg-simulator 2개(8082/8092)=PG-A·PG-B. failover는 <b>호출이 안 일어난 게 확실할 때만</b> — CircuitBreaker OPEN(CallNotPermittedException) / Connection refused</span></div>
+        <div class="opt"><span class="mk">금지</span><span><b>TimeoutException · 전송 후 5xx → failover 금지 → UNKNOWN</b>. PG-A가 결제했을 수 있어 PG-B 재시도 시 이중청구</span></div>
+      </div>
+      <div class="dep">→ fallbackMethod가 예외 타입 구분 필수. 핵심 글감. Phase 11</div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 6 — PG 결제 연동 + Resilience · 결정 포인트 & Todo<br>
+    상세: docs/week6/00-plan.md · 분석: docs/pg-simulator-analysis.html
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>
+</content>

@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PG 연동의 모든 것 — 개념·실제 사례·pg-simulator 분석</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  /* foreignObject 자동 줄바꿈 박스 */
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+
+  /* wide figure */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Payment · 외부 시스템 연동 학습 노트</span>
+      <h1 class="title">PG 연동의 모든 것<br><span class="hl">개념 · 실제 사례 · 시뮬레이터 분석</span></h1>
+      <p class="lede">결제대행사(PG)를 왜 쓰고 어떻게 붙이는지, <b>토스페이먼츠·Stripe·PortOne</b>은 실제로 어떻게 다른지, 그리고 우리 레포의 <b>pg-simulator</b>가 무엇을 흉내 내는지 — 공식 문서와 빅테크 엔지니어링 자료를 근거로 정리했습니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">Payment Gateway 연동</span></div>
+        <div class="chip"><span class="k">대상</span><span class="v">pg-simulator (Kotlin/Spring)</span></div>
+        <div class="chip"><span class="k">SOURCES</span><span class="v">Toss · Stripe · PortOne · AWS · Google SRE</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">PG란 무엇이고 왜 필요한가</a></li>
+      <li><a href="#s2">표준 결제 승인 플로우</a></li>
+      <li><a href="#s3">실제 PG 3사 비교 분석</a></li>
+      <li><a href="#s4">pg-simulator 메커니즘 분석</a></li>
+      <li><a href="#s5">pg-simulator vs 실제 PG — 한계</a></li>
+      <li><a href="#s6">외부 연동 유의점 체크리스트</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== SECTION 1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CONCEPT &amp; FLOW</p><h2 class="sec">PG란 무엇이고 왜 필요한가</h2></div>
+    </div>
+
+    <p class="lead">PG는 가맹점을 대신해 여러 카드사·은행·간편결제와 결제 데이터를 안전하게 주고받고, 매출 정산까지 대행하는 사업자입니다.</p>
+    <p><strong>PG(Payment Gateway, 결제대행사)</strong>가 없다면 쇼핑몰 하나가 신한·국민·삼성 등 모든 카드사와 <em>개별 계약</em>을 맺고, 카드사마다 다른 전문 규격을 직접 구현하고, 카드 원문 데이터를 직접 취급해야 합니다. PG를 경유하면 <strong>통합 API 하나</strong>로 다수 결제수단을 한 번에 연결하고, 민감한 카드 데이터 취급 부담(PCI)을 PG로 떠넘길 수 있습니다.<a href="#r1" class="cite">[1]</a><a href="#r4" class="cite">[4]</a></p>
+
+    <div class="note key"><span class="tag">한 줄 정의</span><strong>가맹점은 PG 한 곳만 붙이면 된다.</strong> 카드사·간편결제와의 N:N 연동을 PG가 1:N으로 추상화해 준다 — 이게 PG의 본질입니다.</div>
+
+    <h3>결제 생태계의 참여자</h3>
+    <p>카드 결제 한 건에는 생각보다 많은 주체가 등장합니다. 각자의 역할을 알면 "승인이 왜 거절됐는지", "정산이 왜 며칠 걸리는지"가 이해됩니다.<a href="#r4" class="cite">[4]</a></p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 1120 300" role="img" aria-label="결제 생태계 참여자 흐름: 고객에서 가맹점, PG, 매입사, 카드 네트워크, 발급사로 이어지는 인증 요청과 응답">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- 상단 행: 고객 → 가맹점 → PG -->
+          <g>
+            <rect x="40" y="40" width="180" height="74" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="40" y="40" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">고객</div><div class="s">Cardholder</div></div></foreignObject>
+          </g>
+          <line x1="220" y1="77" x2="288" y2="77" stroke="#4E5968" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="290" y="40" width="180" height="74" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="290" y="40" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">가맹점</div><div class="s">Merchant · 우리 서비스</div></div></foreignObject>
+          </g>
+          <line x1="470" y1="77" x2="538" y2="77" stroke="#4E5968" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="540" y="40" width="180" height="74" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="540" y="40" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">PG / 게이트웨이</div><div class="s">카드정보 암호화·중계</div></div></foreignObject>
+          </g>
+          <line x1="720" y1="77" x2="788" y2="77" stroke="#4E5968" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="790" y="40" width="180" height="74" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="790" y="40" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">매입사</div><div class="s">Acquirer</div></div></foreignObject>
+          </g>
+          <!-- 매입사 → 아래로 -->
+          <line x1="880" y1="114" x2="880" y2="182" stroke="#4E5968" stroke-width="2" marker-end="url(#b1)"/>
+          <!-- 하단 행: 카드 네트워크 → 발급사 (오른→왼 흐름) -->
+          <g>
+            <rect x="790" y="184" width="180" height="74" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="790" y="184" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">카드 네트워크</div><div class="s">VISA · Master</div></div></foreignObject>
+          </g>
+          <line x1="790" y1="221" x2="722" y2="221" stroke="#4E5968" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="540" y="184" width="180" height="74" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="540" y="184" width="180" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">카드 발급사</div><div class="s">Issuer · 승인/거절 결정</div></div></foreignObject>
+          </g>
+          <text class="svg-l" x="605" y="160" text-anchor="middle" fill="#0A8F5B">한도·도난 검증 → 승인/거절</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 인증 요청은 가맹점→PG→매입사→네트워크→발급사로 흐르고, <b>발급사</b>가 한도·도난 여부를 보고 최종 승인/거절을 결정합니다. 응답은 역순으로 돌아옵니다.<a href="#r4" class="cite">[4]</a></figcaption>
+    </figure>
+
+    <h3>인증 · 매입 · 정산 — 같은 결제의 세 단계</h3>
+    <p>"결제했다"는 말은 사실 세 가지 다른 사건을 뭉뚱그린 것입니다. 이걸 분리해서 봐야 환불·부분취소·정산 지연이 설명됩니다.<a href="#r5" class="cite">[5]</a></p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>단계</th><th>무슨 일이 일어나나</th><th>자금 이동</th></tr></thead>
+        <tbody>
+          <tr><td>인증 (Authorization)</td><td>발급사가 한도·도난 여부 검증 후 금액만큼 <em>한도를 보류(hold)</em></td><td>없음 (보류만)</td></tr>
+          <tr><td>매입 (Capture)</td><td>매입사가 실제 자금 회수를 시작. 인증과 분리·부분 매입 가능</td><td>회수 시작</td></tr>
+          <tr><td>정산 (Settlement)</td><td>발급계좌 → 가맹점 계좌로 실제 입금. 보통 며칠 뒤 배치</td><td>가맹점 입금</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">참고</span>국내 PG 문서(토스)는 보통 <strong>인증 단계</strong>(카드소유자 본인 확인)와 <strong>승인 단계</strong>(한도/계좌 차감, 영문 capture에 해당)로 부릅니다. 글로벌(Stripe)은 authorization → capture로 부르며, <span class="term">capture_method=manual</span>로 선승인-후매입을 구현합니다.<a href="#r5" class="cite">[5]</a></div>
+
+    <h3>연동 방식 — 결제창 vs SDK vs 직접연동</h3>
+    <p>같은 PG라도 붙이는 방식이 여러 가지고, <strong>카드 데이터가 어디를 지나가느냐</strong>에 따라 PCI 부담이 크게 달라집니다.<a href="#r4" class="cite">[4]</a></p>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">결제창</span> Redirect / Hosted</h4><p>PG가 띄운 결제 페이지로 이동. 카드 데이터가 <em>가맹점을 거치지 않아</em> PCI 부담 최소. 구현 빠름, UX 통제는 약함.</p></div>
+      <div class="col x"><h4><span class="mk">SDK</span> 임베디드 위젯</h4><p>PG의 보안 iframe을 페이지 안에 끼움(예: Stripe Elements, 토스 결제위젯). 브랜딩 유지 + PCI 중간.</p></div>
+    </div>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">권장</span> 대부분 결제창·SDK로 충분</h4><p>학습/일반 커머스는 결제창이나 SDK 위젯이면 충분합니다. PCI 부담을 PG로 넘기는 게 핵심 이득.</p></div>
+      <div class="col x"><h4><span class="mk">직접연동</span> API Key-in</h4><p>카드번호를 <em>가맹점 서버가 직접</em> 받아 PG API로 전송. 통제 최대지만 PCI 부담(SAQ D)도 최대. 특별한 이유 없으면 피한다.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STANDARD FLOW</p><h2 class="sec">표준 결제 승인 플로우</h2></div>
+    </div>
+
+    <p class="lead">현대 PG 연동의 표준은 "인증은 클라이언트, 최종 승인은 서버"로 나누는 2단계 패턴입니다. 이유는 단 하나 — 클라이언트를 믿을 수 없기 때문입니다.</p>
+
+    <h3>왜 서버가 한 번 더 "승인"해야 하나</h3>
+    <p>브라우저 자바스크립트는 사용자가 얼마든지 조작할 수 있습니다. 결제창에서 "5,000원"을 "50원"으로 바꿔치기하는 <em>금액 위변조(amount tampering)</em>를 클라이언트 단에서 막을 방법은 없습니다. 그래서 인증이 끝난 뒤 <strong>서버가 자기 DB의 주문 금액과 대조한 다음에야 최종 승인 API를 호출</strong>합니다.<a href="#r1" class="cite">[1]</a><a href="#r4" class="cite">[4]</a></p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG. 02 · TOSS">
+        <svg viewBox="0 0 1120 470" role="img" aria-label="토스페이먼츠 2단계 승인 플로우: 결제 요청, 카드사 인증, successUrl 리다이렉트, 서버 금액 검증, 승인 API 호출, 결제 확정">
+          <defs>
+            <marker id="c1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- 1 -->
+          <g>
+            <rect x="380" y="24" width="360" height="60" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="380" y="24" width="360" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① 브라우저 — 결제 요청</div><div class="s">orderId · amount · successUrl · failUrl</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="84" x2="560" y2="116" stroke="#4E5968" stroke-width="2" marker-end="url(#c1)"/>
+          <!-- 2 -->
+          <g>
+            <rect x="380" y="118" width="360" height="60" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="380" y="118" width="360" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">② 토스 결제창 — 카드사 인증</div><div class="s">본인 확인 · 인증 성공 시 paymentKey 발급</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="178" x2="560" y2="210" stroke="#4E5968" stroke-width="2" marker-end="url(#c1)"/>
+          <text class="svg-l" x="770" y="200" text-anchor="start" fill="#6B7684">redirect → successUrl</text>
+          <!-- 3 -->
+          <g>
+            <rect x="380" y="212" width="360" height="60" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="380" y="212" width="360" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">③ successUrl 리다이렉트</div><div class="s">query: paymentKey · orderId · amount</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="272" x2="560" y2="304" stroke="#F04452" stroke-width="2.2" marker-end="url(#c1)"/>
+          <!-- 4 -->
+          <g>
+            <rect x="340" y="306" width="440" height="64" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+            <foreignObject x="340" y="306" width="440" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">④ 백엔드 — 금액 검증 (핵심 방어선)</div><div class="s">저장된 주문금액 == 리다이렉트 amount ? 다르면 결제 취소</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="370" x2="560" y2="402" stroke="#0A8F5B" stroke-width="2.2" marker-end="url(#c1)"/>
+          <!-- 5 -->
+          <g>
+            <rect x="380" y="404" width="360" height="60" rx="15" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+            <foreignObject x="380" y="404" width="360" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">⑤ 백엔드 → 토스 : 승인 API · 결제 확정(DONE)</div><div class="s">POST /v1/payments/confirm (paymentKey, orderId, amount)</div></div></foreignObject>
+          </g>
+          <text class="svg-l" x="70" y="340" text-anchor="start" fill="#C9303C">⚠ 인증 후 10분 내</text>
+          <text class="svg-l" x="70" y="360" text-anchor="start" fill="#C9303C">승인 호출 필수</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 토스페이먼츠 표준 흐름. 인증(②)과 승인(⑤) 사이에 <b>서버 금액 검증(④)</b>이 끼는 것이 핵심. 인증 성공 후 <b>10분 내</b>에 승인 API를 호출하지 않으면 결제 데이터가 만료됩니다.<a href="#r1" class="cite">[1]</a></figcaption>
+    </figure>
+
+    <h3>멱등성 — 결제에서 가장 중요한 한 단어</h3>
+    <p>네트워크가 타임아웃 나면 클라이언트는 "결제가 된 건지 안 된 건지" 알 수 없습니다. 그냥 재시도하면 <strong>이중 청구(double charge)</strong>가 납니다. <span class="term">Idempotency-Key</span>는 "같은 키로 온 요청은 한 번만 처리하고, 두 번째부터는 첫 결과를 그대로 돌려준다"는 약속입니다.<a href="#r6" class="cite">[6]</a><a href="#r2" class="cite">[2]</a></p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>Stripe</th><th>토스페이먼츠</th></tr></thead>
+        <tbody>
+          <tr><td>헤더</td><td>Idempotency-Key</td><td>Idempotency-Key</td></tr>
+          <tr><td>권장 값</td><td>V4 UUID (최대 255자)</td><td>UUID (최대 300자)</td></tr>
+          <tr><td>보장 기간</td><td>최소 24시간</td><td>15일</td></tr>
+          <tr><td>적용 범위</td><td>모든 POST</td><td>모든 POST</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn"><span class="tag">함정</span>멱등키만 있으면 안전한 게 아닙니다. <strong>같은 키 + 같은 파라미터</strong>여야 하고, 키 없이 재시도하거나 매번 새 키를 만들면 멱등성이 사라져 중복 결제가 납니다.<a href="#r8" class="cite">[8]</a></div>
+
+    <h3>Webhook — 받되, 그대로 믿지 마라</h3>
+    <p>가상계좌 입금처럼 <em>비동기로 끝나는 결제</em>는 결과를 webhook(콜백)으로 통지받습니다. 하지만 webhook은 위조·중복·순서 뒤섞임이 가능하므로, 표준 처리는 세 단계입니다.<a href="#r7" class="cite">[7]</a><a href="#r3" class="cite">[3]</a></p>
+    <ul class="checklist">
+      <li><span class="box"></span><b>서명 검증</b> — Stripe-Signature 등 HMAC-SHA256 서명을 raw body로 검증. 타임스탬프로 replay 공격 차단(기본 tolerance 5분).</li>
+      <li><span class="box"></span><b>중복 제거</b> — webhook은 최소 1회 이상 전달(at-least-once). event id를 DB에 저장해 두 번째부터 무시.</li>
+      <li><span class="box"></span><b>재조회 검증</b> — payload를 믿지 말고 그 안의 ID로 PG에 다시 조회해 최신 상태를 확인한 뒤 처리.</li>
+    </ul>
+    <div class="note key"><span class="tag">핵심</span>webhook 핸들러는 무거운 로직 전에 <strong>먼저 2xx를 빠르게 반환</strong>하고 실제 처리는 비동기로 넘깁니다. 응답이 늦으면 PG가 "실패"로 보고 계속 재전송하기 때문입니다.<a href="#r7" class="cite">[7]</a></div>
+  </section>
+
+  <!-- ===================== SECTION 3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">REAL-WORLD CASES</p><h2 class="sec">실제 PG 3사 비교 분석</h2></div>
+    </div>
+
+    <p class="lead">같은 "결제"라도 세 회사의 설계 철학은 다릅니다 — 토스는 명시적 2단계 승인, Stripe는 상태 머신, PortOne은 통합 추상화입니다.</p>
+
+    <h3>토스페이먼츠 — 명시적 2단계 승인(직연동 PG)</h3>
+    <p>SDK v2 하나로 결제위젯·결제창·브랜드페이·REST API를 모두 제공합니다. 철학은 <strong>"요청과 승인을 분리해 금액 위변조를 구조적으로 막는다"</strong>. 인증 후 <span class="term">POST /v1/payments/confirm</span>으로 서버가 명시적으로 승인을 호출해야 결제가 확정됩니다.<a href="#r1" class="cite">[1]</a></p>
+
+    <h3>Stripe — 결제를 상태 머신으로 모델링(글로벌 PG)</h3>
+    <p>결제 한 건을 <strong>PaymentIntent</strong>라는 객체의 상태 전이로 봅니다. <span class="term">requires_payment_method → requires_confirmation → requires_action(3DS) → processing → succeeded</span>. 금액·통화를 서버가 <span class="term">PaymentIntent.create</span>에서만 정하므로 위변조가 구조적으로 차단되고, 3DS 등 추가 인증을 lifecycle 안에 흡수합니다.<a href="#r5" class="cite">[5]</a></p>
+
+    <h3>PortOne(구 아임포트) — 여러 PG를 하나로 묶는 아그리게이터</h3>
+    <p>PortOne은 PG사가 <em>아닙니다</em>. 30개 이상의 PG를 단일 인터페이스로 추상화하는 <strong>아그리게이터</strong>입니다. 결제 후 서버가 <span class="term">GET /payments/{paymentId}</span>로 실제 결제금액을 재조회해 내 DB와 대조하는 <em>사후검증</em>이 핵심 패턴입니다. PG를 바꿔도 연동 코드를 거의 그대로 둘 수 있는 게 장점.<a href="#r9" class="cite">[9]</a><a href="#r10" class="cite">[10]</a></p>
+
+    <details class="tg">
+      <summary><span class="tw">심화</span>국내 직연동의 무게감 — KG이니시스 예시<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p>KG이니시스 표준결제(INIStdPay)는 아그리게이터 없이 PG와 직접 붙는 사례입니다. <span class="term">INIStdPay.js</span>로 결제창을 띄우고, <strong>SHA256 서명을 직접 생성</strong>(signature = SHA256(oid+price+timestamp))한 뒤, 인증 결과로 받은 authUrl로 <strong>서버가 직접 승인 요청(서버→서버)</strong>을 보내 <span class="term">resultCode 0000</span>이면 성공입니다.<a href="#r11" class="cite">[11]</a></p>
+        <p>즉 인증→승인 2단계, 서명 생성·검증, signKey 비밀키 관리, 응답코드 분기를 <em>전부 가맹점이 직접</em> 구현합니다. PortOne 같은 아그리게이터는 이 저수준 작업을 대신 흡수해 줍니다 — 이게 직연동 vs 아그리게이터의 실질적 차이입니다.</p>
+      </div>
+    </details>
+
+    <h3>한눈에 보는 3사 비교</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>토스페이먼츠</th><th>Stripe</th></tr></thead>
+        <tbody>
+          <tr><td>구분</td><td>국내 직연동 PG</td><td>글로벌 PG</td></tr>
+          <tr><td>결제 모델 철학</td><td>요청/승인 2단계 confirm</td><td>PaymentIntent 상태 머신</td></tr>
+          <tr><td>대표 엔드포인트</td><td>POST /v1/payments/confirm</td><td>POST /v1/payment_intents (+/confirm)</td></tr>
+          <tr><td>멱등성</td><td>모든 POST · 15일</td><td>모든 POST · 24시간+</td></tr>
+          <tr><td>webhook 서명</td><td>(payout만 HMAC 명시)</td><td>Stripe-Signature · HMAC-SHA256</td></tr>
+          <tr><td>테스트 카드</td><td>없음 (실카드, 미출금)</td><td>풍부 (4242…, decline 카드)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">PortOne(아그리게이터) 별도 정리</span>대표 흐름은 결제 후 <strong>단건조회 사후검증</strong>(V2 <span class="term">GET /payments/{paymentId}</span>), 멱등성은 V2에서 <span class="term">Idempotency-Key</span> 3시간 보장, webhook은 Standard Webhooks 규격 + SDK 서명 검증. 상태 enum은 V2 기준 <span class="term">READY · PENDING · PAID · CANCELLED · FAILED</span>.<a href="#r10" class="cite">[10]</a></div>
+    <div class="note warn"><span class="tag">검증되지 않은 부분</span>토스 일반 결제 webhook의 서명 검증 방식, PortOne V1의 멱등키 지원 여부 등은 공식 문서에서 명확히 확인되지 않았습니다. 실제 연동 전 각 PG의 최신 레퍼런스를 직접 확인하세요.</div>
+  </section>
+
+  <!-- ===================== SECTION 4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">CODE ANALYSIS</p><h2 class="sec">pg-simulator 메커니즘 분석</h2></div>
+    </div>
+
+    <p class="lead">우리 레포의 pg-simulator는 "잘 동작하는 PG"가 아니라 "<em>현실처럼 불안정하고 비동기적인</em> PG"를 의도적으로 흉내 내는 학습용 앱입니다.</p>
+    <p>포트 8082로 뜨는 별도 Spring Boot 앱(<span class="term">apps/pg-simulator</span>)이며, 커머스 서비스(8080)와 동시에 띄워 결제 연동을 연습합니다. 결제 요청 → 비동기 처리 → 콜백 통지의 3박자가 핵심입니다.<a href="#r12" class="cite">[12]</a></p>
+
+    <h3>전체 처리 흐름</h3>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG. 03 · SIMULATOR">
+        <svg viewBox="0 0 1120 500" role="img" aria-label="pg-simulator 처리 흐름: 결제 요청 API에서 100에서 500밀리초 지연과 40퍼센트 실패, 트랜잭션 생성과 PENDING 응답, AFTER_COMMIT 비동기 처리에서 1에서 5초 지연과 확률적 결과, 콜백 통지">
+          <defs>
+            <marker id="d1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- 1 요청 -->
+          <g>
+            <rect x="330" y="22" width="460" height="66" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+            <foreignObject x="330" y="22" width="460" height="66"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">① POST /api/v1/payments (커머스 → PG)</div><div class="s">100~500ms 인위적 지연 · 40% 확률로 500 에러</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="88" x2="560" y2="118" stroke="#4E5968" stroke-width="2" marker-end="url(#d1)"/>
+          <!-- 2 트랜잭션 생성 -->
+          <g>
+            <rect x="330" y="120" width="460" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="330" y="120" width="460" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">② createTransaction @Transactional</div><div class="s">Payment 저장(PENDING) · PaymentCreated 발행 · 즉시 PENDING 응답</div></div></foreignObject>
+          </g>
+          <line x1="560" y1="194" x2="560" y2="224" stroke="#0A8F5B" stroke-width="2.2" marker-end="url(#d1)"/>
+          <text class="svg-l" x="800" y="216" text-anchor="start" fill="#6B7684">AFTER_COMMIT · @Async</text>
+          <!-- 3 비동기 처리 -->
+          <g>
+            <rect x="300" y="226" width="520" height="86" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="300" y="226" width="520" height="86"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">③ 비동기 결제 처리 handle()</div><div class="s">1~5초 랜덤 지연 → 확률 분기 · 70% 승인 / 20% 한도초과 / 10% 잘못된 카드</div></div></foreignObject>
+          </g>
+          <line x1="450" y1="312" x2="450" y2="342" stroke="#0A8F5B" stroke-width="2.2" marker-end="url(#d1)"/>
+          <line x1="670" y1="312" x2="670" y2="342" stroke="#F04452" stroke-width="2.2" marker-end="url(#d1)"/>
+          <!-- 4 결과 -->
+          <g>
+            <rect x="300" y="344" width="300" height="58" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+            <foreignObject x="300" y="344" width="300" height="58"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">SUCCESS</div><div class="s">approve() · status=SUCCESS</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="620" y="344" width="300" height="58" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+            <foreignObject x="620" y="344" width="300" height="58"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">FAILED</div><div class="s">한도초과 / 잘못된 카드</div></div></foreignObject>
+          </g>
+          <line x1="450" y1="402" x2="450" y2="430" stroke="#4E5968" stroke-width="2" marker-end="url(#d1)"/>
+          <line x1="670" y1="402" x2="670" y2="430" stroke="#4E5968" stroke-width="2" marker-end="url(#d1)"/>
+          <!-- 5 콜백 -->
+          <g>
+            <rect x="330" y="432" width="460" height="60" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="330" y="432" width="460" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">④ 콜백 통지 — callbackUrl로 POST</div><div class="s">PaymentHandled 발행 → RestTemplate (실패 시 로깅만)</div></div></foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> 요청 API(①②)는 결과를 기다리지 않고 즉시 <b>PENDING</b>을 응답합니다. 실제 승인/실패는 트랜잭션 커밋 후(<b>AFTER_COMMIT</b>) 비동기로 결정되고, 그 결과를 커머스의 callbackUrl로 통지합니다 — 실제 가상계좌·간편결제의 비동기 모델을 압축한 구조입니다.</figcaption>
+    </figure>
+
+    <h3>핵심 1 — 요청 API는 일부러 느리고, 일부러 실패한다</h3>
+    <p>컨트롤러가 <span class="term">Thread.sleep</span>으로 네트워크 지연을 흉내 내고, 40% 확률로 500을 던집니다. 연동하는 쪽이 <strong>타임아웃·재시도·멱등성</strong>을 진지하게 다루도록 강제하는 장치입니다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">PaymentApi.kt</span>
+      </div>
+<pre><span class="kw">@PostMapping</span>
+<span class="kw">fun</span> <span class="fn">request</span>(userInfo: <span class="ty">UserInfo</span>, <span class="kw">@RequestBody</span> request: <span class="ty">PaymentDto.PaymentRequest</span>) {
+    request.validate()
+    Thread.sleep((<span class="st">100</span>..<span class="st">500L</span>).random())          <span class="cm">// 100~500ms 인위적 지연</span>
+    <span class="kw">if</span> ((<span class="st">1</span>..<span class="st">100</span>).random() &lt;= <span class="st">40</span>) {              <span class="cm">// 40% 확률로 요청 실패</span>
+        <span class="kw">throw</span> <span class="ty">CoreException</span>(INTERNAL_ERROR, <span class="st">"현재 서버가 불안정합니다."</span>)
+    }
+    <span class="kw">return</span> paymentApplicationService.createTransaction(...)  <span class="cm">// 즉시 PENDING 반환</span>
+}</pre>
+    </div>
+
+    <h3>핵심 2 — 결과는 트랜잭션 커밋 후 비동기로 결정된다</h3>
+    <p>이벤트 리스너가 <span class="term">@TransactionalEventListener(AFTER_COMMIT)</span> + <span class="term">@Async</span>로 동작합니다. 결제 저장 트랜잭션이 <em>커밋된 뒤에</em> 별도 스레드에서 1~5초 더 지연한 다음 승인/실패를 확률로 정합니다. "응답은 PENDING, 결과는 나중에"라는 비동기 결제의 본질을 그대로 보여줍니다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">PaymentEventListener.kt / PaymentApplicationService.kt</span>
+      </div>
+<pre><span class="kw">@Async</span> <span class="kw">@TransactionalEventListener</span>(phase = <span class="ty">AFTER_COMMIT</span>)
+<span class="kw">fun</span> <span class="fn">handle</span>(event: <span class="ty">PaymentEvent.PaymentCreated</span>) {
+    Thread.sleep((<span class="st">1000L</span>..<span class="st">5000L</span>).random())     <span class="cm">// 카드사 승인 시간 흉내</span>
+    paymentApplicationService.handle(event.transactionKey)
+}
+
+<span class="cm">// handle() 안의 확률 분기</span>
+<span class="kw">val</span> rate = (<span class="st">1</span>..<span class="st">100</span>).random()
+<span class="kw">when</span> (rate) {
+    <span class="kw">in</span> <span class="st">1</span>..<span class="st">20</span>  -&gt; payment.limitExceeded()  <span class="cm">// 20% 한도초과 → FAILED</span>
+    <span class="kw">in</span> <span class="st">21</span>..<span class="st">30</span> -&gt; payment.invalidCard()    <span class="cm">// 10% 잘못된 카드 → FAILED</span>
+    <span class="kw">else</span>        -&gt; payment.approve()        <span class="cm">// 70% 정상 승인 → SUCCESS</span>
+}</pre>
+    </div>
+
+    <h3>핵심 3 — 상태 머신과 콜백</h3>
+    <p>상태는 <span class="term">PENDING → SUCCESS</span> 또는 <span class="term">PENDING → FAILED</span> 단방향이며, 각 전이 메서드는 PENDING이 아닐 때 호출되면 예외를 던져 <em>중복 처리·잘못된 전이</em>를 막습니다. 결과가 정해지면 또 한 번 <span class="term">AFTER_COMMIT</span> 비동기로 커머스의 callbackUrl에 POST합니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 04 · STATE">
+        <svg viewBox="0 0 720 200" role="img" aria-label="pg-simulator 상태 머신: PENDING에서 70퍼센트 approve로 SUCCESS, 30퍼센트로 FAILED 전이">
+          <defs>
+            <marker id="e1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <g>
+            <rect x="40" y="74" width="180" height="60" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="40" y="74" width="180" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PENDING</div><div class="s">저장 직후 · 대기</div></div></foreignObject>
+          </g>
+          <line x1="220" y1="92" x2="478" y2="56" stroke="#15C47E" stroke-width="2.2" marker-end="url(#e1)"/>
+          <text class="svg-l" x="340" y="58" text-anchor="middle" fill="#0A8F5B">approve() · 70%</text>
+          <line x1="220" y1="116" x2="478" y2="150" stroke="#F04452" stroke-width="2.2" marker-end="url(#e1)"/>
+          <text class="svg-l" x="340" y="158" text-anchor="middle" fill="#C9303C">한도초과 20% + 카드오류 10%</text>
+          <g>
+            <rect x="480" y="26" width="200" height="58" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+            <foreignObject x="480" y="26" width="200" height="58"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">SUCCESS</div><div class="s">정상 승인</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="480" y="120" width="200" height="58" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+            <foreignObject x="480" y="120" width="200" height="58"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">FAILED</div><div class="s">한도초과 / 잘못된 카드</div></div></foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 4.</b> 단방향 상태 전이. terminal 상태에서 전이 메서드를 또 호출하면 예외가 나므로, 중복 콜백이 와도 상태가 꼬이지 않습니다.</figcaption>
+    </figure>
+
+    <details class="tg">
+      <summary><span class="tw">참고</span>조회 API와 transactionKey 형식<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p>콜백을 못 받았거나 믿을 수 없을 때를 대비해 두 가지 조회 API가 있습니다 — <span class="term">GET /api/v1/payments/{transactionKey}</span>(단건), <span class="term">GET /api/v1/payments?orderId=</span>(주문별 목록). 이건 실제 연동에서 <strong>polling 재조회 / reconciliation</strong>에 해당하는 안전망입니다.</p>
+        <p>transactionKey는 <span class="term">yyyyMMdd:TR:{uuid6}</span> 형식(예: <span class="term">20250816:TR:9577c5</span>)으로 생성됩니다. X-USER-ID 헤더로 사용자를 식별합니다.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================== SECTION 5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">CRITICAL VIEW</p><h2 class="sec">pg-simulator vs 실제 PG — 한계</h2></div>
+    </div>
+
+    <p class="lead">시뮬레이터는 "불안정함"과 "비동기"를 가르치는 데 충실하지만, 실제 PG의 안전장치 상당수는 의도적으로 빠져 있습니다. 이 차이를 아는 것이 학습의 핵심입니다.</p>
+
+    <div class="note key"><span class="tag">학습 포인트</span>빠진 것들은 결함이 아니라 <strong>"네가 직접 채워 넣어야 할 숙제"</strong>입니다. 시뮬레이터의 불안정함을 보고 연동하는 쪽(커머스)에서 멱등성·타임아웃·reconciliation을 구현하는 게 이 모듈의 목적입니다.</div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관점</th><th>pg-simulator</th><th>실제 PG (토스/Stripe)</th></tr></thead>
+        <tbody>
+          <tr><td>멱등성</td><td>없음 — 같은 orderId로 재요청 시 매번 새 transactionKey 생성 → 중복 결제 가능</td><td>Idempotency-Key로 중복 차단</td></tr>
+          <tr><td>금액 검증</td><td>클라이언트가 보낸 amount를 그대로 신뢰</td><td>서버 주문금액과 대조, 불일치 시 취소</td></tr>
+          <tr><td>콜백 신뢰성</td><td>fire-and-forget · 1회 실패하면 끝(로깅만)</td><td>실패 시 수 차례 재전송 + 서명</td></tr>
+          <tr><td>콜백 서명</td><td>없음 — 위조 검증 불가</td><td>HMAC-SHA256 서명 검증</td></tr>
+          <tr><td>이벤트 내구성</td><td>인메모리 ApplicationEvent — 앱 죽으면 유실</td><td>내부적으로 영속 큐/재처리</td></tr>
+          <tr><td>콜백 타임아웃</td><td>기본 RestTemplate — 타임아웃 미설정</td><td>타임아웃·서킷브레이커 적용</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>회의적 리뷰어의 눈으로 본 두 가지 위험</h3>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">위험 1</span> 콜백 유실</h4><p><span class="term">PaymentCoreRelay</span>는 <span class="term">runCatching</span>으로 콜백 실패를 삼키고 로깅만 합니다. 커머스가 잠깐 죽어 있으면 그 결제 결과는 <em>영영 통지되지 않습니다</em>. → 연동 측은 반드시 조회 API 기반 reconciliation을 둬야 합니다.</p></div>
+      <div class="col x"><h4><span class="mk">위험 2</span> 콜백 무한 대기</h4><p>콜백용 <span class="term">RestTemplate</span>에 타임아웃이 없습니다. callbackUrl 대상이 응답을 안 주면 비동기 스레드가 묶입니다. 실제 외부 호출이라면 connection/read timeout을 반드시 설정해야 합니다.</p></div>
+    </div>
+    <div class="note"><span class="tag">균형 잡기</span>이건 시뮬레이터를 깎아내리는 게 아닙니다. 학습용 앱은 <em>의도적으로 거칠게</em> 만들어 연동하는 쪽이 방어 코드를 짜도록 유도합니다. 다만 이 코드를 그대로 프로덕션 패턴으로 베끼면 안 된다는 점은 분명히 짚어둡니다.</div>
+  </section>
+
+  <!-- ===================== SECTION 6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">RELIABILITY CHECKLIST</p><h2 class="sec">외부 연동 유의점 체크리스트</h2></div>
+    </div>
+
+    <p class="lead">한 줄 요약 — 타임아웃은 "실패"가 아니라 "결과 미확정"이다. 재시도는 반드시 멱등키 + 지터 백오프로. DB와 PG는 한 트랜잭션으로 못 묶으니 Outbox·reconciliation으로 결국 맞춘다.</p>
+
+    <h3>① 타임아웃 (Timeout)</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>connection · read 타임아웃을 둘 다 명시</b>한다. 연결 실패와 "응답 없음"은 다른 사건이다.<a href="#r12" class="cite">[12]</a></li>
+      <li><span class="box"></span>타임아웃 값은 감이 아니라 <b>downstream 지연 분포(p99.9 등)</b>로 정한다.<a href="#r12" class="cite">[12]</a></li>
+      <li><span class="box"></span>타임아웃 = 실패가 아니라 <b>결과 미확정(in-doubt)</b>. 500도 "성공도 실패도 아님"으로 취급한다.<a href="#r8" class="cite">[8]</a></li>
+      <li><span class="box"></span>타임아웃 후엔 무작정 재시도 말고 <b>멱등키 재전송 또는 상태 재조회</b>로 마무리.<a href="#r19" class="cite">[19]</a></li>
+    </ul>
+
+    <h3>② 리트라이 (Retry)</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>결제 호출 재시도는 <b>반드시 멱등키와 함께</b>. 그냥 재시도하면 이중 결제.<a href="#r6" class="cite">[6]</a></li>
+      <li><span class="box"></span><b>지수 백오프 + 지터(jitter)</b>로 재시도 시점을 흩뿌려 thundering herd를 막는다.<a href="#r13" class="cite">[13]</a></li>
+      <li><span class="box"></span><b>재시도 가능 에러(네트워크·5xx·429)</b>와 <b>재시도 불가(4xx 검증 실패)</b>를 구분한다.<a href="#r8" class="cite">[8]</a></li>
+      <li><span class="box"></span><b>retry budget</b>으로 증폭을 막는다 — 한 계층에서만, 요청당 최대 2~3회, 클라이언트 재시도율 10% 이하.<a href="#r14" class="cite">[14]</a></li>
+    </ul>
+
+    <h3>③ 트랜잭션 · 데이터 정합성</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>로컬 DB 트랜잭션과 외부 PG 호출은 <b>하나의 ACID로 묶을 수 없다</b>. ROLLBACK은 내 테이블만 되돌린다.<a href="#r15" class="cite">[15]</a></li>
+      <li><span class="box"></span><b>열린 DB 트랜잭션 안에서 외부 API를 호출하지 않는다</b> — 커넥션 점유·락 장기화·롤백 불가.<a href="#r15" class="cite">[15]</a></li>
+      <li><span class="box"></span>dual write 문제는 <b>Transactional Outbox</b>로 — 비즈니스 변경 + outbox insert를 한 로컬 트랜잭션으로 커밋, 릴레이가 발행.<a href="#r15" class="cite">[15]</a><a href="#r20" class="cite">[20]</a></li>
+      <li><span class="box"></span>결제 결과와 주문 상태는 <b>eventual consistency + reconciliation 배치</b>로 맞춘다(PENDING 건 주기적 재조회).</li>
+      <li><span class="box"></span>다단계 트랜잭션은 <b>SAGA + 보상 트랜잭션</b>으로. 자동 롤백이 없으니 되돌림을 직접 설계.<a href="#r16" class="cite">[16]</a></li>
+    </ul>
+
+    <h3>④ 그 밖의 방어선</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>Circuit Breaker</b>로 PG 장애의 연쇄 전파를 끊는다(Closed → Open → Half-Open).<a href="#r17" class="cite">[17]</a></li>
+      <li><span class="box"></span>webhook은 <b>서명 검증 + event id 멱등 처리</b>(at-least-once 가정). 순서 의존 설계 금지.<a href="#r7" class="cite">[7]</a></li>
+      <li><span class="box"></span>로그·추적에서 <b>카드번호 등 PII 마스킹</b>(앞 6 + 뒤 4만). 도메인 VO를 직접 문자열 보간/로깅하지 않는다.<a href="#r18" class="cite">[18]</a></li>
+      <li><span class="box"></span><b>금액·통화 검증</b> — 받은 amount/currency를 주문 기대값과 대조. 금액은 정수 최소 단위(원/센트)로 다뤄 부동소수점 오차 회피.</li>
+      <li><span class="box"></span>rate limiting(429) 대응 — 단, <b>Stripe는 Retry-After를 안 쓰는</b> 등 PG별 규약이 다르니 문서 확인.<a href="#r8" class="cite">[8]</a></li>
+    </ul>
+
+    <blockquote>
+      <p>"타임아웃이나 실패가 곧 부수효과가 일어나지 않았다는 뜻은 아니다."</p>
+      <cite>— AWS Builders' Library, Timeouts, retries, and backoff with jitter<a href="#r12" class="cite">[12]</a></cite>
+    </blockquote>
+  </section>
+
+  <!-- ===================== REFERENCES ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <p>공식 개발자 문서를 1차 출처로, 빅테크 엔지니어링 자료를 보조로 사용했습니다. 표기 없는 일부 수치·전이는 공식 확인이 안 된 부분으로 본문에 명시했습니다.</p>
+
+    <div class="ref primary" id="r1"><span class="n">1</span><span class="b"><b>토스페이먼츠 — 결제 흐름 이해하기</b> — 요청/인증/승인 2단계, 금액 검증, 10분 제약.<span class="src">https://docs.tosspayments.com/guides/v2/get-started/payment-flow</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r2"><span class="n">2</span><span class="b"><b>토스페이먼츠 — 멱등키 가이드</b> — Idempotency-Key, 15일 보장.<span class="src">https://docs.tosspayments.com/guides/using-api/idempotency-key</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r3"><span class="n">3</span><span class="b"><b>토스페이먼츠 — 웹훅</b> — 이벤트 타입, 응답/재전송 정책.<span class="src">https://docs.tosspayments.com/guides/v2/webhook</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r4"><span class="n">4</span><span class="b"><b>Stripe — Introduction / Payment ecosystem</b> — PG 정의, 생태계 참여자, PCI.<span class="src">https://stripe.com/resources/more/the-payment-industry-ecosystem-explained</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r5"><span class="n">5</span><span class="b"><b>Stripe — PaymentIntent lifecycle / two-step confirmation</b> — 상태 머신, capture.<span class="src">https://docs.stripe.com/payments/paymentintents/lifecycle</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r6"><span class="n">6</span><span class="b"><b>Stripe — Idempotent requests</b> — Idempotency-Key, 24시간 보존, 키 규칙.<span class="src">https://docs.stripe.com/api/idempotent_requests</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r7"><span class="n">7</span><span class="b"><b>Stripe — Webhooks / Signature</b> — 서명 검증, at-least-once, 빠른 2xx.<span class="src">https://docs.stripe.com/webhooks</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r8"><span class="n">8</span><span class="b"><b>Stripe — Error handling (low-level)</b> — indeterminate 500, 재시도 분류, Retry-After 미사용.<span class="src">https://docs.stripe.com/error-low-level</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref primary" id="r9"><span class="n">9</span><span class="b"><b>PortOne — 결제 사후 검증</b> — imp_uid 재조회로 금액 대조.<span class="src">https://portone.gitbook.io/docs/auth/guide/5/post</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r10"><span class="n">10</span><span class="b"><b>PortOne — REST API V2 (Payment)</b> — 단건조회, 멱등키, 상태 enum, webhook.<span class="src">https://developers.portone.io/api/rest-v2/payment</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r11"><span class="n">11</span><span class="b"><b>KG이니시스 — INIStdPay 표준결제 매뉴얼</b> — SHA256 서명, 서버 승인요청.<span class="src">https://manual.inicis.com/pay/escrow_pc.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r12"><span class="n">12</span><span class="b"><b>AWS Builders' Library — Timeouts, retries, backoff with jitter</b> — 타임아웃 산정, in-doubt.<span class="src">https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r13"><span class="n">13</span><span class="b"><b>AWS Architecture Blog — Exponential backoff and jitter</b> — Full/Equal/Decorrelated jitter.<span class="src">https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref" id="r14"><span class="n">14</span><span class="b"><b>Google SRE Book — Addressing cascading failures / Handling overload</b> — retry budget, deadline propagation.<span class="src">https://sre.google/sre-book/addressing-cascading-failures/</span><span class="pr bt">빅테크 공식</span></span></div>
+    <div class="ref primary" id="r15"><span class="n">15</span><span class="b"><b>microservices.io — Transactional Outbox</b> (Chris Richardson) — dual write 해결, 2PC 불가.<span class="src">https://microservices.io/patterns/data/transactional-outbox.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r16"><span class="n">16</span><span class="b"><b>microservices.io — Saga</b> (Chris Richardson) — 보상 트랜잭션, choreography/orchestration.<span class="src">https://microservices.io/patterns/data/saga.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r17"><span class="n">17</span><span class="b"><b>Martin Fowler — CircuitBreaker</b> — Closed/Open/Half-Open 상태.<span class="src">https://martinfowler.com/bliki/CircuitBreaker.html</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r18"><span class="n">18</span><span class="b"><b>PCI SSC — PAN masking &amp; truncation FAQ</b> — 앞6+뒤4 노출 원칙.<span class="src">https://www.pcisecuritystandards.org/faq/</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref primary" id="r19"><span class="n">19</span><span class="b"><b>토스페이먼츠 — 용어집: 타임아웃</b> — read timeout 60초 권장, 멱등 재전송.<span class="src">https://docs.tosspayments.com/resources/glossary/timeout</span><span class="pr p1">1차 출처</span></span></div>
+    <div class="ref" id="r20"><span class="n">20</span><span class="b"><b>우아한형제들 기술블로그 — 이벤트 발행과 Outbox/CDC</b> — 상태변경 + outbox 동일 트랜잭션, Debezium.<span class="src">https://techblog.woowahan.com/17386/</span><span class="pr bt">빅테크 공식</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    PG 연동 학습 노트 — 개념 · 토스/Stripe/PortOne 사례 · pg-simulator 분석 · 외부 연동 체크리스트<br>
+    출처: Toss Payments · Stripe · PortOne · KG이니시스 · AWS Builders' Library · Google SRE · microservices.io · PCI SSC
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

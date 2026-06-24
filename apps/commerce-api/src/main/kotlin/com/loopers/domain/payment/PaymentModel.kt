@@ -40,7 +40,7 @@ class PaymentModel(
     var maskedCardNo: String = mask(cardNo)
         protected set
 
-    @Column(name = "transaction_key", unique = true)
+    @Column(name = "transaction_key", unique = true, length = 64)
     var transactionKey: String? = null
         protected set
 

@@ -21,6 +21,7 @@ class PaymentModelTest {
         assertThat(payment.maskedCardNo).endsWith("3456")
         assertThat(payment.maskedCardNo).doesNotContain("1234-5678-9012")
         assertThat(payment.status).isEqualTo(PaymentStatus.PENDING)
+        assertThat(payment.isPending()).isTrue()
         assertThat(payment.transactionKey).isNull()
     }
 

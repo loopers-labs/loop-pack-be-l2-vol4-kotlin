@@ -44,7 +44,7 @@ class RequestPaymentUsecase(
                     cardNo = command.cardNo,
                 ),
             ) to order
-        }!!
+        } ?: throw CoreException(ErrorType.INTERNAL_ERROR, "결제 생성 트랜잭션이 비정상 종료되었습니다.")
         val (savedPayment, order) = payment
 
         // (2) 트랜잭션 밖에서 PG 호출. 서킷/타임아웃은 어댑터에서 흡수(PENDING 반환).
@@ -65,10 +65,10 @@ class RequestPaymentUsecase(
 
         val recorded = transactionTemplate.execute {
             val reloaded = paymentRepository.findByOrderIdForUpdate(order.id)
-                ?: throw CoreException(ErrorType.NOT_FOUND, "결제 정보를 찾을 수 없습니다.")
+                ?: return@execute null
             if (reloaded.transactionKey == null) reloaded.assignTransactionKey(txKey)
             reloaded
-        }!!
+        } ?: throw CoreException(ErrorType.NOT_FOUND, "결제 정보를 찾을 수 없습니다.")
         return PaymentInfo.from(recorded)
     }
 }

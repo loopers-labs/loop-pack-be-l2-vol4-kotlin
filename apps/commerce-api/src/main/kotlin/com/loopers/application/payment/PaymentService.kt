@@ -107,22 +107,29 @@ class PaymentService(
         val order = orderRepository.findByIdForUpdate(payment.orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
 
-        if (payment.orderId != command.orderId || payment.amount != command.amount) {
+        if (payment.orderNumber != command.orderNumber || payment.amount != command.amount) {
             throw CoreException(ErrorType.BAD_REQUEST, "Payment callback does not match payment request.")
         }
 
         when (command.status) {
             PgTransactionStatus.PENDING -> return PaymentInfo.from(payment, order.status)
             PgTransactionStatus.SUCCESS -> {
+                val shouldCompleteOrder = order.status == OrderStatus.PENDING_PAYMENT
                 payment.succeed(transactionKey = command.transactionKey, reason = command.reason)
-                order.completePayment()
-                orderRepository.updateStatus(order)
+                if (shouldCompleteOrder) {
+                    order.completePayment()
+                    orderRepository.updateStatus(order)
+                }
             }
             PgTransactionStatus.FAILED -> {
+                val shouldRestoreReservation =
+                    payment.status != PaymentStatus.FAILED && order.status == OrderStatus.PENDING_PAYMENT
                 payment.fail(transactionKey = command.transactionKey, reason = command.reason)
-                order.failPayment()
-                restoreOrderReservations(order)
-                orderRepository.updateStatus(order)
+                if (shouldRestoreReservation) {
+                    order.failPayment()
+                    restoreOrderReservations(order)
+                    orderRepository.updateStatus(order)
+                }
             }
         }
 

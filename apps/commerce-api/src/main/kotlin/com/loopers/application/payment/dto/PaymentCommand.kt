@@ -12,7 +12,7 @@ object PaymentCommand {
 
     data class Callback(
         val transactionKey: String,
-        val orderId: Long,
+        val orderNumber: String,
         val amount: Long,
         val status: PgTransactionStatus,
         val reason: String?,

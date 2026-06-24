@@ -17,6 +17,10 @@ class PaymentFacade(
     private val userService: UserService,
     private val pgPaymentClient: PgPaymentClient,
 ) {
+    fun handleCallback(command: PaymentCommand.Callback): PaymentInfo {
+        return paymentService.handleCallback(command)
+    }
+
     fun getPayment(
         loginId: String,
         rawPassword: String,

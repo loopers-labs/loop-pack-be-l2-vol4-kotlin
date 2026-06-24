@@ -26,4 +26,12 @@ interface PaymentV1ApiSpec {
         password: String,
         paymentId: Long,
     ): ApiResponse<PaymentV1Dto.PaymentResponse>
+
+    @Operation(
+        summary = "PG 결제 콜백 수신",
+        description = "PG 비동기 결제 결과를 수신해 내부 결제 상태와 주문 상태를 갱신합니다.",
+    )
+    fun handleCallback(
+        request: PaymentV1Dto.CallbackRequest,
+    ): ApiResponse<PaymentV1Dto.PaymentResponse>
 }

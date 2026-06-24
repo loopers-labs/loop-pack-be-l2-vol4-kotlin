@@ -18,6 +18,15 @@ import org.springframework.web.bind.annotation.RestController
 class PaymentV1Controller(
     private val paymentFacade: PaymentFacade,
 ) : PaymentV1ApiSpec {
+    @PostMapping("/callback")
+    override fun handleCallback(
+        @RequestBody request: PaymentV1Dto.CallbackRequest,
+    ): ApiResponse<PaymentV1Dto.PaymentResponse> {
+        return paymentFacade.handleCallback(request.toCommand())
+            .let(PaymentV1Dto.PaymentResponse::from)
+            .let(ApiResponse.Companion::success)
+    }
+
     @GetMapping("/{paymentId}")
     override fun getPayment(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,

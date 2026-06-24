@@ -7,6 +7,26 @@ import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentStatus
 
 object PaymentV1Dto {
+    data class CallbackRequest(
+        val transactionKey: String,
+        val orderId: String,
+        val cardType: CardType,
+        val cardNo: String,
+        val amount: Long,
+        val status: com.loopers.domain.payment.PgTransactionStatus,
+        val reason: String?,
+    ) {
+        fun toCommand(): PaymentCommand.Callback {
+            return PaymentCommand.Callback(
+                transactionKey = transactionKey,
+                orderNumber = orderId,
+                amount = amount,
+                status = status,
+                reason = reason,
+            )
+        }
+    }
+
     data class PaymentRequest(
         val orderId: Long,
         val cardType: CardType,

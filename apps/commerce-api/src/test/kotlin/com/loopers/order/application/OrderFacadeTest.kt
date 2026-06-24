@@ -41,7 +41,9 @@ class OrderFacadeTest {
         couponId: Long? = null,
         expectedOriginalAmount: Long,
         expectedDiscountAmount: Long = 0,
+        userId: Long = 1L,
     ) = OrderCreateCommand(
+        userId = userId,
         items = items,
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
@@ -65,7 +67,7 @@ class OrderFacadeTest {
     @Test
     fun throwsBadRequest_whenItemsEmpty() {
         val result = assertThrows<BadRequestException> {
-            orderFacade.place(userId = 1L, command = command(items = emptyList(), expectedOriginalAmount = 0))
+            orderFacade.place(command = command(items = emptyList(), expectedOriginalAmount = 0))
         }
 
         assertAll(
@@ -79,10 +81,9 @@ class OrderFacadeTest {
     fun placesOrder_withoutCoupon() {
         val product = product()
         whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(0)))).thenReturn(orderInfo())
+        whenever(orderService.create(any(), any(), eq(Money(0)))).thenReturn(orderInfo())
 
         val info = orderFacade.place(
-            userId = 1L,
             command = command(
                 items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                 expectedOriginalAmount = 200_000,
@@ -102,11 +103,10 @@ class OrderFacadeTest {
         val product = product()
         whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
         whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(10_000))))
+        whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         val info = orderFacade.place(
-            userId = 1L,
             command = command(
                 items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                 couponId = 5L,
@@ -118,7 +118,7 @@ class OrderFacadeTest {
         assertAll(
             { assertThat(info.discountAmount).isEqualTo(10_000) },
             { verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any()) },
-            { verify(orderService).create(eq(1L), any(), any(), eq(Money(10_000))) },
+            { verify(orderService).create(any(), any(), eq(Money(10_000))) },
         )
     }
 
@@ -128,11 +128,10 @@ class OrderFacadeTest {
         val product = product()
         whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
         whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(10_000))))
+        whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         orderFacade.place(
-            userId = 1L,
             command = command(
                 items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                 couponId = 5L,
@@ -143,7 +142,7 @@ class OrderFacadeTest {
 
         inOrder(couponService, orderService, inventoryService) {
             verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any())
-            verify(orderService).create(eq(1L), any(), any(), eq(Money(10_000)))
+            verify(orderService).create(any(), any(), eq(Money(10_000)))
             verify(inventoryService).decreaseStock(any())
         }
     }
@@ -156,7 +155,6 @@ class OrderFacadeTest {
 
         val result = assertThrows<NotFoundException> {
             orderFacade.place(
-                userId = 1L,
                 command = command(
                     items = listOf(OrderLineCommand(productId = 99L, quantity = 1)),
                     expectedOriginalAmount = 100_000,
@@ -168,7 +166,7 @@ class OrderFacadeTest {
             { assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND) },
             { verifyNoInteractions(couponService) },
             { verify(inventoryService, never()).decreaseStock(any()) },
-            { verify(orderService, never()).create(any(), any(), any(), any()) },
+            { verify(orderService, never()).create(any(), any(), any()) },
         )
     }
 }

@@ -65,8 +65,8 @@ class OrderConcurrencyIntegrationTest @Autowired constructor(
 
         val failures = runConcurrently(threadCount = 10) {
             orderFacade.place(
-                userId = 1L,
                 command = OrderCreateCommand(
+                    userId = 1L,
                     items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
                     couponId = coupon.id,
                     expectedOriginalAmount = 10_000,
@@ -98,8 +98,8 @@ class OrderConcurrencyIntegrationTest @Autowired constructor(
 
         val failures = runConcurrently(threadCount = 10) { index ->
             orderFacade.place(
-                userId = (index + 1).toLong(),
                 command = OrderCreateCommand(
+                    userId = (index + 1).toLong(),
                     items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
                     expectedOriginalAmount = 10_000,
                     expectedDiscountAmount = 0,

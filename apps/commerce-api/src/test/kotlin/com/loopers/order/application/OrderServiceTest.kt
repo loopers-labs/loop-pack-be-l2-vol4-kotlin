@@ -37,7 +37,9 @@ class OrderServiceTest {
         expectedOriginalAmount: Long,
         expectedDiscountAmount: Long = 0,
         expectedTotalAmount: Long = expectedOriginalAmount - expectedDiscountAmount,
+        userId: Long = 1L,
     ) = OrderCreateCommand(
+        userId = userId,
         items = items,
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
@@ -52,7 +54,6 @@ class OrderServiceTest {
         whenever(orderRepository.save(any())).thenAnswer { it.arguments[0] as Order }
 
         val info = orderService.create(
-            userId = 1L,
             command = command(
                 items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                 expectedOriginalAmount = 200_000,
@@ -79,7 +80,6 @@ class OrderServiceTest {
         whenever(orderRepository.save(any())).thenAnswer { it.arguments[0] as Order }
 
         val info = orderService.create(
-            userId = 1L,
             command = command(
                 items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                 couponId = 5L,
@@ -105,7 +105,6 @@ class OrderServiceTest {
 
         val result = assertThrows<ConflictException> {
             orderService.create(
-                userId = 1L,
                 command = command(
                     items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                     expectedOriginalAmount = 180_000,
@@ -128,7 +127,6 @@ class OrderServiceTest {
 
         val result = assertThrows<ConflictException> {
             orderService.create(
-                userId = 1L,
                 command = command(
                     items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
                     couponId = 5L,
@@ -149,7 +147,6 @@ class OrderServiceTest {
     fun throwsNotFound_whenProductMissing() {
         val result = assertThrows<NotFoundException> {
             orderService.create(
-                userId = 1L,
                 command = command(
                     items = listOf(OrderLineCommand(productId = 99L, quantity = 1)),
                     expectedOriginalAmount = 100_000,

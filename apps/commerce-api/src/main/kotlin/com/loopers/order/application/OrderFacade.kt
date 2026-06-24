@@ -20,7 +20,7 @@ class OrderFacade(
 ) {
     // PG 연동(O-F1) 시 이 메서드의 Tx 구간을 안쪽 메서드로 분리한다 — 외부 호출은 Tx 밖에 둔다
     @Transactional
-    fun place(userId: Long, command: OrderCreateCommand): OrderInfo {
+    fun place(command: OrderCreateCommand): OrderInfo {
         if (command.items.isEmpty()) {
             throw BadRequestException(OrderErrorCode.EMPTY_ORDER_ITEMS)
         }
@@ -28,10 +28,10 @@ class OrderFacade(
         val originalAmount = Money(command.items.sumOf { products.getValue(it.productId).price.amount * it.quantity })
 
         val discountAmount = command.couponId
-            ?.let { couponService.use(userId, it, originalAmount, LocalDateTime.now()) }
+            ?.let { couponService.use(command.userId, it, originalAmount, LocalDateTime.now()) }
             ?: Money(0)
 
-        val info = orderService.create(userId, command, products, discountAmount)
+        val info = orderService.create(command, products, discountAmount)
         // 비관락(재고)은 맨 마지막 — 행 점유 시간 최소화
         inventoryService.decreaseStock(command.items.map { StockDecreaseLine(it.productId, it.quantity.toLong()) })
         return info

@@ -20,7 +20,7 @@ class OrderService(
     private val orderRepository: OrderRepository,
 ) {
     @Transactional
-    fun create(userId: Long, command: OrderCreateCommand, products: Map<Long, Product>, discountAmount: Money): OrderInfo {
+    fun create(command: OrderCreateCommand, products: Map<Long, Product>, discountAmount: Money): OrderInfo {
         val snapshots = command.items.map { line ->
             val product = products[line.productId]
                 ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
@@ -43,7 +43,7 @@ class OrderService(
             throw ConflictException(OrderErrorCode.PRICE_CHANGED)
         }
 
-        val order = orderRepository.save(Order.create(userId, snapshots, command.couponId, discountAmount))
+        val order = orderRepository.save(Order.create(command.userId, snapshots, command.couponId, discountAmount))
         return OrderInfo.from(order)
     }
 
@@ -63,6 +63,7 @@ class OrderService(
 }
 
 data class OrderCreateCommand(
+    val userId: Long,
     val items: List<OrderLineCommand>,
     val couponId: Long? = null,
     val expectedOriginalAmount: Long,

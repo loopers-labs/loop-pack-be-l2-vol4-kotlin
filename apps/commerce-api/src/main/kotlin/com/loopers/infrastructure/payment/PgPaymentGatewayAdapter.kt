@@ -42,7 +42,7 @@ class PgPaymentGatewayAdapter(
         val response = pgPaymentClient.requestPayment(
             userId = request.userId.toString(),
             request = PgPaymentRequest(
-                orderId = request.orderId.toString(),
+                orderId = toPgOrderId(request.orderId),
                 cardType = CardType.from(request.cardType).name,
                 cardNo = request.cardNo,
                 amount = request.amount,
@@ -89,5 +89,10 @@ class PgPaymentGatewayAdapter(
 
     companion object {
         private const val PG_RESILIENCE_INSTANCE = "pgPayment"
+        private const val PG_ORDER_ID_MIN_LENGTH = 6
+
+        /** PG 시뮬레이터는 주문 ID가 6자리 이상 문자열이어야 한다. 짧으면 앞을 0으로 채운다. */
+        internal fun toPgOrderId(orderId: Long): String =
+            orderId.toString().padStart(PG_ORDER_ID_MIN_LENGTH, '0')
     }
 }

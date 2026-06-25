@@ -5,6 +5,7 @@ import com.loopers.application.payment.usecase.SyncPaymentResultUsecase
 import com.loopers.batch.job.payment.PaymentReconciliationJobConfig
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PgClient
+import com.loopers.domain.payment.PgOrderLookup
 import com.loopers.domain.payment.PgStatus
 import org.slf4j.LoggerFactory
 import org.springframework.batch.core.StepContribution
@@ -43,10 +44,14 @@ class PaymentReconciliationTasklet(
         val threshold = ZonedDateTime.now().minusSeconds(thresholdSeconds)
         var reflected = 0
         paymentRepository.findStalePending(threshold).forEach { payment ->
-            val result =
+            // ponytail: Found→반영, NotAccepted/Unknown→skip(no-op). T6에서 종결 정책 추가.
+            val result: com.loopers.domain.payment.PgPaymentResult? =
                 payment.transactionKey
                     ?.let { pgClient.getByTransactionKey(it) }
-                    ?: pgClient.findByOrderId(payment.orderId)
+                    ?: when (val lookup = pgClient.findByOrderId(payment.orderId)) {
+                        is PgOrderLookup.Found -> lookup.result
+                        is PgOrderLookup.NotAccepted, is PgOrderLookup.Unknown -> null
+                    }
             if (result != null && result.status != PgStatus.PENDING) {
                 syncPaymentResultUsecase.apply(
                     SyncPaymentResultCommand(

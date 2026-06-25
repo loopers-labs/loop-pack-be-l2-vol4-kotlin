@@ -8,6 +8,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PgClient
+import com.loopers.domain.payment.PgOrderLookup
 import com.loopers.domain.payment.PgRequestCommand
 import com.loopers.domain.payment.PgStatus
 import org.assertj.core.api.Assertions.assertThat
@@ -76,5 +77,42 @@ class PgClientAdapterTest @Autowired constructor(
 
         assertThat(result.transactionKey).isNull()
         assertThat(result.status).isEqualTo(PgStatus.PENDING)
+    }
+
+    @Test
+    fun `PG 응답에 결제건이 있으면 Found 를 반환한다`() {
+        stubFor(
+            get(urlPathEqualTo("/api/v1/payments")).willReturn(
+                aResponse().withHeader("Content-Type", "application/json")
+                    .withBody("""{"meta":{"result":"SUCCESS"},"data":{"transactions":[{"transactionKey":"tx","status":"SUCCESS"}]}}"""),
+            ),
+        )
+
+        assertThat(pgClient.findByOrderId(1L)).isEqualTo(PgOrderLookup.Found(com.loopers.domain.payment.PgPaymentResult(transactionKey = "tx", status = PgStatus.SUCCESS, failureReason = null)))
+    }
+
+    @Test
+    fun `PG 응답에 결제건이 없으면 미접수 확정이다`() {
+        stubFor(
+            get(urlPathEqualTo("/api/v1/payments")).willReturn(
+                aResponse().withHeader("Content-Type", "application/json")
+                    .withBody("""{"meta":{"result":"SUCCESS"},"data":{"transactions":[]}}"""),
+            ),
+        )
+
+        assertThat(pgClient.findByOrderId(1L)).isEqualTo(PgOrderLookup.NotAccepted)
+    }
+
+    @Test
+    fun `조회 실패(서킷 fallback)는 불명이다`() {
+        stubFor(
+            get(urlPathEqualTo("/api/v1/payments")).willReturn(
+                aResponse().withFixedDelay(5000)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody("""{"data":{"transactions":[]}}"""),
+            ),
+        )
+
+        assertThat(pgClient.findByOrderId(1L)).isInstanceOf(PgOrderLookup.Unknown::class.java)
     }
 }

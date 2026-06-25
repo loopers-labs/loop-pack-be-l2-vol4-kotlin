@@ -20,7 +20,10 @@ class PgFeignClientFallbackFactory : FallbackFactory<PgFeignClient> {
                 PgApiResponse<PgTransactionResponse>(meta = null, data = null)
 
             override fun findByOrderId(userId: String, orderId: String) =
-                PgApiResponse<PgOrderTransactionsResponse>(meta = null, data = null)
+                PgApiResponse<PgOrderTransactionsResponse>(
+                    meta = PgApiResponse.Meta(result = "FALLBACK", errorCode = null, message = null),
+                    data = null,
+                )
         }
     }
 }

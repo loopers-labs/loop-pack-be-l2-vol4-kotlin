@@ -5,7 +5,7 @@ interface PgClient {
 
     fun getByTransactionKey(transactionKey: String): PgPaymentResult
 
-    fun findByOrderId(orderId: Long): PgPaymentResult?
+    fun findByOrderId(orderId: Long): PgOrderLookup
 }
 
 data class PgRequestCommand(

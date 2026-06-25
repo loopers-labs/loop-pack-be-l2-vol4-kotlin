@@ -6,6 +6,7 @@ import com.loopers.application.payment.usecase.RequestPaymentUsecase
 import com.loopers.application.payment.usecase.SyncPaymentResultUsecase
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PgClient
+import com.loopers.domain.payment.PgOrderLookup
 import com.loopers.domain.payment.PgStatus
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.support.error.CoreException
@@ -50,7 +51,7 @@ class PaymentV1Controller(
             ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다.")
         val result = payment.transactionKey
             ?.let { pgClient.getByTransactionKey(it) }
-            ?: pgClient.findByOrderId(payment.orderId)
+            ?: (pgClient.findByOrderId(payment.orderId) as? PgOrderLookup.Found)?.result
         if (result != null && result.status != PgStatus.PENDING) {
             syncPaymentResultUsecase.apply(
                 SyncPaymentResultCommand(

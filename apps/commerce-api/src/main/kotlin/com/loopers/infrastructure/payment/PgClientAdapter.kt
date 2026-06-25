@@ -2,6 +2,7 @@ package com.loopers.infrastructure.payment
 
 import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PgClient
+import com.loopers.domain.payment.PgOrderLookup
 import com.loopers.domain.payment.PgPaymentResult
 import com.loopers.domain.payment.PgRequestCommand
 import com.loopers.domain.payment.PgStatus
@@ -30,10 +31,12 @@ class PgClientAdapter(
         return response.data?.let { toResult(it) } ?: PgPaymentResult.unknown()
     }
 
-    override fun findByOrderId(orderId: Long): PgPaymentResult? {
+    override fun findByOrderId(orderId: Long): PgOrderLookup {
         val response = pgFeignClient.findByOrderId(userId = "reconciler", orderId = orderId.toString())
-        val tx = response.data?.transactions?.firstOrNull() ?: return null
-        return toResult(tx)
+        if (response.meta?.result == "FALLBACK") return PgOrderLookup.Unknown
+        val transactions = response.data?.transactions
+        if (transactions.isNullOrEmpty()) return PgOrderLookup.NotAccepted
+        return PgOrderLookup.Found(toResult(transactions.first()))
     }
 
     private fun toResult(tx: PgTransactionResponse): PgPaymentResult {

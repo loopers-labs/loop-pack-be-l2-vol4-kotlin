@@ -4,6 +4,8 @@ enum class PaymentFailureReason {
     LIMIT_EXCEEDED,
     INVALID_CARD,
     TIMEOUT_UNKNOWN,
+    NOT_ACCEPTED,
+    UNRESOLVED,
     ;
 
     companion object {

@@ -54,4 +54,37 @@ class PaymentModelTest {
         assertThatThrownBy { payment.markFailed(PaymentFailureReason.INVALID_CARD) }
             .isInstanceOf(CoreException::class.java)
     }
+
+    @Test
+    fun `요청 접수 시 transactionKey 와 acceptedAt 이 함께 기록된다`() {
+        val p = newPayment()
+        val now = java.time.ZonedDateTime.now()
+        p.markAccepted("tx-1", now)
+        assertThat(p.transactionKey).isEqualTo("tx-1")
+        assertThat(p.acceptedAt).isEqualTo(now)
+    }
+
+    @Test
+    fun `폴링 기록은 lastPolledAt 갱신과 시도수 증가를 누적한다`() {
+        val p = newPayment()
+        p.recordPoll(java.time.ZonedDateTime.now())
+        p.recordPoll(java.time.ZonedDateTime.now())
+        assertThat(p.pollAttempts).isEqualTo(2)
+        assertThat(p.lastPolledAt).isNotNull
+    }
+
+    @Test
+    fun `PENDING 결제는 환불필요로 격리될 수 있다`() {
+        val p = newPayment()
+        p.markRefundRequired()
+        assertThat(p.status).isEqualTo(PaymentStatus.REFUND_REQUIRED)
+    }
+
+    @Test
+    fun `미접수 사유로 실패 처리할 수 있다`() {
+        val p = newPayment()
+        p.markFailed(PaymentFailureReason.NOT_ACCEPTED)
+        assertThat(p.status).isEqualTo(PaymentStatus.FAILED)
+        assertThat(p.failureReason).isEqualTo(PaymentFailureReason.NOT_ACCEPTED)
+    }
 }

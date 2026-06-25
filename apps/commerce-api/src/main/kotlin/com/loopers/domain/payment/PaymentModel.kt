@@ -9,6 +9,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.math.BigDecimal
+import java.time.ZonedDateTime
 
 @Entity
 @Table(name = "payments")
@@ -54,6 +55,18 @@ class PaymentModel(
     var failureReason: PaymentFailureReason? = null
         protected set
 
+    @Column(name = "accepted_at")
+    var acceptedAt: ZonedDateTime? = null
+        protected set
+
+    @Column(name = "last_polled_at")
+    var lastPolledAt: ZonedDateTime? = null
+        protected set
+
+    @Column(name = "poll_attempts", nullable = false)
+    var pollAttempts: Int = 0
+        protected set
+
     init {
         if (orderId <= 0) throw CoreException(ErrorType.BAD_REQUEST, "주문 ID는 양수여야 합니다.")
         if (userId <= 0) throw CoreException(ErrorType.BAD_REQUEST, "회원 ID는 양수여야 합니다.")
@@ -73,6 +86,21 @@ class PaymentModel(
         if (status != PaymentStatus.PENDING) throw CoreException(ErrorType.CONFLICT, "실패 처리할 수 없는 결제 상태입니다.")
         status = PaymentStatus.FAILED
         failureReason = reason
+    }
+
+    fun markAccepted(key: String, now: ZonedDateTime) {
+        this.transactionKey = key
+        this.acceptedAt = now
+    }
+
+    fun recordPoll(now: ZonedDateTime) {
+        this.lastPolledAt = now
+        this.pollAttempts += 1
+    }
+
+    fun markRefundRequired() {
+        if (status != PaymentStatus.PENDING) throw CoreException(ErrorType.CONFLICT, "환불필요로 격리할 수 없는 결제 상태입니다.")
+        status = PaymentStatus.REFUND_REQUIRED
     }
 
     fun isPending(): Boolean = status == PaymentStatus.PENDING

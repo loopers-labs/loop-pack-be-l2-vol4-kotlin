@@ -4,14 +4,19 @@ import com.loopers.application.payment.SyncPaymentResultCommand
 import com.loopers.domain.coupon.UserCouponRepository
 import com.loopers.domain.order.OrderModel
 import com.loopers.domain.order.OrderRepository
+import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentRepository
+import com.loopers.domain.payment.PaymentStatus
 import com.loopers.domain.payment.PgStatus
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.math.RoundingMode
+import java.time.ZonedDateTime
 
 @Component
 class SyncPaymentResultUsecase(
@@ -20,43 +25,73 @@ class SyncPaymentResultUsecase(
     private val productStockRepository: ProductStockRepository,
     private val userCouponRepository: UserCouponRepository,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     fun apply(command: SyncPaymentResultCommand) {
+        // Non-locking load — CAS (compareAndSetStatus) is the concurrency guard (R2).
         val payment =
             (
-                command.transactionKey?.let { paymentRepository.findByTransactionKeyForUpdate(it) }
-                    ?: paymentRepository.findByOrderIdForUpdate(command.orderId)
+                command.transactionKey?.let { paymentRepository.findByTransactionKey(it) }
+                    ?: paymentRepository.findByOrderId(command.orderId)
             ) ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다.")
-
-        if (payment.orderId != command.orderId) {
-            throw CoreException(ErrorType.BAD_REQUEST, "콜백의 주문 정보가 결제와 일치하지 않습니다.")
-        }
 
         // reconciliation 으로 뒤늦게 transactionKey 를 알게 된 경우 기록
         if (payment.transactionKey == null && command.transactionKey != null) {
             payment.assignTransactionKey(command.transactionKey)
+            paymentRepository.save(payment)
         }
 
-        if (!payment.isPending()) return // 이미 확정됨 → 멱등 no-op
+        // R6: orderId/amount 검증
+        if (payment.orderId != command.orderId) {
+            throw CoreException(ErrorType.BAD_REQUEST, "콜백의 주문 정보가 결제와 일치하지 않습니다.")
+        }
+        if (command.amount != null && command.amount != payment.amount.setScale(0, RoundingMode.DOWN).toLong()) {
+            throw CoreException(ErrorType.BAD_REQUEST, "결제 금액이 일치하지 않습니다.")
+        }
 
-        when (command.status) {
-            PgStatus.PENDING -> return // 아직 처리 중 → 다음 기회에
-            PgStatus.SUCCESS -> {
-                payment.markSuccess()
-                order(payment.orderId).markAsPaid()
+        if (command.status == PgStatus.PENDING) return // 아직 처리 중 → 다음 기회에
+
+        // Load order to check CANCELLED before CAS
+        val orderStatus = orderRepository.findById(payment.orderId)?.status
+            ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
+
+        val now = ZonedDateTime.now()
+
+        when {
+            command.status == PgStatus.SUCCESS && orderStatus == OrderStatus.CANCELLED -> {
+                // R6: 결제 성공이지만 주문이 이미 취소됨 → REFUND_REQUIRED 격리 (주문 전이 없음)
+                val affected = paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.REFUND_REQUIRED, null, now)
+                if (affected == 1) {
+                    log.warn(
+                        "Payment {} succeeded but order {} is CANCELLED — marked REFUND_REQUIRED, manual refund required",
+                        payment.id,
+                        payment.orderId,
+                    )
+                }
             }
-            PgStatus.FAILED -> {
+            command.status == PgStatus.SUCCESS -> {
+                val affected = paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.SUCCESS, null, now)
+                if (affected == 1) {
+                    // Re-load order after clearAutomatically clears persistence context
+                    val order = orderRepository.findById(payment.orderId)
+                        ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
+                    order.markAsPaid()
+                }
+            }
+            else -> { // FAILED
                 val reason = command.failureReason ?: PaymentFailureReason.TIMEOUT_UNKNOWN
-                payment.markFailed(reason)
-                val order = order(payment.orderId)
-                order.markAsFailed()
-                compensate(order)
+                val affected = paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.FAILED, reason, now)
+                if (affected == 1) {
+                    // Re-load order after clearAutomatically clears persistence context
+                    val order = orderRepository.findById(payment.orderId)
+                        ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
+                    order.markAsFailed()
+                    compensate(order)
+                }
             }
         }
     }
-
-    private fun order(orderId: Long): OrderModel =
-        orderRepository.findById(orderId) ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
 
     // 결제 실패 보상: 주문 생성 시 차감된 재고 복구 + 사용 쿠폰 원복.
     private fun compensate(order: OrderModel) {

@@ -49,7 +49,9 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         val ctx = fixtures.pendingOrder()
         savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-1")
 
-        syncPaymentResultUsecase.apply(SyncPaymentResultCommand("tx-1", ctx.orderId, PgStatus.SUCCESS, null))
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-1", ctx.orderId, amount = null, PgStatus.SUCCESS, null),
+        )
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
         assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.SUCCESS)
@@ -62,7 +64,7 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-2")
 
         syncPaymentResultUsecase.apply(
-            SyncPaymentResultCommand("tx-2", ctx.orderId, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
+            SyncPaymentResultCommand("tx-2", ctx.orderId, amount = null, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
         )
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.FAILED)
@@ -77,7 +79,7 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-4")
 
         syncPaymentResultUsecase.apply(
-            SyncPaymentResultCommand("tx-4", ctx.orderId, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
+            SyncPaymentResultCommand("tx-4", ctx.orderId, amount = null, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
         )
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.FAILED)
@@ -88,14 +90,23 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
     }
 
     @Test
-    fun `같은 콜백을 두 번 받아도 결과는 동일하다(멱등)`() {
+    fun `같은 콜백을 두 번 받아도 결과는 동일하다(CAS 멱등)`() {
         val ctx = fixtures.pendingOrder()
         savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-3")
 
-        syncPaymentResultUsecase.apply(SyncPaymentResultCommand("tx-3", ctx.orderId, PgStatus.SUCCESS, null))
-        syncPaymentResultUsecase.apply(SyncPaymentResultCommand("tx-3", ctx.orderId, PgStatus.SUCCESS, null)) // 재수신
+        // 첫 번째 apply — CAS affected=1, 주문 PAID
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-3", ctx.orderId, amount = null, PgStatus.SUCCESS, null),
+        )
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
+
+        // 두 번째 apply — CAS affected=0, no-op, 예외 없음, 주문 PAID 유지
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-3", ctx.orderId, amount = null, PgStatus.SUCCESS, null),
+        )
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
+        assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.SUCCESS)
     }
 
     @Test
@@ -105,12 +116,43 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
 
         assertThatThrownBy {
             syncPaymentResultUsecase.apply(
-                SyncPaymentResultCommand("tx-x", ctx.orderId + 9999, PgStatus.SUCCESS, null),
+                SyncPaymentResultCommand("tx-x", ctx.orderId + 9999, amount = null, PgStatus.SUCCESS, null),
             )
         }.isInstanceOf(CoreException::class.java)
             .satisfies({ assertThat((it as CoreException).errorType).isEqualTo(ErrorType.BAD_REQUEST) })
 
         // 주문 상태는 여전히 PENDING
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PENDING)
+    }
+
+    @Test
+    fun `콜백 금액이 결제 금액과 다르면 BAD_REQUEST 이고 주문은 PENDING 유지된다`() {
+        val ctx = fixtures.pendingOrder()
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-amt")
+
+        val wrongAmount = ctx.paidPrice.toLong() + 1L
+
+        assertThatThrownBy {
+            syncPaymentResultUsecase.apply(
+                SyncPaymentResultCommand("tx-amt", ctx.orderId, amount = wrongAmount, PgStatus.SUCCESS, null),
+            )
+        }.isInstanceOf(CoreException::class.java)
+            .satisfies({ assertThat((it as CoreException).errorType).isEqualTo(ErrorType.BAD_REQUEST) })
+
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PENDING)
+        assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.PENDING)
+    }
+
+    @Test
+    fun `CANCELLED 주문에 성공 콜백이 오면 payment 는 REFUND_REQUIRED 이고 주문은 CANCELLED 유지된다`() {
+        val ctx = fixtures.cancelledOrder()
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-refund")
+
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-refund", ctx.orderId, amount = null, PgStatus.SUCCESS, null),
+        )
+
+        assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.REFUND_REQUIRED)
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.CANCELLED)
     }
 }

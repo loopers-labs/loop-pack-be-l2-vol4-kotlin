@@ -9,6 +9,8 @@ interface PaymentRepository {
 
     fun findByOrderId(orderId: Long): PaymentModel?
 
+    fun findByTransactionKey(transactionKey: String): PaymentModel?
+
     fun findByOrderIdForUpdate(orderId: Long): PaymentModel?
 
     fun findByTransactionKeyForUpdate(transactionKey: String): PaymentModel?

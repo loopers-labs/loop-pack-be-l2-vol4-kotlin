@@ -111,4 +111,13 @@ class PaymentTestFixtures(
         }
         return ctx
     }
+
+    fun cancelledOrder(): PendingOrderContext {
+        val ctx = pendingOrder()
+        transactionTemplate.execute {
+            val order = orderRepository.findById(ctx.orderId)!!
+            order.cancel()
+        }
+        return ctx
+    }
 }

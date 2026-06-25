@@ -14,6 +14,8 @@ import java.time.ZonedDateTime
 interface PaymentJpaRepository : JpaRepository<PaymentModel, Long> {
     fun findByOrderId(orderId: Long): PaymentModel?
 
+    fun findByTransactionKey(transactionKey: String): PaymentModel?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM PaymentModel p WHERE p.orderId = :orderId")
     fun findByOrderIdForUpdate(@Param("orderId") orderId: Long): PaymentModel?

@@ -6,6 +6,7 @@ import com.loopers.domain.payment.PgStatus
 data class SyncPaymentResultCommand(
     val transactionKey: String?,
     val orderId: Long,
+    val amount: Long? = null,
     val status: PgStatus,
     val failureReason: PaymentFailureReason?,
 )

@@ -18,6 +18,9 @@ class PaymentRepositoryImpl(
 
     override fun findByOrderId(orderId: Long): PaymentModel? = paymentJpaRepository.findByOrderId(orderId)
 
+    override fun findByTransactionKey(transactionKey: String): PaymentModel? =
+        paymentJpaRepository.findByTransactionKey(transactionKey)
+
     override fun findByOrderIdForUpdate(orderId: Long): PaymentModel? =
         paymentJpaRepository.findByOrderIdForUpdate(orderId)
 

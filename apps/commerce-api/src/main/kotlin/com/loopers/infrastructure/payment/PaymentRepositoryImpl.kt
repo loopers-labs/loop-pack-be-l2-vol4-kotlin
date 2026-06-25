@@ -4,6 +4,7 @@ import com.loopers.application.payment.PaymentStatus
 import com.loopers.domain.payment.Payment
 import com.loopers.domain.payment.PaymentRepository
 import org.springframework.stereotype.Component
+import java.time.ZonedDateTime
 
 @Component
 class PaymentRepositoryImpl(
@@ -35,6 +36,13 @@ class PaymentRepositoryImpl(
             targetStatus = PaymentStatus.SUCCESS,
             reason = reason,
         ) == 1
+    }
+
+    override fun findPendingOlderThan(threshold: ZonedDateTime): List<Payment> {
+        return paymentJpaRepository.findByStatusAndCreatedAtBeforeAndDeletedAtIsNull(
+            status = PaymentStatus.PENDING,
+            createdAt = threshold,
+        ).map { it.toDomain() }
     }
 
     override fun markFailedIfPending(transactionKey: String, reason: String?): Boolean {

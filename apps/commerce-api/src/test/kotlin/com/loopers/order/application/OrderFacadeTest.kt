@@ -5,6 +5,7 @@ import com.loopers.inventory.application.InventoryService
 import com.loopers.inventory.application.StockDecreaseLine
 import com.loopers.order.domain.OrderErrorCode
 import com.loopers.order.domain.OrderStatus
+import com.loopers.product.application.ProductCheckCommand
 import com.loopers.product.application.ProductService
 import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
@@ -48,7 +49,6 @@ class OrderFacadeTest {
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
         expectedDiscountAmount = expectedDiscountAmount,
-        expectedTotalAmount = expectedOriginalAmount - expectedDiscountAmount,
     )
 
     private fun orderInfo(discountAmount: Long = 0, couponId: Long? = null) = OrderInfo(
@@ -80,12 +80,13 @@ class OrderFacadeTest {
     @Test
     fun placesOrder_withoutCoupon() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
         whenever(orderService.create(any(), any(), eq(Money(0)))).thenReturn(orderInfo())
 
         val info = orderFacade.place(
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 expectedOriginalAmount = 200_000,
             ),
         )
@@ -101,14 +102,15 @@ class OrderFacadeTest {
     @Test
     fun placesOrder_withCoupon_passesDiscountToCreate() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(couponService.use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())).thenReturn(Money(10_000))
         whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         val info = orderFacade.place(
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 couponId = 5L,
                 expectedOriginalAmount = 200_000,
                 expectedDiscountAmount = 10_000,
@@ -117,7 +119,7 @@ class OrderFacadeTest {
 
         assertAll(
             { assertThat(info.discountAmount).isEqualTo(10_000) },
-            { verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any()) },
+            { verify(couponService).use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any()) },
             { verify(orderService).create(any(), any(), eq(Money(10_000))) },
         )
     }
@@ -126,14 +128,15 @@ class OrderFacadeTest {
     @Test
     fun orchestratesInOrder_couponThenCreateThenInventory() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(couponService.use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())).thenReturn(Money(10_000))
         whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         orderFacade.place(
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 couponId = 5L,
                 expectedOriginalAmount = 200_000,
                 expectedDiscountAmount = 10_000,
@@ -141,7 +144,7 @@ class OrderFacadeTest {
         )
 
         inOrder(couponService, orderService, inventoryService) {
-            verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any())
+            verify(couponService).use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())
             verify(orderService).create(any(), any(), eq(Money(10_000)))
             verify(inventoryService).decreaseStock(any())
         }
@@ -150,13 +153,13 @@ class OrderFacadeTest {
     @DisplayName("존재하지 않는 상품이 포함되면, NOT_FOUND가 전파되고 쿠폰·재고·주문을 호출하지 않는다.")
     @Test
     fun propagatesNotFound_whenProductMissing() {
-        whenever(productService.getActiveProducts(listOf(99L)))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(99L, 100_000))))
             .thenThrow(NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND))
 
         val result = assertThrows<NotFoundException> {
             orderFacade.place(
                 command = command(
-                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1)),
+                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1, price = 100_000)),
                     expectedOriginalAmount = 100_000,
                 ),
             )

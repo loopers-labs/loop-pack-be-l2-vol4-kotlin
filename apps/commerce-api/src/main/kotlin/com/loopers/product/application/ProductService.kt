@@ -91,14 +91,20 @@ class ProductService(
     }
 
     @Transactional(readOnly = true)
-    fun getActiveProducts(ids: List<Long>): Map<Long, Product> {
-        val products = productRepository.findAllActiveByIdIn(ids).associateBy { it.id }
-        if (ids.any { it !in products }) {
-            throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+    fun getActiveProducts(productsCommands: List<ProductCheckCommand>): Map<Long, Product> {
+        val products = productRepository.findAllActiveByIdIn(productsCommands.map { (id, _) -> id }).associateBy { it.id }
+        productsCommands.forEach { (id, price) ->
+            val product = products[id] ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+            product.verifyPrice(price)
         }
         return products
     }
 }
+
+data class ProductCheckCommand(
+    val id: Long,
+    val price: Long,
+)
 
 data class ProductCreateCommand(
     val brandId: Long,

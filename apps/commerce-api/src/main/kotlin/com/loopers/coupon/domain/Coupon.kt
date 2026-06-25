@@ -40,8 +40,8 @@ class Coupon(
 
     fun isExpired(now: LocalDateTime): Boolean = this.expiredAt < now
 
-    fun validateUsable(orderAmount: Money, now: LocalDateTime) {
-        if (orderAmount.amount < minOrderAmount.amount) {
+    fun validateUsable(orderAmount: Long, now: LocalDateTime) {
+        if (Money(orderAmount).amount < minOrderAmount.amount) {
             throw BadRequestException(CouponErrorCode.MIN_ORDER_NOT_MET)
         }
         if (isExpired(now)) {

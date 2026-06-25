@@ -9,11 +9,11 @@ import com.loopers.order.domain.OrderStatus
 import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.shared.domain.Money
-import com.loopers.support.error.ConflictException
+import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.NotFoundException
+import java.time.LocalDateTime
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
 
 @Service
 class OrderService(
@@ -32,15 +32,6 @@ class OrderService(
                 unitPrice = product.price,
                 quantity = line.quantity,
             )
-        }
-        val originalAmount = Money(snapshots.sumOf { it.unitPrice.amount * it.quantity })
-        val totalAmount = Money(originalAmount.amount - discountAmount.amount)
-
-        if (command.expectedOriginalAmount != originalAmount.amount ||
-            command.expectedDiscountAmount != discountAmount.amount ||
-            command.expectedTotalAmount != totalAmount.amount
-        ) {
-            throw ConflictException(OrderErrorCode.PRICE_CHANGED)
         }
 
         val order = orderRepository.save(Order.create(command.userId, snapshots, command.couponId, discountAmount))
@@ -68,12 +59,25 @@ data class OrderCreateCommand(
     val couponId: Long? = null,
     val expectedOriginalAmount: Long,
     val expectedDiscountAmount: Long,
-    val expectedTotalAmount: Long,
-)
+) {
+    init {
+        if (items.isEmpty()) {
+            throw BadRequestException(OrderErrorCode.EMPTY_ORDER_ITEMS)
+        }
+        val total = items.sumOf { it.price * it.quantity }
+        if (total != expectedOriginalAmount) {
+            throw BadRequestException(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
+        }
+        if (couponId == null && expectedDiscountAmount != 0L) {
+            throw BadRequestException(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
+        }
+    }
+}
 
 data class OrderLineCommand(
     val productId: Long,
     val quantity: Int,
+    val price: Long,
 )
 
 data class OrderInfo(

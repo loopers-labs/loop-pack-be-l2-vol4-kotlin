@@ -172,7 +172,13 @@ class CouponServiceTest {
         whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(userCoupon())
         whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(value = 3000))
 
-        val discount = service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+        val discount = service.use(
+            USER_ID,
+            COUPON_ID,
+            orderAmount = 20_000,
+            expectedDiscount = 3000,
+            now = LocalDateTime.now(),
+        )
 
         assertThat(discount).isEqualTo(Money(3000))
     }
@@ -183,7 +189,13 @@ class CouponServiceTest {
         whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(null)
 
         val result = assertThrows<NotFoundException> {
-            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+            service.use(
+                USER_ID,
+                COUPON_ID,
+                orderAmount = 20_000,
+                expectedDiscount = 0,
+                now = LocalDateTime.now(),
+            )
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.COUPON_NOT_FOUND)
@@ -197,7 +209,13 @@ class CouponServiceTest {
         whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon())
 
         val result = assertThrows<ConflictException> {
-            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+            service.use(
+                USER_ID,
+                COUPON_ID,
+                orderAmount = 20_000,
+                expectedDiscount = 1000,
+                now = LocalDateTime.now(),
+            )
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.ALREADY_USED)
@@ -211,11 +229,40 @@ class CouponServiceTest {
         whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(minOrderAmount = Money(50_000)))
 
         val result = assertThrows<BadRequestException> {
-            service.use(USER_ID, COUPON_ID, orderAmount = Money(20_000), now = LocalDateTime.now())
+            service.use(
+                USER_ID,
+                COUPON_ID,
+                orderAmount = 20_000,
+                expectedDiscount = 0,
+                now = LocalDateTime.now(),
+            )
         }
 
         assertAll(
             { assertThat(result.errorCode).isEqualTo(CouponErrorCode.MIN_ORDER_NOT_MET) },
+            { assertThat(owned.status).isEqualTo(UserCouponStatus.AVAILABLE) },
+        )
+    }
+
+    @DisplayName("기대 할인 금액이 실제 할인 금액과 다르면 CONFLICT(DISCOUNT_NOT_MATCHED) 예외가 발생하고 쿠폰은 사용 처리되지 않는다.")
+    @Test
+    fun throwsConflict_whenExpectedDiscountDoesNotMatchForUse() {
+        val owned = userCoupon()
+        whenever(userCouponRepository.findByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(owned)
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(value = 3000))
+
+        val result = assertThrows<ConflictException> {
+            service.use(
+                USER_ID,
+                COUPON_ID,
+                orderAmount = 20_000,
+                expectedDiscount = 2999,
+                now = LocalDateTime.now(),
+            )
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.DISCOUNT_NOT_MATCHED) },
             { assertThat(owned.status).isEqualTo(UserCouponStatus.AVAILABLE) },
         )
     }

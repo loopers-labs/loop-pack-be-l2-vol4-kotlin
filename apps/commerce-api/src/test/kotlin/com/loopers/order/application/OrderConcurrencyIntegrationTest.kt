@@ -67,11 +67,10 @@ class OrderConcurrencyIntegrationTest @Autowired constructor(
             orderFacade.place(
                 command = OrderCreateCommand(
                     userId = 1L,
-                    items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
+                    items = listOf(OrderLineCommand(productId = product.id, quantity = 1, price = 10_000)),
                     couponId = coupon.id,
                     expectedOriginalAmount = 10_000,
                     expectedDiscountAmount = 1_000,
-                    expectedTotalAmount = 9_000,
                 ),
             )
         }
@@ -100,10 +99,9 @@ class OrderConcurrencyIntegrationTest @Autowired constructor(
             orderFacade.place(
                 command = OrderCreateCommand(
                     userId = (index + 1).toLong(),
-                    items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
+                    items = listOf(OrderLineCommand(productId = product.id, quantity = 1, price = 10_000)),
                     expectedOriginalAmount = 10_000,
                     expectedDiscountAmount = 0,
-                    expectedTotalAmount = 10_000,
                 ),
             )
         }

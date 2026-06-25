@@ -9,7 +9,7 @@ import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.product.domain.ProductName
 import com.loopers.shared.domain.Money
-import com.loopers.support.error.ConflictException
+import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.NotFoundException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -18,7 +18,6 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -36,7 +35,6 @@ class OrderServiceTest {
         couponId: Long? = null,
         expectedOriginalAmount: Long,
         expectedDiscountAmount: Long = 0,
-        expectedTotalAmount: Long = expectedOriginalAmount - expectedDiscountAmount,
         userId: Long = 1L,
     ) = OrderCreateCommand(
         userId = userId,
@@ -44,7 +42,6 @@ class OrderServiceTest {
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
         expectedDiscountAmount = expectedDiscountAmount,
-        expectedTotalAmount = expectedTotalAmount,
     )
 
     @DisplayName("주문을 생성하면, 스냅샷을 박제하고 PENDING_PAYMENT 상태로 저장한다.")
@@ -55,7 +52,7 @@ class OrderServiceTest {
 
         val info = orderService.create(
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 expectedOriginalAmount = 200_000,
             ),
             products = mapOf(product.id to product),
@@ -81,7 +78,7 @@ class OrderServiceTest {
 
         val info = orderService.create(
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 couponId = 5L,
                 expectedOriginalAmount = 200_000,
                 expectedDiscountAmount = 10_000,
@@ -98,48 +95,32 @@ class OrderServiceTest {
         )
     }
 
-    @DisplayName("계산서 금액(expected 3종)이 재계산값과 다르면, CONFLICT(PRICE_CHANGED) 예외가 발생하고 저장하지 않는다.")
+    @DisplayName("라인 단가·수량 합이 expectedOriginalAmount와 다르면, command 생성 시점에 BAD_REQUEST(ORDER_PRICE_NOT_MATCHED) 예외가 발생한다.")
     @Test
-    fun throwsConflict_whenExpectedAmountMismatch() {
-        val product = product()
-
-        val result = assertThrows<ConflictException> {
-            orderService.create(
-                command = command(
-                    items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
-                    expectedOriginalAmount = 180_000,
-                ),
-                products = mapOf(product.id to product),
-                discountAmount = Money(0),
+    fun throwsBadRequest_whenLineSumMismatchesExpectedOriginalAmount() {
+        val result = assertThrows<BadRequestException> {
+            command(
+                items = listOf(OrderLineCommand(productId = 1L, quantity = 2, price = 100_000)),
+                expectedOriginalAmount = 180_000,
             )
         }
 
-        assertAll(
-            { assertThat(result.errorCode).isEqualTo(OrderErrorCode.PRICE_CHANGED) },
-            { verify(orderRepository, never()).save(any()) },
-        )
+        assertThat(result.errorCode).isEqualTo(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
     }
 
-    @DisplayName("총액은 같아도 원금·할인 구성이 다르면, CONFLICT(PRICE_CHANGED) 예외가 발생한다. (상쇄 변동 차단)")
+    @DisplayName("쿠폰이 없는데 expectedDiscountAmount가 0이 아니면, command 생성 시점에 BAD_REQUEST(ORDER_PRICE_NOT_MATCHED) 예외가 발생한다.")
     @Test
-    fun throwsConflict_whenAmountsOffsetEachOther() {
-        val product = product()
-
-        val result = assertThrows<ConflictException> {
-            orderService.create(
-                command = command(
-                    items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
-                    couponId = 5L,
-                    expectedOriginalAmount = 199_000,
-                    expectedDiscountAmount = 9_000,
-                    expectedTotalAmount = 190_000,
-                ),
-                products = mapOf(product.id to product),
-                discountAmount = Money(10_000),
+    fun throwsBadRequest_whenDiscountWithoutCoupon() {
+        val result = assertThrows<BadRequestException> {
+            command(
+                items = listOf(OrderLineCommand(productId = 1L, quantity = 2, price = 100_000)),
+                couponId = null,
+                expectedOriginalAmount = 200_000,
+                expectedDiscountAmount = 10_000,
             )
         }
 
-        assertThat(result.errorCode).isEqualTo(OrderErrorCode.PRICE_CHANGED)
+        assertThat(result.errorCode).isEqualTo(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
     }
 
     @DisplayName("상품 맵에 없는 상품이 포함되면, NOT_FOUND(상품) 예외가 발생한다.")
@@ -148,7 +129,7 @@ class OrderServiceTest {
         val result = assertThrows<NotFoundException> {
             orderService.create(
                 command = command(
-                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1)),
+                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1, price = 100_000)),
                     expectedOriginalAmount = 100_000,
                 ),
                 products = emptyMap(),

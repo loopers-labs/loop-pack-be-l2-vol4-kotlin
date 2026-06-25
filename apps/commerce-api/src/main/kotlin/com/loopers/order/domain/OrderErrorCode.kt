@@ -10,6 +10,7 @@ enum class OrderErrorCode(
     INVALID_ORDER_QUANTITY("주문 수량이 올바르지 않습니다."),
     PRICE_CHANGED("주문 금액이 변경되었습니다. 변경된 금액을 확인해주세요."),
     INVALID_STATUS_TRANSITION("현재 상태에서 변경할 수 없는 주문 상태입니다."),
+    ORDER_PRICE_NOT_MATCHED("주문금액과 실제 상품금액이 불일치합니다."),
     ;
 
     override val code: String

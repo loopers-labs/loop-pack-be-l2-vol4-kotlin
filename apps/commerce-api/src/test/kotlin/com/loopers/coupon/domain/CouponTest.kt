@@ -36,7 +36,7 @@ class CouponTest {
         val coupon = coupon(minOrderAmount = Money(10000))
 
         val result = assertThrows<BadRequestException> {
-            coupon.validateUsable(orderAmount = Money(9999), now = NOW)
+            coupon.validateUsable(orderAmount = 9999, now = NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.MIN_ORDER_NOT_MET)
@@ -48,7 +48,7 @@ class CouponTest {
         val coupon = coupon(expiredAt = NOW.minusDays(1))
 
         val result = assertThrows<BadRequestException> {
-            coupon.validateUsable(orderAmount = Money(10000), now = NOW)
+            coupon.validateUsable(orderAmount = 10000, now = NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.EXPIRED)
@@ -60,7 +60,7 @@ class CouponTest {
         val coupon = coupon(minOrderAmount = Money(10000), expiredAt = NOW.plusDays(1))
 
         assertThatCode {
-            coupon.validateUsable(orderAmount = Money(10000), now = NOW)
+            coupon.validateUsable(orderAmount = 10000, now = NOW)
         }.doesNotThrowAnyException()
     }
 

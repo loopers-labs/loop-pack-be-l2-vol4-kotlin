@@ -42,10 +42,9 @@ class InventoryLockHoldMeasurementTest @Autowired constructor(
         inventoryRepository.save(Inventory.createFor(product.id, 10_000_000))
         val command = OrderCreateCommand(
             userId = 1L,
-            items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
+            items = listOf(OrderLineCommand(productId = product.id, quantity = 1, price = 10_000)),
             expectedOriginalAmount = 10_000,
             expectedDiscountAmount = 0,
-            expectedTotalAmount = 10_000,
         )
         val lockSegment = TransactionTemplate(transactionManager)
         val snapshot = OrderItemSnapshot(product.id, 1L, "측정용", null, Money(10_000), 1)
@@ -72,10 +71,9 @@ class InventoryLockHoldMeasurementTest @Autowired constructor(
         }
         fun command(productId: Long) = OrderCreateCommand(
             userId = 1L,
-            items = listOf(OrderLineCommand(productId = productId, quantity = 1)),
+            items = listOf(OrderLineCommand(productId = productId, quantity = 1, price = 10_000)),
             expectedOriginalAmount = 10_000,
             expectedDiscountAmount = 0,
-            expectedTotalAmount = 10_000,
         )
 
         repeat(100) { orderFacade.place(command(sameProduct.id)) }

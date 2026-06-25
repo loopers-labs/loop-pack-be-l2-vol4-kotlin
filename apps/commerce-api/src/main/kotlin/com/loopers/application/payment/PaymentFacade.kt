@@ -3,7 +3,6 @@ package com.loopers.application.payment
 import com.loopers.application.payment.dto.PaymentCommand
 import com.loopers.application.payment.dto.PaymentInfo
 import com.loopers.application.user.UserService
-import com.loopers.domain.payment.PgTransactionStatus
 import com.loopers.infrastructure.payment.client.PgPaymentCircuitOpenException
 import com.loopers.infrastructure.payment.client.PgPaymentClient
 import com.loopers.infrastructure.payment.client.PgPaymentCommand
@@ -76,22 +75,11 @@ class PaymentFacade(
             )
         }.fold(
             onSuccess = { result ->
-                when (result.status) {
-                    PgTransactionStatus.PENDING -> paymentService.markPending(
-                        paymentId = preparedPayment.paymentId,
-                        transactionKey = result.transactionKey,
-                        reason = result.reason,
-                    )
-                    PgTransactionStatus.SUCCESS -> paymentService.markPending(
-                        paymentId = preparedPayment.paymentId,
-                        transactionKey = result.transactionKey,
-                        reason = result.reason,
-                    )
-                    PgTransactionStatus.FAILED -> paymentService.markRequestFailed(
-                        paymentId = preparedPayment.paymentId,
-                        reason = result.reason ?: "Payment gateway rejected the request.",
-                    )
-                }
+                paymentService.markPending(
+                    paymentId = preparedPayment.paymentId,
+                    transactionKey = result.transactionKey,
+                    reason = result.reason,
+                )
             },
             onFailure = { e ->
                 when (e) {

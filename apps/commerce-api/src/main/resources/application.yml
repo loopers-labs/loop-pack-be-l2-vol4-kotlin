@@ -42,6 +42,9 @@ spring:
   config:
     activate:
       on-profile: local
+  docker:
+    compose:
+      file: docker/infra-compose.yml
   sql:
     init:
       mode: always

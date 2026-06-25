@@ -24,6 +24,8 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
     implementation("io.github.resilience4j:resilience4j-spring-boot3")
 
+    developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 

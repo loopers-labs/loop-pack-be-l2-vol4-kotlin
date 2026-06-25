@@ -61,6 +61,8 @@ class PaymentV1Controller(
                 ),
             )
         }
-        return ApiResponse.success(PaymentV1Dto.PaymentResponse.from(PaymentInfo.from(paymentRepository.findById(id)!!)))
+        val synced = paymentRepository.findById(id)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다.")
+        return ApiResponse.success(PaymentV1Dto.PaymentResponse.from(PaymentInfo.from(synced)))
     }
 }

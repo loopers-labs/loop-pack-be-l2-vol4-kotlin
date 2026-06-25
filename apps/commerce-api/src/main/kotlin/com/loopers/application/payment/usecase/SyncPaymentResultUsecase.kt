@@ -28,6 +28,10 @@ class SyncPaymentResultUsecase(
                     ?: paymentRepository.findByOrderIdForUpdate(command.orderId)
             ) ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다.")
 
+        if (payment.orderId != command.orderId) {
+            throw CoreException(ErrorType.BAD_REQUEST, "콜백의 주문 정보가 결제와 일치하지 않습니다.")
+        }
+
         // reconciliation 으로 뒤늦게 transactionKey 를 알게 된 경우 기록
         if (payment.transactionKey == null && command.transactionKey != null) {
             payment.assignTransactionKey(command.transactionKey)
@@ -56,7 +60,8 @@ class SyncPaymentResultUsecase(
 
     // 결제 실패 보상: 주문 생성 시 차감된 재고 복구 + 사용 쿠폰 원복.
     private fun compensate(order: OrderModel) {
-        order.items.forEach { item ->
+        // ponytail: 주문 생성과 동일한 오름차순 productId 락 순서 — 데드락 방지.
+        order.items.sortedBy { it.productId }.forEach { item ->
             val stock = productStockRepository.findByProductIdForUpdate(item.productId)
                 ?: throw CoreException(ErrorType.NOT_FOUND, "상품 재고를 찾을 수 없습니다.")
             stock.restore(item.quantity)

@@ -10,7 +10,9 @@ import com.loopers.domain.payment.PgRequestCommand
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import java.math.RoundingMode
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
 
@@ -27,23 +29,28 @@ class RequestPaymentUsecase(
         val user = userService.getProfile(command.loginId, command.password)
 
         // (1) 주문 검증 + Payment(PENDING) 저장 — 트랜잭션 안. 커밋 후 외부 호출.
-        val payment = transactionTemplate.execute {
-            val order = orderRepository.findById(command.orderId)
-                ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
-            if (order.userId != user.id) throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
-            if (!order.isPending()) throw CoreException(ErrorType.CONFLICT, "결제할 수 없는 주문 상태입니다.")
-            if (paymentRepository.findByOrderId(order.id) != null) {
-                throw CoreException(ErrorType.CONFLICT, "이미 결제가 진행 중인 주문입니다.")
+        val payment = try {
+            transactionTemplate.execute {
+                val order = orderRepository.findById(command.orderId)
+                    ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
+                if (order.userId != user.id) throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
+                if (!order.isPending()) throw CoreException(ErrorType.CONFLICT, "결제할 수 없는 주문 상태입니다.")
+                if (paymentRepository.findByOrderId(order.id) != null) {
+                    throw CoreException(ErrorType.CONFLICT, "이미 결제가 진행 중인 주문입니다.")
+                }
+                paymentRepository.save(
+                    PaymentModel(
+                        orderId = order.id,
+                        userId = user.id,
+                        amount = order.paidPrice,
+                        cardType = command.cardType,
+                        cardNo = command.cardNo,
+                    ),
+                ) to order
             }
-            paymentRepository.save(
-                PaymentModel(
-                    orderId = order.id,
-                    userId = user.id,
-                    amount = order.paidPrice,
-                    cardType = command.cardType,
-                    cardNo = command.cardNo,
-                ),
-            ) to order
+        } catch (e: DataIntegrityViolationException) {
+            // DB unique constraint on order_id — concurrent duplicate insert blocked at commit
+            throw CoreException(ErrorType.CONFLICT, "이미 결제가 진행 중인 주문입니다.")
         } ?: throw CoreException(ErrorType.INTERNAL_ERROR, "결제 생성 트랜잭션이 비정상 종료되었습니다.")
         val (savedPayment, order) = payment
 
@@ -52,7 +59,8 @@ class RequestPaymentUsecase(
             PgRequestCommand(
                 orderId = order.id,
                 userId = user.id,
-                amount = order.paidPrice.toLong(),
+                // ponytail: 소수점 발생은 비율 쿠폰 적용 시 드문 케이스. KRW 정수 정책상 내림(초과 청구 방지).
+                amount = order.paidPrice.setScale(0, RoundingMode.DOWN).toLong(),
                 cardType = command.cardType,
                 cardNo = command.cardNo,
                 callbackUrl = callbackUrl,

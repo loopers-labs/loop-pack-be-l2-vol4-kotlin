@@ -12,8 +12,11 @@ import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
 import com.loopers.domain.payment.PgStatus
 import com.loopers.domain.product.ProductStockRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -93,5 +96,21 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         syncPaymentResultUsecase.apply(SyncPaymentResultCommand("tx-3", ctx.orderId, PgStatus.SUCCESS, null)) // 재수신
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
+    }
+
+    @Test
+    fun `콜백의 orderId가 결제의 orderId와 다르면 BAD_REQUEST를 반환한다`() {
+        val ctx = fixtures.pendingOrder()
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-x")
+
+        assertThatThrownBy {
+            syncPaymentResultUsecase.apply(
+                SyncPaymentResultCommand("tx-x", ctx.orderId + 9999, PgStatus.SUCCESS, null),
+            )
+        }.isInstanceOf(CoreException::class.java)
+            .satisfies({ assertThat((it as CoreException).errorType).isEqualTo(ErrorType.BAD_REQUEST) })
+
+        // 주문 상태는 여전히 PENDING
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PENDING)
     }
 }

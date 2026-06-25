@@ -19,7 +19,7 @@ class PaymentModel(
     cardType: CardType,
     cardNo: String,
 ) : BaseEntity() {
-    @Column(name = "order_id", nullable = false)
+    @Column(name = "order_id", nullable = false, unique = true)
     var orderId: Long = orderId
         protected set
 

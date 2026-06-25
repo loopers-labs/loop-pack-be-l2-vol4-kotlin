@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpStatus
+import java.io.IOException
 import java.net.InetSocketAddress
 import kotlin.system.measureTimeMillis
 
@@ -55,14 +56,41 @@ class PgSimulatorPaymentGatewayAdapterTest {
         assertThat(pgServer.requests).hasSize(3)
     }
 
+    @Test
+    fun `PG_실패가_누적되어_서킷이_OPEN되면_추가_요청은_PG에_도달하지_않는다`() {
+        pgServer.start(responses = listOf(PgResponse(status = HttpStatus.INTERNAL_SERVER_ERROR)))
+        val adapter = adapter(
+            retryMaxAttempts = 1,
+            circuitBreakerSlidingWindowSize = 2,
+            circuitBreakerMinimumNumberOfCalls = 2,
+        )
+
+        repeat(2) {
+            assertThrows<PaymentGatewayUnknownException> {
+                adapter.request(paymentGatewayRequest())
+            }
+        }
+        val requestsBeforeOpenCall = pgServer.requests.size
+        assertThrows<PaymentGatewayUnknownException> {
+            adapter.request(paymentGatewayRequest())
+        }
+
+        assertThat(requestsBeforeOpenCall).isEqualTo(2)
+        assertThat(pgServer.requests).hasSize(2)
+    }
+
     private fun adapter(
         retryMaxAttempts: Int = 3,
+        circuitBreakerSlidingWindowSize: Int = 10,
+        circuitBreakerMinimumNumberOfCalls: Int = 5,
     ): PgSimulatorPaymentGatewayAdapter =
         PgSimulatorPaymentGatewayAdapter(
             restTemplateBuilder = RestTemplateBuilder(),
             properties = PgSimulatorPaymentProperties(
                 baseUrl = pgServer.baseUrl,
                 retryMaxAttempts = retryMaxAttempts,
+                circuitBreakerSlidingWindowSize = circuitBreakerSlidingWindowSize,
+                circuitBreakerMinimumNumberOfCalls = circuitBreakerMinimumNumberOfCalls,
             ),
         )
 
@@ -117,8 +145,12 @@ class PgSimulatorPaymentGatewayAdapterTest {
             """.trimIndent()
             exchange.responseHeaders.add("Content-Type", "application/json")
             val bytes = responseBody.toByteArray()
-            exchange.sendResponseHeaders(response.status.value(), bytes.size.toLong())
-            exchange.responseBody.use { it.write(bytes) }
+            try {
+                exchange.sendResponseHeaders(response.status.value(), bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            } catch (_: IOException) {
+                exchange.close()
+            }
         }
     }
 

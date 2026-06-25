@@ -11,4 +11,9 @@ data class PgSimulatorPaymentProperties(
     val retryMaxAttempts: Int = 3,
     val retryInitialInterval: Duration = Duration.ofMillis(100),
     val retryMultiplier: Double = 2.0,
+    val circuitBreakerSlidingWindowSize: Int = 10,
+    val circuitBreakerMinimumNumberOfCalls: Int = 5,
+    val circuitBreakerFailureRateThreshold: Float = 50.0f,
+    val circuitBreakerWaitDurationInOpenState: Duration = Duration.ofSeconds(5),
+    val circuitBreakerPermittedCallsInHalfOpenState: Int = 2,
 )

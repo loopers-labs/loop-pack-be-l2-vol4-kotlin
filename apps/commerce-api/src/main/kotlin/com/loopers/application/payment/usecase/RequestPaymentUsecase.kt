@@ -11,6 +11,7 @@ import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.math.RoundingMode
+import java.time.ZonedDateTime
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
@@ -74,7 +75,7 @@ class RequestPaymentUsecase(
         val recorded = transactionTemplate.execute {
             val reloaded = paymentRepository.findByOrderIdForUpdate(order.id)
                 ?: return@execute null
-            if (reloaded.transactionKey == null) reloaded.assignTransactionKey(txKey)
+            if (reloaded.transactionKey == null) reloaded.markAccepted(txKey, ZonedDateTime.now())
             reloaded
         } ?: throw CoreException(ErrorType.NOT_FOUND, "결제 정보를 찾을 수 없습니다.")
         return PaymentInfo.from(recorded)

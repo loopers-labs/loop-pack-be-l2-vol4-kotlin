@@ -27,8 +27,9 @@ spring:
       client:
         config:
           pg-payment:
-            connect-timeout: 1000
-            read-timeout: 2000
+            connect-timeout: 250
+            # 요청 접수만 동기 대기. 처리지연(1~5s)은 기다리지 않는다. (R7: ~1s)
+            read-timeout: 1000
 
 resilience4j:
   circuitbreaker:
@@ -42,8 +43,8 @@ resilience4j:
   timelimiter:
     configs:
       default:
-        # 서킷 활성 시 각 Feign 호출을 감싸는 TimeLimiter. read-timeout(2s) 의도와 맞춘다.
-        timeout-duration: 2s
+        # 서킷 활성 시 각 Feign 호출을 감싸는 TimeLimiter. read-timeout(1s) 의도와 맞춘다. (R7)
+        timeout-duration: 1s
 
 management:
   health:

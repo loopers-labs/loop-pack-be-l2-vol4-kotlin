@@ -52,6 +52,7 @@ class RequestPaymentUsecaseIntegrationTest @Autowired constructor(
         assertThat(info.status).isEqualTo(PaymentStatus.PENDING)
         val saved = paymentRepository.findByOrderId(ctx.orderId)
         assertThat(saved?.transactionKey).isEqualTo("tx-1")
+        assertThat(saved?.acceptedAt).isNotNull()
     }
 
     @Test

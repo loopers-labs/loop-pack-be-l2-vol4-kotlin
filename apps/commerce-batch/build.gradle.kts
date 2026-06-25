@@ -24,6 +24,9 @@ dependencies {
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 
+    // wiremock for pg stubbing in batch tests
+    testImplementation("org.springframework.cloud:spring-cloud-starter-contract-stub-runner")
+
     // test-fixtures
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))

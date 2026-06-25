@@ -27,3 +27,13 @@ data class PgTransactionResponse(
     val status: String,
     val reason: String?,
 )
+
+data class PgTransactionDetailResponse(
+    val transactionKey: String,
+    val orderId: String,
+    val cardType: String,
+    val cardNo: String,
+    val amount: Long,
+    val status: String,
+    val reason: String?,
+)

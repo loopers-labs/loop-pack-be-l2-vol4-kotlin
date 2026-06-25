@@ -8,4 +8,6 @@ interface PaymentApplicationServicePort {
     fun pay(command: PayCommand): PaymentResult
 
     fun handleCallback(command: PaymentCallbackCommand)
+
+    fun reconcile(transactionKey: String): PaymentResult
 }

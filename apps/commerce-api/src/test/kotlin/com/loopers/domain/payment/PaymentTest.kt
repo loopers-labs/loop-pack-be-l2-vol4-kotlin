@@ -80,4 +80,34 @@ class PaymentTest {
             assertThrows<IllegalArgumentException> { approved.approve() }
         }
     }
+
+    @DisplayName("fail")
+    @Nested
+    inner class Fail {
+        @DisplayName("PENDING 결제를 실패 처리하면 FAILED 가 되고 사유가 채워진다.")
+        @Test
+        fun failsPendingPayment() {
+            val failed = pending().fail("한도초과")
+
+            assertThat(failed.status).isEqualTo(PaymentStatus.FAILED)
+            assertThat(failed.reason).isEqualTo("한도초과")
+        }
+
+        @DisplayName("사유가 없으면 기본 실패 사유로 채워진다.")
+        @Test
+        fun fillsDefaultReason_whenNull() {
+            val failed = pending().fail(null)
+
+            assertThat(failed.status).isEqualTo(PaymentStatus.FAILED)
+            assertThat(failed.reason).isNotBlank()
+        }
+
+        @DisplayName("이미 종료된 결제를 실패 처리하면 예외가 발생한다.")
+        @Test
+        fun rejectsFailWhenNotPending() {
+            val approved = pending().approve()
+
+            assertThrows<IllegalArgumentException> { approved.fail("늦은 실패") }
+        }
+    }
 }

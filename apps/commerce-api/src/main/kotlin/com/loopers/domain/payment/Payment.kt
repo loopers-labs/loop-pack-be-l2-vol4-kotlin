@@ -25,6 +25,11 @@ data class Payment(
         return copy(status = PaymentStatus.SUCCESS, reason = "정상 승인되었습니다.")
     }
 
+    fun fail(reason: String?): Payment {
+        require(status == PaymentStatus.PENDING) { "결제 실패 처리는 대기 상태에서만 가능합니다: $status" }
+        return copy(status = PaymentStatus.FAILED, reason = reason ?: "결제가 실패했습니다.")
+    }
+
     companion object {
         fun create(
             userId: Long,

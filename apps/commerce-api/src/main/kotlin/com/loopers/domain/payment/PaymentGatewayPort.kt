@@ -6,6 +6,12 @@ package com.loopers.domain.payment
  */
 interface PaymentGatewayPort {
     fun requestPayment(request: PaymentGatewayRequest): PaymentGatewayResponse
+
+    /**
+     * PG 에 거래 상태를 조회한다(콜백 미수신 시 상태 복구용).
+     * PG 에 해당 거래가 아직 없으면 null 을 반환한다.
+     */
+    fun getTransaction(userId: Long, transactionKey: String): PaymentGatewayResponse?
 }
 
 data class PaymentGatewayRequest(
@@ -19,4 +25,5 @@ data class PaymentGatewayRequest(
 data class PaymentGatewayResponse(
     val transactionKey: String,
     val status: PaymentStatus,
+    val reason: String? = null,
 )

@@ -48,6 +48,56 @@ k6 run -e BRAND_ID=<시드출력값> -e VERIFY_CALLBACK=true k6/order-payment-fl
 k6 run -e BRAND_ID=12 -e USER_COUNT=200 -e BASE_URL=http://localhost:8080 k6/order-payment-flow.js
 ```
 
+## Grafana 로 보기 (k6 + 서킷 브레이커 한 화면)
+
+k6 결과를 Grafana 에서 보고, **서킷 브레이커 적용 전후를 같은 타임라인에 겹쳐** 비교한다.
+앱의 `resilience4j_circuitbreaker_*` 메트릭은 이미 `:8081/actuator/prometheus` 로 노출되어 Prometheus 가 긁고 있고,
+k6 메트릭만 Prometheus 로 remote write 하면 둘이 한 대시보드에서 만난다.
+
+### 1) 모니터링 스택 실행
+```bash
+docker-compose -f ./docker/monitoring-compose.yml up -d
+```
+- Prometheus 는 `--web.enable-remote-write-receiver` 로 k6 수신을 켜둔 상태.
+- Grafana(`http://localhost:3000`, admin/admin) 에 **"k6 × Circuit Breaker (PG 결제)"** 대시보드가 자동 프로비저닝된다(폴더: Loopers).
+
+### 2) k6 를 remote write 출력으로 실행
+```bash
+K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write \
+K6_PROMETHEUS_RW_TREND_STATS="p(95),p(99),avg,max" \
+k6 run -o experimental-prometheus-rw \
+  -e BRAND_ID=<시드출력값> k6/order-payment-flow.js
+```
+> `K6_PROMETHEUS_RW_TREND_STATS` 가 `biz_payment_duration_p95` 같은 시리즈를 만든다(대시보드 패널이 이 이름을 참조).
+
+### 3) 적용 전후 비교 (연속 2회, 한 타임라인)
+
+서킷 브레이커는 **PG 동기 호출이 실패/지연될 때** 의미가 있다. 따라서 비교하려면 PG 장애를 유발한 채로
+"CB 무력화 런 → CB 정상 런" 을 **연속으로** 돌리고, 대시보드에서 왼쪽(전) / 오른쪽(후) 을 본다.
+
+**PG 장애 유발(택1)**
+- PG 시뮬레이터를 내린다: `:apps:pg-simulator` 종료 → 동기 호출이 타임아웃/거부.
+- 또는 죽은 포트로 돌린다: 앱에 `-Dpg-simulator.url=http://localhost:9999`.
+
+**① CB 미적용처럼 (서킷이 절대 안 열리게) — "전"**
+최소 호출수를 비현실적으로 키워 서킷이 항상 closed 로 머물게 한다. 앱 기동 시:
+```bash
+./gradlew :apps:commerce-api:bootRun --args='--spring.profiles.active=local \
+  --resilience4j.circuitbreaker.instances.pgPayment.minimum-number-of-calls=100000000'
+```
+→ 이 상태로 위 2) 의 k6 1회 실행. 지연이 치솟고 에러/재시도가 그대로 누적된다.
+
+**② CB 적용 — "후"**
+앱을 기본 설정으로 재기동(오버라이드 제거) → 같은 PG 장애 상태에서 k6 1회 더 실행.
+서킷이 open 되며 **차단된 호출(not permitted)** 이 발생하고, 결제 p95 가 fast-fail 로 상한이 잡힌다.
+
+대시보드에서 두 런이 시간축에 나란히 찍히므로, **서킷 상태 타임라인의 `open` 레인**과
+위쪽 **지연 p95 / 에러율** 패널의 시점을 맞춰 보면 효과가 한눈에 드러난다.
+(CB open 구간은 빨간 annotation 으로도 표시된다.)
+
+> 참고: 범용 k6 지표만 보고 싶으면 Grafana 공식 대시보드 **ID 19665**(k6 Prometheus) 를 import 해도 된다.
+> 단, 서킷 상태 오버레이는 본 저장소 대시보드에만 있다.
+
 ## 부하 프로파일
 
 `ramping-vus`: 20 → 50 → 100 VU 로 약 3분. `order-payment-flow.js` 의 `options.scenarios.order_payment.stages` 에서 조정한다.

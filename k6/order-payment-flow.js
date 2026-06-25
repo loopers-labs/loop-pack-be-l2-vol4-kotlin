@@ -63,7 +63,7 @@ export function setup() {
   if (!BRAND_ID) {
     throw new Error('BRAND_ID 가 필요합니다. seed.sql 실행 후 출력된 brand_id 를 -e BRAND_ID=... 로 넘기세요.');
   }
-  const res = http.get(`${BASE_URL}/api/v1/products?brandId=${BRAND_ID}&size=200`);
+  const res = http.get(`${BASE_URL}/api/v1/products?brandId=${BRAND_ID}&size=100`); // size 최대 100 (서버 검증)
   const body = res.json();
   if (res.status !== 200 || !body || !body.data || !body.data.items.length) {
     throw new Error(`상품 목록 조회 실패 (status=${res.status}). 시드 데이터/서버를 확인하세요.`);

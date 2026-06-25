@@ -11,6 +11,7 @@ import com.loopers.batch.job.payment.step.PaymentReconciliationTasklet
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.CardType
+import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentModel
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
@@ -56,16 +57,18 @@ class PaymentReconciliationJobE2ETest
         @AfterEach
         fun tearDown() = databaseCleanUp.truncateAllTables()
 
-        @Test
-        fun `요청 타임아웃으로 txKey 없는 PENDING 결제를 orderId 조회로 복구한다`() {
-            // Arrange: 실제 주문 생성 (재고 차감 포함)
-            val loginId = "batchtest" + UUID.randomUUID().toString().replace("-", "").take(8)
-            val password = "Password1!"
+        data class Fixture(val userId: Long, val orderId: Long, val paymentId: Long, val productId: Long)
+
+        private fun createUserOrderPayment(
+            loginId: String,
+            stockQty: Int = 10,
+            orderQty: Int = 1,
+        ): Fixture {
             val user =
                 userService.signUp(
                     UserService.SignUpCommand(
                         loginId = loginId,
-                        password = password,
+                        password = "Password1!",
                         name = "배치테스터",
                         birthDate = LocalDate.of(1990, 1, 1),
                         email = "$loginId@loopers.com",
@@ -75,28 +78,36 @@ class PaymentReconciliationJobE2ETest
                 productRepository.save(
                     ProductModel(brandId = 1L, name = "배치상품", description = "설명", price = BigDecimal("10000")),
                 )
-            productStockRepository.save(ProductStockModel(productId = product.id, quantity = 10))
+            productStockRepository.save(ProductStockModel(productId = product.id, quantity = stockQty))
 
             val order =
                 createOrderUsecase.execute(
                     OrderCommand(
                         loginId = loginId,
-                        password = password,
-                        items = listOf(OrderCommand.OrderItemCommand(productId = product.id, quantity = 1)),
+                        password = "Password1!",
+                        items = listOf(OrderCommand.OrderItemCommand(productId = product.id, quantity = orderQty)),
                         couponId = null,
                     ),
                 )
 
-            // txKey 없는 PENDING 결제 저장 (요청 타임아웃 상태)
-            paymentRepository.save(
-                PaymentModel(
-                    orderId = order.id,
-                    userId = user.id,
-                    amount = order.paidPrice,
-                    cardType = CardType.SAMSUNG,
-                    cardNo = "1234-5678-9012-3456",
-                ),
-            )
+            val payment =
+                paymentRepository.save(
+                    PaymentModel(
+                        orderId = order.id,
+                        userId = user.id,
+                        amount = order.paidPrice,
+                        cardType = CardType.SAMSUNG,
+                        cardNo = "1234-5678-9012-3456",
+                    ),
+                )
+            return Fixture(user.id, order.id, payment.id, product.id)
+        }
+
+        @Test
+        fun `요청 타임아웃으로 txKey 없는 PENDING 결제를 orderId 조회로 복구한다`() {
+            // Arrange
+            val loginId = "batchtest" + UUID.randomUUID().toString().replace("-", "").take(8)
+            val (_, orderId, _, _) = createUserOrderPayment(loginId)
 
             // WireMock: GET /api/v1/payments?orderId=<id> → SUCCESS with tx-found
             stubFor(
@@ -109,14 +120,76 @@ class PaymentReconciliationJobE2ETest
                 ),
             )
 
-            // Act: 임계 0초로 즉시 대상 포함
-            val reflected = tasklet.reconcile(0L)
+            // Act: 임계 0초로 즉시 대상 포함, tMax=600 (should not expire)
+            val reflected = tasklet.reconcile(0L, 600L)
 
-            // Assert: 반영 건수, txKey 채워짐, 결제 SUCCESS, 주문 PAID
+            // Assert
             assertThat(reflected).isEqualTo(1)
-            val reloaded = paymentRepository.findByOrderId(order.id)
+            val reloaded = paymentRepository.findByOrderId(orderId)
             assertThat(reloaded?.transactionKey).isEqualTo("tx-found")
             assertThat(reloaded?.status).isEqualTo(PaymentStatus.SUCCESS)
-            assertThat(orderRepository.findById(order.id)?.status).isEqualTo(OrderStatus.PAID)
+            assertThat(orderRepository.findById(orderId)?.status).isEqualTo(OrderStatus.PAID)
+        }
+
+        @Test
+        fun `PG 미접수 확정(NotAccepted)이면 결제 FAILED(NOT_ACCEPTED) 로 종결하고 재고를 복구한다`() {
+            // Arrange
+            val loginId = "batchtest" + UUID.randomUUID().toString().replace("-", "").take(8)
+            val (_, orderId, _, productId) = createUserOrderPayment(loginId, stockQty = 10, orderQty = 1)
+
+            // 주문 후 재고: 10 - 1 = 9 남음
+            val stockBefore = productStockRepository.findByProductId(productId)!!.quantity
+
+            // WireMock: PG가 빈 transactions 배열 반환 → NotAccepted
+            stubFor(
+                get(urlPathEqualTo("/api/v1/payments")).willReturn(
+                    aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(
+                            """{"meta":{"result":"SUCCESS"},"data":{"transactions":[]}}""",
+                        ),
+                ),
+            )
+
+            // Act
+            val reflected = tasklet.reconcile(0L, 600L)
+
+            // Assert: 결제 FAILED(NOT_ACCEPTED), 주문 FAILED, 재고 복구
+            assertThat(reflected).isEqualTo(1)
+            val payment = paymentRepository.findByOrderId(orderId)!!
+            assertThat(payment.status).isEqualTo(PaymentStatus.FAILED)
+            assertThat(payment.failureReason).isEqualTo(PaymentFailureReason.NOT_ACCEPTED)
+            assertThat(orderRepository.findById(orderId)?.status).isEqualTo(OrderStatus.FAILED)
+            val stockAfter = productStockRepository.findByProductId(productId)!!.quantity
+            // 재고가 복구되어야 함 (stockBefore + 1)
+            assertThat(stockAfter).isEqualTo(stockBefore + 1)
+        }
+
+        @Test
+        fun `tMax 초과 불명(Unknown) 상태 결제는 payment만 FAILED(UNRESOLVED)로 격리하고 주문은 PENDING 유지한다`() {
+            // Arrange
+            val loginId = "batchtest" + UUID.randomUUID().toString().replace("-", "").take(8)
+            val (_, orderId, _, _) = createUserOrderPayment(loginId)
+
+            // WireMock: FALLBACK 응답 → Unknown
+            stubFor(
+                get(urlPathEqualTo("/api/v1/payments")).willReturn(
+                    aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(
+                            """{"meta":{"result":"FALLBACK"},"data":null}""",
+                        ),
+                ),
+            )
+
+            // Act: tMax=0 → 즉시 tMax 초과
+            val reflected = tasklet.reconcile(0L, 0L)
+
+            // Assert: payment FAILED(UNRESOLVED), 주문은 여전히 PENDING (보상/전이 없음)
+            assertThat(reflected).isEqualTo(1)
+            val payment = paymentRepository.findByOrderId(orderId)!!
+            assertThat(payment.status).isEqualTo(PaymentStatus.FAILED)
+            assertThat(payment.failureReason).isEqualTo(PaymentFailureReason.UNRESOLVED)
+            assertThat(orderRepository.findById(orderId)?.status).isEqualTo(OrderStatus.PENDING)
         }
     }

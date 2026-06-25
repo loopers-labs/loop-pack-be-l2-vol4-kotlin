@@ -1,5 +1,6 @@
 package com.loopers.job.demo
 
+import com.loopers.CommerceBatchApplication
 import com.loopers.batch.job.demo.DemoJobConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -17,7 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestPropertySource
 import java.time.LocalDate
 
-@SpringBootTest
+@SpringBootTest(classes = [CommerceBatchApplication::class])
 @SpringBatchTest
 @TestPropertySource(properties = ["spring.batch.job.name=${DemoJobConfig.JOB_NAME}"])
 class DemoJobE2ETest @Autowired constructor(

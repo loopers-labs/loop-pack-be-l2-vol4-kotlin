@@ -10,13 +10,13 @@ Content-Type: application/json
 POST http://localhost:8080/api/v1/payments/callback
 Content-Type: application/json
 
-{ "transactionKey": "tx-1", "orderId": 1, "status": "SUCCESS" }
+{ "transactionKey": "tx-1", "orderId": 1, "amount": 10000, "status": "SUCCESS" }
 
 ### PG 콜백 (실패)
 POST http://localhost:8080/api/v1/payments/callback
 Content-Type: application/json
 
-{ "transactionKey": "tx-1", "orderId": 1, "status": "FAILED", "reason": "LIMIT_EXCEEDED" }
+{ "transactionKey": "tx-1", "orderId": 1, "amount": 10000, "status": "FAILED", "reason": "LIMIT_EXCEEDED" }
 
 ### 운영 수동 동기화
 POST http://localhost:8080/api/v1/payments/1/sync

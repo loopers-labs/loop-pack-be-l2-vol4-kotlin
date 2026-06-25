@@ -86,8 +86,18 @@ class SyncPaymentResultUsecase(
                     // Re-load order after clearAutomatically clears persistence context
                     val order = orderRepository.findById(payment.orderId)
                         ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
-                    order.markAsFailed()
-                    compensate(order)
+                    if (order.status == OrderStatus.PENDING) {
+                        order.markAsFailed()
+                        compensate(order)
+                    } else {
+                        // ponytail: mirrors REFUND_REQUIRED isolation — cancel flow owns its own restoration
+                        log.warn(
+                            "Payment {} failed but order {} is {} — payment marked FAILED, order left unchanged",
+                            payment.id,
+                            payment.orderId,
+                            order.status,
+                        )
+                    }
                 }
             }
         }

@@ -155,4 +155,21 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
         assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.REFUND_REQUIRED)
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.CANCELLED)
     }
+
+    @Test
+    fun `I-2 CANCELLED 주문에 실패 콜백이 오면 payment 는 FAILED 이고 주문은 CANCELLED 유지되며 예외가 발생하지 않는다`() {
+        val ctx = fixtures.cancelledOrder()
+        val stockBefore = productStockRepository.findByProductId(ctx.productId)!!.quantity
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-fail-cancelled")
+
+        // Should NOT throw — currently throws BAD_REQUEST from markAsFailed()
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-fail-cancelled", ctx.orderId, amount = null, PgStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED),
+        )
+
+        assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.FAILED)
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.CANCELLED)
+        // Stock must NOT be double-restored
+        assertThat(productStockRepository.findByProductId(ctx.productId)!!.quantity).isEqualTo(stockBefore)
+    }
 }

@@ -68,7 +68,8 @@ class PaymentV1ApiE2ETest @Autowired constructor(
         assertThat(reqResp.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.SUCCESS)
 
         // 2) PG 콜백(성공)
-        val cbBody = """{"transactionKey":"tx-1","orderId":${ctx.orderId},"status":"SUCCESS"}"""
+        val correctAmount = ctx.paidPrice.setScale(0, java.math.RoundingMode.DOWN).toLong()
+        val cbBody = """{"transactionKey":"tx-1","orderId":${ctx.orderId},"amount":$correctAmount,"status":"SUCCESS"}"""
         val cbHeaders = HttpHeaders().apply { contentType = org.springframework.http.MediaType.APPLICATION_JSON }
         testRestTemplate.exchange(
             "/api/v1/payments/callback",
@@ -87,8 +88,8 @@ class PaymentV1ApiE2ETest @Autowired constructor(
         val stockBefore = productStockRepository.findByProductId(ctx.productId)?.quantity
         savePendingPayment(ctx.orderId, ctx.userId, "tx-fail")
 
-        // PG 콜백(실패)
-        val cbBody = """{"transactionKey":"tx-fail","orderId":${ctx.orderId},"status":"FAILED","reason":"LIMIT_EXCEEDED"}"""
+        // PG 콜백(실패) — amount must match the payment's stored amount (10000)
+        val cbBody = """{"transactionKey":"tx-fail","orderId":${ctx.orderId},"amount":10000,"status":"FAILED","reason":"LIMIT_EXCEEDED"}"""
         val cbHeaders = HttpHeaders().apply { contentType = org.springframework.http.MediaType.APPLICATION_JSON }
         testRestTemplate.exchange(
             "/api/v1/payments/callback",
@@ -123,6 +124,25 @@ class PaymentV1ApiE2ETest @Autowired constructor(
 
         assertThat(resp.body?.data?.status).isEqualTo(PaymentStatus.SUCCESS)
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
+    }
+
+    @Test
+    fun `I-1 콜백 금액이 틀리면 주문은 PENDING 으로 남는다`() {
+        val ctx = fixtures.pendingOrder()
+        savePendingPayment(ctx.orderId, ctx.userId, "tx-wrong-amt")
+
+        val wrongAmount = ctx.paidPrice.setScale(0, java.math.RoundingMode.DOWN).toLong() + 1L
+        val cbBody = """{"transactionKey":"tx-wrong-amt","orderId":${ctx.orderId},"status":"SUCCESS","amount":$wrongAmount}"""
+        val cbHeaders = HttpHeaders().apply { contentType = org.springframework.http.MediaType.APPLICATION_JSON }
+        val resp = testRestTemplate.exchange(
+            "/api/v1/payments/callback",
+            HttpMethod.POST,
+            HttpEntity(cbBody, cbHeaders),
+            object : ParameterizedTypeReference<ApiResponse<Any>>() {},
+        )
+
+        assertThat(resp.statusCode.value()).isEqualTo(400)
+        assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PENDING)
     }
 
     private fun savePendingPayment(orderId: Long, userId: Long, transactionKey: String): PaymentModel {

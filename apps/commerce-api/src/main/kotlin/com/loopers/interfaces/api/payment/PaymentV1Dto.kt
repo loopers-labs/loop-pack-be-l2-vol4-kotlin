@@ -43,6 +43,7 @@ class PaymentV1Dto {
     data class CallbackRequest(
         val transactionKey: String,
         val orderId: Long,
+        val amount: Long,
         val status: String,
         val reason: String? = null,
     ) {
@@ -56,6 +57,7 @@ class PaymentV1Dto {
             return SyncPaymentResultCommand(
                 transactionKey = transactionKey,
                 orderId = orderId,
+                amount = amount,
                 status = pgStatus,
                 failureReason = failureReason,
             )

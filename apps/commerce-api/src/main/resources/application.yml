@@ -29,6 +29,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+payment:
+  pg-simulator:
+    base-url: http://localhost:8082
+    connect-timeout: 800ms
+    read-timeout: 2s
+
 ---
 spring:
   config:

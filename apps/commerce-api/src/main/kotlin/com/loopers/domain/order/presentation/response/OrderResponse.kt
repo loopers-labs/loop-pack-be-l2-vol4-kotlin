@@ -9,6 +9,7 @@ data class OrderResponse(
     val orderedUserId: Long,
     @field:JsonProperty("couponId")
     val issuedCouponId: Long?,
+    val status: String,
     val totalPrice: Long,
     val discountPrice: Long,
     val paymentPrice: Long,
@@ -19,6 +20,7 @@ data class OrderResponse(
             id = info.id,
             orderedUserId = info.orderedUserId,
             issuedCouponId = info.issuedCouponId,
+            status = info.status,
             totalPrice = info.totalPrice,
             discountPrice = info.discountPrice,
             paymentPrice = info.paymentPrice,

@@ -44,6 +44,18 @@ class OrderService(
     fun getById(orderId: Long): OrderModel =
         orderRepository.findByIdOrNull(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
 
+    @Transactional
+    fun markOrdered(orderId: Long): OrderModel =
+        orderRepository.update(getById(orderId).markOrdered())
+
+    @Transactional
+    fun markPaymentFailed(orderId: Long): OrderModel =
+        orderRepository.update(getById(orderId).markPaymentFailed())
+
+    @Transactional
+    fun detachCoupon(orderId: Long): OrderModel =
+        orderRepository.update(getById(orderId).detachCoupon())
+
     @Transactional(readOnly = true)
     fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel? =
         orderRepository.findByIdempotencyKeyOrNull(idempotencyKey)

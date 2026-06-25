@@ -1,8 +1,10 @@
 package com.loopers.infrastructure.payment
 
 import com.loopers.domain.payment.CardType
+import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentModel
 import com.loopers.domain.payment.PaymentRepository
+import com.loopers.domain.payment.PaymentStatus
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -35,6 +37,16 @@ class PaymentRepositoryImplTest @Autowired constructor(
         val saved = paymentRepository.save(pending(100L))
         val found = paymentRepository.findByOrderId(100L)
         assertThat(found?.id).isEqualTo(saved.id)
+    }
+
+    @Test
+    fun `PENDING 일 때만 상태가 전이되고 affected=1 을 반환한다`() {
+        val saved = paymentRepository.save(pending(200L))
+        val first = paymentRepository.compareAndSetStatus(saved.id, PaymentStatus.SUCCESS, null, ZonedDateTime.now())
+        val second = paymentRepository.compareAndSetStatus(saved.id, PaymentStatus.FAILED, PaymentFailureReason.LIMIT_EXCEEDED, ZonedDateTime.now())
+        assertThat(first).isEqualTo(1)
+        assertThat(second).isEqualTo(0) // 이미 SUCCESS → no-op
+        assertThat(paymentRepository.findById(saved.id)?.status).isEqualTo(PaymentStatus.SUCCESS)
     }
 
     @Test

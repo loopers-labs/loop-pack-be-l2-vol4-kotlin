@@ -14,4 +14,11 @@ interface PaymentRepository {
     fun findByTransactionKeyForUpdate(transactionKey: String): PaymentModel?
 
     fun findStalePending(threshold: ZonedDateTime): List<PaymentModel>
+
+    fun compareAndSetStatus(
+        id: Long,
+        to: PaymentStatus,
+        failureReason: PaymentFailureReason?,
+        now: ZonedDateTime,
+    ): Int
 }

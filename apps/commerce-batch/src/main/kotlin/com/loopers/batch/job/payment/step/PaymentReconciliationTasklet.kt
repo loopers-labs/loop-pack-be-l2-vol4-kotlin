@@ -2,6 +2,7 @@ package com.loopers.batch.job.payment.step
 
 import com.loopers.application.payment.SyncPaymentResultCommand
 import com.loopers.application.payment.usecase.SyncPaymentResultUsecase
+import com.loopers.batch.job.payment.PaymentReconciliationJobConfig
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PgClient
 import com.loopers.domain.payment.PgStatus
@@ -10,9 +11,12 @@ import org.springframework.batch.core.StepContribution
 import org.springframework.batch.core.scope.context.ChunkContext
 import org.springframework.batch.core.step.tasklet.Tasklet
 import org.springframework.batch.repeat.RepeatStatus
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.time.ZonedDateTime
 
+// no @StepScope: reconcile() is invoked directly and uses no step-scoped (@Value jobParameters) params.
+@ConditionalOnProperty(name = ["spring.batch.job.name"], havingValue = PaymentReconciliationJobConfig.JOB_NAME)
 @Component
 class PaymentReconciliationTasklet(
     private val paymentRepository: PaymentRepository,

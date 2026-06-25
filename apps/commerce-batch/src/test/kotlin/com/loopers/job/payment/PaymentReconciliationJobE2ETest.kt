@@ -36,6 +36,8 @@ import java.util.UUID
 @TestPropertySource(
     properties = [
         "pg.base-url=http://localhost:\${wiremock.server.port}",
+        // job.name 으로 JobConfig+Tasklet 빈 활성화, job.enabled=false 로 시작 시 자동 실행 방지(직접 reconcile 호출).
+        "spring.batch.job.name=paymentReconciliationJob",
         "spring.batch.job.enabled=false",
     ],
 )

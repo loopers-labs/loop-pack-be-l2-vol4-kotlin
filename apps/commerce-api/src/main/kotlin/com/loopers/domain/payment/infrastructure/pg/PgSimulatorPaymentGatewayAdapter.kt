@@ -5,12 +5,16 @@ import com.loopers.domain.payment.port.PaymentGatewayRequest
 import com.loopers.domain.payment.port.PaymentGatewayResult
 import com.loopers.domain.payment.port.PaymentGatewayStatus
 import com.loopers.domain.payment.port.PaymentGatewayUnknownException
+import io.github.resilience4j.core.IntervalFunction
+import io.github.resilience4j.retry.Retry
+import io.github.resilience4j.retry.RetryConfig
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Component
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
 
 @Component
@@ -22,30 +26,51 @@ class PgSimulatorPaymentGatewayAdapter(
         .connectTimeout(properties.connectTimeout)
         .readTimeout(properties.readTimeout)
         .build()
+    private val retry = Retry.of("pg-simulator", retryConfig())
 
     override fun request(request: PaymentGatewayRequest): PaymentGatewayResult =
-        exchange<PgTransactionResponse>(
-            path = "/api/v1/payments",
-            method = HttpMethod.POST,
-            userId = request.userId,
-            body = PgPaymentRequest.from(request),
-        ).toGatewayResult()
+        retry.executeSupplier {
+            exchange<PgTransactionResponse>(
+                path = "/api/v1/payments",
+                method = HttpMethod.POST,
+                userId = request.userId,
+                body = PgPaymentRequest.from(request),
+            ).toGatewayResult()
+        }
 
     override fun getTransaction(userId: Long, transactionKey: String): PaymentGatewayResult =
-        exchange<PgTransactionDetailResponse>(
-            path = "/api/v1/payments/$transactionKey",
-            method = HttpMethod.GET,
-            userId = userId,
-            body = null,
-        ).toGatewayResult()
+        retry.executeSupplier {
+            exchange<PgTransactionDetailResponse>(
+                path = "/api/v1/payments/$transactionKey",
+                method = HttpMethod.GET,
+                userId = userId,
+                body = null,
+            ).toGatewayResult()
+        }
 
     override fun findByOrderId(userId: Long, orderId: Long): List<PaymentGatewayResult> =
-        exchange<PgOrderResponse>(
-            path = "/api/v1/payments?orderId=$orderId",
-            method = HttpMethod.GET,
-            userId = userId,
-            body = null,
-        ).transactions.map { it.toGatewayResult() }
+        retry.executeSupplier {
+            exchange<PgOrderResponse>(
+                path = "/api/v1/payments?orderId=$orderId",
+                method = HttpMethod.GET,
+                userId = userId,
+                body = null,
+            ).transactions.map { it.toGatewayResult() }
+        }
+
+    private fun retryConfig(): RetryConfig =
+        RetryConfig.custom<Any>()
+            .maxAttempts(properties.retryMaxAttempts)
+            .intervalFunction(
+                IntervalFunction.ofExponentialBackoff(
+                    properties.retryInitialInterval.toMillis(),
+                    properties.retryMultiplier,
+                ),
+            )
+            .retryOnException { throwable ->
+                throwable is PaymentGatewayUnknownException && throwable.cause !is HttpClientErrorException
+            }
+            .build()
 
     private inline fun <reified T> exchange(
         path: String,

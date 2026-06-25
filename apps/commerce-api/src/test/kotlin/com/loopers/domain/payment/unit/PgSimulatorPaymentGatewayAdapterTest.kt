@@ -26,7 +26,7 @@ class PgSimulatorPaymentGatewayAdapterTest {
     @Test
     fun `PG_응답이_튜닝된_read_timeout보다_지연되면_빠르게_불확정_실패로_종료한다`() {
         pgServer.start(delayMillis = 1_200)
-        val adapter = adapter()
+        val adapter = adapter(retryMaxAttempts = 1)
 
         val elapsedMillis = measureTimeMillis {
             assertThrows<PaymentGatewayUnknownException> {
@@ -38,10 +38,32 @@ class PgSimulatorPaymentGatewayAdapterTest {
         assertThat(pgServer.requests).hasSize(1)
     }
 
-    private fun adapter(): PgSimulatorPaymentGatewayAdapter =
+    @Test
+    fun `PG_요청이_일시적으로_실패하면_총_3회까지_지수_backoff로_재시도한다`() {
+        pgServer.start(
+            responses = listOf(
+                PgResponse(status = HttpStatus.INTERNAL_SERVER_ERROR),
+                PgResponse(status = HttpStatus.INTERNAL_SERVER_ERROR),
+                PgResponse(status = HttpStatus.OK),
+            ),
+        )
+        val adapter = adapter()
+
+        val result = adapter.request(paymentGatewayRequest())
+
+        assertThat(result.transactionKey).isEqualTo("20260625:TR:test01")
+        assertThat(pgServer.requests).hasSize(3)
+    }
+
+    private fun adapter(
+        retryMaxAttempts: Int = 3,
+    ): PgSimulatorPaymentGatewayAdapter =
         PgSimulatorPaymentGatewayAdapter(
             restTemplateBuilder = RestTemplateBuilder(),
-            properties = PgSimulatorPaymentProperties(baseUrl = pgServer.baseUrl),
+            properties = PgSimulatorPaymentProperties(
+                baseUrl = pgServer.baseUrl,
+                retryMaxAttempts = retryMaxAttempts,
+            ),
         )
 
     private fun paymentGatewayRequest(): PaymentGatewayRequest =
@@ -58,15 +80,20 @@ class PgSimulatorPaymentGatewayAdapterTest {
         private val server: HttpServer = HttpServer.create(InetSocketAddress(0), 0)
         private var started: Boolean = false
         private var delayMillis: Long = 0
+        private var responses: List<PgResponse> = listOf(PgResponse())
         val requests = mutableListOf<String>()
         val baseUrl: String
             get() = "http://localhost:${server.address.port}"
 
-        fun start(delayMillis: Long = 0) {
+        fun start(
+            delayMillis: Long = 0,
+            responses: List<PgResponse> = listOf(PgResponse()),
+        ) {
             if (started) {
                 return
             }
             this.delayMillis = delayMillis
+            this.responses = responses
             server.createContext("/api/v1/payments") { exchange -> handle(exchange) }
             server.start()
             started = true
@@ -84,13 +111,18 @@ class PgSimulatorPaymentGatewayAdapterTest {
             if (delayMillis > 0) {
                 Thread.sleep(delayMillis)
             }
-            val response = """
+            val response = responses.getOrElse(requests.lastIndex) { responses.last() }
+            val responseBody = """
                 {"meta":{"result":"SUCCESS","errorCode":null,"message":null},"data":{"transactionKey":"20260625:TR:test01","status":"PENDING","reason":null}}
             """.trimIndent()
             exchange.responseHeaders.add("Content-Type", "application/json")
-            val bytes = response.toByteArray()
-            exchange.sendResponseHeaders(HttpStatus.OK.value(), bytes.size.toLong())
+            val bytes = responseBody.toByteArray()
+            exchange.sendResponseHeaders(response.status.value(), bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }
     }
+
+    private data class PgResponse(
+        val status: HttpStatus = HttpStatus.OK,
+    )
 }

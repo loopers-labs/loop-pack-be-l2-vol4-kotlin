@@ -5,14 +5,16 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import io.github.resilience4j.retry.RetryConfig
 import io.github.resilience4j.retry.RetryRegistry
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.web.client.ClientHttpRequestFactories
-import org.springframework.boot.web.client.ClientHttpRequestFactorySettings
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.context.annotation.Profile
+import org.springframework.web.client.HttpClientErrorException
+import org.springframework.web.client.HttpServerErrorException
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
 import java.time.Duration
 
 @Configuration
@@ -26,15 +28,14 @@ class PaymentGatewayConfig {
         return createPgPaymentGateway(baseUrl)
     }
 
-    @Suppress("DEPRECATION")
     fun createPgPaymentGateway(baseUrl: String): PgPaymentGateway {
-        val settings = ClientHttpRequestFactorySettings.DEFAULTS
+        val settings = ClientHttpRequestFactorySettings.defaults()
             .withConnectTimeout(Duration.ofSeconds(1))
             .withReadTimeout(Duration.ofSeconds(3))
 
         val restClient = RestClient.builder()
             .baseUrl(baseUrl)
-            .requestFactory(ClientHttpRequestFactories.get(settings))
+            .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings))
             .build()
 
         val circuitBreakerConfig = CircuitBreakerConfig.custom()
@@ -51,7 +52,13 @@ class PaymentGatewayConfig {
         val retryConfig = RetryConfig.custom<Any>()
             .maxAttempts(3)
             .waitDuration(Duration.ofMillis(500))
-            .retryExceptions(RestClientException::class.java)
+            .retryExceptions(
+                ResourceAccessException::class.java,
+                HttpServerErrorException::class.java,
+            )
+            .ignoreExceptions(
+                HttpClientErrorException::class.java,
+            )
             .build()
 
         val retry = RetryRegistry.of(retryConfig)

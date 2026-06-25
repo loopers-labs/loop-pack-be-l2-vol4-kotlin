@@ -1,6 +1,5 @@
 package com.loopers.infrastructure.payment
 
-import com.loopers.application.payment.PaymentCancelCommand
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
 import com.loopers.application.payment.PaymentResult
@@ -16,9 +15,6 @@ class LocalPaymentGateway : PaymentGateway {
             status = PaymentStatus.SUCCESS,
             reason = null,
         )
-    }
-
-    override fun cancel(command: PaymentCancelCommand) {
     }
 
     override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {

@@ -5,8 +5,6 @@ import com.loopers.domain.order.OrderAmount
 interface PaymentGateway {
     fun pay(command: PaymentCommand): PaymentResult
 
-    fun cancel(command: PaymentCancelCommand)
-
     fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo
 
     fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo>
@@ -19,12 +17,6 @@ data class PaymentCommand(
     val cardType: String,
     val cardNo: String,
     val callbackUrl: String,
-)
-
-data class PaymentCancelCommand(
-    val orderId: Long,
-    val userId: Long,
-    val amount: OrderAmount,
 )
 
 data class PaymentResult(

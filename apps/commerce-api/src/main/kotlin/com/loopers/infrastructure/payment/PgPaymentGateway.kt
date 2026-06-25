@@ -1,6 +1,5 @@
 package com.loopers.infrastructure.payment
 
-import com.loopers.application.payment.PaymentCancelCommand
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
 import com.loopers.application.payment.PaymentResult
@@ -52,10 +51,6 @@ class PgPaymentGateway(
             status = toPaymentStatus(data.status),
             reason = data.reason,
         )
-    }
-
-    override fun cancel(command: PaymentCancelCommand) {
-        // TODO: PG 결제 취소 API 연동
     }
 
     override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {

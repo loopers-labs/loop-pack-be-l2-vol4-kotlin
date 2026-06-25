@@ -29,3 +29,6 @@ dependencies {
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))
 }
+
+// commerce-batch 가 결제 도메인/usecase 를 재사용하도록 plain jar 산출물을 활성화한다.
+tasks.named<Jar>("jar") { enabled = true }

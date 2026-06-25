@@ -1,3 +1,7 @@
+pg:
+  base-url: ${PG_BASE_URL:http://localhost:8082}
+  callback-url: ${PG_CALLBACK_URL:http://localhost:8080}/api/v1/payments/callback
+
 spring:
   main:
     web-application-type: none
@@ -16,6 +20,24 @@ spring:
       name: ${job.name:NONE}
     jdbc:
       initialize-schema: never
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          pg-payment:
+            connect-timeout: 1000
+            read-timeout: 2000
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
 
 management:
   health:

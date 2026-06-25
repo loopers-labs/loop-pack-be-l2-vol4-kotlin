@@ -18,13 +18,14 @@ class PaymentFacade(
     private val orderReleaseService: OrderReleaseService,
     private val paymentGateway: PaymentGateway,
 ) {
-    @Transactional
     fun requestPayment(command: RequestPaymentCommand): PaymentInfo {
         val order = orderApplicationService.getOrder(command.orderId)
 
         if (order.status != OrderStatus.PENDING_PAYMENT) {
             throw CoreException(ErrorType.BAD_REQUEST, "결제 대기 상태의 주문만 결제 요청할 수 있습니다.")
         }
+
+        paymentApplicationService.validateNoPendingPayment(command.orderId)
 
         val paymentResult = paymentGateway.pay(
             PaymentCommand(

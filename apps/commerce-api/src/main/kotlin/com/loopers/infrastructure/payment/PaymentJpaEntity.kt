@@ -14,7 +14,7 @@ import jakarta.persistence.Table
 @Table(
     name = "payments",
     indexes = [
-        Index(name = "idx_payments_order_id", columnList = "order_id"),
+        Index(name = "idx_payments_order_id", columnList = "order_id", unique = true),
         Index(name = "idx_payments_transaction_key", columnList = "transaction_key", unique = true),
     ],
 )

@@ -24,4 +24,8 @@ class LocalPaymentGateway : PaymentGateway {
     override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
         throw UnsupportedOperationException("LocalPaymentGateway는 상태 조회를 지원하지 않습니다.")
     }
+
+    override fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo> {
+        return emptyList()
+    }
 }

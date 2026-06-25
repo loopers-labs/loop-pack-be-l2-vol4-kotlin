@@ -8,6 +8,8 @@ interface PaymentGateway {
     fun cancel(command: PaymentCancelCommand)
 
     fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo
+
+    fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo>
 }
 
 data class PaymentCommand(

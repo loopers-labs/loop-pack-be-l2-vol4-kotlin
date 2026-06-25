@@ -33,6 +33,14 @@ class PaymentApplicationService(
     }
 
     @Transactional(readOnly = true)
+    fun validateNoPendingPayment(orderId: Long) {
+        val existing = paymentRepository.findByOrderId(orderId)
+        if (existing != null) {
+            throw CoreException(ErrorType.CONFLICT, "이미 결제가 진행 중인 주문입니다. orderId=$orderId")
+        }
+    }
+
+    @Transactional(readOnly = true)
     fun getPayment(transactionKey: String): Payment {
         return paymentRepository.findByTransactionKey(transactionKey)
             ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다. transactionKey=$transactionKey")

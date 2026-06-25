@@ -8,6 +8,8 @@ value class StockQuantity private constructor(
 ) {
     fun decrease(quantity: Quantity): StockQuantity = of(value - quantity.value)
 
+    fun increase(quantity: Quantity): StockQuantity = of(value + quantity.value)
+
     companion object {
         fun of(value: Long): StockQuantity {
             validate(value)

@@ -19,6 +19,8 @@ data class StockModel(
         return copy(leftStock = leftStock.decrease(quantity))
     }
 
+    fun increase(quantity: Quantity): StockModel = copy(leftStock = leftStock.increase(quantity))
+
     fun hasEnough(quantity: Quantity): Boolean = leftStock.value >= quantity.value
 
     companion object {

@@ -37,10 +37,11 @@ pg-simulator:
   retry:
     max-retries: 3
     wait-duration: 100ms
+    randomization-factor: 0.5
   circuit-breaker:
-    failure-rate-threshold: 50
-    sliding-window-size: 10
-    minimum-number-of-calls: 5
+    failure-rate-threshold: 10
+    sliding-window-size: 50
+    minimum-number-of-calls: 10
     wait-duration-in-open-state: 10s
     permitted-number-of-calls-in-half-open-state: 2
 

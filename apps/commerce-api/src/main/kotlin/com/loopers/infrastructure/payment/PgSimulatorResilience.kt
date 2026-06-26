@@ -3,6 +3,7 @@ package com.loopers.infrastructure.payment
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
+import io.github.resilience4j.core.IntervalFunction
 import io.github.resilience4j.retry.Retry
 import io.github.resilience4j.retry.RetryConfig
 import io.github.resilience4j.timelimiter.TimeLimiter
@@ -37,7 +38,7 @@ class PgSimulatorResilience(
         ): PgSimulatorResilience {
             val retryConfig = RetryConfig.custom<Any>()
                 .maxAttempts(properties.retry.maxRetries + 1)
-                .waitDuration(properties.retry.waitDuration)
+                .intervalFunction(retryInterval(properties.retry))
                 .retryExceptions(
                     IOException::class.java,
                     RestClientException::class.java,
@@ -48,6 +49,7 @@ class PgSimulatorResilience(
 
             val circuitBreakerConfig = CircuitBreakerConfig.custom()
                 .failureRateThreshold(properties.circuitBreaker.failureRateThreshold)
+                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
                 .slidingWindowSize(properties.circuitBreaker.slidingWindowSize)
                 .minimumNumberOfCalls(properties.circuitBreaker.minimumNumberOfCalls)
                 .waitDurationInOpenState(properties.circuitBreaker.waitDurationInOpenState)
@@ -71,5 +73,12 @@ class PgSimulatorResilience(
                 executor = executor,
             )
         }
+
+        private fun retryInterval(retry: PgSimulatorProperties.RetryPolicy): IntervalFunction =
+            if (retry.waitDuration.isZero) {
+                IntervalFunction { 0L }
+            } else {
+                IntervalFunction.ofRandomized(retry.waitDuration, retry.randomizationFactor)
+            }
     }
 }

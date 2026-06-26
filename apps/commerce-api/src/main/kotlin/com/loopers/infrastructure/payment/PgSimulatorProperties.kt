@@ -14,12 +14,13 @@ data class PgSimulatorProperties(
     data class RetryPolicy(
         val maxRetries: Int = 3,
         val waitDuration: Duration = Duration.ofMillis(100),
+        val randomizationFactor: Double = 0.5,
     )
 
     data class CircuitBreakerPolicy(
-        val failureRateThreshold: Float = 50F,
-        val slidingWindowSize: Int = 10,
-        val minimumNumberOfCalls: Int = 5,
+        val failureRateThreshold: Float = 10F,
+        val slidingWindowSize: Int = 50,
+        val minimumNumberOfCalls: Int = 10,
         val waitDurationInOpenState: Duration = Duration.ofSeconds(10),
         val permittedNumberOfCallsInHalfOpenState: Int = 2,
     )

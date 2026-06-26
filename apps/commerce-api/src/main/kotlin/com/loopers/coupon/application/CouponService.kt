@@ -80,6 +80,13 @@ class CouponService(
 
         return discount
     }
+
+    @Transactional
+    fun cancelUse(userId: Long, couponId: Long) {
+        val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        userCoupon.cancelUse()
+    }
 }
 
 data class CouponCreateCommand(

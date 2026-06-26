@@ -3,6 +3,8 @@ package com.loopers.order.application
 import com.loopers.coupon.application.CouponService
 import com.loopers.inventory.application.InventoryService
 import com.loopers.inventory.application.StockDecreaseLine
+import com.loopers.inventory.application.StockRestoreLine
+import com.loopers.order.domain.Order
 import com.loopers.product.application.ProductCheckCommand
 import com.loopers.product.application.ProductService
 import com.loopers.shared.domain.Money
@@ -36,5 +38,12 @@ class OrderFacade(
         val info = orderService.create(command, products, discountAmount)
         inventoryService.decreaseStock(command.items.map { StockDecreaseLine(it.productId, it.quantity.toLong()) })
         return info
+    }
+
+    @Transactional
+    fun cancelAndCompensate(order: Order) {
+        order.failPayment()
+        inventoryService.increaseStock(order.items.map { StockRestoreLine(it.productId, it.quantity.toLong()) })
+        order.couponId?.let { couponService.cancelUse(order.userId, it) }
     }
 }

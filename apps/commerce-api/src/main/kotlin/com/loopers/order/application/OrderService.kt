@@ -82,6 +82,7 @@ data class OrderLineCommand(
 
 data class OrderInfo(
     val id: Long,
+    val orderKey: String,
     val userId: Long,
     val orderedAt: LocalDateTime,
     val originalAmount: Long,
@@ -95,6 +96,7 @@ data class OrderInfo(
         fun from(order: Order): OrderInfo =
             OrderInfo(
                 id = order.id,
+                orderKey = order.orderKey,
                 userId = order.userId,
                 orderedAt = order.orderedAt,
                 originalAmount = order.originalAmount.amount,

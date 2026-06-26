@@ -47,7 +47,7 @@ data class OrderLineRequest(
 )
 
 data class OrderCreateResponse(
-    val orderId: Long,
+    val orderKey: String,
     val status: OrderStatus,
     val originalAmount: Long,
     val discountAmount: Long,
@@ -55,7 +55,7 @@ data class OrderCreateResponse(
 ) {
     companion object {
         fun from(info: OrderInfo): OrderCreateResponse = OrderCreateResponse(
-            orderId = info.id,
+            orderKey = info.orderKey,
             status = info.status,
             originalAmount = info.originalAmount,
             discountAmount = info.discountAmount,

@@ -15,6 +15,9 @@ class OrderRepositoryImpl(
     override fun findById(id: Long): Order? =
         orderJpaRepository.findById(id).orElse(null)
 
+    override fun findByOrderKey(orderKey: String): Order? =
+        orderJpaRepository.findByOrderKey(orderKey)
+
     override fun findByUserIdAndOrderedAtBetween(userId: Long, startAt: LocalDateTime, endAt: LocalDateTime): List<Order> =
         orderJpaRepository.findByUserIdAndOrderedAtBetween(userId, startAt, endAt)
 }

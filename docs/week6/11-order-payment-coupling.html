@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>결제 ↔ 주문 결합 비교 (12종)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:660px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;min-width:46px;height:46px;padding:0 8px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(23px,3.4vw,30px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:18px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:20px 22px;margin:22px 0;font-size:15px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.good{background:var(--green-bg);border-color:#bcecd6}
+  .note.good .tag{color:var(--green-deep)} .note.good strong{color:var(--green-deep)}
+  figure{margin:30px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:30px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .svg-s{font-family:var(--mono);font-size:9.5px;font-weight:500}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:4px 6px;box-sizing:border-box;overflow:hidden;line-height:1.15;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:11.5px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:9px;color:var(--g600);margin-top:1px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.amber .t{color:#78350f} svg foreignObject>.fo.amber .s{color:#92600c}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .tbl-wrap{overflow-x:auto;margin:22px 0;border-radius:16px;border:1px solid var(--g200)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:660px}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--g100);vertical-align:top}
+  thead th{background:var(--g50);font-weight:700;color:var(--g700);font-size:12px;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--blue-bg2)}
+  tr.mine{background:var(--red-bg)} tr.mine:hover{background:var(--red-bg)}
+  tr.mine td:first-child{color:var(--red-deep);font-weight:700}
+  td .term,th .term{font-size:11px}
+  .ok{color:var(--green-deep);font-weight:700} .no{color:var(--red-deep);font-weight:700}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;text-decoration:none;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500;transition:.18s}
+  a.ref:hover{border-color:var(--blue);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · payment↔order 결합 12종</span>
+      <h1 class="title">결제 ↔ 주문은<br><span class="hl">어떻게 이어 붙였나</span></h1>
+      <p class="lede">Kotlin 3종 + Java 9종, <b>12개 구현</b>이 결제와 주문을 연결한 방식을 코드로 추출했다. 놀랍게도 <b>10개가 같은 골격</b>으로 수렴했고, 갈리는 곳은 <b>딱 세 군데</b>다. 내 약한 고리가 어디인지 한눈에.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">표본</span><span class="v">Kotlin 3 + Java 9 = 12</span></div>
+        <div class="chip"><span class="k">수렴</span><span class="v">10/12 동일 골격</span></div>
+        <div class="chip"><span class="k">갈림</span><span class="v">멱등 · 전파경로 · 보상</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="06-pg-feign-sequence.html"><span class="n">06</span>Feign 시퀀스</a>
+    <a href="07-payment-implementation.html"><span class="n">07</span>내 구현</a>
+    <a href="08-impl-evaluation-scored.html"><span class="n">08</span>채점</a>
+    <a href="09-sequence-insights-my-improvements.html"><span class="n">09</span>인사이트</a>
+    <a href="10-kotlin-sequence-comparison.html"><span class="n">10</span>시퀀스 비교</a>
+    <a class="cur" href="11-order-payment-coupling.html"><span class="n">11</span>결합 비교</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">표준 골격 — 10/12가 같다</a></li>
+      <li><a href="#s2">갈리는 3축 + 비교표</a></li>
+      <li><a href="#s3">내 위치와 어디서부터</a></li>
+      <li><a href="#refs">참고 (PR 출처)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ============ 1. 표준 골격 ============ -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CONVERGENT SKELETON</p><h2 class="sec">표준 골격 — 10/12가 같다</h2></div>
+    </div>
+    <p class="lead">결제↔주문을 잇는 방식은 사실상 한 가지로 수렴했다. 이걸 기준선으로 삼고, 내가 어디서 벗어나는지를 본다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="COUPLING">
+        <svg viewBox="0 0 1120 560" role="img" aria-label="표준 결제-주문 결합 골격. 주문 생성과 결제가 두 호출로 분리되고, PaymentFacade가 order_id를 FK로 가진 Payment를 PENDING으로 먼저 저장한 뒤 트랜잭션 밖에서 PG를 호출해 PENDING을 즉시 반환한다. 확정은 비동기로, 콜백과 reconcile 두 경로가 단일 수렴점으로 모여 Order 상태를 PAID 또는 FAILED로 갱신하고, 실패 시 재고와 쿠폰을 원복한다. 내 구현에는 reconcile 경로와 보상이 없다.">
+          <defs>
+            <marker id="cb" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></marker>
+          </defs>
+
+          <!-- band labels -->
+          <text class="svg-l" x="20" y="24" fill="#8B95A1">① 제출 — 동기 접수 (PG I/O는 Tx 밖)</text>
+
+          <!-- entry: two calls -->
+          <rect x="20" y="40" width="210" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/><foreignObject x="20" y="40" width="210" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① POST /orders</div><div class="s">Order → PENDING_PAYMENT</div></div></foreignObject>
+          <rect x="20" y="150" width="210" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/><foreignObject x="20" y="150" width="210" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">② POST /payments</div><div class="s">PaymentFacade</div></div></foreignObject>
+          <line x1="125" y1="96" x2="125" y2="148" stroke="#B0B8C1" stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#cb)"/>
+          <text class="svg-s" x="135" y="126" fill="#8B95A1">선행</text>
+
+          <!-- pipeline -->
+          <rect x="300" y="150" width="180" height="56" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/><foreignObject x="300" y="150" width="180" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">Payment 저장</div><div class="s">order_id FK · PENDING</div></div></foreignObject>
+          <rect x="550" y="150" width="170" height="56" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/><foreignObject x="550" y="150" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">PG 호출</div><div class="s">@Tx 밖 · 커넥션 미점유</div></div></foreignObject>
+          <rect x="790" y="150" width="170" height="56" rx="13" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/><foreignObject x="790" y="150" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PENDING 즉시 반환</div><div class="s">접수 ≠ 확정</div></div></foreignObject>
+          <line x1="230" y1="178" x2="298" y2="178" stroke="#3182F6" stroke-width="1.8" marker-end="url(#cb)"/>
+          <line x1="480" y1="178" x2="548" y2="178" stroke="#3182F6" stroke-width="1.8" marker-end="url(#cb)"/>
+          <line x1="720" y1="178" x2="788" y2="178" stroke="#3182F6" stroke-width="1.8" marker-end="url(#cb)"/>
+
+          <!-- band 2 -->
+          <line x1="20" y1="262" x2="1100" y2="262" stroke="#E5E8EB" stroke-width="1.2"/>
+          <text class="svg-l" x="20" y="294" fill="#8B95A1">② 확정 — 비동기, 두 경로가 한 점으로 모인다</text>
+
+          <!-- two paths -->
+          <rect x="20" y="320" width="220" height="54" rx="13" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/><foreignObject x="20" y="320" width="220" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">콜백 /callback</div><div class="s">PG가 결과 통지</div></div></foreignObject>
+          <rect x="20" y="446" width="220" height="54" rx="13" fill="#FEEFEF" stroke="#F04452" stroke-width="1.5" stroke-dasharray="6 4"/><foreignObject x="20" y="446" width="220" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">reconcile</div><div class="s">스케줄러 · 폴링 · 수동</div></div></foreignObject>
+
+          <!-- convergence -->
+          <rect x="430" y="370" width="260" height="80" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="2"/><foreignObject x="430" y="370" width="260" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">단일 수렴점</div><div class="s">payment.success / fail</div><div class="s">+ Order 상태 갱신 (멱등 가드)</div></div></foreignObject>
+          <line x1="240" y1="347" x2="428" y2="392" stroke="#15C47E" stroke-width="1.8" marker-end="url(#cb)"/>
+          <line x1="240" y1="473" x2="428" y2="428" stroke="#F04452" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#cb)"/>
+
+          <!-- order + compensation -->
+          <rect x="790" y="350" width="200" height="54" rx="13" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/><foreignObject x="790" y="350" width="200" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">Order: PAID / FAILED</div><div class="s">자체 OrderStatus</div></div></foreignObject>
+          <rect x="790" y="446" width="230" height="56" rx="13" fill="#FEF6E6" stroke="#E5A50A" stroke-width="1.4"/><foreignObject x="790" y="446" width="230" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">실패 시 보상</div><div class="s">재고 + 쿠폰 원복</div></div></foreignObject>
+          <line x1="690" y1="400" x2="788" y2="385" stroke="#3182F6" stroke-width="1.8" marker-end="url(#cb)"/>
+          <line x1="900" y1="404" x2="900" y2="444" stroke="#E5A50A" stroke-width="1.6" marker-end="url(#cb)"/>
+
+          <!-- my-gap annotations -->
+          <text class="svg-s" x="20" y="516" fill="#C9303C">▲ 내 구현엔 없음 (콜백 단일 경로 → UNKNOWN 영구 미해결)</text>
+          <text class="svg-s" x="790" y="520" fill="#C9303C">▲ 내 구현엔 없음 (Order만 FAILED, 원복 X)</text>
+        </svg>
+      </div>
+      <figcaption><b>표준 골격</b> — 2-call 분리 · Payment가 <b>order_id 단방향 FK</b> · PG는 <b>Tx 밖</b> · 콜백+reconcile <b>두 경로가 단일 수렴점</b>으로. <span style="color:var(--red-deep)">빨강 점선 = 내 구현에 빠진 부분.</span></figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">핵심</span>결합 방향은 전원 <strong>Payment → Order</strong> 단방향(<span class="term">payment.order_id</span> FK, Order는 결제를 모름). 그리고 결제 결과를 Order로 전파하는 건 거의 전원 <strong>PaymentService가 Order를 직접 호출</strong>한다(KWB255만 일부 이벤트). 지금 단계엔 합리적이지만 "결제→주문 방향 의존"임은 인지하고 갈 것.</div>
+  </section>
+
+  <!-- ============ 2. 갈리는 3축 + 표 ============ -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">WHERE THEY DIVERGE</p><h2 class="sec">갈리는 3축 + 비교표</h2></div>
+    </div>
+    <p class="lead">골격이 같으니 차이는 세 축에서만 난다 — <strong>① 멱등 강화</strong>, <strong>② 두 번째 전파경로(reconcile)</strong>, <strong>③ 실패 보상</strong>. 이게 곧 우열을 가르는 지점.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>구현</th><th>order_id 멱등</th><th>전파 경로 (콜백 +)</th><th>실패 보상</th><th>콜백 처리</th></tr>
+        </thead>
+        <tbody>
+          <tr class="mine"><td>나 (me) · K</td><td><span class="no">UNIQUE 없음</span></td><td><span class="no">없음 (콜백 단일)</span></td><td><span class="no">없음 (Order만 FAILED)</span></td><td>바디신뢰+멱등가드</td></tr>
+          <tr><td>minbo265 · J</td><td><span class="ok">order_id UNIQUE</span></td><td>스케줄러 → <span class="term">reflect</span></td><td><span class="ok">재고+쿠폰</span></td><td>멱등가드</td></tr>
+          <tr><td>sung260 · J</td><td><span class="ok">order_id+active UNIQUE</span></td><td>스케줄러 → <span class="term">RecoveryHandler</span></td><td>없음</td><td>멱등가드</td></tr>
+          <tr><td>byun258 · J</td><td>order_id, txKey UNIQUE</td><td>recover (멀티Tx)</td><td>없음 (재결제 허용)</td><td><span class="ok">PG 재조회(불신)</span></td></tr>
+          <tr><td>seung263 · J</td><td>order_id</td><td>스케줄러 → <span class="term">converge</span></td><td>없음</td><td>멱등가드 · @CircuitBreaker</td></tr>
+          <tr><td>KWB255 · J</td><td>order_id</td><td>스케줄러+동기싱크 → <span class="term">ResultService</span></td><td><span class="ok">재고+쿠폰</span> +이벤트</td><td>멱등</td></tr>
+          <tr><td>game264 · J</td><td>order_id</td><td>수동 admin reconcile</td><td><span class="ok">재고+쿠폰</span></td><td>비관락 멱등</td></tr>
+          <tr><td>kmkim266 · J</td><td>order_id</td><td>수동 sync (멀티Tx)</td><td>없음</td><td>성공시만 confirm</td></tr>
+          <tr><td>jieun269 · J</td><td>order_id</td><td>폴링 60s</td><td>없음</td><td>성공시만 confirm</td></tr>
+          <tr><td>호준88 · K</td><td><span class="ok">order_id UNIQUE</span></td><td>Reconciler → <span class="term">reflect/autoFail</span></td><td>재고만 (쿠폰X)</td><td>멱등</td></tr>
+          <tr><td>재희87 · K</td><td>order_id</td><td>수동 reconcile API</td><td><span class="ok">재고+쿠폰</span></td><td>멱등</td></tr>
+          <tr><td>Sooche262 · J</td><td><span class="no">Payment 엔티티 없음</span></td><td>스케줄러(blind 재요청)</td><td>동기경로만</td><td>바디신뢰</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:var(--g500)">K=Kotlin, J=Java. <b>Tx 경계</b>는 표에서 뺐다 — Sooche262(PG가 Tx 안, 안티패턴) 1명 빼고 전원 <span class="term">PG I/O는 Tx 밖</span>으로 동일하기 때문. <b>진입점</b>도 Sooche262(1-call) 빼고 전원 2-call·PaymentFacade 오케스트레이션.</p>
+
+    <div class="note"><span class="tag">읽는 법</span><strong>① 멱등</strong>: order_id UNIQUE로 동시 중복결제를 DB가 막는가 (minbo·sung·호준). <strong>② 전파</strong>: 콜백이 유실돼도 확정할 두 번째 길이 있는가 — 스케줄러(자동) > 폴링 > 수동 API. <strong>③ 보상</strong>: 실패 시 재고·쿠폰을 되돌리는가. <strong>빨강=나, 세 축 모두 비어 있다.</strong></div>
+  </section>
+
+  <!-- ============ 3. 내 위치 ============ -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">MY POSITION</p><h2 class="sec">내 위치와 어디서부터</h2></div>
+    </div>
+    <p class="lead">골격은 평균 이상인데, 세 축에서 다 비었다. 그래서 시작점은 명확하다.</p>
+
+    <div class="note good"><span class="tag">잘한 곳 (골격)</span>2-call ✓ · Payment <span class="term">order_id</span> FK ✓ · PG I/O <strong>Tx 밖</strong> ✓ · 게다가 <strong>UNKNOWN을 Payment뿐 아니라 Order까지 1급 상태로 전파한 유일한 구현</strong>(<span class="term">OrderStatus.UNKNOWN</span>). 상태 모델링은 오히려 상위권.</div>
+
+    <div class="note warn"><span class="tag">약한 고리 (= 시작점)</span>성공·실패가 Order로 가는 길이 <strong>콜백 단 하나</strong>다. 표준은 전부 콜백+reconcile 2경로. 결과:<br>· 콜백 유실 → Order 영원히 <span class="term">PENDING_PAYMENT</span><br>· PG 타임아웃 → Payment·Order 둘 다 <span class="term">UNKNOWN</span>인데 <strong>해소 주체가 없음</strong> (전이 규칙 <span class="term">UNKNOWN→SUCCESS/FAILED</span>은 있는데 호출자가 없다)<br>가장 정교하게 모델링한 UNKNOWN이 가장 확실한 <strong>dead-end</strong>. reconcile이 없는 건 표준 10개 중 나 하나뿐.</div>
+
+    <h3>그래서 정리 순서</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>순서</th><th>할 일</th><th>왜 / 참고</th></tr></thead>
+        <tbody>
+          <tr><td><b>1</b></td><td><b>PG GET 조회 + reconcile 스케줄러</b></td><td>표준에서 빠진 두 번째 전파경로. UNKNOWN dead-end 해소 → 채점 C2 2→15+. 참고: 호준88 Reconciler, sung260 RecoveryHandler 수렴점</td></tr>
+          <tr><td>2</td><td>resilience4j 임계값 (@CB·@Retry)</td><td>과제 표제 주제. 재시도=5xx만(timeout 제외), CB 실패율 60~70 (40% 함정)</td></tr>
+          <tr><td>3</td><td>실패 보상 (재고+쿠폰 원복)</td><td>참고: 재희87 <span class="term">OrderCancellation</span>, game264 <span class="term">markFailed</span></td></tr>
+          <tr><td>4</td><td><span class="term">order_id</span> UNIQUE</td><td>동시 중복결제 차단. 참고: minbo265·sung260·호준88</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">한 줄</span>보상 없는 사람은 5명이지만 reconcile 없는 사람은 나 하나다. <strong>reconcile이 "남들 다 한 기본기"이자 내 UNKNOWN 역설을 푸는 단 하나의 열쇠</strong> — 여기서부터 시작한다.</div>
+  </section>
+
+  <!-- ============ refs ============ -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고 (PR 출처)</h2></div>
+    </div>
+    <p>표·골격은 전부 아래 PR diff의 실제 코드(Facade·Service·Reconciler·Entity)에서 추출. 내 구현은 레포 <span class="term">apps/commerce-api/.../{order,payment}</span> 소스 기준.</p>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88" target="_blank" rel="noopener"><span class="n">K88</span><span class="b"><b>Kotlin · 호준88 (Rojojun)</b> — order_id UNIQUE, PaymentReconciler(스케줄러·orderId 역조회), 재고복원.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88</span></span></a>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87" target="_blank" rel="noopener"><span class="n">K87</span><span class="b"><b>Kotlin · 재희87 (yuntasha)</b> — 수동 reconcile API, OrderCancellation(재고+쿠폰 원복).<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/265" target="_blank" rel="noopener"><span class="n">J265</span><span class="b"><b>Java · minbo265 (minbo2002)</b> — order_id UNIQUE + 콜백/스케줄러 reflect 수렴 + 재고·쿠폰 보상.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/265</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/260" target="_blank" rel="noopener"><span class="n">J260</span><span class="b"><b>Java · sung260 (kimsungho93)</b> — order_id+active_marker UNIQUE, RecoveryResultHandler 수렴.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/260</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/258" target="_blank" rel="noopener"><span class="n">J258</span><span class="b"><b>Java · byun258 (byuns)</b> — 콜백 바디 불신, PG getTransaction 재조회로 상태 결정.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/258</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/255" target="_blank" rel="noopener"><span class="n">J255</span><span class="b"><b>Java · KWB255 (KROOKIMWOOBIN)</b> — 콜백+스케줄러+동기싱크 3경로 PaymentResultService 수렴 + OrderPaid 이벤트.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/255</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/264" target="_blank" rel="noopener"><span class="n">J264</span><span class="b"><b>Java · game264 (gamewithfriend)</b> — PaymentConfirmer(콜백+수동 reconcile 공유) + 재고·쿠폰 보상.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/264</span></span></a>
+    <a class="ref" href="07-payment-implementation.html"><span class="n">나</span><span class="b"><b>내 구현 — 07 payment-implementation</b> · 2-PG failover · UNKNOWN 1급. 채점 08, 반영 09.<span class="src">docs/week6/07-payment-implementation.html</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week6 · payment ↔ order 결합 비교 (Kotlin 3 + Java 9 = 12종)<br>
+    근거: loopers-labs kotlin PR #88·#87 + java PR #255·258·260·262·263·264·265·266·269 diff + 내 구현 소스
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

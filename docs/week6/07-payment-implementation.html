@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PG 결제 구현 상세 — payment 컨텍스트 · DB · diff</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.ok{background:var(--green-bg);border-color:#bfead6}
+  .note.ok .tag{color:var(--green-deep)} .note.ok strong{color:var(--green-deep)}
+  figure{margin:36px 0}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.on .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.on .box::after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;
+    border:solid var(--white);border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.7;color:#D1D6DB}
+  pre .cm{color:#6B7684;font-style:italic}
+  pre .add{color:var(--green)} pre .del{color:var(--red)} pre .kw{color:#7DA9FF}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · PG 결제 구현</span>
+      <h1 class="title">payment 컨텍스트 구현 상세<br><span class="hl">코드 · DB · diff</span></h1>
+      <p class="lede">06 시퀀스대로 <b>commerce-api</b> 에 PG 카드 결제를 붙였다. 새 <b>payment 컨텍스트</b>(domain·application·infrastructure·interfaces) + <b>OpenFeign 2-PG</b> + <b>콜백 수신</b>. 이 문서는 실제 작성한 코드, 새로 생긴 <b>payment 테이블</b>, 기존 파일 diff 를 담는다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">NEW</span><span class="v">14 파일 · payment/</span></div>
+        <div class="chip"><span class="k">DDL</span><span class="v">payment 테이블 1개</span></div>
+        <div class="chip"><span class="k">EDIT</span><span class="v">기존 4 파일</span></div>
+        <div class="chip"><span class="k">BUILD</span><span class="v">compile · ktlint 통과</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="05-payment-usecases.html"><span class="n">05</span>결제 usecase</a>
+    <a href="06-pg-feign-sequence.html"><span class="n">06</span>Feign 시퀀스</a>
+    <a class="cur" href="07-payment-implementation.html"><span class="n">07</span>구현 상세</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요 — 무엇을 구현했나</a></li>
+      <li><a href="#s2">패키지 · 레이어 구조</a></li>
+      <li><a href="#s3">DB 테이블 (payment)</a></li>
+      <li><a href="#s4">도메인 — Payment 상태기계</a></li>
+      <li><a href="#s5">애플리케이션 — 트랜잭션 경계</a></li>
+      <li><a href="#s6">PG 어댑터 — Feign · failover</a></li>
+      <li><a href="#s7">기존 파일 변경 (diff)</a></li>
+      <li><a href="#s8">의도적 변경 · 보류 · 개선</a></li>
+      <li><a href="#refs">참고 (레포 소스)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">OVERVIEW</p><h2 class="sec">무엇을 구현했나</h2></div>
+    </div>
+    <p class="lead">주문과 분리된 별도 결제 호출(Model A)을 그대로 구현했다. 클라이언트는 <span class="term">orderId + 카드정보</span>만 보내고, 서버가 주문을 조회해 금액을 확정한 뒤 PG(key-in)로 직접 제출한다.</p>
+    <ul class="checklist">
+      <li class="on"><span class="box"></span><b>payment 도메인</b> — <span class="term">Payment</span> 엔티티 + 상태기계(PENDING→SUCCESS/FAILED/UNKNOWN), <span class="term">CardType</span>, <span class="term">PaymentErrorCode</span> <span class="tag">domain</span></li>
+      <li class="on"><span class="box"></span><b>제출 오케스트레이션</b> — <span class="term">PaymentFacade</span> 가 prepare(@Tx) → PG 호출(Tx 밖) → reflectSubmit(@Tx) <span class="tag">application</span></li>
+      <li class="on"><span class="box"></span><b>2-PG OpenFeign</b> — <span class="term">PgAClient :8082</span> / <span class="term">PgBClient :8092</span> + <span class="term">PgPaymentGatewayImpl</span> failover <span class="tag">infrastructure</span></li>
+      <li class="on"><span class="box"></span><b>콜백 수신</b> — <span class="term">/api/v1/payments/callback</span> (인증 제외) 가 결과를 주문/결제에 반영 (멱등) <span class="tag">interfaces</span></li>
+      <li class="on"><span class="box"></span><b>배선</b> — <span class="term">@EnableFeignClients</span> · 보안 제외 2곳 · pg url/timeout 설정 <span class="tag">config</span></li>
+    </ul>
+    <div class="note key"><span class="tag">핵심 원칙</span>금액은 <strong>클라이언트가 아니라 주문에서</strong> 확정(위변조 차단). raw 카드번호는 <strong>주문이 아닌 결제 요청에만</strong> 싣고 <strong>Payment 에 영속화하지 않는다</strong>(PCI 회피). PG 제출은 <strong>@Tx 바깥</strong>(외부 I/O 를 트랜잭션에 가두지 않음).</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STRUCTURE</p><h2 class="sec">패키지 · 레이어 구조</h2></div>
+    </div>
+    <p>기존 <span class="term">order</span> 컨텍스트와 동일한 bounded-context 우선 패키지. 신규 14 파일.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">com/loopers/payment/ (신규)</span></div>
+<pre>payment/
+├─ domain/
+│   ├─ Payment.kt            <span class="cm"># 엔티티 + PaymentStatus + CardType (cohesive)</span>
+│   ├─ PaymentRepository.kt  <span class="cm"># 포트 (order 와 동일하게 domain 에 둠)</span>
+│   └─ PaymentErrorCode.kt
+├─ infrastructure/
+│   ├─ PaymentJpaRepository.kt
+│   ├─ PaymentRepositoryImpl.kt
+│   └─ pg/
+│       ├─ PgPaymentClient.kt       <span class="cm"># 부모 인터페이스 + PgAClient/PgBClient (@FeignClient)</span>
+│       ├─ PgDto.kt                 <span class="cm"># PgPaymentRequest · PgApiResponse · PgTransactionResponse</span>
+│       └─ PgPaymentGatewayImpl.kt  <span class="cm"># failover 구현 + 내부 예외</span>
+├─ application/
+│   ├─ PgPaymentGateway.kt   <span class="cm"># 아웃바운드 포트 + PgSubmitCommand/Result(sealed)</span>
+│   ├─ PaymentService.kt     <span class="cm"># prepare · reflectSubmit · handleCallback (@Tx)</span>
+│   └─ PaymentFacade.kt      <span class="cm"># 오케스트레이션 (Tx 밖에서 PG 호출)</span>
+└─ interfaces/
+    ├─ PaymentController.kt          <span class="cm"># POST /api/v1/payments</span>
+    └─ PaymentCallbackController.kt  <span class="cm"># POST /api/v1/payments/callback</span></pre>
+    </div>
+    <h3>런타임 호출 체인</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">제출 경로</span></div>
+<pre>Client ─POST /payments─▶ PaymentController ─▶ PaymentFacade
+                                                │
+                    ┌──────────── @Tx ──────────┤ prepare()      주문 조회·검증·Payment PENDING
+                    │                           │
+                    │   (Tx 밖)  PgPaymentGateway.submit ─▶ PgAClient :8082 ─┐
+                    │                                       └ 실패 ─▶ PgBClient :8092
+                    └──────────── @Tx ──────────┤ reflectSubmit() transactionKey 저장 / UNKNOWN
+                                                ▼
+                                       200 {paymentId, status: PENDING}
+
+PG ─POST /payments/callback─▶ PaymentCallbackController ─▶ PaymentService.handleCallback() @Tx
+                                       (인증필터 제외)        SUCCESS→PAID / FAILED→FAILED · 멱등</pre>
+    </div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">DATABASE</p><h2 class="sec">DB 테이블 (payment)</h2></div>
+    </div>
+    <p class="lead">신규 테이블은 <strong>payment 1개</strong>. 마이그레이션 파일은 없고, local 프로파일의 <span class="term">ddl-auto: create</span> 가 <span class="term">Payment</span> 엔티티 매핑에서 Hibernate 로 생성한다.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">Hibernate 생성 DDL (MySQL) — Payment + BaseEntity 매핑</span></div>
+<pre><span class="kw">create table</span> payment (
+    id              bigint       <span class="kw">not null</span> auto_increment,
+    created_at      datetime(6)  <span class="kw">not null</span>,   <span class="cm">-- BaseEntity</span>
+    updated_at      datetime(6)  <span class="kw">not null</span>,   <span class="cm">-- BaseEntity</span>
+    deleted_at      datetime(6)  null,       <span class="cm">-- BaseEntity (soft delete)</span>
+    order_id        bigint       <span class="kw">not null</span>,
+    user_id         bigint       <span class="kw">not null</span>,
+    amount          bigint       <span class="kw">not null</span>,   <span class="cm">-- Money @AttributeOverride</span>
+    card_type       varchar(20)  <span class="kw">not null</span>,   <span class="cm">-- CardType (EnumType.STRING)</span>
+    transaction_key varchar(100) null,       <span class="cm">-- 접수 후 PG 발급 키</span>
+    status          varchar(20)  <span class="kw">not null</span>,   <span class="cm">-- PaymentStatus</span>
+    reason          varchar(255) null,
+    <span class="kw">primary key</span> (id)
+) engine=InnoDB;</pre>
+    </div>
+    <h3>컬럼 의미</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">컬럼 ↔ 엔티티 매핑</span></div>
+<pre>order_id        결제 대상 주문 id (다른 애그리거트는 FK 아닌 id 참조 — DDD)
+user_id         소유자 accountId (제출 시 소유 검증에 사용)
+amount          주문 totalAmount 를 박제 (클라이언트 금액 아님)
+card_type       SAMSUNG | KB | HYUNDAI
+transaction_key 제출 200 응답으로 받은 PG 키. 콜백/조회의 조회 키
+status          PENDING → SUCCESS | FAILED | UNKNOWN (UNKNOWN → SUCCESS|FAILED)
+reason          실패/처리 사유 (콜백 reason 또는 제출 거절 사유)</pre>
+    </div>
+    <div class="note warn"><span class="tag">미적용 — 개선 후보</span><span class="term">cardNo</span> 는 <strong>일부러 컬럼에 없다</strong>(PAN 비영속). 또 콜백이 <span class="term">findByTransactionKey</span> 로 조회하지만 <strong>transaction_key 인덱스가 아직 없다</strong> — 콜백마다 풀스캔. 운영 전 <span class="term">@Index(transaction_key)</span> · <span class="term">order_id</span> 인덱스 추가 필요.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">DOMAIN</p><h2 class="sec">Payment 상태기계</h2></div>
+    </div>
+    <p>상태 전이는 엔티티가 소유한다(Tell-Don't-Ask). 잘못된 전이는 <span class="term">ConflictException</span> 으로 거절. <span class="term">accept()</span> 는 transactionKey 만 채우고 상태는 PENDING 유지(승인은 콜백에서).</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/domain/Payment.kt — 행위 + 상태기계</span></div>
+<pre><span class="kw">fun</span> accept(transactionKey: String) { <span class="cm">// 접수: PENDING 유지</span>
+    <span class="kw">this</span>.transactionKey = transactionKey
+}
+<span class="kw">fun</span> success() = transitionTo(PaymentStatus.SUCCESS)
+<span class="kw">fun</span> fail(reason: String?) { <span class="kw">this</span>.reason = reason; transitionTo(PaymentStatus.FAILED) }
+<span class="kw">fun</span> markUnknown() = transitionTo(PaymentStatus.UNKNOWN)
+
+<span class="kw">private fun</span> transitionTo(target: PaymentStatus) {
+    <span class="kw">if</span> (!status.canTransitionTo(target))
+        <span class="kw">throw</span> ConflictException(PaymentErrorCode.INVALID_STATUS_TRANSITION)
+    status = target
+}
+
+<span class="kw">enum class</span> PaymentStatus {
+    PENDING, SUCCESS, FAILED, UNKNOWN;
+    <span class="kw">fun</span> canTransitionTo(target) = <span class="kw">when</span> (<span class="kw">this</span>) {
+        PENDING -&gt; target in (SUCCESS, FAILED, UNKNOWN)
+        UNKNOWN -&gt; target in (SUCCESS, FAILED)   <span class="cm">// reconcile 로 해소</span>
+        SUCCESS, FAILED -&gt; false                 <span class="cm">// 종결</span>
+    }
+}</pre>
+    </div>
+    <div class="note"><span class="tag">왜 UNKNOWN 이 종결이 아닌가</span>제출 타임아웃·5xx 는 <strong>PG 에서 됐을 수도</strong> 있는 in-doubt 상태다. 함부로 FAILED 로 닫으면 실제 승인된 결제를 잃는다. 그래서 UNKNOWN 으로 두고 <strong>조회 reconcile</strong> 이 SUCCESS/FAILED 로 확정한다.</div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">APPLICATION</p><h2 class="sec">트랜잭션 경계</h2></div>
+    </div>
+    <p class="lead">Facade 는 <strong>@Tx 가 없다.</strong> DB 쓰기(prepare·reflectSubmit)만 각자 짧은 트랜잭션이고, 느린 PG 호출은 그 사이 <strong>트랜잭션 바깥</strong>에 둔다 — 커넥션을 외부 I/O 동안 잡지 않기 위해.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/application/PaymentFacade.kt</span></div>
+<pre><span class="kw">fun</span> pay(command: PaymentCommand): PaymentInfo {
+    <span class="kw">val</span> prepared = paymentService.prepare(           <span class="cm">// @Tx #1</span>
+        PaymentPrepareCommand(command.userId, command.orderId, command.cardType))
+
+    <span class="kw">val</span> result = pgPaymentGateway.submit(            <span class="cm">// Tx 밖 — 외부 호출</span>
+        PgSubmitCommand(command.userId, command.orderId, command.cardType,
+            command.cardNo, prepared.amount, callbackUrl))
+
+    <span class="kw">return</span> paymentService.reflectSubmit(prepared.paymentId, result)  <span class="cm">// @Tx #2</span>
+}</pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/application/PaymentService.kt — prepare · reflectSubmit · handleCallback</span></div>
+<pre><span class="kw">@Transactional</span>
+<span class="kw">fun</span> prepare(command): PreparedPayment {
+    <span class="kw">val</span> order = orderRepository.findById(command.orderId)
+        ?.takeIf { it.userId == command.userId }       <span class="cm">// 소유 검증 (ID enumeration 차단)</span>
+        ?: <span class="kw">throw</span> NotFoundException(OrderErrorCode.ORDER_NOT_FOUND)
+    <span class="kw">if</span> (order.status != OrderStatus.PENDING_PAYMENT)    <span class="cm">// 결제 가능 상태?</span>
+        <span class="kw">throw</span> ConflictException(PaymentErrorCode.ORDER_NOT_PAYABLE)
+    <span class="kw">val</span> payment = paymentRepository.save(
+        Payment.create(order.id, command.userId, order.totalAmount, command.cardType))
+    <span class="kw">return</span> PreparedPayment(payment.id, order.totalAmount.amount)  <span class="cm">// 금액은 주문에서</span>
+}
+
+<span class="kw">@Transactional</span>
+<span class="kw">fun</span> reflectSubmit(paymentId, result): PaymentInfo {
+    <span class="kw">val</span> payment = paymentRepository.findById(paymentId) ?: <span class="kw">throw</span> NotFound(...)
+    <span class="kw">when</span> (result) {
+        is Accepted -&gt; payment.accept(result.transactionKey)            <span class="cm">// PENDING 유지</span>
+        is Rejected -&gt; { payment.fail(result.reason); failOrder(...) }   <span class="cm">// 400=우리 버그</span>
+        is Unknown  -&gt; { payment.markUnknown(); markOrderUnknown(...) }  <span class="cm">// timeout/5xx</span>
+    }
+    <span class="kw">return</span> PaymentInfo.from(payment)
+}
+
+<span class="kw">@Transactional</span>
+<span class="kw">fun</span> handleCallback(command) {
+    <span class="kw">val</span> payment = paymentRepository.findByTransactionKey(command.transactionKey) ?: <span class="kw">throw</span> NotFound(...)
+    <span class="kw">if</span> (payment.status == SUCCESS || payment.status == FAILED) <span class="kw">return</span>   <span class="cm">// 멱등: 이미 종결이면 무시</span>
+    <span class="kw">when</span> (command.status) {
+        SUCCESS -&gt; { payment.success(); confirmOrder(payment.orderId) }  <span class="cm">// → Order PAID</span>
+        FAILED  -&gt; { payment.fail(command.reason); failOrder(payment.orderId) }
+        PENDING -&gt; Unit
+    }
+}</pre>
+    </div>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">PG ADAPTER</p><h2 class="sec">Feign · failover</h2></div>
+    </div>
+    <p>두 Feign 클라이언트는 <strong>부모 인터페이스를 상속</strong>해 같은 계약을 공유한다(Spring Cloud OpenFeign inheritance). 게이트웨이는 부모 타입으로 호출해 A/B 를 동일 코드로 다룬다.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/infrastructure/pg/PgPaymentClient.kt</span></div>
+<pre><span class="kw">interface</span> PgPaymentClient {
+    <span class="kw">@PostMapping</span>(<span class="add">"/api/v1/payments"</span>)
+    <span class="kw">fun</span> request(
+        <span class="kw">@RequestHeader</span>(<span class="add">"X-USER-ID"</span>) userId: String,   <span class="cm">// 인터셉터 대신 명시 인자</span>
+        <span class="kw">@RequestBody</span> request: PgPaymentRequest,
+    ): PgApiResponse&lt;PgTransactionResponse&gt;
+}
+<span class="kw">@FeignClient</span>(name = "pg-a", url = "\${pg.clients.a.url}") <span class="kw">interface</span> PgAClient : PgPaymentClient
+<span class="kw">@FeignClient</span>(name = "pg-b", url = "\${pg.clients.b.url}") <span class="kw">interface</span> PgBClient : PgPaymentClient</pre>
+    </div>
+    <p>failover 의 핵심은 <strong>"호출이 안 일어난 게 확실한가"</strong>로 예외를 가르는 것(O9). connection refused·CB OPEN 은 안 됐으니 B 로, 타임아웃·전송 후 5xx 는 됐을 수 있으니 <strong>UNKNOWN</strong>(이중결제 함정 회피).</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/infrastructure/pg/PgPaymentGatewayImpl.kt</span></div>
+<pre><span class="kw">override fun</span> submit(command): PgSubmitResult =
+    <span class="kw">try</span> { request(pgAClient, command) }
+    <span class="kw">catch</span> (e: PgUnavailableException) { failover(command) }   <span class="cm">// refused / CB OPEN → B</span>
+    <span class="kw">catch</span> (e: PgInDoubtException)    { PgSubmitResult.Unknown }  <span class="cm">// timeout / 5xx → UNKNOWN</span>
+
+<span class="kw">private fun</span> request(client: PgPaymentClient, command): PgSubmitResult {
+    <span class="kw">try</span> {
+        <span class="kw">val</span> response = client.request(command.userId.toString(), PgPaymentRequest.from(command))
+        <span class="kw">val</span> data = response.data ?: <span class="kw">throw</span> PgInDoubtException(<span class="add">"응답 본문이 비어 있습니다."</span>)
+        <span class="kw">return</span> PgSubmitResult.Accepted(data.transactionKey)
+    } <span class="kw">catch</span> (e: CallNotPermittedException) { <span class="kw">throw</span> PgUnavailableException(e.message) }  <span class="cm">// CB OPEN</span>
+      <span class="kw">catch</span> (e: RetryableException) {
+          <span class="kw">if</span> (e.cause <span class="kw">is</span> ConnectException) <span class="kw">throw</span> PgUnavailableException(e.message)  <span class="cm">// refused → failover</span>
+          <span class="kw">throw</span> PgInDoubtException(e.message)                                <span class="cm">// SocketTimeout → UNKNOWN</span>
+      }
+      <span class="kw">catch</span> (e: FeignException.BadRequest) { <span class="kw">return</span> PgSubmitResult.Rejected(e.contentUTF8()) }  <span class="cm">// 400</span>
+      <span class="kw">catch</span> (e: FeignException) { <span class="kw">throw</span> PgInDoubtException(e.message) }                    <span class="cm">// 전송 후 5xx</span>
+}</pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">payment/infrastructure/pg/PgDto.kt — orderId 패딩</span></div>
+<pre>PgPaymentRequest(
+    orderId = command.orderId.toString().padStart(6, '0'),  <span class="cm">// pg 검증: 6자 이상</span>
+    cardType, cardNo, amount, callbackUrl)</pre>
+    </div>
+    <div class="note warn"><span class="tag">현재 한계</span>resilience4j 임계값을 아직 안 걸어서 <span class="term">CallNotPermittedException</span>(CB OPEN)은 <strong>발생하지 않는다</strong> — 지금 실제 발동하는 failover 는 <strong>connection refused</strong> 뿐(= PG-A 프로세스 down). CB OPEN 트리거는 임계값 설계(후속) 후 활성화.</div>
+  </section>
+
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">DIFF</p><h2 class="sec">기존 파일 변경</h2></div>
+    </div>
+    <p>신규 14 파일 외에, 배선을 위해 기존 <strong>4 파일</strong>만 건드렸다. 전부 추가 라인.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">CommerceApiApplication.kt</span></div>
+<pre><span class="add">+ import org.springframework.cloud.openfeign.EnableFeignClients</span>
+
+<span class="add">+ @EnableFeignClients</span>
+  @EnableAsync
+  @ConfigurationPropertiesScan
+  @SpringBootApplication</pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">config/security/AccountSecurityConfig.kt — 콜백 permitAll</span></div>
+<pre>  .requestMatchers(HttpMethod.POST, USERS_PATH).permitAll()
+<span class="add">+ .requestMatchers(HttpMethod.POST, PAYMENT_CALLBACK_PATH).permitAll()</span>
+  .requestMatchers(ACTUATOR_PATH, SWAGGER_UI_PATH, API_DOCS_PATH).permitAll()
+  ...
+  private const val USERS_PATH = "/api/v1/users"
+<span class="add">+ private const val PAYMENT_CALLBACK_PATH = "/api/v1/payments/callback"</span></pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">account/.../AccountHeaderAuthenticationFilter.kt — shouldNotFilter</span></div>
+<pre>  return (request.method == POST &amp;&amp; path == USERS_PATH) ||
+<span class="add">+     (request.method == POST &amp;&amp; path == PAYMENT_CALLBACK_PATH) ||</span>
+      path.startsWith(ACTUATOR_PATH_PREFIX) || ...
+  ...
+<span class="add">+ private const val PAYMENT_CALLBACK_PATH = "/api/v1/payments/callback"</span></pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">application.yml — pg url · feign timeout</span></div>
+<pre><span class="add">+ pg:</span>
+<span class="add">+   callback-url: http://localhost:8080/api/v1/payments/callback</span>
+<span class="add">+   clients:</span>
+<span class="add">+     a: { url: http://localhost:8082 }</span>
+<span class="add">+     b: { url: http://localhost:8092 }</span>
+<span class="add">+ feign:</span>
+<span class="add">+   client:</span>
+<span class="add">+     config:</span>
+<span class="add">+       default: { connect-timeout: 1000, read-timeout: 2000 }</span></pre>
+    </div>
+    <div class="note ok"><span class="tag">보안 제외 2곳 이유</span>콜백은 PG 가 호출해 <strong>로그인 헤더가 없다.</strong> <span class="term">permitAll</span> 만 하면 헤더 필터가 그대로 통과시키지만 인가에서 막히고, 필터 <span class="term">shouldNotFilter</span> 까지 빼야 불필요한 인증 시도가 없다. 그래서 SecurityConfig + 필터 <strong>둘 다</strong>.</div>
+  </section>
+
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">DECISIONS</p><h2 class="sec">의도적 변경 · 보류 · 개선</h2></div>
+    </div>
+    <h3>계획 대비 의도적 변경</h3>
+    <ul class="checklist">
+      <li class="on"><span class="box"></span><b>X-USER-ID 는 RequestInterceptor 대신 <span class="term">@RequestHeader</span> 인자</b> — ThreadLocal 의존 간접화 제거. 명시 인자가 더 명확·테스트 용이 (YAGNI)</li>
+      <li class="on"><span class="box"></span><b>orderId <span class="term">padStart(6,'0')</span></b> — pg-simulator 의 6자 검증 충족. 콜백은 transactionKey 로 조회하므로 이 인코딩은 무해</li>
+      <li class="on"><span class="box"></span><b>cardNo 비영속</b> — PAN 을 Payment 에 저장하지 않음(PCI). 제출 시 전달만</li>
+    </ul>
+    <h3>보류 (이전 합의대로)</h3>
+    <div class="note warn"><span class="tag">후속</span><strong>resilience4j 임계값</strong>(@CircuitBreaker/Retry/Timeout — readTimeout·failureRateThreshold·slidingWindow·waitDurationInOpenState) · <strong>reconcile 스케줄러</strong>(UNKNOWN·콜백유실을 GET 조회로 해소) · <strong>테스트</strong>(PaymentService 단위 + 콜백/failover). 현재는 콜백 경로만 자동, UNKNOWN 은 수동 해소.</div>
+    <h3>개선 후보 (운영 전)</h3>
+    <div class="note"><span class="tag">개선</span><strong>transaction_key · order_id 인덱스</strong>(콜백 풀스캔 방지) · <strong>주문당 결제 중복 방지</strong>(동시 prepare 가 2건 생성 가능) · <strong>callbackUrl 호스트 외부화</strong>(현재 localhost:8080 하드코딩, 프로파일별 분리).</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고 (레포 소스)</h2></div>
+    </div>
+    <div class="ref primary"><span class="n">1</span><span class="b"><b>신규 payment 컨텍스트</b> — domain·application·infrastructure·interfaces 14 파일.<span class="src">apps/commerce-api/src/main/kotlin/com/loopers/payment/</span></span></div>
+    <div class="ref"><span class="n">2</span><span class="b"><b>배선 변경 4 파일</b> — @EnableFeignClients · 보안 제외 2곳 · pg/feign 설정.<span class="src">CommerceApiApplication.kt · AccountSecurityConfig.kt · AccountHeaderAuthenticationFilter.kt · application.yml</span></span></div>
+    <div class="ref"><span class="n">3</span><span class="b"><b>설계 근거 — 06 Feign 시퀀스 + API 계약</b> — 본 구현의 상위 스펙.<span class="src">docs/week6/06-pg-feign-sequence.html</span></span></div>
+    <div class="ref"><span class="n">4</span><span class="b"><b>pg-simulator 계약 · O9 failover 정책</b> — PaymentDto·TransactionInfo·00-plan(O9).<span class="src">apps/pg-simulator/ · docs/week6/00-plan.md</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week6 · PG 결제 구현 상세 (payment 컨텍스트 · DB · diff)<br>
+    출처: 레포 apps/commerce-api 신규/변경 소스 + docs/week6/06 시퀀스
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

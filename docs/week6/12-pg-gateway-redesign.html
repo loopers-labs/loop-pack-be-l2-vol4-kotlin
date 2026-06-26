@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PG 게이트웨이 재설계 — 구조·네이밍·결과 매핑</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:13.5px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:10.5px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13px;line-height:1.7;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:13px 16px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · PG 결제 · 재설계(안)</span>
+      <h1 class="title">PG 게이트웨이 재설계<br><span class="hl">구조 · 네이밍 · 결과 매핑</span></h1>
+      <p class="lede">지금은 PG 한 번 부르는 데 <b>6홉</b>이고, 그중 <b>Requester 레이어는 순전히 AOP 세금</b>이며, failover 분기가 <b>private 예외 throw</b>로 숨어 있습니다. 프로그래밍 CB로 바꿔 레이어를 없애고, failover를 <b>클라이언트 목록(strategy)</b>으로, 결과를 <b>sealed 타입</b>으로 명시합니다. 그리고 "둘 다 실패"를 <b>Failed(확실 실패)</b>와 <b>Unknown(미확정)</b>으로 가릅니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">OpenFeign + resilience4j 게이트웨이</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring Cloud 2024.0.1</span></div>
+        <div class="chip"><span class="k">SOURCES</span><span class="v">resilience4j · Spring Cloud 공식 docs</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">현재 구조 — 6홉과 군더더기</a></li>
+      <li><a href="#s2">재설계 구조 — Requester 제거 + strategy</a></li>
+      <li><a href="#s3">throw control-flow → sealed Attempt</a></li>
+      <li><a href="#s4">결과 매핑 — Failed vs Unknown · 실패 응답</a></li>
+      <li><a href="#s5">네이밍 · 4xx 매핑 정리</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">AS-IS</p><h2 class="sec">현재 구조 — 6홉과 군더더기</h2></div>
+    </div>
+    <p class="lead">PG에 결제 한 번 제출하는 호출 경로가 5개 클래스를 통과합니다.</p>
+    <p>각 레이어를 분해하면 대부분은 정당하지만, <span class="term">PgPaymentRequester</span> 하나는 <strong>오직 <code>@CircuitBreaker</code>가 같은 빈의 self-invocation에 안 먹는다는 Spring AOP 제약 때문에</strong> 프록시 경계를 만들려고 존재합니다 — 비즈니스적 의미가 0인 순수 AOP 세금입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="AS-IS CHAIN">
+        <svg viewBox="0 0 1120 220" role="img" aria-label="현재 PG 호출 체인: PaymentFacade에서 PgPaymentGateway, PgPaymentGatewayImpl, PgPaymentRequester를 거쳐 PgAClient/PgBClient로 가는 5단계. PgPaymentRequester는 AOP 세금으로 빨갛게 표시됨.">
+          <defs>
+            <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <g>
+            <rect x="20" y="66" width="176" height="78" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="20" y="66" width="176" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PaymentFacade</div><div class="s">application · pay()</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="228" y="66" width="176" height="78" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="228" y="66" width="176" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PgPaymentGateway</div><div class="s">«port» interface</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="436" y="66" width="176" height="78" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="436" y="66" width="176" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PgPaymentGatewayImpl</div><div class="s">failover + 예외매핑</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="644" y="66" width="176" height="78" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.5"/>
+            <foreignObject x="644" y="66" width="176" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">PgPaymentRequester</div><div class="s">@CircuitBreaker 경계</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="852" y="66" width="176" height="78" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="852" y="66" width="176" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PgAClient / PgBClient</div><div class="s">«FeignClient»</div></div></foreignObject>
+          </g>
+          <line x1="196" y1="105" x2="228" y2="105" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f1)"/>
+          <line x1="404" y1="105" x2="436" y2="105" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f1)"/>
+          <line x1="612" y1="105" x2="644" y2="105" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f1)"/>
+          <line x1="820" y1="105" x2="852" y2="105" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f1)"/>
+          <line x1="732" y1="144" x2="732" y2="162" stroke="#F04452" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <g>
+            <rect x="592" y="162" width="280" height="44" rx="12" fill="#FEEFEF" stroke="#f8d4d4" stroke-width="1.2"/>
+            <foreignObject x="592" y="162" width="280" height="44"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="s">순수 AOP 세금 — self-invocation 회피용으로만 존재</div></div></foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 현재 호출 체인. <b>Requester</b>(빨강)는 비즈니스 의미 없이 CB 프록시 경계만을 위해 끼어 있다.</figcaption>
+    </figure>
+
+    <div class="note warn"><span class="tag">군더더기 진단</span>복잡함의 진짜 원인은 두 가지다 — <strong>(1) AOP 때문에 억지로 생긴 <span class="term">PgPaymentRequester</span> 레이어</strong>, <strong>(2) <code>request()</code>가 결과를 throw로 흘려보내는 control-flow</strong>. 나머지(port·Impl·Feign 2개)는 정당하다.</p></div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">TO-BE</p><h2 class="sec">재설계 구조 — Requester 제거 + strategy</h2></div>
+    </div>
+    <p class="lead">애너테이션(<code>@CircuitBreaker</code>)을 버리고 resilience4j <strong>프로그래밍 API</strong>(<span class="term">CircuitBreakerRegistry</span>)로 전환하면 self-invocation 문제가 사라져 <strong>Requester 레이어가 통째로 증발</strong>합니다.</p>
+    <p>그리고 PG 선택이 코드 하드코딩(<span class="term">requestToPgA</span>/<span class="term">requestToPgB</span>)이 아니라 <strong>순서 있는 클라이언트 목록</strong>이 됩니다 — 목록 순서가 곧 우선순위인 진짜 strategy입니다. <span class="term">NamedPgClient</span>는 <em>(이름, Feign 클라이언트)</em> 쌍이라 레지스트리가 이름으로 CB를 찾습니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="TO-BE">
+        <svg viewBox="0 0 1120 240" role="img" aria-label="재설계 구조: PaymentFacade가 FailoverPgPaymentGateway를 호출하고, 게이트웨이는 CircuitBreakerRegistry에서 이름으로 CB를 조회하며, clients 목록(pg-a, pg-b)을 순회해 PgAClient/PgBClient를 부른다. Requester 레이어 없음.">
+          <defs>
+            <marker id="f2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <g>
+            <rect x="222" y="24" width="226" height="58" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="222" y="24" width="226" height="58"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">CircuitBreakerRegistry</div><div class="s">circuitBreaker(name) 조회</div></div></foreignObject>
+          </g>
+          <line x1="335" y1="82" x2="335" y2="120" stroke="#3182F6" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#f2)"/>
+          <g>
+            <rect x="20" y="120" width="170" height="80" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="20" y="120" width="170" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PaymentFacade</div><div class="s">application</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="222" y="120" width="226" height="80" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+            <foreignObject x="222" y="120" width="226" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">FailoverPgPaymentGateway</div><div class="s">submit() · 목록 순회 + sealed</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="488" y="120" width="210" height="80" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="488" y="120" width="210" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">clients: List&lt;NamedPgClient&gt;</div><div class="s">[pg-a, pg-b] 순서=우선순위</div></div></foreignObject>
+          </g>
+          <g>
+            <rect x="738" y="120" width="200" height="80" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="738" y="120" width="200" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PgAClient / PgBClient</div><div class="s">«FeignClient»</div></div></foreignObject>
+          </g>
+          <line x1="190" y1="160" x2="222" y2="160" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f2)"/>
+          <line x1="448" y1="160" x2="488" y2="160" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f2)"/>
+          <line x1="698" y1="160" x2="738" y2="160" stroke="#B0B8C1" stroke-width="1.8" marker-end="url(#f2)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 재설계. <b>Requester 제거</b> · failover = 목록 순회(strategy) · CB = 레지스트리(프로그래밍). 트레이드오프: 애너테이션의 선언적 맛은 포기.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">핵심</span>timeout은 여전히 <strong>Feign 몫</strong>(HTTP를 쏘니까), CB만 애너테이션 → 레지스트리로 바뀝니다. <strong>관심사 분리(timeout=Feign / CB=resilience4j)는 그대로 유지</strong>되고 겹치지 않습니다.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">CONTROL FLOW</p><h2 class="sec">throw control-flow → sealed Attempt</h2></div>
+    </div>
+    <p class="lead">지금은 한 번의 PG 호출 결과를 <strong>어떤 건 <code>return</code>, 어떤 건 <code>throw</code></strong>로 섞어 표현하고, 그 throw를 상위에서 다시 catch해 failover를 분기합니다. 흐름이 예외 속에 숨습니다.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">AS-IS · PgPaymentGatewayImpl.kt</span></div>
+<pre><span class="kw">private fun</span> <span class="fn">request</span>(call: () -&gt; PgApiResponse&lt;PgTransactionResponse&gt;): PgSubmitResult {
+    <span class="kw">try</span> {
+        <span class="kw">val</span> data = call().data ?: <span class="kw">throw</span> PgInDoubtException(...)   <span class="cm">// throw</span>
+        <span class="kw">return</span> PgSubmitResult.Accepted(data.transactionKey)      <span class="cm">// return</span>
+    } <span class="kw">catch</span> (e: CallNotPermittedException) { <span class="kw">throw</span> PgUnavailableException(...) }   <span class="cm">// throw</span>
+      <span class="kw">catch</span> (e: RetryableException) { ... <span class="kw">throw</span> PgUnavailable / PgInDoubt }        <span class="cm">// throw</span>
+      <span class="kw">catch</span> (e: FeignException.BadRequest) { <span class="kw">return</span> Rejected(...) }                <span class="cm">// return</span>
+      <span class="kw">catch</span> (e: FeignException) { <span class="kw">throw</span> PgInDoubtException(...) }                  <span class="cm">// throw</span>
+}
+<span class="cm">// submit()/failover() 가 이 throw 들을 catch 해 분기 → 흐름이 예외에 숨음</span></pre>
+    </div>
+
+    <p>재설계는 한 번 시도의 결과를 <strong>sealed <span class="term">Attempt</span></strong>로 만들어 <code>return</code>만 씁니다. failover는 <strong>목록 순회 + <code>when</code></strong>으로 코드에 그대로 드러납니다.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">TO-BE · FailoverPgPaymentGateway.kt</span></div>
+<pre><span class="kw">private sealed interface</span> <span class="ty">Attempt</span> {
+    <span class="kw">data class</span> <span class="ty">Accepted</span>(<span class="kw">val</span> transactionKey: String) : Attempt
+    <span class="kw">data class</span> <span class="ty">Rejected</span>(<span class="kw">val</span> reason: String) : Attempt
+    <span class="kw">data object</span> <span class="ty">Unavailable</span> : Attempt   <span class="cm">// PG 죽음(미전송) → 다음 PG</span>
+    <span class="kw">data object</span> <span class="ty">InDoubt</span> : Attempt       <span class="cm">// 보냈을 수도 → 중단(미확정)</span>
+}
+
+<span class="kw">override fun</span> <span class="fn">submit</span>(command: PgSubmitCommand): PgSubmitResult {
+    <span class="kw">for</span> (client <span class="kw">in</span> clients) {                       <span class="cm">// 순서 = 우선순위 (strategy)</span>
+        <span class="kw">when</span> (<span class="kw">val</span> r = attempt(client, command)) {
+            <span class="kw">is</span> Accepted -&gt; <span class="kw">return</span> PgSubmitResult.Accepted(r.transactionKey)
+            <span class="kw">is</span> Rejected -&gt; <span class="kw">return</span> PgSubmitResult.Rejected(r.reason)
+            InDoubt     -&gt; <span class="kw">return</span> PgSubmitResult.Unknown   <span class="cm">// 보냈을 수도 → reconcile 대상</span>
+            Unavailable -&gt; <span class="kw">continue</span>                       <span class="cm">// 다음 PG 시도</span>
+        }
+    }
+    <span class="kw">return</span> PgSubmitResult.Failed   <span class="cm">// 전 PG 미전송 = 확실히 실패</span>
+}</pre>
+    </div>
+
+    <div class="note"><span class="tag">소거되는 것</span><span class="term">PgUnavailableException</span> · <span class="term">PgInDoubtException</span> · <span class="term">failover()</span> 메서드 · try/catch-as-control-flow가 전부 사라진다. failover가 <strong>코드로 읽힌다.</strong></div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">RESULT MAPPING</p><h2 class="sec">결과 매핑 — Failed vs Unknown · 실패 응답</h2></div>
+    </div>
+    <p class="lead">"둘 다 실패"는 한 덩어리가 아닙니다. <strong>전송이 확실히 안 된 경우</strong>와 <strong>보냈을 수도 있는 경우</strong>는 응답이 정반대여야 합니다.</p>
+
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">Failed</span> 전 PG unavailable</h4><p>connect-refused / CB-open으로 <strong>전송 0회 = 확실히 미결제.</strong> → 결제·주문 <strong>FAILED</strong> + 재고·쿠폰 <strong>보상 롤백</strong> + 클라이언트에 <strong>실패 응답</strong>(재시도 안전).</p></div>
+      <div class="col x"><h4><span class="mk">Unknown</span> in-doubt</h4><p>timeout / 5xx로 <strong>PG가 받았을 수도</strong> 있음. → <strong>UNKNOWN</strong> 유지 + reconcile로 확정. 절대 "실패"라고 응답하지 않음(재시도 시 이중결제).</p></div>
+    </div>
+
+    <div class="note warn"><span class="tag">함정</span>in-doubt에 "실패" 응답을 주면 유저가 재시도 → <strong>이중결제</strong>. 그래서 "실패 응답"은 <strong>Failed(전송 확실 실패)에만</strong>, Unknown은 "처리 중"으로 응답해야 한다.</div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>상황</th><th>전송됨?</th><th>PgSubmitResult → 처리</th></tr></thead>
+        <tbody>
+          <tr><td>정상 접수</td><td>O</td><td>Accepted → PENDING(콜백 대기), 처리중 응답</td></tr>
+          <tr><td>카드 거절(400)</td><td>O (PG 응답)</td><td>Rejected → FAILED, 거절 응답 <em>(B-2 결정 대상)</em></td></tr>
+          <tr><td>전 PG unavailable</td><td><strong>X (확실)</strong></td><td><strong>Failed → FAILED + 보상 + 실패 응답(예: 503)</strong></td></tr>
+          <tr><td>timeout / 5xx</td><td>모름</td><td>Unknown → UNKNOWN + reconcile, 처리중 응답</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">필요 변경</span>현재 <span class="term">PgSubmitResult</span>는 Accepted/Rejected/Unknown 3종. 여기에 <strong>Failed</strong>를 추가해 "전송 확실 실패"를 "미확정"과 분리한다. 단 <strong>Failed의 보상·재조회(reconcile)</strong> 자체는 별도 안전망(B-1, P0)에서 구현한다.</div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">CLEANUP</p><h2 class="sec">네이밍 · 4xx 매핑 정리</h2></div>
+    </div>
+    <p class="lead">이름이 역할을 말하게 하고, 조용히 새던 4xx 분기를 명시합니다.</p>
+
+    <h3>네이밍</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>현재</th><th>문제</th><th>재설계</th></tr></thead>
+        <tbody>
+          <tr><td>PgPaymentGatewayImpl</td><td><code>Impl</code> 접미사 = 의미 0</td><td>FailoverPgPaymentGateway</td></tr>
+          <tr><td>PgPaymentRequester</td><td>무의미 + AOP 세금</td><td>(제거)</td></tr>
+          <tr><td>requestToPgA / requestToPgB</td><td>A/B를 메서드에 하드코딩</td><td>clients 목록 (데이터)</td></tr>
+          <tr><td>PgAClient / PgBClient</td><td>그 자체론 CB 이름 분리 안 됨</td><td>NamedPgClient(name, client)로 묶음</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>4xx 매핑 비대칭</h3>
+    <p>지금은 <span class="term">BadRequest</span>(400)만 <code>Rejected</code>로 잡고, <strong>429 · 404 · 409 같은 다른 4xx는 마지막 <code>catch(FeignException)</code>으로 떨어져 조용히 UNKNOWN</strong>이 됩니다. CB는 4xx 전부를 ignore하는데 게이트웨이 매핑은 BadRequest만 다뤄 비대칭입니다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>응답</th><th>현재</th><th>재설계</th></tr></thead>
+        <tbody>
+          <tr><td>400 BadRequest</td><td>Rejected</td><td>fail-fast로 노출 <em>(B-2: 시뮬레이터는 동기 거절을 안 냄 → 400=우리 요청 버그)</em></td></tr>
+          <tr><td>429 / 404 / 409 등 4xx</td><td>조용히 UNKNOWN (누수)</td><td>명시적으로 분류</td></tr>
+          <tr><td>5xx · timeout</td><td>UNKNOWN</td><td>InDoubt → Unknown (의도대로)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">열린 결정 (B-2)</span>400을 <strong>fail-fast(우리 버그로 에러 노출)</strong>로 할지, 실 PG의 "카드 거절 400" 대비해 <strong>Rejected 유지</strong>할지는 매핑 확정 전에 정해야 한다. 시뮬레이터 한정으론 전자가 맞다(거절을 동기로 안 내므로 Rejected는 죽은 의미).</div>
+  </section>
+
+  <!-- ===================== REFS ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <a class="ref primary" id="r1" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>resilience4j — CircuitBreaker</b> — 프로그래밍 API(CircuitBreakerRegistry)·sliding window·상태 전이 공식 문서.<span class="src">https://resilience4j.readme.io/docs/circuitbreaker</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r2" href="https://docs.spring.io/spring-cloud-openfeign/reference/spring-cloud-openfeign.html" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>Spring Cloud OpenFeign Reference</b> — 기본 Retryer(NEVER_RETRY)·circuitbreaker.enabled·client.config 공식 문서.<span class="src">https://docs.spring.io/spring-cloud-openfeign/reference/spring-cloud-openfeign.html</span><span class="pr p1">1차 출처</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    PG 게이트웨이 재설계(안) — A: 구조·네이밍·결과 매핑.<br>
+    B(안전망 reconcile·컨텍스트 경계·테스트)는 별도. 검증: resilience4j · Spring Cloud OpenFeign 공식 docs.
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

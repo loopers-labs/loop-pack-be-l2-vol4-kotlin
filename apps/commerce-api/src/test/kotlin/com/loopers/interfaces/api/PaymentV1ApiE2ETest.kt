@@ -1,6 +1,5 @@
 package com.loopers.interfaces.api
 
-import com.loopers.application.payment.PaymentCancelCommand
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
 import com.loopers.application.payment.PaymentResult
@@ -216,8 +215,6 @@ class PaymentV1ApiE2ETest @Autowired constructor(
     class FakePaymentGateway : PaymentGateway {
         var nextStatus: PaymentStatus = PaymentStatus.PENDING
         var lastCommand: PaymentCommand? = null
-        val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
-
         override fun pay(command: PaymentCommand): PaymentResult {
             lastCommand = command
             return PaymentResult(
@@ -227,18 +224,17 @@ class PaymentV1ApiE2ETest @Autowired constructor(
             )
         }
 
-        override fun cancel(command: PaymentCancelCommand) {
-            cancelCommands.add(command)
-        }
-
         override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
             throw UnsupportedOperationException()
+        }
+
+        override fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo> {
+            return emptyList()
         }
 
         fun reset() {
             nextStatus = PaymentStatus.PENDING
             lastCommand = null
-            cancelCommands.clear()
         }
     }
 }

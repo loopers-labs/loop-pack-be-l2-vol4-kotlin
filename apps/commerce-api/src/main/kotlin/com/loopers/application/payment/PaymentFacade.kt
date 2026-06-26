@@ -7,6 +7,7 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.Payment
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -25,7 +26,21 @@ class PaymentFacade(
             throw CoreException(ErrorType.BAD_REQUEST, "결제 대기 상태의 주문만 결제 요청할 수 있습니다.")
         }
 
-        paymentApplicationService.validateNoPendingPayment(command.orderId)
+        val payment = try {
+            paymentApplicationService.createPayment(
+                Payment(
+                    orderId = command.orderId,
+                    userId = command.userId,
+                    cardType = command.cardType,
+                    cardNo = command.cardNo,
+                    amount = order.paymentAmount.amount,
+                ),
+            )
+        } catch (e: DataIntegrityViolationException) {
+            val existing = paymentApplicationService.findByOrderId(command.orderId)
+                ?: throw CoreException(ErrorType.NOT_FOUND, "결제 정보를 찾을 수 없습니다. orderId=${command.orderId}")
+            return PaymentInfo.from(existing)
+        }
 
         val paymentResult = paymentGateway.pay(
             PaymentCommand(
@@ -38,20 +53,14 @@ class PaymentFacade(
             ),
         )
 
-        val payment = paymentApplicationService.createPayment(
-            Payment(
-                orderId = command.orderId,
-                userId = command.userId,
-                transactionKey = paymentResult.transactionKey,
-                cardType = command.cardType,
-                cardNo = command.cardNo,
-                amount = order.paymentAmount.amount,
-                status = paymentResult.status,
-                reason = paymentResult.reason,
-            ),
+        val updatedPayment = paymentApplicationService.markPgResult(
+            payment.id!!,
+            paymentResult.transactionKey,
+            paymentResult.status,
+            paymentResult.reason,
         )
 
-        return PaymentInfo.from(payment)
+        return PaymentInfo.from(updatedPayment)
     }
 
     @Transactional
@@ -69,6 +78,9 @@ class PaymentFacade(
             }
             PaymentStatus.PENDING -> {
                 throw CoreException(ErrorType.BAD_REQUEST, "콜백 상태가 PENDING일 수 없습니다.")
+            }
+            PaymentStatus.REQUESTED -> {
+                throw CoreException(ErrorType.BAD_REQUEST, "콜백 상태가 REQUESTED일 수 없습니다.")
             }
         }
     }

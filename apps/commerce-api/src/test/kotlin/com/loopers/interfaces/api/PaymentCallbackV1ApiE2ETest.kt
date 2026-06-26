@@ -3,7 +3,6 @@ package com.loopers.interfaces.api
 import com.loopers.application.order.CreateOrderCommand
 import com.loopers.application.order.CreateOrderItemCommand
 import com.loopers.application.order.OrderFacade
-import com.loopers.application.payment.PaymentCancelCommand
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentFacade
 import com.loopers.application.payment.PaymentGateway
@@ -81,8 +80,9 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
         fun returnsSuccess_whenCallbackIsSuccess() {
             // arrange
             val (order, paymentInfo) = placeOrderAndRequestPayment()
+            val transactionKey = paymentInfo.transactionKey!!
             val callbackRequest = PgCallbackRequest(
-                transactionKey = paymentInfo.transactionKey,
+                transactionKey = transactionKey,
                 orderId = order.id.toString(),
                 cardType = "SAMSUNG",
                 cardNo = "1234-5678-9012-3456",
@@ -101,7 +101,7 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
             )
 
             // assert
-            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey)!!
+            val payment = paymentRepository.findByTransactionKey(transactionKey)!!
             val updatedOrder = orderRepository.find(order.id)!!
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
@@ -117,8 +117,9 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
         fun returnsSuccess_whenCallbackIsFailed_andReleasesResources() {
             // arrange
             val (order, paymentInfo) = placeOrderAndRequestPaymentWithCoupon()
+            val transactionKey = paymentInfo.transactionKey!!
             val callbackRequest = PgCallbackRequest(
-                transactionKey = paymentInfo.transactionKey,
+                transactionKey = transactionKey,
                 orderId = order.id.toString(),
                 cardType = "SAMSUNG",
                 cardNo = "1234-5678-9012-3456",
@@ -137,7 +138,7 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
             )
 
             // assert
-            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey)!!
+            val payment = paymentRepository.findByTransactionKey(transactionKey)!!
             val updatedOrder = orderRepository.find(order.id)!!
             val remainingStock = stockApplicationService.getStock(1L)
             assertAll(
@@ -154,8 +155,9 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
         fun returnsConflict_whenCallbackIsDuplicate() {
             // arrange
             val (order, paymentInfo) = placeOrderAndRequestPayment()
+            val transactionKey = paymentInfo.transactionKey!!
             val callbackRequest = PgCallbackRequest(
-                transactionKey = paymentInfo.transactionKey,
+                transactionKey = transactionKey,
                 orderId = order.id.toString(),
                 cardType = "SAMSUNG",
                 cardNo = "1234-5678-9012-3456",
@@ -315,8 +317,6 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
     class FakePaymentGateway : PaymentGateway {
         var nextStatus: PaymentStatus = PaymentStatus.PENDING
         var lastCommand: PaymentCommand? = null
-        val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
-
         override fun pay(command: PaymentCommand): PaymentResult {
             lastCommand = command
             return PaymentResult(
@@ -326,18 +326,17 @@ class PaymentCallbackV1ApiE2ETest @Autowired constructor(
             )
         }
 
-        override fun cancel(command: PaymentCancelCommand) {
-            cancelCommands.add(command)
-        }
-
         override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
             throw UnsupportedOperationException()
+        }
+
+        override fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo> {
+            return emptyList()
         }
 
         fun reset() {
             nextStatus = PaymentStatus.PENDING
             lastCommand = null
-            cancelCommands.clear()
         }
     }
 }

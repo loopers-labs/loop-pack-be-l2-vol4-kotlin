@@ -23,6 +23,7 @@ import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
+import org.springframework.web.client.ResourceAccessException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -99,6 +100,49 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             )
         }
 
+        @DisplayName("이미 결제가 진행 중인 주문에 대해 결제를 요청하면 기존 Payment를 반환한다.")
+        @Test
+        fun requestPayment_returnsExistingPayment_whenPaymentAlreadyExists() {
+            // arrange
+            val user = userJpaRepository.save(newUserJpaEntity())
+            val product = saveProductWithStock(price = 10_000L, stock = 10)
+            fakePaymentGateway.nextStatus = PaymentStatus.PENDING
+
+            val order = orderFacade.placeOrder(
+                CreateOrderCommand(
+                    userId = user.id,
+                    items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
+                    userCouponId = null,
+                ),
+            )
+
+            val firstResult = paymentFacade.requestPayment(
+                RequestPaymentCommand(
+                    orderId = order.id,
+                    userId = user.id,
+                    cardType = "SAMSUNG",
+                    cardNo = "1234-5678-9012-3456",
+                ),
+            )
+
+            // act — 같은 주문에 대해 두 번째 결제 요청
+            val secondResult = paymentFacade.requestPayment(
+                RequestPaymentCommand(
+                    orderId = order.id,
+                    userId = user.id,
+                    cardType = "SAMSUNG",
+                    cardNo = "1234-5678-9012-3456",
+                ),
+            )
+
+            // assert — 기존 Payment를 그대로 반환
+            assertAll(
+                { assertThat(secondResult.id).isEqualTo(firstResult.id) },
+                { assertThat(secondResult.status).isEqualTo(firstResult.status) },
+                { assertThat(secondResult.transactionKey).isEqualTo(firstResult.transactionKey) },
+            )
+        }
+
         @DisplayName("존재하지 않는 주문에 대해 결제를 요청하면 NOT_FOUND 예외가 발생한다.")
         @Test
         fun requestPayment_throwsNotFound_whenOrderDoesNotExist() {
@@ -118,6 +162,43 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             }
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
+
+        @DisplayName("PG 호출 중 Timeout이 발생하면 Payment가 REQUESTED 상태로 남는다.")
+        @Test
+        fun requestPayment_leavesPaymentRequested_whenPgTimesOut() {
+            // arrange
+            val user = userJpaRepository.save(newUserJpaEntity())
+            val product = saveProductWithStock(price = 10_000L, stock = 10)
+            fakePaymentGateway.nextException = ResourceAccessException("Read timed out")
+
+            val order = orderFacade.placeOrder(
+                CreateOrderCommand(
+                    userId = user.id,
+                    items = listOf(CreateOrderItemCommand(productId = product.id, quantity = 1)),
+                    userCouponId = null,
+                ),
+            )
+
+            // act
+            assertThrows<ResourceAccessException> {
+                paymentFacade.requestPayment(
+                    RequestPaymentCommand(
+                        orderId = order.id,
+                        userId = user.id,
+                        cardType = "SAMSUNG",
+                        cardNo = "1234-5678-9012-3456",
+                    ),
+                )
+            }
+
+            // assert — Payment가 REQUESTED 상태로 남아있어야 함
+            val savedPayment = paymentRepository.findByOrderId(order.id)
+            assertAll(
+                { assertThat(savedPayment).isNotNull() },
+                { assertThat(savedPayment!!.status).isEqualTo(PaymentStatus.REQUESTED) },
+                { assertThat(savedPayment!!.transactionKey).isNull() },
+            )
+        }
     }
 
     @DisplayName("콜백 수신 시, ")
@@ -132,14 +213,14 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             // act
             paymentFacade.handleCallback(
                 PaymentCallbackCommand(
-                    transactionKey = paymentInfo.transactionKey,
+                    transactionKey = paymentInfo.transactionKey!!,
                     status = PaymentStatus.SUCCESS,
                     reason = "정상 승인되었습니다.",
                 ),
             )
 
             // assert
-            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey)!!
+            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey!!)!!
             val updatedOrder = orderRepository.find(order.id)!!
             assertAll(
                 { assertThat(payment.status).isEqualTo(PaymentStatus.SUCCESS) },
@@ -157,14 +238,14 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             // act
             paymentFacade.handleCallback(
                 PaymentCallbackCommand(
-                    transactionKey = paymentInfo.transactionKey,
+                    transactionKey = paymentInfo.transactionKey!!,
                     status = PaymentStatus.FAILED,
                     reason = "잔액 부족",
                 ),
             )
 
             // assert
-            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey)!!
+            val payment = paymentRepository.findByTransactionKey(paymentInfo.transactionKey!!)!!
             val updatedOrder = orderRepository.find(order.id)!!
             val remainingStock = stockApplicationService.getStock(1L)
             assertAll(
@@ -182,7 +263,7 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             val (_, paymentInfo) = placeOrderAndRequestPayment()
             paymentFacade.handleCallback(
                 PaymentCallbackCommand(
-                    transactionKey = paymentInfo.transactionKey,
+                    transactionKey = paymentInfo.transactionKey!!,
                     status = PaymentStatus.SUCCESS,
                     reason = "정상 승인되었습니다.",
                 ),
@@ -192,7 +273,7 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             val result = assertThrows<CoreException> {
                 paymentFacade.handleCallback(
                     PaymentCallbackCommand(
-                        transactionKey = paymentInfo.transactionKey,
+                        transactionKey = paymentInfo.transactionKey!!,
                         status = PaymentStatus.SUCCESS,
                         reason = "정상 승인되었습니다.",
                     ),
@@ -302,11 +383,14 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
 
     class FakePaymentGateway : PaymentGateway {
         var nextStatus: PaymentStatus = PaymentStatus.PENDING
+        var nextException: RuntimeException? = null
         var lastCommand: PaymentCommand? = null
-        val cancelCommands: MutableList<PaymentCancelCommand> = mutableListOf()
+        val transactionStatuses: MutableMap<String, PaymentTransactionInfo> = mutableMapOf()
+        val orderTransactions: MutableMap<String, List<PaymentTransactionInfo>> = mutableMapOf()
 
         override fun pay(command: PaymentCommand): PaymentResult {
             lastCommand = command
+            nextException?.let { throw it }
             return PaymentResult(
                 transactionKey = "fake:TR:${System.currentTimeMillis()}",
                 status = nextStatus,
@@ -314,18 +398,21 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             )
         }
 
-        override fun cancel(command: PaymentCancelCommand) {
-            cancelCommands.add(command)
+        override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
+            return transactionStatuses[transactionKey]
+                ?: throw IllegalArgumentException("등록되지 않은 transactionKey: $transactionKey")
         }
 
-        override fun getTransactionStatus(transactionKey: String): PaymentTransactionInfo {
-            throw UnsupportedOperationException()
+        override fun getTransactionsByOrderId(orderId: String): List<PaymentTransactionInfo> {
+            return orderTransactions[orderId] ?: emptyList()
         }
 
         fun reset() {
             nextStatus = PaymentStatus.PENDING
+            nextException = null
             lastCommand = null
-            cancelCommands.clear()
+            transactionStatuses.clear()
+            orderTransactions.clear()
         }
     }
 }

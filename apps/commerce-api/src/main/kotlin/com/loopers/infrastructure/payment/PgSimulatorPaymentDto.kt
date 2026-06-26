@@ -25,6 +25,11 @@ object PgSimulatorPaymentDto {
         val reason: String?,
     )
 
+    data class OrderResponse(
+        val orderId: String,
+        val transactions: List<TransactionDetailResponse>,
+    )
+
     data class ApiResponse<T>(
         val meta: Meta,
         val data: T?,

@@ -2,49 +2,81 @@ package com.loopers.infrastructure.payment
 
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
+import org.springframework.beans.factory.DisposableBean
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestTemplate
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 @Configuration
+@EnableConfigurationProperties(PgSimulatorProperties::class)
 class PgSimulatorRestTemplateConfig {
     @Bean
-    fun pgSimulatorRestTemplate(restTemplateBuilder: RestTemplateBuilder): RestTemplate =
-        restTemplateBuilder.build()
+    fun pgSimulatorRestTemplate(
+        restTemplateBuilder: RestTemplateBuilder,
+        properties: PgSimulatorProperties,
+    ): RestTemplate =
+        restTemplateBuilder
+            .setConnectTimeout(properties.timeout)
+            .setReadTimeout(properties.timeout)
+            .build()
+
+    @Bean
+    fun pgSimulatorExecutorService(): ExecutorService =
+        Executors.newCachedThreadPool()
+
+    @Bean
+    fun pgSimulatorResilience(
+        properties: PgSimulatorProperties,
+        @Qualifier("pgSimulatorExecutorService") executorService: ExecutorService,
+    ): PgSimulatorResilience =
+        PgSimulatorResilience.from(properties, executorService)
+
+    @Bean
+    fun pgSimulatorExecutorShutdown(
+        @Qualifier("pgSimulatorExecutorService") executorService: ExecutorService,
+    ): DisposableBean =
+        DisposableBean { executorService.shutdown() }
 }
 
 @Component
-@EnableConfigurationProperties(PgSimulatorProperties::class)
 class PgSimulatorPaymentGateway(
     private val restTemplate: RestTemplate,
     private val properties: PgSimulatorProperties,
+    private val resilience: PgSimulatorResilience,
 ) : PaymentGateway {
     override fun approve(command: PaymentCommand.Approve): PaymentGateway.PgResult =
         runCatching {
-            val response = restTemplate.postForObject(
-                "${properties.baseUrl}/api/v1/payments",
-                HttpEntity(
-                    PgSimulatorPaymentDto.PaymentRequest(
-                        orderId = command.orderId.toString(),
-                        cardType = command.cardType,
-                        cardNo = command.cardNo,
-                        amount = command.amount,
-                        callbackUrl = properties.callbackUrl,
+            val response = resilience.execute {
+                restTemplate.exchange(
+                    "${properties.baseUrl}/api/v1/payments",
+                    HttpMethod.POST,
+                    HttpEntity(
+                        PgSimulatorPaymentDto.PaymentRequest(
+                            orderId = command.orderId.toString(),
+                            cardType = command.cardType,
+                            cardNo = command.cardNo,
+                            amount = command.amount,
+                            callbackUrl = properties.callbackUrl,
+                        ),
+                        headers(command.userId),
                     ),
-                    headers(command.userId),
-                ),
-                PgSimulatorPaymentDto.ApiResponse::class.java,
-            )
-            val data = response?.data as? Map<*, *>
-            val transactionKey = data?.get("transactionKey") as? String
-            val status = data?.get("status") as? String ?: "UNKNOWN"
+                    responseType<PgSimulatorPaymentDto.TransactionResponse>(),
+                )
+            }
+            val data = response.body?.data
+            val transactionKey = data?.transactionKey
+            val status = data?.status ?: "UNKNOWN"
             PaymentGateway.PgResult(
                 success = transactionKey != null,
                 pgStatus = status,
@@ -69,16 +101,18 @@ class PgSimulatorPaymentGateway(
             )
 
         return runCatching {
-            val response = restTemplate.exchange(
-                "${properties.baseUrl}/api/v1/payments/$transactionKey",
-                HttpMethod.GET,
-                HttpEntity<Unit>(headers(command.userId)),
-                PgSimulatorPaymentDto.ApiResponse::class.java,
-            )
-            val data = response.body?.data as? Map<*, *>
-            val status = data?.get("status") as? String ?: "UNKNOWN"
-            val amount = (data?.get("amount") as? Number)?.toLong()
-            val reason = data?.get("reason") as? String
+            val response = resilience.execute {
+                restTemplate.exchange(
+                    "${properties.baseUrl}/api/v1/payments/$transactionKey",
+                    HttpMethod.GET,
+                    HttpEntity<Unit>(headers(command.userId)),
+                    responseType<PgSimulatorPaymentDto.TransactionDetailResponse>(),
+                )
+            }
+            val data = response.body?.data
+            val status = data?.status ?: "UNKNOWN"
+            val amount = data?.amount
+            val reason = data?.reason
             PaymentGateway.PgResult(
                 success = status == "SUCCESS",
                 pgStatus = status,
@@ -92,6 +126,30 @@ class PgSimulatorPaymentGateway(
         }
     }
 
+    override fun findByOrder(command: PaymentCommand.FindByOrder): List<PaymentGateway.PgTransaction> =
+        runCatching {
+            val response = resilience.execute {
+                restTemplate.exchange(
+                    "${properties.baseUrl}/api/v1/payments?orderId=${command.orderId}",
+                    HttpMethod.GET,
+                    HttpEntity<Unit>(headers(command.userId)),
+                    responseType<PgSimulatorPaymentDto.OrderResponse>(),
+                )
+            }
+            response.body?.data?.transactions.orEmpty().map { transaction ->
+                PaymentGateway.PgTransaction(
+                    transactionKey = transaction.transactionKey,
+                    status = transaction.status,
+                    amount = transaction.amount,
+                    failureReason = transaction.reason,
+                    rawResponseSummary = "pg simulator order lookup status=${transaction.status} " +
+                        "transactionKey=${transaction.transactionKey} reason=${transaction.reason}",
+                )
+            }
+        }.getOrElse {
+            emptyList()
+        }
+
     override fun cancel(command: PaymentCommand.Cancel): PaymentGateway.PgResult =
         PaymentGateway.PgResult(
             success = false,
@@ -101,6 +159,9 @@ class PgSimulatorPaymentGateway(
             failureReason = "PG simulator는 결제 취소 API를 제공하지 않습니다.",
             rawResponseSummary = "pg simulator cancel unsupported",
         )
+
+    private inline fun <reified T> responseType() =
+        object : ParameterizedTypeReference<PgSimulatorPaymentDto.ApiResponse<T>>() {}
 
     private fun headers(userId: Long): HttpHeaders =
         HttpHeaders().apply {

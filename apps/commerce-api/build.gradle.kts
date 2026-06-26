@@ -15,6 +15,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
+    implementation("io.github.resilience4j:resilience4j-retry:${project.properties["resilience4jVersion"]}")
+    implementation("io.github.resilience4j:resilience4j-circuitbreaker:${project.properties["resilience4jVersion"]}")
+    implementation("io.github.resilience4j:resilience4j-timelimiter:${project.properties["resilience4jVersion"]}")
 
     // bcrypt (no Spring Security)
     implementation("at.favre.lib:bcrypt:0.10.2")

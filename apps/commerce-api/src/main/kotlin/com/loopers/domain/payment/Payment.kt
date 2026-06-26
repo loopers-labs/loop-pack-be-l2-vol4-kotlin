@@ -8,18 +8,33 @@ class Payment(
     val id: Long? = null,
     val orderId: Long,
     val userId: Long,
-    val transactionKey: String,
+    transactionKey: String? = null,
     val cardType: String,
     val cardNo: String,
     val amount: Long,
-    status: PaymentStatus = PaymentStatus.PENDING,
+    status: PaymentStatus = PaymentStatus.REQUESTED,
     reason: String? = null,
 ) {
+    var transactionKey: String? = transactionKey
+        private set
+
     var status: PaymentStatus = status
         private set
 
     var reason: String? = reason
         private set
+
+    fun markPending(
+        transactionKey: String,
+        reason: String?,
+    ) {
+        if (status != PaymentStatus.REQUESTED) {
+            throw CoreException(ErrorType.BAD_REQUEST, "결제 요청 상태에서만 대기 상태로 변경할 수 있습니다.")
+        }
+        this.transactionKey = transactionKey
+        this.status = PaymentStatus.PENDING
+        this.reason = reason
+    }
 
     fun markSuccess(reason: String?) {
         guardPending()

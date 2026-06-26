@@ -32,11 +32,11 @@ class PaymentApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun markSuccess_whenPending() {
             // arrange
-            val payment = paymentRepository.save(newPayment())
+            val payment = paymentRepository.save(newPendingPayment())
 
             // act
             val result = paymentApplicationService.markSuccess(
-                payment.transactionKey,
+                payment.transactionKey!!,
                 "정상 승인되었습니다.",
             )
 
@@ -49,12 +49,12 @@ class PaymentApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun throwsConflict_whenAlreadySuccess() {
             // arrange
-            val payment = paymentRepository.save(newPayment())
-            paymentApplicationService.markSuccess(payment.transactionKey, "정상 승인되었습니다.")
+            val payment = paymentRepository.save(newPendingPayment())
+            paymentApplicationService.markSuccess(payment.transactionKey!!, "정상 승인되었습니다.")
 
             // act & assert
             val result = assertThrows<CoreException> {
-                paymentApplicationService.markSuccess(payment.transactionKey, "정상 승인되었습니다.")
+                paymentApplicationService.markSuccess(payment.transactionKey!!, "정상 승인되었습니다.")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
@@ -67,11 +67,11 @@ class PaymentApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun markFailed_whenPending() {
             // arrange
-            val payment = paymentRepository.save(newPayment())
+            val payment = paymentRepository.save(newPendingPayment())
 
             // act
             val result = paymentApplicationService.markFailed(
-                payment.transactionKey,
+                payment.transactionKey!!,
                 "잔액 부족",
             )
 
@@ -84,18 +84,18 @@ class PaymentApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun throwsConflict_whenAlreadySuccess() {
             // arrange
-            val payment = paymentRepository.save(newPayment())
-            paymentApplicationService.markSuccess(payment.transactionKey, "정상 승인되었습니다.")
+            val payment = paymentRepository.save(newPendingPayment())
+            paymentApplicationService.markSuccess(payment.transactionKey!!, "정상 승인되었습니다.")
 
             // act & assert
             val result = assertThrows<CoreException> {
-                paymentApplicationService.markFailed(payment.transactionKey, "잔액 부족")
+                paymentApplicationService.markFailed(payment.transactionKey!!, "잔액 부족")
             }
             assertThat(result.errorType).isEqualTo(ErrorType.CONFLICT)
         }
     }
 
-    private fun newPayment(
+    private fun newPendingPayment(
         orderId: Long = 1L,
         userId: Long = 1L,
         transactionKey: String = "20250623:TR:abc123",
@@ -109,5 +109,6 @@ class PaymentApplicationServiceIntegrationTest @Autowired constructor(
         cardType = cardType,
         cardNo = cardNo,
         amount = amount,
+        status = PaymentStatus.PENDING,
     )
 }

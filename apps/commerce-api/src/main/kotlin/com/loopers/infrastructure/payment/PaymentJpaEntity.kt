@@ -21,7 +21,7 @@ import jakarta.persistence.Table
 class PaymentJpaEntity(
     orderId: Long,
     userId: Long,
-    transactionKey: String,
+    transactionKey: String?,
     cardType: String,
     cardNo: String,
     amount: Long,
@@ -34,8 +34,9 @@ class PaymentJpaEntity(
     @Column(name = "user_id", nullable = false)
     val userId: Long = userId
 
-    @Column(name = "transaction_key", nullable = false, length = 100)
-    val transactionKey: String = transactionKey
+    @Column(name = "transaction_key", length = 100)
+    var transactionKey: String? = transactionKey
+        protected set
 
     @Column(name = "card_type", nullable = false, length = 50)
     val cardType: String = cardType
@@ -56,6 +57,7 @@ class PaymentJpaEntity(
         protected set
 
     fun updateFrom(payment: Payment) {
+        transactionKey = payment.transactionKey
         status = payment.status
         reason = payment.reason
     }

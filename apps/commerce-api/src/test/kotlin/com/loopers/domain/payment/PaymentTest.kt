@@ -15,7 +15,7 @@ class PaymentTest {
     @DisplayName("결제 생성 시, ")
     @Nested
     inner class CreatePayment {
-        @DisplayName("유효한 정보로 생성하면 PENDING 상태의 결제가 생성된다.")
+        @DisplayName("유효한 정보로 생성하면 REQUESTED 상태의 결제가 생성된다.")
         @Test
         fun createPayment_whenAllFieldsAreValid() {
             // act
@@ -29,7 +29,7 @@ class PaymentTest {
                 { assertThat(payment.cardType).isEqualTo("SAMSUNG") },
                 { assertThat(payment.cardNo).isEqualTo("1234-5678-9012-3456") },
                 { assertThat(payment.amount).isEqualTo(10_000L) },
-                { assertThat(payment.status).isEqualTo(PaymentStatus.PENDING) },
+                { assertThat(payment.status).isEqualTo(PaymentStatus.REQUESTED) },
                 { assertThat(payment.reason).isNull() },
             )
         }
@@ -43,6 +43,7 @@ class PaymentTest {
         fun markSuccess() {
             // arrange
             val payment = newPayment()
+            payment.markPending("20250623:TR:abc123", null)
 
             // act
             payment.markSuccess("정상 승인되었습니다.")
@@ -59,6 +60,7 @@ class PaymentTest {
         fun markFailed() {
             // arrange
             val payment = newPayment()
+            payment.markPending("20250623:TR:abc123", null)
 
             // act
             payment.markFailed("잔액 부족")
@@ -75,6 +77,7 @@ class PaymentTest {
         fun throwsBadRequest_whenAlreadySuccess() {
             // arrange
             val payment = newPayment()
+            payment.markPending("20250623:TR:abc123", null)
             payment.markSuccess("정상 승인되었습니다.")
 
             // act & assert
@@ -89,6 +92,7 @@ class PaymentTest {
         fun throwsBadRequest_whenAlreadyFailed() {
             // arrange
             val payment = newPayment()
+            payment.markPending("20250623:TR:abc123", null)
             payment.markFailed("잔액 부족")
 
             // act & assert

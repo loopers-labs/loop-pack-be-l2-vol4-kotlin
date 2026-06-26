@@ -12,6 +12,11 @@ interface PaymentJpaRepository : JpaRepository<PaymentJpaEntity, Long> {
 
     fun findByOrderIdAndDeletedAtIsNull(orderId: Long): PaymentJpaEntity?
 
+    fun findByOrderIdAndStatusInAndDeletedAtIsNull(
+        orderId: Long,
+        statuses: Collection<PaymentStatus>,
+    ): PaymentJpaEntity?
+
     fun findByStatusAndCreatedAtBeforeAndDeletedAtIsNull(
         status: PaymentStatus,
         createdAt: ZonedDateTime,
@@ -29,6 +34,43 @@ interface PaymentJpaRepository : JpaRepository<PaymentJpaEntity, Long> {
     )
     fun updateStatusIfCurrent(
         @Param("transactionKey") transactionKey: String,
+        @Param("currentStatus") currentStatus: PaymentStatus,
+        @Param("targetStatus") targetStatus: PaymentStatus,
+        @Param("reason") reason: String?,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PaymentJpaEntity p
+        set p.transactionKey = :transactionKey,
+            p.status = :targetStatus,
+            p.reason = :reason
+        where p.id = :id
+          and p.status = :currentStatus
+          and p.deletedAt is null
+        """,
+    )
+    fun updatePgResultIfCurrent(
+        @Param("id") id: Long,
+        @Param("transactionKey") transactionKey: String,
+        @Param("currentStatus") currentStatus: PaymentStatus,
+        @Param("targetStatus") targetStatus: PaymentStatus,
+        @Param("reason") reason: String?,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """
+        update PaymentJpaEntity p
+        set p.status = :targetStatus, p.reason = :reason
+        where p.id = :id
+          and p.status = :currentStatus
+          and p.deletedAt is null
+        """,
+    )
+    fun updateStatusById(
+        @Param("id") id: Long,
         @Param("currentStatus") currentStatus: PaymentStatus,
         @Param("targetStatus") targetStatus: PaymentStatus,
         @Param("reason") reason: String?,

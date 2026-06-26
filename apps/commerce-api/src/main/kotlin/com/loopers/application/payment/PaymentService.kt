@@ -23,9 +23,19 @@ class PaymentService(
     private val inventoryService: InventoryService,
     private val couponService: CouponService,
 ) {
-    @Transactional
-    fun preparePayment(memberId: Long, command: PaymentCommand.Request): PaymentInfo {
-        val order = orderRepository.findByIdForUpdate(command.orderId)
+    @Transactional(readOnly = true)
+    fun findByIdempotencyKey(memberId: Long, idempotencyKey: String): PaymentInfo? {
+        return paymentRepository.findByMemberIdAndIdempotencyKey(
+            memberId = memberId,
+            idempotencyKey = idempotencyKey,
+        )?.let { payment ->
+            PaymentInfo.from(payment, orderRepository.findById(payment.orderId)?.status)
+        }
+    }
+
+    @Transactional(readOnly = true)
+    fun preparePayment(memberId: Long, command: PaymentCommand.Request): PaymentPreparation {
+        val order = orderRepository.findById(command.orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
 
         if (order.memberId != memberId) {
@@ -43,52 +53,60 @@ class PaymentService(
             throw CoreException(ErrorType.CONFLICT, "Order is already paid.")
         }
 
-        val payment = Payment.request(
-            order = order,
+        return PaymentPreparation(order = order)
+    }
+
+    @Transactional
+    fun createPendingPayment(
+        preparation: PaymentPreparation,
+        command: PaymentCommand.Request,
+        transactionKey: String,
+        reason: String?,
+    ): PaymentInfo {
+        val payment = Payment.pending(
+            order = preparation.order,
             cardType = command.cardType,
             cardNo = command.cardNo,
+            idempotencyKey = command.idempotencyKey,
+            transactionKey = transactionKey,
+            reason = reason,
         ).let(paymentRepository::save)
 
-        return PaymentInfo.from(payment, order.status)
+        return PaymentInfo.from(payment, preparation.order.status)
     }
 
     @Transactional
-    fun markPending(paymentId: Long, transactionKey: String, reason: String?): PaymentInfo {
-        val payment = paymentRepository.findByIdForUpdate(paymentId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
-        val order = orderRepository.findByIdForUpdate(payment.orderId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+    fun createSyncRequiredPayment(
+        preparation: PaymentPreparation,
+        command: PaymentCommand.Request,
+        reason: String?,
+    ): PaymentInfo {
+        val payment = Payment.syncRequired(
+            order = preparation.order,
+            cardType = command.cardType,
+            cardNo = command.cardNo,
+            idempotencyKey = command.idempotencyKey,
+            reason = reason,
+        ).let(paymentRepository::save)
 
-        payment.markPending(transactionKey = transactionKey, reason = reason)
-
-        return paymentRepository.save(payment)
-            .let { PaymentInfo.from(it, order.status) }
+        return PaymentInfo.from(payment, preparation.order.status)
     }
 
     @Transactional
-    fun markPendingConfirmation(paymentId: Long, reason: String?): PaymentInfo {
-        val payment = paymentRepository.findByIdForUpdate(paymentId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
-        val order = orderRepository.findByIdForUpdate(payment.orderId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+    fun createFailedPayment(
+        preparation: PaymentPreparation,
+        command: PaymentCommand.Request,
+        reason: String?,
+    ): PaymentInfo {
+        val payment = Payment.failed(
+            order = preparation.order,
+            cardType = command.cardType,
+            cardNo = command.cardNo,
+            idempotencyKey = command.idempotencyKey,
+            reason = reason,
+        ).let(paymentRepository::save)
 
-        payment.markPendingConfirmation(reason)
-
-        return paymentRepository.save(payment)
-            .let { PaymentInfo.from(it, order.status) }
-    }
-
-    @Transactional
-    fun markRequestFailed(paymentId: Long, reason: String?): PaymentInfo {
-        val payment = paymentRepository.findByIdForUpdate(paymentId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
-        val order = orderRepository.findByIdForUpdate(payment.orderId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
-
-        payment.markRequestFailed(reason)
-
-        return paymentRepository.save(payment)
-            .let { PaymentInfo.from(it, order.status) }
+        return PaymentInfo.from(payment, preparation.order.status)
     }
 
     @Transactional(readOnly = true)
@@ -124,7 +142,7 @@ class PaymentService(
     @Transactional
     fun handleCallback(command: PaymentCommand.Callback): PaymentInfo {
         val payment = paymentRepository.findByTransactionKeyForUpdate(command.transactionKey)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Payment not found.")
+            ?: return recoverCallbackPayment(command)
         val order = orderRepository.findByIdForUpdate(payment.orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
 
@@ -148,7 +166,7 @@ class PaymentService(
         val order = orderRepository.findByIdForUpdate(payment.orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
 
-        payment.markRequestFailed("Payment gateway has no transaction for this order.")
+        payment.fail("Payment gateway has no transaction for this order.")
 
         return paymentRepository.save(payment)
             .let { PaymentInfo.from(it, order.status) }
@@ -163,7 +181,7 @@ class PaymentService(
     ): PaymentInfo {
         when (status) {
             PgTransactionStatus.PENDING -> {
-                if (payment.status in setOf(PaymentStatus.REQUESTING, PaymentStatus.PENDING_CONFIRMATION)) {
+                if (payment.status == PaymentStatus.SYNC_REQUIRED) {
                     payment.markPending(transactionKey = transactionKey, reason = reason)
                     return paymentRepository.save(payment)
                         .let { PaymentInfo.from(it, order.status) }
@@ -195,6 +213,31 @@ class PaymentService(
             .let { PaymentInfo.from(it, order.status) }
     }
 
+    private fun recoverCallbackPayment(command: PaymentCommand.Callback): PaymentInfo {
+        val order = orderRepository.findByOrderNumberForUpdate(command.orderNumber)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
+        val payment = Payment.pending(
+            order = order,
+            cardType = command.cardType,
+            cardNo = command.cardNo,
+            idempotencyKey = callbackIdempotencyKey(command.transactionKey),
+            transactionKey = command.transactionKey,
+            reason = command.reason,
+        )
+
+        return applyPgTransaction(
+            payment = paymentRepository.save(payment),
+            order = order,
+            transactionKey = command.transactionKey,
+            status = command.status,
+            reason = command.reason,
+        )
+    }
+
+    private fun callbackIdempotencyKey(transactionKey: String): String {
+        return "pg-callback:$transactionKey"
+    }
+
     private fun restoreOrderReservations(order: Order) {
         val productIds = order.items.map { it.productId }
         val inventories = inventoryService.getInventoriesForUpdate(productIds)
@@ -211,3 +254,7 @@ class PaymentService(
             ?.let(couponService::saveCouponIssue)
     }
 }
+
+data class PaymentPreparation(
+    val order: Order,
+)

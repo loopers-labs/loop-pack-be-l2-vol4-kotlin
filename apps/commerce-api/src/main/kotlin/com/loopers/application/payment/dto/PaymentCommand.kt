@@ -8,11 +8,14 @@ object PaymentCommand {
         val orderId: Long,
         val cardType: CardType,
         val cardNo: String,
+        val idempotencyKey: String,
     )
 
     data class Callback(
         val transactionKey: String,
         val orderNumber: String,
+        val cardType: CardType,
+        val cardNo: String,
         val amount: Long,
         val status: PgTransactionStatus,
         val reason: String?,

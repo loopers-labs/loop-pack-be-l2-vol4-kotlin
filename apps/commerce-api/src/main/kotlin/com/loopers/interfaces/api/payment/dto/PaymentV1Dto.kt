@@ -20,6 +20,8 @@ object PaymentV1Dto {
             return PaymentCommand.Callback(
                 transactionKey = transactionKey,
                 orderNumber = orderId,
+                cardType = cardType,
+                cardNo = cardNo,
                 amount = amount,
                 status = status,
                 reason = reason,
@@ -32,11 +34,12 @@ object PaymentV1Dto {
         val cardType: CardType,
         val cardNo: String,
     ) {
-        fun toCommand(): PaymentCommand.Request {
+        fun toCommand(idempotencyKey: String): PaymentCommand.Request {
             return PaymentCommand.Request(
                 orderId = orderId,
                 cardType = cardType,
                 cardNo = cardNo,
+                idempotencyKey = idempotencyKey,
             )
         }
     }

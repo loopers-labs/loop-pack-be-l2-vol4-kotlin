@@ -3,6 +3,7 @@ package com.loopers.application.payment
 import com.loopers.application.payment.dto.PaymentCommand
 import com.loopers.application.payment.dto.PaymentInfo
 import com.loopers.application.user.UserService
+import com.loopers.infrastructure.payment.PaymentRequestLockRepository
 import com.loopers.infrastructure.payment.client.PgPaymentCircuitOpenException
 import com.loopers.infrastructure.payment.client.PgPaymentClient
 import com.loopers.infrastructure.payment.client.PgPaymentCommand
@@ -15,6 +16,7 @@ class PaymentFacade(
     private val paymentService: PaymentService,
     private val userService: UserService,
     private val pgPaymentClient: PgPaymentClient,
+    private val paymentRequestLockRepository: PaymentRequestLockRepository,
 ) {
     fun handleCallback(command: PaymentCommand.Callback): PaymentInfo {
         return paymentService.handleCallback(command)
@@ -61,46 +63,103 @@ class PaymentFacade(
         command: PaymentCommand.Request,
     ): PaymentInfo {
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
-        val preparedPayment = paymentService.preparePayment(memberId = user.id, command = command)
+        paymentService.findByIdempotencyKey(
+            memberId = user.id,
+            idempotencyKey = command.idempotencyKey,
+        )?.let { return it }
 
-        return runCatching {
-            pgPaymentClient.request(
-                PgPaymentCommand.Request(
-                    userId = user.id.toString(),
-                    orderNumber = preparedPayment.orderNumber,
-                    cardType = preparedPayment.cardType,
-                    cardNo = preparedPayment.cardNo,
-                    amount = preparedPayment.amount,
-                ),
+        if (!paymentRequestLockRepository.acquireIdempotencyLock(user.id, command.idempotencyKey)) {
+            return paymentService.findByIdempotencyKey(
+                memberId = user.id,
+                idempotencyKey = command.idempotencyKey,
+            ) ?: throw com.loopers.support.error.CoreException(
+                com.loopers.support.error.ErrorType.CONFLICT,
+                "Payment request is already in progress.",
             )
-        }.fold(
-            onSuccess = { result ->
-                paymentService.markPending(
-                    paymentId = preparedPayment.paymentId,
-                    transactionKey = result.transactionKey,
-                    reason = result.reason,
+        }
+
+        try {
+            paymentService.findByIdempotencyKey(
+                memberId = user.id,
+                idempotencyKey = command.idempotencyKey,
+            )?.let { return it }
+
+            val preparation = paymentService.preparePayment(memberId = user.id, command = command)
+            if (!paymentRequestLockRepository.acquireOrderLock(command.orderId)) {
+                throw com.loopers.support.error.CoreException(
+                    com.loopers.support.error.ErrorType.CONFLICT,
+                    "Payment is already in progress.",
                 )
-            },
-            onFailure = { e ->
-                when (e) {
-                    is PgPaymentTimeoutException -> paymentService.markPendingConfirmation(
-                        paymentId = preparedPayment.paymentId,
-                        reason = "Payment gateway response timed out. Confirmation is required.",
+            }
+
+            try {
+                return runCatching {
+                    requestPgPayment(
+                        PgPaymentCommand.Request(
+                            userId = user.id.toString(),
+                            orderNumber = preparation.order.orderNumber,
+                            cardType = command.cardType,
+                            cardNo = command.cardNo,
+                            amount = preparation.order.totalAmount,
+                        ),
                     )
-                    is PgPaymentCircuitOpenException -> paymentService.markRequestFailed(
-                        paymentId = preparedPayment.paymentId,
-                        reason = "Payment gateway circuit is open.",
-                    )
-                    is PgPaymentRequestException -> paymentService.markRequestFailed(
-                        paymentId = preparedPayment.paymentId,
-                        reason = "Payment gateway request failed.",
-                    )
-                    else -> paymentService.markRequestFailed(
-                        paymentId = preparedPayment.paymentId,
-                        reason = "Payment gateway request failed.",
-                    )
-                }
-            },
-        )
+                }.fold(
+                    onSuccess = { result ->
+                        paymentService.createPendingPayment(
+                            preparation = preparation,
+                            command = command,
+                            transactionKey = result.transactionKey,
+                            reason = result.reason,
+                        )
+                    },
+                    onFailure = { e ->
+                        when (e) {
+                            is PgPaymentTimeoutException -> paymentService.createSyncRequiredPayment(
+                                preparation = preparation,
+                                command = command,
+                                reason = "Payment gateway response timed out. Synchronization is required.",
+                            )
+                            is PgPaymentCircuitOpenException -> paymentService.createFailedPayment(
+                                preparation = preparation,
+                                command = command,
+                                reason = "Payment gateway circuit is open.",
+                            )
+                            is PgPaymentRequestException -> paymentService.createFailedPayment(
+                                preparation = preparation,
+                                command = command,
+                                reason = "Payment gateway request failed.",
+                            )
+                            else -> paymentService.createFailedPayment(
+                                preparation = preparation,
+                                command = command,
+                                reason = "Payment gateway request failed.",
+                            )
+                        }
+                    },
+                )
+            } finally {
+                paymentRequestLockRepository.releaseOrderLock(command.orderId)
+            }
+        } finally {
+            paymentRequestLockRepository.releaseIdempotencyLock(user.id, command.idempotencyKey)
+        }
+    }
+
+    private fun requestPgPayment(command: PgPaymentCommand.Request): com.loopers.infrastructure.payment.client.PgPaymentResult {
+        var lastFailure: PgPaymentRequestException? = null
+
+        repeat(PG_REQUEST_ATTEMPTS) {
+            try {
+                return pgPaymentClient.request(command)
+            } catch (e: PgPaymentRequestException) {
+                lastFailure = e
+            }
+        }
+
+        throw lastFailure ?: PgPaymentRequestException(IllegalStateException("Payment gateway request failed."))
+    }
+
+    private companion object {
+        private const val PG_REQUEST_ATTEMPTS = 2
     }
 }

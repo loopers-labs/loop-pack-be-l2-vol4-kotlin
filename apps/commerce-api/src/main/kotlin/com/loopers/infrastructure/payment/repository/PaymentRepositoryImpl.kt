@@ -42,6 +42,13 @@ class PaymentRepositoryImpl(
             ?.let(PaymentMapper::toDomain)
     }
 
+    override fun findByMemberIdAndIdempotencyKey(memberId: Long, idempotencyKey: String): Payment? {
+        return paymentJpaRepository.findByMemberIdAndIdempotencyKey(
+            memberId = memberId,
+            idempotencyKey = idempotencyKey,
+        )?.let(PaymentMapper::toDomain)
+    }
+
     override fun findLatestByOrderId(orderId: Long): Payment? {
         return paymentJpaRepository.findFirstByOrderIdOrderByIdDesc(orderId)
             ?.let(PaymentMapper::toDomain)

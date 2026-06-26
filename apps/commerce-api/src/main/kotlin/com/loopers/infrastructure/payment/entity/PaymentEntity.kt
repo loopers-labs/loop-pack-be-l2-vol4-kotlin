@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Index
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 
 @Entity
 @Table(
@@ -18,6 +19,9 @@ import jakarta.persistence.Table
         Index(name = "idx_order_payment_order", columnList = "order_id, id"),
         Index(name = "idx_order_payment_member", columnList = "member_id, id"),
         Index(name = "idx_order_payment_transaction", columnList = "transaction_key"),
+    ],
+    uniqueConstraints = [
+        UniqueConstraint(name = "uk_order_payment_member_idempotency", columnNames = ["member_id", "idempotency_key"]),
     ],
 )
 class PaymentEntity(
@@ -29,6 +33,9 @@ class PaymentEntity(
 
     @Column(name = "member_id", nullable = false)
     var memberId: Long,
+
+    @Column(name = "idempotency_key", nullable = false)
+    var idempotencyKey: String,
 
     @Column(name = "amount", nullable = false)
     var amount: Long,
@@ -54,6 +61,7 @@ class PaymentEntity(
         orderId = payment.orderId
         orderNumber = payment.orderNumber
         memberId = payment.memberId
+        idempotencyKey = payment.idempotencyKey
         amount = payment.amount
         cardType = payment.cardType
         cardNo = payment.cardNo

@@ -40,6 +40,16 @@ class OrderRepositoryImpl(
             ?.let(OrderMapper::toDomain)
     }
 
+    override fun findByOrderNumber(orderNumber: String): Order? {
+        return orderJpaRepository.findByOrderNumber(orderNumber)
+            ?.let(OrderMapper::toDomain)
+    }
+
+    override fun findByOrderNumberForUpdate(orderNumber: String): Order? {
+        return orderJpaRepository.findByOrderNumberForUpdate(orderNumber)
+            ?.let(OrderMapper::toDomain)
+    }
+
     override fun findAllByMemberIdAndOrderedAtBetween(
         memberId: Long,
         startAt: ZonedDateTime,

@@ -21,6 +21,9 @@ interface OrderJpaRepository : JpaRepository<OrderEntity, Long> {
     fun findByMemberIdAndId(memberId: Long, orderId: Long): OrderEntity?
 
     @EntityGraph(attributePaths = ["items"])
+    fun findByOrderNumber(orderNumber: String): OrderEntity?
+
+    @EntityGraph(attributePaths = ["items"])
     @Query("select orders from OrderEntity orders where orders.id = :orderId")
     fun findWithItemsById(@Param("orderId") orderId: Long): OrderEntity?
 
@@ -28,4 +31,9 @@ interface OrderJpaRepository : JpaRepository<OrderEntity, Long> {
     @EntityGraph(attributePaths = ["items"])
     @Query("select orders from OrderEntity orders where orders.id = :orderId")
     fun findByIdForUpdate(@Param("orderId") orderId: Long): OrderEntity?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = ["items"])
+    @Query("select orders from OrderEntity orders where orders.orderNumber = :orderNumber")
+    fun findByOrderNumberForUpdate(@Param("orderNumber") orderNumber: String): OrderEntity?
 }

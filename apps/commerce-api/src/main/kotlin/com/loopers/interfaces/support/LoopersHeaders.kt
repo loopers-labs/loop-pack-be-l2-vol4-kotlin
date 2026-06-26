@@ -8,6 +8,7 @@ object LoopersHeaders {
     const val ADMIN_LDAP_VALUE = "loopers.admin"
     const val LOGIN_ID = "X-Loopers-LoginId"
     const val LOGIN_PW = "X-Loopers-LoginPw"
+    const val IDEMPOTENCY_KEY = "Idempotency-Key"
 
     fun validateAdmin(adminId: String) {
         if (adminId != ADMIN_LDAP_VALUE) {
@@ -21,6 +22,10 @@ object LoopersHeaders {
     ) {
         validateNotBlank(headerName = LOGIN_ID, value = loginId)
         validateNotBlank(headerName = LOGIN_PW, value = password)
+    }
+
+    fun validateIdempotencyKey(idempotencyKey: String) {
+        validateNotBlank(headerName = IDEMPOTENCY_KEY, value = idempotencyKey)
     }
 
     private fun validateNotBlank(

@@ -7,24 +7,30 @@ import org.junit.jupiter.api.Test
 
 class PaymentTest {
     @Test
-    fun createsRequestingPaymentFromPendingPaymentOrder() {
-        val payment = Payment.request(
+    fun createsPendingPaymentFromPendingPaymentOrder() {
+        val payment = Payment.pending(
             order = pendingOrder(),
             cardType = CardType.SAMSUNG,
             cardNo = "1234-5678-9012-3456",
+            idempotencyKey = "payment-key",
+            transactionKey = "20250816:TR:9577c5",
+            reason = null,
         )
 
-        assertThat(payment.status).isEqualTo(PaymentStatus.REQUESTING)
+        assertThat(payment.status).isEqualTo(PaymentStatus.PENDING)
         assertThat(payment.amount).isEqualTo(10_000L)
         assertThat(payment.orderNumber).isNotBlank()
+        assertThat(payment.transactionKey).isEqualTo("20250816:TR:9577c5")
     }
 
     @Test
-    fun marksPaymentPendingWithTransactionKey() {
-        val payment = Payment.request(
+    fun marksSyncRequiredPaymentPendingWithTransactionKey() {
+        val payment = Payment.syncRequired(
             order = pendingOrder(),
             cardType = CardType.SAMSUNG,
             cardNo = "1234-5678-9012-3456",
+            idempotencyKey = "payment-key",
+            reason = "sync required",
         )
 
         payment.markPending(transactionKey = "20250816:TR:9577c5", reason = null)

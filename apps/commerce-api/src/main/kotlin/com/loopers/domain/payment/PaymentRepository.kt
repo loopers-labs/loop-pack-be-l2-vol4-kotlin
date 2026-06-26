@@ -9,6 +9,8 @@ interface PaymentRepository {
 
     fun findByMemberIdAndId(memberId: Long, paymentId: Long): Payment?
 
+    fun findByMemberIdAndIdempotencyKey(memberId: Long, idempotencyKey: String): Payment?
+
     fun findLatestByOrderId(orderId: Long): Payment?
 
     fun findByTransactionKeyForUpdate(transactionKey: String): Payment?

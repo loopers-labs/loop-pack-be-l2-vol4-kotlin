@@ -14,6 +14,7 @@ interface PaymentV1ApiSpec {
     fun requestPayment(
         loginId: String,
         password: String,
+        idempotencyKey: String,
         request: PaymentV1Dto.PaymentRequest,
     ): ApiResponse<PaymentV1Dto.PaymentResponse>
 

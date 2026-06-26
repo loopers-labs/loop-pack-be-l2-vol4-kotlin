@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param
 interface PaymentJpaRepository : JpaRepository<PaymentEntity, Long> {
     fun findByMemberIdAndId(memberId: Long, paymentId: Long): PaymentEntity?
 
+    fun findByMemberIdAndIdempotencyKey(memberId: Long, idempotencyKey: String): PaymentEntity?
+
     fun findFirstByOrderIdOrderByIdDesc(orderId: Long): PaymentEntity?
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

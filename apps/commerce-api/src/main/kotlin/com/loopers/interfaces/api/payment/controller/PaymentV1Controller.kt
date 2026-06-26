@@ -63,14 +63,16 @@ class PaymentV1Controller(
     override fun requestPayment(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
         @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
+        @RequestHeader(LoopersHeaders.IDEMPOTENCY_KEY) idempotencyKey: String,
         @RequestBody request: PaymentV1Dto.PaymentRequest,
     ): ApiResponse<PaymentV1Dto.PaymentResponse> {
         LoopersHeaders.validateUser(loginId = loginId, password = password)
+        LoopersHeaders.validateIdempotencyKey(idempotencyKey)
 
         return paymentFacade.requestPayment(
             loginId = loginId,
             rawPassword = password,
-            command = request.toCommand(),
+            command = request.toCommand(idempotencyKey),
         ).let(PaymentV1Dto.PaymentResponse::from)
             .let(ApiResponse.Companion::success)
     }

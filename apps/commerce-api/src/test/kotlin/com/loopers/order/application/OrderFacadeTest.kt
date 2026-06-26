@@ -3,7 +3,10 @@ package com.loopers.order.application
 import com.loopers.coupon.application.CouponService
 import com.loopers.inventory.application.InventoryService
 import com.loopers.inventory.application.StockDecreaseLine
+import com.loopers.inventory.application.StockRestoreLine
+import com.loopers.order.domain.Order
 import com.loopers.order.domain.OrderErrorCode
+import com.loopers.order.domain.OrderItemSnapshot
 import com.loopers.order.domain.OrderStatus
 import com.loopers.product.application.ProductCheckCommand
 import com.loopers.product.application.ProductService
@@ -53,6 +56,7 @@ class OrderFacadeTest {
 
     private fun orderInfo(discountAmount: Long = 0, couponId: Long? = null) = OrderInfo(
         id = 1L,
+        orderKey = "test-order-key",
         userId = 1L,
         orderedAt = LocalDateTime.of(2026, 6, 12, 17, 0),
         originalAmount = 200_000,
@@ -170,6 +174,55 @@ class OrderFacadeTest {
             { verifyNoInteractions(couponService) },
             { verify(inventoryService, never()).decreaseStock(any()) },
             { verify(orderService, never()).create(any(), any(), any()) },
+        )
+    }
+
+    private fun snapshot(productId: Long, quantity: Int) = OrderItemSnapshot(
+        productId = productId,
+        brandId = null,
+        productName = "상품-$productId",
+        brandName = null,
+        unitPrice = Money(1_000),
+        quantity = quantity,
+    )
+
+    @DisplayName("주문 취소 보상: 주문을 실패로 돌리고 재고를 복구하며 쿠폰 사용을 취소한다.")
+    @Test
+    fun cancelAndCompensate_restoresStockAndCancelsCoupon() {
+        val order = Order.create(
+            userId = 1L,
+            snapshots = listOf(snapshot(productId = 100L, quantity = 2), snapshot(productId = 200L, quantity = 3)),
+            couponId = 5L,
+        )
+
+        orderFacade.cancelAndCompensate(order)
+
+        assertAll(
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            {
+                verify(inventoryService).increaseStock(
+                    listOf(StockRestoreLine(productId = 100L, quantity = 2), StockRestoreLine(productId = 200L, quantity = 3)),
+                )
+            },
+            { verify(couponService).cancelUse(1L, 5L) },
+        )
+    }
+
+    @DisplayName("주문 취소 보상: 쿠폰이 없으면 쿠폰 취소는 호출하지 않는다.")
+    @Test
+    fun cancelAndCompensate_withoutCoupon_skipsCouponCancel() {
+        val order = Order.create(
+            userId = 1L,
+            snapshots = listOf(snapshot(productId = 100L, quantity = 2)),
+            couponId = null,
+        )
+
+        orderFacade.cancelAndCompensate(order)
+
+        assertAll(
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            { verify(inventoryService).increaseStock(listOf(StockRestoreLine(productId = 100L, quantity = 2))) },
+            { verify(couponService, never()).cancelUse(any(), any()) },
         )
     }
 }

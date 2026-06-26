@@ -13,7 +13,6 @@ import jakarta.persistence.Table
     name = "products",
     indexes = [
         Index(name = "idx_products_brand_id", columnList = "brand_id"),
-        Index(name = "idx_products_like_count", columnList = "like_count"),
     ],
 )
 class ProductJpaEntity(
@@ -21,7 +20,6 @@ class ProductJpaEntity(
     name: String,
     description: String,
     price: Long,
-    likeCount: Int,
 ) : BaseEntity() {
     @Column(name = "brand_id", nullable = false)
     val brandId: Long = brandId
@@ -38,15 +36,10 @@ class ProductJpaEntity(
     var price: Long = price
         protected set
 
-    @Column(name = "like_count", nullable = false)
-    var likeCount: Int = likeCount
-        protected set
-
     fun updateFrom(product: Product) {
         name = product.name
         description = product.description
         price = product.price.amount
-        likeCount = product.likeCount
     }
 
     fun toDomain(): Product {
@@ -56,7 +49,6 @@ class ProductJpaEntity(
             name = name,
             description = description,
             price = ProductPrice(price),
-            likeCount = likeCount,
         )
     }
 
@@ -67,7 +59,6 @@ class ProductJpaEntity(
                 name = product.name,
                 description = product.description,
                 price = product.price.amount,
-                likeCount = product.likeCount,
             )
         }
     }

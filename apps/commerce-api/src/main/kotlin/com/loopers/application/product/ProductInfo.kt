@@ -1,6 +1,5 @@
 package com.loopers.application.product
 
-import com.loopers.application.brand.BrandInfo
 import com.loopers.domain.product.Product
 import com.loopers.domain.stock.Stock
 import com.loopers.support.error.CoreException
@@ -9,6 +8,7 @@ import com.loopers.support.error.ErrorType
 data class ProductInfo(
     val id: Long,
     val brandId: Long,
+    val brandName: String,
     val name: String,
     val description: String,
     val price: Long,
@@ -17,15 +17,16 @@ data class ProductInfo(
     val soldOut: Boolean,
 ) {
     companion object {
-        fun from(product: Product, stock: Stock): ProductInfo {
+        fun from(product: Product, brandName: String, stock: Stock, likeCount: Int): ProductInfo {
             return ProductInfo(
                 id = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다."),
                 brandId = product.brandId,
+                brandName = brandName,
                 name = product.name,
                 description = product.description,
                 price = product.price.amount,
                 stock = stock.quantity,
-                likeCount = product.likeCount,
+                likeCount = likeCount,
                 soldOut = stock.isSoldOut(),
             )
         }
@@ -42,21 +43,16 @@ data class ProductSummaryInfo(
     val soldOut: Boolean,
 ) {
     companion object {
-        fun from(product: Product, brandName: String, stock: Stock): ProductSummaryInfo {
+        fun from(product: Product, brandName: String, stock: Stock, likeCount: Int): ProductSummaryInfo {
             return ProductSummaryInfo(
                 id = product.id ?: throw CoreException(ErrorType.INTERNAL_ERROR, "상품 ID가 존재하지 않습니다."),
                 brandId = product.brandId,
                 brandName = brandName,
                 name = product.name,
                 price = product.price.amount,
-                likeCount = product.likeCount,
+                likeCount = likeCount,
                 soldOut = stock.isSoldOut(),
             )
         }
     }
 }
-
-data class ProductDetailInfo(
-    val product: ProductInfo,
-    val brand: BrandInfo,
-)

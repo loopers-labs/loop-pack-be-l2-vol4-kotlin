@@ -19,12 +19,14 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.jdbc.core.JdbcTemplate
 
 @SpringBootTest
 class ProductApplicationServiceIntegrationTest @Autowired constructor(
     private val productApplicationService: ProductApplicationService,
     private val productJpaRepository: ProductJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val jdbcTemplate: JdbcTemplate,
 ) {
     @AfterEach
     fun tearDown() {
@@ -157,9 +159,17 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
         @Test
         fun getProducts_orderByLikesDesc() {
             // arrange
-            productJpaRepository.save(newProductJpaEntity(name = "A", likeCount = 1))
-            productJpaRepository.save(newProductJpaEntity(name = "B", likeCount = 3))
-            productJpaRepository.save(newProductJpaEntity(name = "C", likeCount = 2))
+            val productA = productJpaRepository.save(newProductJpaEntity(name = "A"))
+            val productB = productJpaRepository.save(newProductJpaEntity(name = "B"))
+            val productC = productJpaRepository.save(newProductJpaEntity(name = "C"))
+            jdbcTemplate.execute(
+                """
+                INSERT INTO product_like_counts (product_id, brand_id, like_count) VALUES
+                (${productA.id}, ${productA.brandId}, 1),
+                (${productB.id}, ${productB.brandId}, 3),
+                (${productC.id}, ${productC.brandId}, 2)
+                """.trimIndent(),
+            )
 
             // act
             val result = productApplicationService.getProducts(
@@ -225,56 +235,15 @@ class ProductApplicationServiceIntegrationTest @Autowired constructor(
         }
     }
 
-    @DisplayName("좋아요 수 변경 시, ")
-    @Nested
-    inner class ChangeLikeCount {
-        @DisplayName("좋아요 수를 증가하고 감소할 수 있다.")
-        @Test
-        fun increaseAndDecreaseLikeCount() {
-            // arrange
-            val entity = productJpaRepository.save(newProductJpaEntity(likeCount = 1))
-
-            // act
-            val increased = productApplicationService.increaseLikeCount(entity.id)
-            val decreased = productApplicationService.decreaseLikeCount(entity.id)
-
-            // assert
-            assertAll(
-                { assertThat(increased.likeCount).isEqualTo(2) },
-                { assertThat(decreased.likeCount).isEqualTo(1) },
-            )
-        }
-
-        @DisplayName("좋아요 수가 0이면 감소하지 않고 BAD_REQUEST 예외가 발생한다.")
-        @Test
-        fun throwsBadRequest_whenLikeCountIsZero() {
-            // arrange
-            val entity = productJpaRepository.save(newProductJpaEntity(likeCount = 0))
-
-            // act & assert
-            val result = assertThrows<CoreException> {
-                productApplicationService.decreaseLikeCount(entity.id)
-            }
-            val product = productApplicationService.getProduct(entity.id)
-
-            assertAll(
-                { assertThat(result.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
-                { assertThat(product.likeCount).isEqualTo(0) },
-            )
-        }
-    }
-
     private fun newProductJpaEntity(
         brandId: Long = 1L,
         name: String = "Loopers T-Shirt",
         description: String = "매일 입기 좋은 티셔츠",
         price: Long = 10_000L,
-        likeCount: Int = 0,
     ) = ProductJpaEntity(
         brandId = brandId,
         name = name,
         description = description,
         price = price,
-        likeCount = likeCount,
     )
 }

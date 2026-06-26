@@ -17,9 +17,6 @@ class LikeFacade(
         productApplicationService.getProduct(productId)
 
         val changed = likeApplicationService.activate(userId = userId, productId = productId)
-        if (changed) {
-            productApplicationService.increaseLikeCount(productId)
-        }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)
     }
@@ -30,9 +27,6 @@ class LikeFacade(
         productApplicationService.getProduct(productId)
 
         val changed = likeApplicationService.cancel(userId = userId, productId = productId)
-        if (changed) {
-            productApplicationService.decreaseLikeCount(productId)
-        }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)
     }

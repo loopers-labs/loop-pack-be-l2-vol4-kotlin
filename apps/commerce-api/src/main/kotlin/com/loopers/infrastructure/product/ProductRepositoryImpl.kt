@@ -29,16 +29,13 @@ class ProductRepositoryImpl(
         return productQueryRepository.findAll(condition)
     }
 
-    override fun increaseLikeCount(id: Long): Boolean {
-        return productJpaRepository.increaseLikeCount(id) == 1
-    }
-
-    override fun decreaseLikeCountIfPositive(id: Long): Boolean {
-        return productJpaRepository.decreaseLikeCountIfPositive(id) == 1
-    }
-
     override fun delete(id: Long) {
         productJpaRepository.findByIdAndDeletedAtIsNull(id)
             ?.delete()
+    }
+
+    override fun findActiveIdsByBrandId(brandId: Long): List<Long> {
+        return productJpaRepository.findByBrandIdAndDeletedAtIsNull(brandId)
+            .mapNotNull { it.id }
     }
 }

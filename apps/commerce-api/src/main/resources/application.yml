@@ -29,11 +29,26 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+product:
+  cache:
+    enabled: true
+    ttl-seconds: 302
+
 ---
 spring:
   config:
     activate:
       on-profile: local, test
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+product:
+  cache:
+    enabled: false
 
 ---
 spring:

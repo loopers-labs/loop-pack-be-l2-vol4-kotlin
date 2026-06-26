@@ -101,7 +101,13 @@ class OrderV1ApiE2ETest @Autowired constructor(
         val paymentByOther = testRestTemplate.exchange(
             "/api/v1/orders/${paymentTarget.orderId}/payment",
             HttpMethod.POST,
-            HttpEntity(mapOf("paymentKey" to "payment-key-${paymentTarget.orderId}"), authHeaders("other01")),
+            HttpEntity(
+                mapOf(
+                    "cardType" to "SAMSUNG",
+                    "cardNo" to "1234-5678-1234-5678",
+                ),
+                authHeaders("other01"),
+            ),
             responseType,
         )
         val cancelByOther = testRestTemplate.exchange(

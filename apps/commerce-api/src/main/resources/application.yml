@@ -30,6 +30,10 @@ springdoc:
     path: /swagger-ui.html
     persist-authorization: true
 
+pg-simulator:
+  base-url: http://localhost:8082
+  callback-url: http://localhost:8080/api/v1/payments/callback
+
 ---
 spring:
   config:

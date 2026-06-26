@@ -6,6 +6,12 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * Coordinates DB-side order/payment convergence after provider operations finish.
+ *
+ * Completion failures keep reservations allocated and move the order/payment to explicit retry states; expiration is only
+ * for payment-pending orders that have no approved-provider possibility.
+ */
 @Component
 class PaymentCompletionApplicationService(
     private val orderApplicationService: OrderApplicationService,

@@ -15,7 +15,10 @@ interface OrderV1ApiSpec {
     @Operation(summary = "주문창 접근", description = "주문 스냅샷과 재고 예약을 생성합니다.")
     fun checkout(user: User, request: OrderV1Dto.CheckoutRequest): ApiResponse<OrderV1Dto.OrderResponse>
 
-    @Operation(summary = "주문 결제", description = "결제를 승인하고 예약을 확정한 뒤 실제 재고를 차감합니다.")
+    /**
+     * Starts a PG simulator payment transaction for the order; completion is handled later by callback.
+     */
+    @Operation(summary = "주문 결제", description = "PG 결제 거래를 요청하고 콜백 전까지 주문을 결제대기 상태로 유지합니다.")
     fun pay(
         user: User,
         orderId: Long,

@@ -50,7 +50,7 @@ class OrderV1Controller(
         @RequestBody @Valid request: OrderV1Dto.PayRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
         requireOwnedOrder(user, orderId)
-        return orderCheckoutFacade.pay(request.toCommand(orderId))
+        return orderCheckoutFacade.pay(request.toCommand(user.id, orderId))
             .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
     }

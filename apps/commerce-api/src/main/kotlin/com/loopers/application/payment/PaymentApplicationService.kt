@@ -23,7 +23,7 @@ class PaymentApplicationService(
         val payment = paymentRepository.save(
             Payment(
                 orderId = orderId,
-                pgProvider = PgProvider.FAKE,
+                pgProvider = PgProvider.PG_SIMULATOR,
                 paymentRequestId = "order-$orderId-${UUID.randomUUID()}",
                 requestedAmount = requestedAmount,
             ),
@@ -39,9 +39,10 @@ class PaymentApplicationService(
     }
 
     @Transactional
-    fun recordApproveRequested(orderId: Long, paymentKey: String): PaymentInfo {
+    fun recordApproveRequested(orderId: Long, paymentKey: String, pgTransactionId: String): PaymentInfo {
         val payment = getPaymentForUpdate(orderId)
         payment.recordApproveRequested(paymentKey)
+        payment.pgTransactionId = pgTransactionId
         appendEvent(
             payment,
             PaymentEventType.APPROVE_REQUESTED,
@@ -195,6 +196,7 @@ class PaymentApplicationService(
         failureReason: String?,
         rawResponseSummary: String?,
     ) {
+        // Snapshot after the projection mutation so the audit log describes the committed local result.
         paymentEventRepository.save(
             PaymentEvent(
                 orderId = payment.orderId,

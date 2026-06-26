@@ -2,9 +2,11 @@ package com.loopers.infrastructure.payment
 
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentGateway
+import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionSynchronizationManager
 
+@Primary
 @Component
 class FakePaymentGateway : PaymentGateway {
     private var failNextApproval: Boolean = false
@@ -23,11 +25,11 @@ class FakePaymentGateway : PaymentGateway {
         }
         return PaymentGateway.PgResult(
             success = true,
-            pgStatus = "APPROVED",
+            pgStatus = "PENDING",
             pgTransactionId = "payment-${command.orderId}",
-            approvedAmount = command.amount,
+            approvedAmount = null,
             failureReason = null,
-            rawResponseSummary = "fake approval approved",
+            rawResponseSummary = "fake transaction requested",
         )
     }
 
@@ -39,7 +41,7 @@ class FakePaymentGateway : PaymentGateway {
         }
         return PaymentGateway.PgResult(
             success = true,
-            pgStatus = "APPROVED",
+            pgStatus = "SUCCESS",
             pgTransactionId = command.pgTransactionId ?: "payment-${command.orderId}",
             approvedAmount = command.amount,
             failureReason = null,

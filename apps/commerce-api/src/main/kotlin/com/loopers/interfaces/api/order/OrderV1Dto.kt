@@ -55,12 +55,20 @@ class OrderV1Dto {
     }
 
     data class PayRequest(
+        /** Card issuer/type value passed through to the PG simulator payment request. */
         @field:NotBlank
-        val paymentKey: String,
+        val cardType: String,
+
+        /** Card number value passed through to the PG simulator payment request. */
+        @field:NotBlank
+        val cardNo: String,
     ) {
-        fun toCommand(orderId: Long): OrderCommand.Pay = OrderCommand.Pay(
+        /** Builds the domain command that starts a PG simulator transaction for this order. */
+        fun toCommand(userId: Long, orderId: Long): OrderCommand.Pay = OrderCommand.Pay(
+            userId = userId,
             orderId = orderId,
-            paymentKey = paymentKey,
+            cardType = cardType,
+            cardNo = cardNo,
         )
     }
 

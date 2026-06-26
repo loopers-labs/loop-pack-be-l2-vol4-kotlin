@@ -11,18 +11,25 @@ import org.springframework.test.web.client.MockRestServiceServer
 import org.springframework.test.web.client.match.MockRestRequestMatchers.header
 import org.springframework.test.web.client.match.MockRestRequestMatchers.method
 import org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo
+import org.springframework.test.web.client.response.MockRestResponseCreators.withServerError
 import org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess
+import java.time.Duration
 
 class PgSimulatorPaymentGatewayTest {
     private val restTemplate = RestTemplateBuilder().build()
     private val server = MockRestServiceServer.bindTo(restTemplate).build()
-    private val gateway = PgSimulatorPaymentGateway(
-        restTemplate = restTemplate,
-        properties = PgSimulatorProperties(
+
+    private fun gateway(
+        properties: PgSimulatorProperties = PgSimulatorProperties(
             baseUrl = "http://pg.local",
             callbackUrl = "http://localhost:8080/api/v1/payments/callback",
         ),
-    )
+    ): PgSimulatorPaymentGateway =
+        PgSimulatorPaymentGateway(
+            restTemplate = restTemplate,
+            properties = properties,
+            resilience = PgSimulatorResilience.from(properties),
+        )
 
     @Test
     fun approveCreatesPgSimulatorTransactionAndReturnsPendingTransactionKey() {
@@ -41,7 +48,7 @@ class PgSimulatorPaymentGatewayTest {
                 ),
             )
 
-        val result = gateway.approve(
+        val result = gateway().approve(
             PaymentCommand.Approve(
                 userId = 1L,
                 orderId = 100000L,
@@ -87,7 +94,7 @@ class PgSimulatorPaymentGatewayTest {
                 ),
             )
 
-        val result = gateway.verify(
+        val result = gateway().verify(
             PaymentCommand.Verify(
                 userId = 1L,
                 orderId = 100000L,
@@ -103,6 +110,56 @@ class PgSimulatorPaymentGatewayTest {
             { assertThat(result.pgStatus).isEqualTo("SUCCESS") },
             { assertThat(result.pgTransactionId).isEqualTo("20260624:TR:abc123") },
             { assertThat(result.approvedAmount).isEqualTo(5000L) },
+        )
+        server.verify()
+    }
+
+    @Test
+    fun approveRetriesTransientPgFailuresAndThenReturnsTransactionKey() {
+        server.expect(requestTo("http://pg.local/api/v1/payments"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withServerError())
+        server.expect(requestTo("http://pg.local/api/v1/payments"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withServerError())
+        server.expect(requestTo("http://pg.local/api/v1/payments"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(
+                withSuccess(
+                    """
+                    {
+                      "meta": {"result": "SUCCESS", "errorCode": null, "message": null},
+                      "data": {"transactionKey": "20260624:TR:retry-ok", "status": "PENDING", "reason": null}
+                    }
+                    """.trimIndent(),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val result = gateway(
+            PgSimulatorProperties(
+                baseUrl = "http://pg.local",
+                callbackUrl = "http://localhost:8080/api/v1/payments/callback",
+                retry = PgSimulatorProperties.RetryPolicy(
+                    maxRetries = 3,
+                    waitDuration = Duration.ZERO,
+                ),
+            ),
+        ).approve(
+            PaymentCommand.Approve(
+                userId = 1L,
+                orderId = 100000L,
+                paymentRequestId = "order-100000-request",
+                cardType = "SAMSUNG",
+                cardNo = "1234-5678-1234-5678",
+                amount = 5000L,
+            ),
+        )
+
+        assertAll(
+            { assertThat(result.success).isTrue() },
+            { assertThat(result.pgStatus).isEqualTo("PENDING") },
+            { assertThat(result.pgTransactionId).isEqualTo("20260624:TR:retry-ok") },
         )
         server.verify()
     }

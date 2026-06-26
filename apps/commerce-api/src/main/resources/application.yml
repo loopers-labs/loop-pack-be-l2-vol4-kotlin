@@ -33,6 +33,16 @@ springdoc:
 pg-simulator:
   base-url: http://localhost:8082
   callback-url: http://localhost:8080/api/v1/payments/callback
+  timeout: 10s
+  retry:
+    max-retries: 3
+    wait-duration: 100ms
+  circuit-breaker:
+    failure-rate-threshold: 50
+    sliding-window-size: 10
+    minimum-number-of-calls: 5
+    wait-duration-in-open-state: 10s
+    permitted-number-of-calls-in-half-open-state: 2
 
 ---
 spring:

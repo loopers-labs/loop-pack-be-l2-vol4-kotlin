@@ -36,6 +36,18 @@ class PaymentCommand {
     )
 
     /**
+     * Reads provider transactions already associated with an order.
+     *
+     * This is used after uncertain request failures, especially timeout or lost response, before sending another provider
+     * payment request for the same order.
+     */
+    data class FindByOrder(
+        val userId: Long,
+        val orderId: Long,
+        val pgProvider: PgProvider = PgProvider.PG_SIMULATOR,
+    )
+
+    /**
      * Requests provider-side reversal for an approved transaction.
      *
      * The local order, stock, and payment cancellation must be committed only after provider cancellation succeeds.

@@ -126,6 +126,30 @@ class PgSimulatorPaymentGateway(
         }
     }
 
+    override fun findByOrder(command: PaymentCommand.FindByOrder): List<PaymentGateway.PgTransaction> =
+        runCatching {
+            val response = resilience.execute {
+                restTemplate.exchange(
+                    "${properties.baseUrl}/api/v1/payments?orderId=${command.orderId}",
+                    HttpMethod.GET,
+                    HttpEntity<Unit>(headers(command.userId)),
+                    responseType<PgSimulatorPaymentDto.OrderResponse>(),
+                )
+            }
+            response.body?.data?.transactions.orEmpty().map { transaction ->
+                PaymentGateway.PgTransaction(
+                    transactionKey = transaction.transactionKey,
+                    status = transaction.status,
+                    amount = transaction.amount,
+                    failureReason = transaction.reason,
+                    rawResponseSummary = "pg simulator order lookup status=${transaction.status} " +
+                        "transactionKey=${transaction.transactionKey} reason=${transaction.reason}",
+                )
+            }
+        }.getOrElse {
+            emptyList()
+        }
+
     override fun cancel(command: PaymentCommand.Cancel): PaymentGateway.PgResult =
         PaymentGateway.PgResult(
             success = false,

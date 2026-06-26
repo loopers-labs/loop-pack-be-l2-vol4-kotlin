@@ -163,4 +163,51 @@ class PgSimulatorPaymentGatewayTest {
         )
         server.verify()
     }
+
+    @Test
+    fun findByOrderReadsPgSimulatorTransactionsForOrder() {
+        server.expect(requestTo("http://pg.local/api/v1/payments?orderId=100000"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-USER-ID", "1"))
+            .andRespond(
+                withSuccess(
+                    """
+                    {
+                      "meta": {"result": "SUCCESS", "errorCode": null, "message": null},
+                      "data": {
+                        "orderId": "100000",
+                        "transactions": [
+                          {
+                            "transactionKey": "20260624:TR:lookup-ok",
+                            "orderId": "100000",
+                            "cardType": "SAMSUNG",
+                            "cardNo": "1234-5678-1234-5678",
+                            "amount": 5000,
+                            "status": "SUCCESS",
+                            "reason": "정상 승인되었습니다."
+                          }
+                        ]
+                      }
+                    }
+                    """.trimIndent(),
+                    MediaType.APPLICATION_JSON,
+                ),
+            )
+
+        val transactions = gateway().findByOrder(
+            PaymentCommand.FindByOrder(
+                userId = 1L,
+                orderId = 100000L,
+            ),
+        )
+
+        assertAll(
+            { assertThat(transactions).hasSize(1) },
+            { assertThat(transactions.single().transactionKey).isEqualTo("20260624:TR:lookup-ok") },
+            { assertThat(transactions.single().status).isEqualTo("SUCCESS") },
+            { assertThat(transactions.single().amount).isEqualTo(5000L) },
+            { assertThat(transactions.single().failureReason).isEqualTo("정상 승인되었습니다.") },
+        )
+        server.verify()
+    }
 }

@@ -12,6 +12,8 @@ class FakePaymentGateway : PaymentGateway {
     private var failNextApproval: Boolean = false
     private var failNextVerify: Boolean = false
     private var failNextCancel: Boolean = false
+    private val orderTransactions: MutableMap<Long, MutableList<PaymentGateway.PgTransaction>> = mutableMapOf()
+    val approveCalls: MutableList<Long> = mutableListOf()
     val canceledTransactionIds: MutableList<String> = mutableListOf()
     val transactionActiveDuringApprove: MutableList<Boolean> = mutableListOf()
     val transactionActiveDuringVerify: MutableList<Boolean> = mutableListOf()
@@ -19,6 +21,7 @@ class FakePaymentGateway : PaymentGateway {
 
     override fun approve(command: PaymentCommand.Approve): PaymentGateway.PgResult {
         transactionActiveDuringApprove.add(TransactionSynchronizationManager.isActualTransactionActive())
+        approveCalls.add(command.orderId)
         if (failNextApproval) {
             failNextApproval = false
             return PaymentGateway.PgResult(false, "REJECTED", null, null, "결제 승인에 실패했습니다.", "fake approval rejected")
@@ -49,6 +52,9 @@ class FakePaymentGateway : PaymentGateway {
         )
     }
 
+    override fun findByOrder(command: PaymentCommand.FindByOrder): List<PaymentGateway.PgTransaction> =
+        orderTransactions[command.orderId].orEmpty()
+
     override fun cancel(command: PaymentCommand.Cancel): PaymentGateway.PgResult {
         transactionActiveDuringCancel.add(TransactionSynchronizationManager.isActualTransactionActive())
         if (failNextCancel) {
@@ -71,10 +77,31 @@ class FakePaymentGateway : PaymentGateway {
         failNextCancel = true
     }
 
+    fun rememberTransaction(
+        orderId: Long,
+        transactionKey: String = "payment-$orderId",
+        status: String = "PENDING",
+        amount: Long = 2000L,
+        failureReason: String? = null,
+    ) {
+        orderTransactions.getOrPut(orderId) { mutableListOf() }
+            .add(
+                PaymentGateway.PgTransaction(
+                    transactionKey = transactionKey,
+                    status = status,
+                    amount = amount,
+                    failureReason = failureReason,
+                    rawResponseSummary = "fake remembered transaction status=$status transactionKey=$transactionKey",
+                ),
+            )
+    }
+
     fun reset() {
         failNextApproval = false
         failNextVerify = false
         failNextCancel = false
+        orderTransactions.clear()
+        approveCalls.clear()
         canceledTransactionIds.clear()
         transactionActiveDuringApprove.clear()
         transactionActiveDuringVerify.clear()

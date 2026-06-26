@@ -83,6 +83,20 @@ class PaymentApiE2ETest
         }
 
         @Test
+        fun `콜백_시크릿_헤더가_없으면_401을_반환한다`() {
+            val response = callback(status = "SUCCESS", secret = null)
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @Test
+        fun `콜백_시크릿_헤더가_틀리면_401을_반환한다`() {
+            val response = callback(status = "SUCCESS", secret = "wrong-secret")
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+        }
+
+        @Test
         fun `타인의_주문을_결제하면_404를_반환한다`() {
             val ownerId = userService.signUp(사용자_회원가입()).id
             userService.signUp(사용자_회원가입(loginId = "other1234", email = "other@example.com"))
@@ -137,19 +151,22 @@ class PaymentApiE2ETest
             mapResponseType,
         )
 
-        private fun callback(status: String) =
-            testRestTemplate.exchange(
-                "/api/v1/payments/callback",
-                HttpMethod.POST,
-                HttpEntity(
-                    mapOf(
-                        "transactionKey" to "20260625:TR:test01",
-                        "status" to status,
-                        "reason" to null,
-                    ),
+        private fun callback(
+            status: String,
+            secret: String? = 콜백_시크릿,
+        ) = testRestTemplate.exchange(
+            "/api/v1/payments/callback",
+            HttpMethod.POST,
+            HttpEntity(
+                mapOf(
+                    "transactionKey" to "20260625:TR:test01",
+                    "status" to status,
+                    "reason" to null,
                 ),
-                mapResponseType,
-            )
+                HttpHeaders().apply { secret?.let { set("X-Payment-Callback-Secret", it) } },
+            ),
+            mapResponseType,
+        )
 
         private fun Map<String, Any?>.number(key: String): Long =
             (get(key) as Number).toLong()
@@ -165,6 +182,7 @@ class PaymentApiE2ETest
         }
 
         companion object {
+            private const val 콜백_시크릿 = "local-callback-secret"
             private val pgServer = PgStubServer()
 
             @JvmStatic
@@ -172,6 +190,7 @@ class PaymentApiE2ETest
             fun pgProperties(registry: DynamicPropertyRegistry) {
                 pgServer.start()
                 registry.add("payment.pg-simulator.base-url") { pgServer.baseUrl }
+                registry.add("payment.callback-secret") { 콜백_시크릿 }
             }
         }
 

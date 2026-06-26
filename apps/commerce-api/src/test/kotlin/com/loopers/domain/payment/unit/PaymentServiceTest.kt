@@ -2,6 +2,7 @@ package com.loopers.domain.payment.unit
 
 import com.loopers.domain.payment.application.service.PaymentService
 import com.loopers.domain.payment.exception.InvalidPaymentException
+import com.loopers.domain.payment.model.OutboxEventStatus
 import com.loopers.domain.payment.model.OutboxEventType
 import com.loopers.domain.payment.model.PaymentStatus
 import com.loopers.domain.payment.support.FakeOutboxRepository
@@ -61,6 +62,22 @@ class PaymentServiceTest {
             "20260625:TR:test01",
             "20260625:TR:test01",
         )
+    }
+
+    @Test
+    fun `PENDING_결과이벤트를_소비하면_PROCESSED로_마킹한다`() {
+        val paymentRepository = FakePaymentRepository()
+        val outboxRepository = FakeOutboxRepository()
+        val paymentService = PaymentService(paymentRepository, outboxRepository)
+        paymentService.request(orderId = 1L)
+        paymentService.assignTransactionKey(orderId = 1L, transactionKey = "20260625:TR:test01")
+        paymentService.approveByTransactionKey("20260625:TR:test01")
+
+        val drained = paymentService.consumeResultEvents()
+
+        assertThat(drained).isEqualTo(1)
+        assertThat(outboxRepository.events.first { it.type == OutboxEventType.PAYMENT_APPROVED }.status)
+            .isEqualTo(OutboxEventStatus.PROCESSED)
     }
 
     @Test

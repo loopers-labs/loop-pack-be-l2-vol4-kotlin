@@ -30,6 +30,8 @@ springdoc:
     path: /swagger-ui.html
 
 payment:
+  callback-url: http://localhost:8080/api/v1/payments/callback
+  callback-secret: ${PAYMENT_CALLBACK_SECRET:local-callback-secret}
   pg-simulator:
     base-url: http://localhost:8082
     connect-timeout: 200ms

@@ -1,6 +1,5 @@
 package com.loopers.domain.payment.application.service
 
-import com.loopers.domain.payment.exception.PaymentDomainException
 import com.loopers.domain.payment.model.OutboxEventModel
 import com.loopers.domain.payment.model.OutboxEventType
 import com.loopers.domain.payment.model.PaymentModel
@@ -8,6 +7,7 @@ import com.loopers.domain.payment.port.OutboxRepository
 import com.loopers.domain.payment.port.PaymentRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -70,8 +70,32 @@ class PaymentService(
     }
 
     @Transactional(readOnly = true)
+    fun getById(paymentId: Long): PaymentModel =
+        paymentRepository.findByIdOrNull(paymentId) ?: throw CoreException(ErrorType.NOT_FOUND)
+
+    @Transactional(readOnly = true)
     fun getByOrderId(orderId: Long): PaymentModel =
         paymentRepository.findByOrderIdOrNull(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
+
+    @Transactional(readOnly = true)
+    fun findPendingSyncEvents(): List<OutboxEventModel> =
+        outboxRepository.findPendingByType(OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED)
+
+    @Transactional
+    fun markEventProcessed(eventId: Long) {
+        outboxRepository.markProcessed(eventId)
+    }
+
+    @Transactional
+    fun consumeResultEvents(): Int {
+        val events = outboxRepository.findPendingByType(OutboxEventType.PAYMENT_APPROVED) +
+            outboxRepository.findPendingByType(OutboxEventType.PAYMENT_FAILED)
+        events.forEach { event ->
+            log.info("결제 결과 이벤트 소비: type={}, aggregateId={}, payload={}", event.type, event.aggregateId, event.payload)
+            outboxRepository.markProcessed(event.id)
+        }
+        return events.size
+    }
 
     private fun getByOrderIdForUpdate(orderId: Long): PaymentModel =
         paymentRepository.findByOrderIdForUpdateOrNull(orderId) ?: throw CoreException(ErrorType.NOT_FOUND)
@@ -84,16 +108,16 @@ class PaymentService(
         paymentRepository.findByExternalTransactionKeyForUpdateOrNull(transactionKey) ?: throw CoreException(ErrorType.NOT_FOUND)
 
     private fun savePaymentResultEvent(payment: PaymentModel, type: OutboxEventType) {
-        try {
-            outboxRepository.save(
-                OutboxEventModel(
-                    type = type,
-                    aggregateId = payment.id,
-                    payload = """{"paymentId":${payment.id},"orderId":${payment.orderId},"status":"${payment.status}"}""",
-                ),
-            )
-        } catch (e: PaymentDomainException) {
-            throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
-        }
+        outboxRepository.save(
+            OutboxEventModel(
+                type = type,
+                aggregateId = payment.id,
+                payload = """{"paymentId":${payment.id},"orderId":${payment.orderId},"status":"${payment.status}"}""",
+            ),
+        )
+    }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(PaymentService::class.java)
     }
 }

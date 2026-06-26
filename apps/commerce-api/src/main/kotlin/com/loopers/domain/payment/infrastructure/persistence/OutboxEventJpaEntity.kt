@@ -35,6 +35,10 @@ class OutboxEventJpaEntity(
     @Column(name = "event_created_at", nullable = false)
     var eventCreatedAt: ZonedDateTime,
 ) : BaseEntity() {
+    fun markProcessed() {
+        status = OutboxEventStatus.PROCESSED
+    }
+
     fun toDomain(): OutboxEventModel = OutboxEventModel(
         id = id,
         type = type,

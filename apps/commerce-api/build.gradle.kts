@@ -27,4 +27,15 @@ dependencies {
     // test-fixtures
     testImplementation(testFixtures(project(":modules:jpa")))
     testImplementation(testFixtures(project(":modules:redis")))
+    testImplementation("org.testcontainers:mysql")
+}
+
+// pg-simulator 를 실제 컨테이너로 띄우는 Live 통합 테스트(PaymentPgLiveIntegrationTest)용 설정.
+// pg-simulator 모듈 코드는 변경하지 않고, 빌드된 bootJar 산출물만 컨테이너로 구동한다.
+tasks.test {
+    dependsOn(":apps:pg-simulator:bootJar")
+    systemProperty(
+        "pg.simulator.libs",
+        project(":apps:pg-simulator").layout.buildDirectory.dir("libs").get().asFile.absolutePath,
+    )
 }

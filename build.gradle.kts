@@ -1,4 +1,6 @@
 import org.gradle.api.Project.DEFAULT_VERSION
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 /** --- configuration functions --- */
@@ -63,6 +65,19 @@ subprojects {
         }
     }
 
+    val sourceSets = the<SourceSetContainer>()
+    val integrationTestSourceSet = sourceSets.create("integrationTest") {
+        compileClasspath += sourceSets["main"].output
+        runtimeClasspath += output + compileClasspath
+    }
+
+    configurations.named(integrationTestSourceSet.implementationConfigurationName) {
+        extendsFrom(configurations.testImplementation.get())
+    }
+    configurations.named(integrationTestSourceSet.runtimeOnlyConfigurationName) {
+        extendsFrom(configurations.testRuntimeOnly.get())
+    }
+
     dependencies {
         // Kotlin
         runtimeOnly("org.springframework.boot:spring-boot-starter-validation")
@@ -101,6 +116,19 @@ subprojects {
         maxParallelForks = 1
         useJUnitPlatform()
         systemProperty("user.timezone", "Asia/Seoul")
+        systemProperty("spring.profiles.active", "local")
+        jvmArgs("-Xshare:off")
+    }
+
+    val integrationTest by tasks.registering(Test::class) {
+        description = "Runs integration tests against Docker-backed external services."
+        group = LifecycleBasePlugin.VERIFICATION_GROUP
+        maxParallelForks = 1
+        testClassesDirs = integrationTestSourceSet.output.classesDirs
+        classpath = integrationTestSourceSet.runtimeClasspath
+        shouldRunAfter(tasks.test)
+        useJUnitPlatform()
+        systemProperty("user.timezone", "Asia/Seoul")
         systemProperty("spring.profiles.active", "test")
         // Modern Docker daemons reject Testcontainers' default API version (1.32).
         // Setting api.version here skips the hardcoded fallback in DockerClientProviderStrategy.
@@ -108,8 +136,18 @@ subprojects {
         jvmArgs("-Xshare:off")
     }
 
+    tasks.register("unitTest") {
+        description = "Runs unit tests with the local profile and in-memory infrastructure."
+        group = LifecycleBasePlugin.VERIFICATION_GROUP
+        dependsOn(tasks.test)
+    }
+
+    tasks.check {
+        dependsOn(integrationTest)
+    }
+
     tasks.withType<JacocoReport> {
-        mustRunAfter("test")
+        mustRunAfter("test", "integrationTest")
         executionData(fileTree(layout.buildDirectory.asFile).include("jacoco/*.exec"))
         reports {
             xml.required = true

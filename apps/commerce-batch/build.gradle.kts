@@ -18,6 +18,6 @@ dependencies {
     kapt("com.querydsl:querydsl-apt::jakarta")
 
     // test-fixtures
-    testImplementation(testFixtures(project(":modules:jpa")))
-    testImplementation(testFixtures(project(":modules:redis")))
+    integrationTestImplementation(testFixtures(project(":modules:jpa")))
+    integrationTestImplementation(testFixtures(project(":modules:redis")))
 }

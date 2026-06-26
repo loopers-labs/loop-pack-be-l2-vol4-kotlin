@@ -21,7 +21,8 @@ class PendingPaymentRecoveryScheduler(
 
         for (payment in pendingPayments) {
             try {
-                val pgStatus = paymentGateway.getTransactionStatus(payment.transactionKey)
+                val transactionKey = payment.transactionKey ?: continue
+                val pgStatus = paymentGateway.getTransactionStatus(transactionKey)
 
                 if (pgStatus.status == PaymentStatus.PENDING) {
                     continue
@@ -29,12 +30,12 @@ class PendingPaymentRecoveryScheduler(
 
                 paymentFacade.handleCallback(
                     PaymentCallbackCommand(
-                        transactionKey = payment.transactionKey,
+                        transactionKey = transactionKey,
                         status = pgStatus.status,
                         reason = pgStatus.reason,
                     ),
                 )
-                log.info("PENDING 결제 복구 완료: transactionKey={}, status={}", payment.transactionKey, pgStatus.status)
+                log.info("PENDING 결제 복구 완료: transactionKey={}, status={}", transactionKey, pgStatus.status)
             } catch (e: Exception) {
                 log.warn("PENDING 결제 복구 실패: transactionKey={}", payment.transactionKey, e)
             }

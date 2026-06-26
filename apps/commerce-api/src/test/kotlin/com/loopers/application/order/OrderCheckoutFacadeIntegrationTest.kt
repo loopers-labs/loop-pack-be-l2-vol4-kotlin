@@ -275,6 +275,64 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
+    fun uncertainPgApprovalFailureReconcilesSuccessfulProviderTransactionAndCompletesOrder() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        paymentGateway.rememberTransaction(
+            orderId = checkout.orderId,
+            transactionKey = "payment-${checkout.orderId}",
+            status = "SUCCESS",
+            amount = 2000L,
+            failureReason = "정상 승인되었습니다.",
+        )
+        paymentGateway.failNextApprovalAfterCreatingTransaction()
+
+        val completed = facade.pay(payCommand(checkout.orderId))
+
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        val stock = productStockJpaRepository.findByProductIdAndDeletedAtIsNull(10L)!!
+        assertAll(
+            { assertThat(completed.status).isEqualTo(OrderStatus.COMPLETED) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.APPROVED) },
+            { assertThat(payment.pgTransactionId).isEqualTo("payment-${checkout.orderId}") },
+            { assertThat(payment.approvedAmount).isEqualTo(2000L) },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.COMPLETED) },
+            { assertThat(stock.stockQuantity).isEqualTo(3) },
+            { assertThat(stock.reservedQuantity).isZero() },
+        )
+    }
+
+    @Test
+    fun uncertainPgApprovalFailureReconcilesFailedProviderTransactionAndLeavesOrderPending() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        paymentGateway.rememberTransaction(
+            orderId = checkout.orderId,
+            transactionKey = "payment-${checkout.orderId}",
+            status = "FAILED",
+            amount = 2000L,
+            failureReason = "잘못된 카드입니다. 다른 카드를 선택해주세요.",
+        )
+        paymentGateway.failNextApprovalAfterCreatingTransaction()
+
+        val ex = assertThrows<CoreException> {
+            facade.pay(payCommand(checkout.orderId))
+        }
+
+        val order = orderJpaRepository.findById(checkout.orderId).orElseThrow()
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        val reservation = stockReservationJpaRepository.findAllByOrderId(checkout.orderId).single()
+        assertAll(
+            { assertThat(ex.errorType).isEqualTo(ErrorType.BAD_REQUEST) },
+            { assertThat(order.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.VERIFY_FAILED) },
+            { assertThat(payment.pgTransactionId).isEqualTo("payment-${checkout.orderId}") },
+            { assertThat(reservation.status).isEqualTo(StockReservationStatus.IN_PROGRESS) },
+        )
+    }
+
+    @Test
     fun cancelBeforePaymentCancelsOrderPaymentReservationAndReleasesReservedQuantityWithoutPgCancel() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())

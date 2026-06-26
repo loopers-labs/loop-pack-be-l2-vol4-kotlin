@@ -249,6 +249,32 @@ class OrderCheckoutFacadeIntegrationTest @Autowired constructor(
     }
 
     @Test
+    fun uncertainPgApprovalFailureReconcilesExistingProviderTransactionAndDoesNotCreateDuplicateRequest() {
+        productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
+        val checkout = facade.checkout(checkoutCommand())
+        paymentGateway.rememberTransaction(
+            orderId = checkout.orderId,
+            transactionKey = "payment-${checkout.orderId}",
+            status = "PENDING",
+            amount = 2000L,
+        )
+        paymentGateway.failNextApprovalAfterCreatingTransaction()
+
+        val requested = facade.pay(payCommand(checkout.orderId))
+        val retried = facade.pay(payCommand(checkout.orderId))
+
+        val payment = paymentJpaRepository.findByOrderIdAndDeletedAtIsNull(checkout.orderId)!!
+        assertAll(
+            { assertThat(requested.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
+            { assertThat(retried.status).isEqualTo(OrderStatus.PAYMENT_PENDING) },
+            { assertThat(payment.status).isEqualTo(PaymentStatus.READY) },
+            { assertThat(payment.paymentKey).isEqualTo("payment-${checkout.orderId}") },
+            { assertThat(payment.pgTransactionId).isEqualTo("payment-${checkout.orderId}") },
+            { assertThat(paymentGateway.approveCalls).containsExactly(checkout.orderId) },
+        )
+    }
+
+    @Test
     fun cancelBeforePaymentCancelsOrderPaymentReservationAndReleasesReservedQuantityWithoutPgCancel() {
         productStockJpaRepository.save(ProductStock(productId = 10L, stockQuantity = 5))
         val checkout = facade.checkout(checkoutCommand())

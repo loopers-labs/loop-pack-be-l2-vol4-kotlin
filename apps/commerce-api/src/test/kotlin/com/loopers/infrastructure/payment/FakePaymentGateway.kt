@@ -24,7 +24,14 @@ class FakePaymentGateway : PaymentGateway {
         approveCalls.add(command.orderId)
         if (failNextApproval) {
             failNextApproval = false
-            return PaymentGateway.PgResult(false, "REJECTED", null, null, "결제 승인에 실패했습니다.", "fake approval rejected")
+            return PaymentGateway.PgResult(
+                success = false,
+                pgStatus = "REQUEST_FAILED",
+                pgTransactionId = null,
+                approvedAmount = null,
+                failureReason = "PG 응답을 확인하지 못했습니다.",
+                rawResponseSummary = "fake approval response lost",
+            )
         }
         return PaymentGateway.PgResult(
             success = true,
@@ -66,6 +73,10 @@ class FakePaymentGateway : PaymentGateway {
     }
 
     fun failNextApproval() {
+        failNextApproval = true
+    }
+
+    fun failNextApprovalAfterCreatingTransaction() {
         failNextApproval = true
     }
 

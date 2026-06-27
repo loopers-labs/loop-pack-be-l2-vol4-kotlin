@@ -156,7 +156,7 @@
     <div class="cov">
       <span class="badge"><span class="d"></span>Week6 · PG OpenFeign 연동</span>
       <h1 class="title">결제 제출 → Fallback → 콜백<br><span class="hl">시퀀스로 먼저 본다</span></h1>
-      <p class="lede">commerce-api 가 OpenFeign 으로 pg-simulator 를 호출하는 흐름을 시퀀스 + <b>실제 API 계약</b>으로 확정한다. pg-simulator 는 <b>key-in(카드정보 body 포함)</b> 방식이라 결제는 <b>주문과 분리된 별도 호출(Model A)</b>. <b>PG-A 8082 / PG-B 8092</b> 두 대, <b>failover 는 호출이 안 일어난 게 확실할 때만</b>.</p>
+      <p class="lede">commerce-api 가 OpenFeign 으로 pg-simulator 를 호출하는 흐름을 시퀀스 + <b>실제 API 계약</b>으로 확정한다. pg-simulator 는 <b>key-in(카드정보 body 포함)</b> 방식이라 결제는 <b>주문과 분리된 별도 호출(Model A)</b>. <b>PG-A 8082 / PG-B 8092</b> 두 대, <b>failover 는 호출이 안 일어난 게 확실할 때만</b>. 마지막에 <b>접수·확정·안전망 모델</b>과 주문 상태기계로 한 번 더 정리한다.</p>
       <div class="chips">
         <div class="chip"><span class="k">SCOPE</span><span class="v">연결 배선 + 2-PG fallback</span></div>
         <div class="chip"><span class="k">DEFER</span><span class="v">resilience 임계값 · 코드</span></div>
@@ -179,6 +179,7 @@
       <li><a href="#sspec">정확한 API 계약 스펙</a></li>
       <li><a href="#s3">연결 배선 체크리스트</a></li>
       <li><a href="#s4">2-PG 기동 · 범위 밖</a></li>
+      <li><a href="#s6">전체 플로우 모델 · 상태기계</a></li>
       <li><a href="#refs">참고 (레포 소스)</a></li>
     </ol>
   </nav>
@@ -429,6 +430,67 @@ docker run -d -p 8092:8082 --name pg-b pg-simulator:local</pre>
     <div class="note warn"><span class="tag">후속</span>resilience4j <span class="term">@CircuitBreaker</span> / Retry / Timeout <strong>임계값 설계</strong>(readTimeout, failureRateThreshold, slidingWindow, waitDurationInOpenState)와 <strong>payment 도메인 코드</strong>(Payment·PaymentStatus), 실제 Kotlin 구현은 다음 단계에서. 이 문서는 <strong>시퀀스·배선 합의</strong>까지.</div>
   </section>
 
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">MENTAL MODEL · 한눈에</p><h2 class="sec">전체 플로우 모델 · 상태기계</h2></div>
+    </div>
+    <p class="lead">시퀀스를 다 봤으니 한 문장으로 줄인다 — <strong>응답 = 접수 / 콜백 = 확정 / 조회 = 안전망.</strong> "응답으로 성공 처리"는 흔한 오해다.</p>
+    <div class="note warn"><span class="tag">흔한 오해 교정</span>① <strong>POST 응답은 접수(PENDING)일 뿐</strong> 성공이 아니다 — 게다가 40% 500·타임아웃으로 <strong>못 받으면 UNKNOWN</strong>. ② <strong>콜백이 결과 1차 확정</strong>(SUCCESS→PAID / FAILED→FAILED)이지만 <strong>유실 가능</strong>(no timeout · runCatching). ③ <strong>GET 조회 reconcile 이 2차 안전망</strong> — 콜백 유실·UNKNOWN 을 조회로 해소.</div>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="3-STAGE MODEL">
+        <svg viewBox="0 0 1120 200" role="img" aria-label="결제 3단계 모델: ① POST 응답은 접수(PENDING)일 뿐, ② 콜백이 결과 1차 확정, ③ GET 조회 reconcile이 2차 안전망.">
+          <defs>
+            <marker id="m3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="20" y="40" width="320" height="120" rx="18" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="20" y="40" width="320" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① POST 응답 = 접수</div><div class="s">PENDING 일 뿐 · 성공 아님</div><div class="s">못 받으면(40% 500·타임아웃) → UNKNOWN</div></div></foreignObject>
+          <rect x="400" y="40" width="320" height="120" rx="18" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <foreignObject x="400" y="40" width="320" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">② 콜백 = 결과 1차 확정</div><div class="s">SUCCESS→PAID · FAILED→FAILED</div><div class="s">단 유실 가능 (no timeout)</div></div></foreignObject>
+          <rect x="780" y="40" width="320" height="120" rx="18" fill="#FEF6E6" stroke="#f59e0b" stroke-width="1.4"/>
+          <foreignObject x="780" y="40" width="320" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">③ GET 조회 = 2차 안전망</div><div class="s">콜백유실·UNKNOWN 을</div><div class="s">조회로 PAID/FAILED 확정</div></div></foreignObject>
+          <line x1="340" y1="100" x2="398" y2="100" stroke="#B0B8C1" stroke-width="2" marker-end="url(#m3)"/>
+          <line x1="720" y1="100" x2="778" y2="100" stroke="#B0B8C1" stroke-width="2" marker-end="url(#m3)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 5.</b> 응답·콜백·조회의 세 단계는 <b>각각 접수·확정·안전망</b>으로 역할이 다르다. 응답은 성공 신호가 아니다.</figcaption>
+    </figure>
+    <h3>주문 상태기계 (OrderStatus)</h3>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="STATE MACHINE">
+        <svg viewBox="0 0 1120 290" role="img" aria-label="주문 상태기계: PENDING_PAYMENT에서 콜백/조회 SUCCESS면 PAID, FAILED면 FAILED, 제출 타임아웃·CB OPEN이면 UNKNOWN. UNKNOWN은 reconcile로 PAID 또는 FAILED로 확정.">
+          <defs>
+            <marker id="ms" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="40" y="118" width="240" height="64" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="40" y="118" width="240" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">PENDING_PAYMENT</div><div class="s">주문 생성 직후</div></div></foreignObject>
+          <rect x="440" y="118" width="200" height="64" rx="14" fill="#FEF6E6" stroke="#f59e0b" stroke-width="1.4"/>
+          <foreignObject x="440" y="118" width="200" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">UNKNOWN</div><div class="s">in-doubt · 미확정</div></div></foreignObject>
+          <rect x="840" y="34" width="240" height="60" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <foreignObject x="840" y="34" width="240" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">PAID</div><div class="s">종결</div></div></foreignObject>
+          <rect x="840" y="206" width="240" height="60" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.4"/>
+          <foreignObject x="840" y="206" width="240" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">FAILED</div><div class="s">종결</div></div></foreignObject>
+          <line x1="280" y1="150" x2="438" y2="150" stroke="#f59e0b" stroke-width="1.9" marker-end="url(#ms)"/>
+          <text class="svg-s" x="360" y="142" text-anchor="middle" fill="#b45309">제출 timeout·CB OPEN</text>
+          <path d="M280 134 Q580 58 838 66" fill="none" stroke="#15C47E" stroke-width="1.9" marker-end="url(#ms)"/>
+          <text class="svg-s" x="545" y="80" text-anchor="middle" fill="#0A8F5B">콜백/조회 SUCCESS</text>
+          <path d="M280 166 Q580 252 838 234" fill="none" stroke="#F04452" stroke-width="1.9" marker-end="url(#ms)"/>
+          <text class="svg-s" x="525" y="244" text-anchor="middle" fill="#C9303C">콜백/조회 FAILED</text>
+          <path d="M640 134 Q748 96 838 84" fill="none" stroke="#15C47E" stroke-width="1.9" marker-end="url(#ms)"/>
+          <text class="svg-s" x="742" y="106" text-anchor="middle" fill="#0A8F5B">reconcile SUCCESS</text>
+          <path d="M640 166 Q748 206 838 216" fill="none" stroke="#F04452" stroke-width="1.9" marker-end="url(#ms)"/>
+          <text class="svg-s" x="726" y="196" text-anchor="middle" fill="#C9303C">reconcile FAILED · 미전송</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 6.</b> 주문은 결국 <b>PAID · FAILED · UNKNOWN</b> 세 상태로 수렴한다. UNKNOWN 만 종결이 아니라 <b>reconcile 로 해소</b>되는 중간 상태.</figcaption>
+    </figure>
+    <div class="note key"><span class="tag">한 줄 요약</span><strong>400 = 고쳐라(재시도 X)</strong> · <strong>404 = 미접수(조회 타이밍)</strong> · <strong>500·타임아웃·콜백유실 = 미확정 → 조회로 확인(막 재결제 X)</strong>. 콜백은 <strong>믿되 의존하지 않는다</strong> — 진짜 안전망은 조회 reconcile. <strong>출처: apps/pg-simulator 실제 소스 + docs/pg-simulator-responses.md.</strong></div>
+  </section>
+
   <section id="refs" class="fade">
     <div class="sec-head">
       <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
@@ -436,7 +498,7 @@ docker run -d -p 8092:8082 --name pg-b pg-simulator:local</pre>
     </div>
     <div class="ref primary"><span class="n">1</span><span class="b"><b>pg-simulator PaymentApi · PaymentDto · TransactionInfo · PaymentCoreRelay</b> — 엔드포인트·요청/응답/콜백 body·검증규칙·X-USER-ID 필수·40% 500·콜백 no timeout.<span class="src">apps/pg-simulator/.../interfaces/api/payment/ · application/payment/ · infrastructure/payment/</span></span></div>
     <div class="ref"><span class="n">2</span><span class="b"><b>commerce-api 보안 — AccountSecurityConfig · AccountHeaderAuthenticationFilter</b> — 콜백 경로 제외 2곳.<span class="src">apps/commerce-api/.../config/security/ · account/infrastructure/security/</span></span></div>
-    <div class="ref"><span class="n">3</span><span class="b"><b>Round6 계획 — O9 멀티 PG 폴백 정책</b> — CB OPEN/refused만 failover, timeout/5xx는 UNKNOWN.<span class="src">docs/week6/00-plan.md</span></span></div>
+    <div class="ref"><span class="n">3</span><span class="b"><b>Round6 계획 — O9 멀티 PG 폴백 정책</b> — CB OPEN/refused만 failover, timeout/5xx는 UNKNOWN.<span class="src">docs/week6/00-plan.html</span></span></div>
     <div class="ref"><span class="n">4</span><span class="b"><b>pg-simulator 응답 케이스 · 결제 usecase 플로우</b> — 본 시퀀스의 상위 맥락.<span class="src">docs/pg-simulator-responses.md · docs/week6/05-payment-usecases.html</span></span></div>
   </section>
 
@@ -444,8 +506,8 @@ docker run -d -p 8092:8082 --name pg-b pg-simulator:local</pre>
 
   <footer>
     <span class="gl">⁂</span>
-    Week6 · PG OpenFeign 연동 시퀀스 (제출 · Fallback · 콜백)<br>
-    출처: 레포 apps/pg-simulator · commerce-api 소스 + docs/week6/00-plan.md(O9)
+    Week6 · 결제 플로우 + PG OpenFeign 연동 시퀀스 (제출 · Fallback · 콜백 · 상태기계)<br>
+    출처: 레포 apps/pg-simulator · commerce-api 소스 + docs/week6/00-plan.html(O9)
   </footer>
 
 </div>

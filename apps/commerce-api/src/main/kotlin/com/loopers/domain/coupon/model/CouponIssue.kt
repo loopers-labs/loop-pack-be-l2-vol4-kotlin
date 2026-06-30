@@ -71,6 +71,15 @@ class CouponIssue(
         }
     }
 
+    fun restoreUse() {
+        if (status != CouponIssueStatus.USED) {
+            return
+        }
+
+        status = CouponIssueStatus.AVAILABLE
+        usedAt = null
+    }
+
     companion object {
         fun issue(
             memberId: Long,

@@ -41,7 +41,7 @@ class OrderPlacementServiceTest {
 
             assertAll(
                 { assertThat(result.order.memberId).isEqualTo(100L) },
-                { assertThat(result.order.status).isEqualTo(OrderStatus.COMPLETED) },
+                { assertThat(result.order.status).isEqualTo(OrderStatus.PENDING_PAYMENT) },
                 { assertThat(result.order.totalAmount).isEqualTo(25_000L) },
                 { assertThat(result.order.items).hasSize(2) },
                 { assertThat(result.order.items.first().productName).isEqualTo("hoodie") },

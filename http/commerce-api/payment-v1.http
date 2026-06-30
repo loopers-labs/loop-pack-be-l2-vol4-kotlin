@@ -1,0 +1,49 @@
+### 결제 요청
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!
+Idempotency-Key: payment-order-1-attempt-1
+Content-Type: application/json
+
+{
+  "orderId": 1,
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### 결제 요청 재시도 - 같은 Idempotency-Key
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!
+Idempotency-Key: payment-order-1-attempt-1
+Content-Type: application/json
+
+{
+  "orderId": 1,
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### 결제 상태 조회
+GET {{commerce-api}}/api/v1/payments/1
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!
+
+### 결제 상태 동기화
+POST {{commerce-api}}/api/v1/payments/1/sync
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!
+
+### PG 콜백 수신 예시
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "replace-with-order-number",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "SUCCESS",
+  "reason": "정상 승인되었습니다."
+}

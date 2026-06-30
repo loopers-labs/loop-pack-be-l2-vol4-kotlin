@@ -9,6 +9,12 @@ interface OrderRepository {
 
     fun findById(orderId: Long): Order?
 
+    fun findByIdForUpdate(orderId: Long): Order?
+
+    fun findByOrderNumber(orderNumber: String): Order?
+
+    fun findByOrderNumberForUpdate(orderNumber: String): Order?
+
     fun findAllByMemberIdAndOrderedAtBetween(
         memberId: Long,
         startAt: ZonedDateTime,
@@ -18,4 +24,6 @@ interface OrderRepository {
     fun findByMemberIdAndId(memberId: Long, orderId: Long): Order?
 
     fun save(order: Order): Order
+
+    fun updateStatus(order: Order): Order
 }

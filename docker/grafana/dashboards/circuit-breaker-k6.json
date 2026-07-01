@@ -1,0 +1,244 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "enable": true,
+        "expr": "resilience4j_circuitbreaker_state{name=\"pgPayment\", state=\"open\"} == 1",
+        "hide": false,
+        "iconColor": "red",
+        "name": "CB OPEN",
+        "step": "5s",
+        "tagKeys": "state",
+        "titleFormat": "Circuit OPEN (호출 차단)"
+      }
+    ]
+  },
+  "description": "k6 부하 지표와 resilience4j 서킷 브레이커 상태를 같은 타임라인에 겹쳐, CB 적용 전후를 시각적으로 비교한다. CB 비활성 런 → CB 활성 런을 연속으로 돌린 뒤 좌/우로 비교한다.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "부하 (k6)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "k6 가상 유저(VUs)와 초당 요청 수(RPS). 부하 프로파일 모양을 확인한다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "RPS" }, "properties": [ { "id": "custom.axisPlacement", "value": "right" } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(k6_vus)", "legendFormat": "VUs", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(k6_http_reqs_total[1m]))", "legendFormat": "RPS", "refId": "B" }
+      ],
+      "title": "VUs / RPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "결제(PG 동기호출 포함)·주문 응답시간 p95. CB 미적용 시 PG 장애 동안 지연이 치솟고, CB 적용 시 fast-fail 로 상한이 잡힌다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "k6_biz_payment_duration_p95", "legendFormat": "결제 p95", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "k6_biz_order_duration_p95", "legendFormat": "주문 p95", "refId": "B" }
+      ],
+      "title": "응답시간 p95 (결제 / 주문)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "HTTP 실패율과 비즈니스 흐름 에러 발생량. CB 미적용 시 장애가 사용자에게 그대로 누적된다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 1, "showPoints": "never" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "HTTP 실패율 %" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "custom.axisPlacement", "value": "left" } ] },
+          { "matcher": { "id": "byName", "options": "flow errors /s" }, "properties": [ { "id": "custom.axisPlacement", "value": "right" } ] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(k6_http_req_failed_rate) * 100", "legendFormat": "HTTP 실패율 %", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(k6_biz_flow_errors_total[1m]))", "legendFormat": "flow errors /s", "refId": "B" }
+      ],
+      "title": "에러율 / 흐름 에러",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "엔드포인트별 처리량(주문 생성 / 결제 요청).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum by (name) (rate(k6_http_reqs_total{name=~\"createOrder|requestPayment\"}[1m]))", "legendFormat": "{{name}}", "refId": "A" }
+      ],
+      "title": "엔드포인트별 처리량",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 200,
+      "title": "서킷 브레이커 (resilience4j: pgPayment)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "pgPayment 서킷의 상태 전이. open 레인이 켜지는 구간이 호출을 차단(fast-fail)한 시점이다. 위 k6 패널의 지연/에러와 시점을 맞춰 본다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 },
+          "mappings": [ { "options": { "0": { "color": "transparent", "index": 0, "text": " " } }, "type": "value" } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "transparent", "value": null }, { "color": "red", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "mergeValues": false, "rowHeight": 0.9, "showValue": "never" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "resilience4j_circuitbreaker_state{name=\"pgPayment\", state=~\"closed|open|half_open\"}", "legendFormat": "{{state}}", "refId": "A" }
+      ],
+      "title": "서킷 상태 타임라인 (closed / half_open / open)",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "서킷이 open 되어 PG 호출 자체가 거부된 횟수. CB 적용 런에서만 0보다 커진다(= 보호가 동작한 증거).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1, "showPoints": "never" },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(resilience4j_circuitbreaker_not_permitted_calls_total{name=\"pgPayment\"}[1m]))", "legendFormat": "차단된 호출 /s", "refId": "A" }
+      ],
+      "title": "차단된 호출 (not permitted)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "슬라이딩 윈도우 기준 실패율·느린 호출 비율. 임계치(50%) 초과 시 서킷이 open 된다. -1 은 최소 호출수 미달(측정 전).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" },
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 50 } ] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "clamp_min(resilience4j_circuitbreaker_failure_rate{name=\"pgPayment\"}, 0)", "legendFormat": "실패율 %", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "clamp_min(resilience4j_circuitbreaker_slow_call_rate{name=\"pgPayment\"}, 0)", "legendFormat": "느린 호출율 %", "refId": "B" }
+      ],
+      "title": "실패율 / 느린 호출율 (임계 50%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "서킷을 통과한 호출 결과(kind: successful/failed)와 재시도 호출 분포. CB 미적용 시 failed·재시도가 그대로 누적된다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "showPoints": "never" },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum by (kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{name=\"pgPayment\"}[1m]))", "legendFormat": "call {{kind}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum by (kind) (rate(resilience4j_retry_calls_total{name=\"pgPayment\"}[1m]))", "legendFormat": "retry {{kind}}", "refId": "B" }
+      ],
+      "title": "호출 결과 / 재시도",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [ "k6", "resilience4j", "circuit-breaker" ],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "k6 × Circuit Breaker (PG 결제)",
+  "uid": "k6-cb-pg",
+  "version": 1
+}

@@ -56,7 +56,7 @@ class StockServiceTest {
         @Test
         fun decreasesStock_whenSufficient() {
             val existing = Stock(id = 1L, productId = 10L, quantity = 5)
-            every { stockRepositoryPort.findByProductId(10L) } returns existing
+            every { stockRepositoryPort.findByProductIdForUpdate(10L) } returns existing
             val captured = slot<Stock>()
             every { stockRepositoryPort.save(capture(captured)) } answers { captured.captured }
 
@@ -71,7 +71,7 @@ class StockServiceTest {
         @Test
         fun throwsWhenInsufficient() {
             val existing = Stock(id = 1L, productId = 10L, quantity = 2)
-            every { stockRepositoryPort.findByProductId(10L) } returns existing
+            every { stockRepositoryPort.findByProductIdForUpdate(10L) } returns existing
 
             assertThrows<IllegalArgumentException> { stockService.decrease(productId = 10L, quantity = 5) }
             verify(exactly = 0) { stockRepositoryPort.save(any()) }
@@ -80,7 +80,7 @@ class StockServiceTest {
         @DisplayName("재고가 없으면 NOT_FOUND 예외가 발생한다.")
         @Test
         fun throwsNotFound_whenMissing() {
-            every { stockRepositoryPort.findByProductId(any()) } returns null
+            every { stockRepositoryPort.findByProductIdForUpdate(any()) } returns null
 
             val result = assertThrows<CoreException> { stockService.decrease(productId = 10L, quantity = 1) }
 

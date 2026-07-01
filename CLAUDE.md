@@ -56,6 +56,7 @@ domain/       → Core + Outbound Port: Entity, VO, Domain Service(XxxService),
                 XxxRepositoryPort 인터페이스. Domain Service는 도메인 ↔ Repository 연결 및 도메인 메서드 오케스트레이션.
 infrastructure/ → Outbound Adapter: XxxEntity(JPA), XxxJpaRepository, XxxRepositoryAdapter(Port 구현), 외부 API 어댑터
 com.loopers.support.error → CoreException, ErrorType (각 앱 모듈 내 공용 에러 패키지)
+com.loopers.util          → 레이어에 속하지 않는 순수 유틸 (예: EncryptionUtil). 도메인 규칙 없음.
 ```
 
 ## Rules

@@ -1,0 +1,91 @@
+### PG Simulator (port 8082) — 모든 요청에 X-USER-ID 헤더 필수
+### 결제 요청은 100~500ms 지연 + 40% 확률로 INTERNAL_ERROR 응답(의도된 불안정성 시뮬레이션)
+
+### 결제 요청 (정상) — 성공 시 transactionKey 반환
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 135135
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "callbackUrl": "http://localhost:8080/api/v1/examples/callback"
+}
+
+### 결제 요청 — X-USER-ID 헤더 누락 (400)
+POST {{pg-simulator}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "KB",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "callbackUrl": "http://localhost:8080/api/v1/examples/callback"
+}
+
+### 결제 요청 — orderId 6자리 미만 (400)
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 135135
+Content-Type: application/json
+
+{
+  "orderId": "123",
+  "cardType": "HYUNDAI",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "callbackUrl": "http://localhost:8080/api/v1/examples/callback"
+}
+
+### 결제 요청 — 카드번호 형식 오류 (400, xxxx-xxxx-xxxx-xxxx 아님)
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 135135
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234567898141451",
+  "amount": 5000,
+  "callbackUrl": "http://localhost:8080/api/v1/examples/callback"
+}
+
+### 결제 요청 — 금액이 0 이하 (400)
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 135135
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 0,
+  "callbackUrl": "http://localhost:8080/api/v1/examples/callback"
+}
+
+### 결제 요청 — callbackUrl 프리픽스 오류 (400, http://localhost:8080 로 시작해야 함)
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 135135
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "callbackUrl": "http://example.com/callback"
+}
+
+### 결제 정보 확인 (transactionKey 는 위 결제 요청 응답값으로 교체)
+GET {{pg-simulator}}/api/v1/payments/20250816:TR:9577c5
+X-USER-ID: 135135
+
+### 결제 정보 확인 — 존재하지 않는 transactionKey (404)
+GET {{pg-simulator}}/api/v1/payments/NOT-EXISTS-KEY
+X-USER-ID: 135135
+
+### 주문에 엮인 결제 정보 조회 (orderId 기준)
+GET {{pg-simulator}}/api/v1/payments?orderId=1351039135
+X-USER-ID: 135135

@@ -8,7 +8,6 @@ import com.loopers.domain.order.AdminOrderSummary
 import com.loopers.domain.order.OrderDetail
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.order.OrderSummary
-import com.loopers.domain.order.PaymentGateway
 import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.order.OrderAdminApplicationServicePort
 import com.loopers.interfaces.api.order.OrderApplicationServicePort
@@ -25,13 +24,11 @@ class OrderApplicationServiceAdapter(
     private val userService: UserService,
     private val authService: AuthService,
     private val orderPlacement: OrderPlacement,
-    private val paymentGateway: PaymentGateway,
 ) : OrderApplicationServicePort,
     OrderAdminApplicationServicePort {
 
     /**
-     * 트랜잭션 없이 조율한다: 주문 확정(트랜잭션) → 외부 결제(트랜잭션 밖) → 결제 결과 반영(트랜잭션).
-     * 외부 결제 호출이 DB 트랜잭션을 점유하지 않도록 경계를 분리한다.
+     * 주문 생성만 수행한다: 재고/쿠폰을 선점하고 CREATED 주문을 확정한다.
      */
     override fun createOrder(command: CreateOrderCommand): OrderDetail {
         // 쿠폰 낙관적 락 충돌은 place 의 트랜잭션 커밋(flush) 시점에 발생하므로 트랜잭션 경계 밖인 여기서 잡는다.
@@ -40,9 +37,7 @@ class OrderApplicationServiceAdapter(
         } catch (e: OptimisticLockingFailureException) {
             throw CoreException(ErrorType.CONFLICT, "다른 주문에서 이미 사용된 쿠폰입니다. 다시 시도해 주세요.")
         }
-        val paymentResult = paymentGateway.requestPayment(orderId = pending.id, amount = pending.getActualAmount())
-        val finalized = orderPlacement.finalize(orderId = pending.id, paymentResult = paymentResult)
-        return OrderDetail.from(finalized)
+        return OrderDetail.from(pending)
     }
 
     @Transactional(readOnly = true)

@@ -7,8 +7,6 @@ import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderItem
 import com.loopers.domain.order.OrderItems
 import com.loopers.domain.order.OrderService
-import com.loopers.domain.order.OrderStatus
-import com.loopers.domain.order.PaymentResult
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.stock.StockService
 import com.loopers.domain.user.UserService
@@ -19,9 +17,9 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
 /**
- * 주문 트랜잭션 경계 전담(application). 외부 결제 호출을 트랜잭션 밖으로 분리하기 위해
- * "주문 확정([place])" 과 "결제 결과 반영([finalize])" 을 각각 독립 트랜잭션으로 둔다.
- * 오케스트레이션(결제 호출 포함)은 [OrderApplicationServiceAdapter] 가 트랜잭션 없이 조율한다.
+ * 주문 확정([place]) 트랜잭션을 전담한다(application). 쿠폰 검증·사용 + 재고 차감 + 주문 저장을
+ * 한 트랜잭션으로 원자적으로 처리하고 CREATED 주문을 반환한다.
+ * 이후 상태 전이(CREATED → PAYMENT_PENDING → PAYMENT_COMPLETED/CANCELLED)는 별도 결제 API 의 책임이다.
  */
 @Component
 class OrderPlacement(
@@ -33,8 +31,8 @@ class OrderPlacement(
     private val userCouponService: UserCouponService,
 ) {
     /**
-     * 쿠폰 검증·사용 + 재고 차감 + 주문 저장을 한 트랜잭션으로 처리하고 PAYMENT_PENDING 주문을 반환한다.
-     * 하나라도 실패하면 전체 롤백된다(원자성).
+     * 쿠폰 검증·사용 + 재고 차감 + 주문 저장을 한 트랜잭션으로 처리하고 CREATED 주문을 반환한다.
+     * 하나라도 실패하면 전체 롤백된다(원자성). 결제 대기/완료 전이는 결제 API 가 담당한다.
      */
     @Transactional
     fun place(command: CreateOrderCommand): Order {
@@ -66,26 +64,9 @@ class OrderPlacement(
         orderItems.sortedBy { it.productId }
             .forEach { stockService.decrease(productId = it.productId, quantity = it.quantity) }
 
-        val created = orderService.save(
+        return orderService.save(
             Order.create(userId = command.userId, items = OrderItems(orderItems), appliedCoupon = appliedCoupon),
         )
-        return orderService.save(created.updateStatus(OrderStatus.PAYMENT_PENDING))
-    }
-
-    /**
-     * 결제 결과를 별도 트랜잭션으로 반영한다.
-     * - 성공: PAYMENT_COMPLETED 전이.
-     * - 실패: 재고 복원 + 쿠폰 AVAILABLE 복원 + 주문 CANCELLED(보상).
-     */
-    @Transactional
-    fun finalize(orderId: Long, paymentResult: PaymentResult): Order {
-        val pending = orderService.getById(orderId)
-        if (paymentResult.success) {
-            return orderService.save(pending.updateStatus(OrderStatus.PAYMENT_COMPLETED))
-        }
-        pending.items.list.forEach { stockService.restore(productId = it.productId, quantity = it.quantity) }
-        pending.appliedCoupon?.let { userCouponService.restore(it.issuedCouponId) }
-        return orderService.save(pending.cancel())
     }
 
     private fun buildOrderItems(items: List<CreateOrderItemCommand>): List<OrderItem> {

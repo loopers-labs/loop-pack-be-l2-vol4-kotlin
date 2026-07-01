@@ -1,0 +1,108 @@
+### 결제 도메인 API (commerce-api, port 8080)
+### 사전 준비: 회원가입 + 주문 생성(CREATED) 후 orderId 확보 필요
+
+### 결제 요청 (정상) — PG 접수 → transactionKey 발급, 주문 PAYMENT_PENDING 전이
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: buyer01
+X-Loopers-LoginPw: password1234
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### 결제 요청 — 존재하지 않는 주문 (404)
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: buyer01
+X-Loopers-LoginPw: password1234
+Content-Type: application/json
+
+{
+  "orderId": "999999",
+  "cardType": "KB",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### 결제 요청 — 인증 헤더 누락 (401)
+POST {{commerce-api}}/api/v1/payments
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "HYUNDAI",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### 결제 요청 — 지원하지 않는 카드 종류 (400)
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: buyer01
+X-Loopers-LoginPw: password1234
+Content-Type: application/json
+
+{
+  "orderId": "1351039135",
+  "cardType": "LOTTE",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### PG 콜백 (성공) — PG 시뮬레이터가 호출하는 엔드포인트. transactionKey 는 결제 요청 응답값으로 교체
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "SUCCESS",
+  "reason": "정상 승인되었습니다."
+}
+
+### PG 콜백 (실패) — 결제 FAILED + 주문 CANCELLED, 재고·쿠폰 원복(보상)
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "FAILED",
+  "reason": "한도초과입니다. 다른 카드를 선택해주세요."
+}
+
+### PG 콜백 (대기) — 중간 통지. 최종 콜백을 기다리며 무시(no-op), 200 반환
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "PENDING",
+  "reason": null
+}
+
+### PG 콜백 (중복 성공) — 이미 종료된 결제건이면 멱등하게 무시(no-op), 200 반환
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "1351039135",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "SUCCESS",
+  "reason": "정상 승인되었습니다."
+}
+
+### 결제 상태 복구 (수동) — 콜백 미수신/미확정 결제건을 PG 에 직접 조회해 상태 동기화
+### transactionKey 는 결제 요청 응답값으로 교체. 이미 종료된 건은 멱등하게 현재 상태 반환.
+POST {{commerce-api}}/api/v1/payments/20250816:TR:9577c5/reconcile

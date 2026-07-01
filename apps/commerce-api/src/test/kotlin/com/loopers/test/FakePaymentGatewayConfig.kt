@@ -8,5 +8,5 @@ import org.springframework.context.annotation.Primary
 class FakePaymentGatewayConfig {
     @Bean
     @Primary
-    fun fakePaymentGateway(): FakePaymentGateway = FakePaymentGateway()
+    fun fakePgPaymentGateway(): FakePgPaymentGateway = FakePgPaymentGateway()
 }

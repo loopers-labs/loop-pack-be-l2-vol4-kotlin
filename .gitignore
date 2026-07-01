@@ -38,3 +38,7 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### docs 작업 부분
+/docs/week*/
+.claude/

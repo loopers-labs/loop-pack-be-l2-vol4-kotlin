@@ -4,6 +4,7 @@ import com.loopers.domain.order.application.command.OrderCreateCommand
 import com.loopers.domain.order.application.command.OrderItemCreateCommand
 import com.loopers.domain.order.model.OrderItemModel
 import com.loopers.domain.order.model.OrderModel
+import com.loopers.domain.order.model.OrderStatus
 import com.loopers.domain.product.application.info.ProductSnapshotInfo
 import com.loopers.domain.product.vo.Money
 import com.loopers.domain.product.vo.Quantity
@@ -34,11 +35,14 @@ class OrderSteps {
         fun 주문_도메인_생성(
             id: Long = 기본_주문_ID,
             orderedUserId: Long = 기본_주문자_ID,
+            issuedCouponId: Long? = null,
+            status: OrderStatus = OrderStatus.PAYMENT_PENDING,
             items: List<OrderItemModel> = listOf(주문항목_도메인_생성(orderId = id)),
         ): OrderModel = OrderModel.create(
             orderedUserId = orderedUserId,
+            issuedCouponId = issuedCouponId,
             items = items,
-        ).withId(id)
+        ).withId(id).copy(status = status)
 
         fun 주문_생성_커맨드(
             userId: Long = 기본_주문자_ID,

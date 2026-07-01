@@ -18,7 +18,12 @@ CLAUDE_SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 AGENTS_SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 
 MEMORY_PATH_RE = re.compile(
-    r"/Users/kwp/Desktop/Workspace/[^`\s]+/\.(?:claude|codex|Codex)/agent-memory/([A-Za-z0-9_-]+)/"
+    r"/[^\n`\s]*/\.(?:claude|codex|Codex)/agent-memory/([A-Za-z0-9_-]+)/"
+)
+PERSISTENT_MEMORY_RE = re.compile(
+    r"You have a persistent, file-based memory system at "
+    r"`/[^\n`]+/\.(?:claude|codex|Codex)/agent-memory/([A-Za-z0-9_-]+)/`\."
+    r" This directory already exists [^\n]+"
 )
 
 
@@ -74,9 +79,26 @@ def toml_basic_string(value: str) -> str:
     return f'"{escaped}"'
 
 
+def codex_memory_sentence(agent_name: str) -> str:
+    return (
+        "You have a persistent, file-based memory system at the current "
+        f"repository's `.codex/agent-memory/{agent_name}/` directory. "
+        "Resolve the repository from the operating system's desktop directory "
+        "instead of hard-coding macOS or Ubuntu desktop paths. This directory "
+        "is managed by `.codex/sync-from-claude.py`; write to it with the "
+        "available file-editing tool when memory is needed."
+    )
+
+
 def normalize_for_codex(body: str, agent_name: str, source_name: str) -> str:
-    memory_root = f"{REPO_ROOT}/.codex/agent-memory/"
-    body = MEMORY_PATH_RE.sub(lambda match: f"{memory_root}{match.group(1)}/", body)
+    body = PERSISTENT_MEMORY_RE.sub(
+        lambda match: codex_memory_sentence(match.group(1)),
+        body,
+    )
+    body = MEMORY_PATH_RE.sub(
+        lambda match: f".codex/agent-memory/{match.group(1)}/",
+        body,
+    )
     body = body.replace(
         "This directory already exists - write to it directly with the Write tool "
         "(do not run mkdir or check for its existence).",

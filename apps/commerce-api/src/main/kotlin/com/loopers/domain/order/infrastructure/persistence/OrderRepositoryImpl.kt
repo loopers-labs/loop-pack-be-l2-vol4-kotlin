@@ -18,6 +18,16 @@ class OrderRepositoryImpl(
         return orderEntity.toDomain(items)
     }
 
+    override fun update(order: OrderModel): OrderModel {
+        val entity = orderJpaRepository.findById(order.id).orElseThrow()
+        entity.issuedCouponId = order.issuedCouponId
+        entity.status = order.status
+        entity.totalPrice = order.totalPrice.value
+        entity.discountPrice = order.discountPrice.value
+        entity.paymentPrice = order.paymentPrice.value
+        return orderJpaRepository.saveAndFlush(entity).toDomain(order.items)
+    }
+
     override fun findByIdOrNull(orderId: Long): OrderModel? =
         orderJpaRepository.findById(orderId)
             .map { order ->

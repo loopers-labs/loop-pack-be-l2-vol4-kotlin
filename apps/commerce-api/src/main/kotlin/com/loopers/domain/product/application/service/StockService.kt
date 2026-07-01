@@ -59,6 +59,29 @@ class StockService(
         return stockRepository.saveAll(decreasedStocks)
     }
 
+    @Transactional
+    fun restoreAll(commands: List<StockDecreaseCommand>): List<StockModel> {
+        val requestedQuantities = aggregateQuantities(commands)
+        if (requestedQuantities.isEmpty()) {
+            return emptyList()
+        }
+
+        val productIds = requestedQuantities.keys.sorted()
+        val stocksByProductId = stockRepository
+            .findByProductIdsForUpdate(productIds)
+            .associateBy { it.productId }
+        if (stocksByProductId.size != requestedQuantities.size) {
+            throw CoreException(ErrorType.NOT_FOUND)
+        }
+
+        val restoredStocks = productIds.map { productId ->
+            val quantity = requestedQuantities[productId] ?: throw CoreException(ErrorType.NOT_FOUND)
+            val stock = stocksByProductId[productId] ?: throw CoreException(ErrorType.NOT_FOUND)
+            stock.increase(quantity)
+        }
+        return stockRepository.saveAll(restoredStocks)
+    }
+
     private fun aggregateQuantities(commands: List<StockDecreaseCommand>): Map<Long, Quantity> =
         try {
             commands

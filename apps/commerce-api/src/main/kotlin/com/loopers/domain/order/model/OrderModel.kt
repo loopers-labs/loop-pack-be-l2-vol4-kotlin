@@ -8,6 +8,7 @@ data class OrderModel(
     val orderedUserId: Long,
     val idempotencyKey: String? = null,
     val issuedCouponId: Long? = null,
+    val status: OrderStatus,
     val items: List<OrderItemModel>,
     val totalPrice: Money,
     val discountPrice: Money,
@@ -22,6 +23,24 @@ data class OrderModel(
             items = items.map { it.withOrderId(id) },
         )
     }
+
+    fun markOrdered(): OrderModel {
+        if (status == OrderStatus.ORDERED) {
+            return this
+        }
+        validatePendingTransition()
+        return copy(status = OrderStatus.ORDERED)
+    }
+
+    fun markPaymentFailed(): OrderModel {
+        if (status == OrderStatus.PAYMENT_FAILED) {
+            return this
+        }
+        validatePendingTransition()
+        return copy(status = OrderStatus.PAYMENT_FAILED)
+    }
+
+    fun detachCoupon(): OrderModel = copy(issuedCouponId = null)
 
     companion object {
         fun create(
@@ -40,6 +59,7 @@ data class OrderModel(
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
                 issuedCouponId = issuedCouponId,
+                status = OrderStatus.PAYMENT_PENDING,
                 items = items,
                 totalPrice = totalPrice,
                 discountPrice = discountPrice,
@@ -52,6 +72,7 @@ data class OrderModel(
             orderedUserId: Long,
             idempotencyKey: String? = null,
             issuedCouponId: Long? = null,
+            status: OrderStatus = OrderStatus.PAYMENT_PENDING,
             items: List<OrderItemModel>,
             totalPrice: Long,
             discountPrice: Long,
@@ -67,6 +88,7 @@ data class OrderModel(
                 orderedUserId = orderedUserId,
                 idempotencyKey = idempotencyKey,
                 issuedCouponId = issuedCouponId,
+                status = status,
                 items = items,
                 totalPrice = Money.of(totalPrice),
                 discountPrice = Money.of(discountPrice),
@@ -111,6 +133,12 @@ data class OrderModel(
             if (discountPrice > totalPrice) {
                 throw InvalidOrderException("할인 금액은 주문 총액을 초과할 수 없습니다.")
             }
+        }
+    }
+
+    private fun validatePendingTransition() {
+        if (status != OrderStatus.PAYMENT_PENDING) {
+            throw InvalidOrderException("주문 상태 전이는 결제 대기 상태에서만 가능합니다.")
         }
     }
 }

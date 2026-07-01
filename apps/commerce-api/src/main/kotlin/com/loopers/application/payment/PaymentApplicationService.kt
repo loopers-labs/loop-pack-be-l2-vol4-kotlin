@@ -1,19 +1,42 @@
 package com.loopers.application.payment
 
+import com.loopers.application.event.PaymentRequestedEvent
 import com.loopers.domain.payment.Payment
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 @Component
 class PaymentApplicationService(
     private val paymentRepository: PaymentRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun createPayment(payment: Payment): Payment {
         return paymentRepository.save(payment)
+    }
+
+    @Transactional
+    fun createPaymentAndPublishRequest(
+        payment: Payment,
+        callbackUrl: String,
+    ): Payment {
+        val savedPayment = paymentRepository.save(payment)
+        eventPublisher.publishEvent(
+            PaymentRequestedEvent(
+                paymentId = savedPayment.id!!,
+                orderId = savedPayment.orderId,
+                userId = savedPayment.userId,
+                callbackUrl = callbackUrl,
+                cardType = savedPayment.cardType,
+                cardNo = savedPayment.cardNo,
+                amount = savedPayment.amount,
+            ),
+        )
+        return savedPayment
     }
 
     @Transactional

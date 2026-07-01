@@ -5,5 +5,6 @@ enum class EventAggregateType(
 ) {
     PRODUCT("product"),
     ORDER("order"),
+    PAYMENT("payment"),
     COUPON("coupon"),
 }

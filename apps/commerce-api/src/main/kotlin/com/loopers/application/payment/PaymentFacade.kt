@@ -1,5 +1,7 @@
 package com.loopers.application.payment
 
+import com.loopers.application.event.PaymentCompletedEvent
+import com.loopers.application.event.PaymentFailedEvent
 import com.loopers.application.order.OrderApplicationService
 import com.loopers.application.order.OrderConfirmService
 import com.loopers.application.order.OrderReleaseService
@@ -7,6 +9,7 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.Payment
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -17,7 +20,7 @@ class PaymentFacade(
     private val paymentApplicationService: PaymentApplicationService,
     private val orderConfirmService: OrderConfirmService,
     private val orderReleaseService: OrderReleaseService,
-    private val paymentGateway: PaymentGateway,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     fun requestPayment(command: RequestPaymentCommand): PaymentInfo {
         val order = orderApplicationService.getOrder(command.orderId)
@@ -27,7 +30,7 @@ class PaymentFacade(
         }
 
         val payment = try {
-            paymentApplicationService.createPayment(
+            paymentApplicationService.createPaymentAndPublishRequest(
                 Payment(
                     orderId = command.orderId,
                     userId = command.userId,
@@ -35,6 +38,7 @@ class PaymentFacade(
                     cardNo = command.cardNo,
                     amount = order.paymentAmount.amount,
                 ),
+                PAYMENT_CALLBACK_URL,
             )
         } catch (e: DataIntegrityViolationException) {
             val existing = paymentApplicationService.findByOrderId(command.orderId)
@@ -42,25 +46,7 @@ class PaymentFacade(
             return PaymentInfo.from(existing)
         }
 
-        val paymentResult = paymentGateway.pay(
-            PaymentCommand(
-                orderId = command.orderId,
-                userId = command.userId,
-                amount = order.paymentAmount,
-                cardType = command.cardType,
-                cardNo = command.cardNo,
-                callbackUrl = "http://localhost:8080/api/v1/payments/callback",
-            ),
-        )
-
-        val updatedPayment = paymentApplicationService.markPgResult(
-            payment.id!!,
-            paymentResult.transactionKey,
-            paymentResult.status,
-            paymentResult.reason,
-        )
-
-        return PaymentInfo.from(updatedPayment)
+        return PaymentInfo.from(payment)
     }
 
     @Transactional
@@ -71,10 +57,26 @@ class PaymentFacade(
             PaymentStatus.SUCCESS -> {
                 paymentApplicationService.markSuccess(command.transactionKey, command.reason)
                 orderConfirmService.confirm(payment.orderId)
+                eventPublisher.publishEvent(
+                    PaymentCompletedEvent(
+                        userId = payment.userId,
+                        orderId = payment.orderId,
+                        transactionKey = command.transactionKey,
+                        amount = payment.amount,
+                    ),
+                )
             }
             PaymentStatus.FAILED -> {
                 paymentApplicationService.markFailed(command.transactionKey, command.reason)
                 orderReleaseService.markPaymentFailed(payment.orderId)
+                eventPublisher.publishEvent(
+                    PaymentFailedEvent(
+                        userId = payment.userId,
+                        orderId = payment.orderId,
+                        transactionKey = command.transactionKey,
+                        reason = command.reason,
+                    ),
+                )
             }
             PaymentStatus.PENDING -> {
                 throw CoreException(ErrorType.BAD_REQUEST, "콜백 상태가 PENDING일 수 없습니다.")
@@ -83,6 +85,10 @@ class PaymentFacade(
                 throw CoreException(ErrorType.BAD_REQUEST, "콜백 상태가 REQUESTED일 수 없습니다.")
             }
         }
+    }
+
+    companion object {
+        private const val PAYMENT_CALLBACK_URL = "http://localhost:8080/api/v1/payments/callback"
     }
 }
 

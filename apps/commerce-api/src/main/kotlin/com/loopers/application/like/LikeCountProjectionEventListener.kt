@@ -16,15 +16,21 @@ class LikeCountProjectionEventListener(
 
     @Async(AsyncConfig.EVENT_LISTENER_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    fun handle(event: LikeChangedEvent) {
+    fun handle(event: ProductLikeCountProjectionIncreasedEvent) {
         try {
-            if (event.activated) {
-                productLikeCountCommandRepository.increment(event.productId)
-            } else {
-                productLikeCountCommandRepository.decrement(event.productId)
-            }
+            productLikeCountCommandRepository.increment(event.productId)
         } catch (e: Exception) {
-            log.error("좋아요 집계 갱신 실패: productId={}, activated={}", event.productId, event.activated, e)
+            log.error("좋아요 내부 집계 증가 실패: productId={}", event.productId, e)
+        }
+    }
+
+    @Async(AsyncConfig.EVENT_LISTENER_EXECUTOR)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun handle(event: ProductLikeCountProjectionDecreasedEvent) {
+        try {
+            productLikeCountCommandRepository.decrement(event.productId)
+        } catch (e: Exception) {
+            log.error("좋아요 내부 집계 감소 실패: productId={}", event.productId, e)
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.loopers.application.like
 
+import com.loopers.application.event.ProductLikeMetricDecreasedEvent
+import com.loopers.application.event.ProductLikeMetricIncreasedEvent
 import com.loopers.application.product.ProductApplicationService
 import com.loopers.application.user.UserApplicationService
 import org.springframework.context.ApplicationEventPublisher
@@ -21,7 +23,8 @@ class LikeFacade(
         val changed = likeApplicationService.activate(userId = userId, productId = productId)
 
         if (changed) {
-            eventPublisher.publishEvent(LikeChangedEvent(userId = userId, productId = productId, activated = true))
+            eventPublisher.publishEvent(ProductLikeCountProjectionIncreasedEvent(userId = userId, productId = productId))
+            eventPublisher.publishEvent(ProductLikeMetricIncreasedEvent(userId = userId, productId = productId))
         }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)
@@ -35,7 +38,8 @@ class LikeFacade(
         val changed = likeApplicationService.cancel(userId = userId, productId = productId)
 
         if (changed) {
-            eventPublisher.publishEvent(LikeChangedEvent(userId = userId, productId = productId, activated = false))
+            eventPublisher.publishEvent(ProductLikeCountProjectionDecreasedEvent(userId = userId, productId = productId))
+            eventPublisher.publishEvent(ProductLikeMetricDecreasedEvent(userId = userId, productId = productId))
         }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)

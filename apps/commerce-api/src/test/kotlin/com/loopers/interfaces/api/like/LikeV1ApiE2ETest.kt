@@ -28,6 +28,7 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -65,11 +66,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = waitUntilProductStatLikeCount(product.id, 1L)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll().single().memberId).isEqualTo(member.id) },
-                { assertThat(productStat?.likeCount).isEqualTo(1L) },
+                { assertThat(likeCount).isEqualTo(1L) },
             )
         }
 
@@ -96,11 +97,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = waitUntilProductStatLikeCount(product.id, 1L)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll()).hasSize(1) },
-                { assertThat(productStat?.likeCount).isEqualTo(1L) },
+                { assertThat(likeCount).isEqualTo(1L) },
             )
         }
 
@@ -136,11 +137,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
             executor.shutdown()
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = waitUntilProductStatLikeCount(product.id, CONCURRENT_LIKE_COUNT.toLong())
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
                 { assertThat(likeJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
-                { assertThat(productStat?.likeCount).isEqualTo(CONCURRENT_LIKE_COUNT.toLong()) },
+                { assertThat(likeCount).isEqualTo(CONCURRENT_LIKE_COUNT.toLong()) },
             )
         }
 
@@ -214,11 +215,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = waitUntilProductStatLikeCount(product.id, 0L)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll()).isEmpty() },
-                { assertThat(productStat?.likeCount).isEqualTo(0L) },
+                { assertThat(likeCount).isEqualTo(0L) },
             )
         }
 
@@ -239,11 +240,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = productStatJpaRepository.findByProductId(product.id)?.likeCount
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll()).isEmpty() },
-                { assertThat(productStat?.likeCount).isEqualTo(1L) },
+                { assertThat(likeCount).isEqualTo(1L) },
             )
         }
 
@@ -286,11 +287,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
             executor.shutdown()
 
-            val productStat = productStatJpaRepository.findByProductId(product.id)
+            val likeCount = waitUntilProductStatLikeCount(product.id, 0L)
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
                 { assertThat(likeJpaRepository.findAll()).isEmpty() },
-                { assertThat(productStat?.likeCount).isEqualTo(0L) },
+                { assertThat(likeCount).isEqualTo(0L) },
             )
         }
 
@@ -507,11 +508,25 @@ class LikeV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    private fun waitUntilProductStatLikeCount(productId: Long, expectedLikeCount: Long): Long? {
+        val deadline = System.nanoTime() + WAIT_TIMEOUT.toNanos()
+        var likeCount = productStatJpaRepository.findByProductId(productId)?.likeCount
+
+        while (likeCount != expectedLikeCount && System.nanoTime() < deadline) {
+            Thread.sleep(POLL_INTERVAL.toMillis())
+            likeCount = productStatJpaRepository.findByProductId(productId)?.likeCount
+        }
+
+        return likeCount
+    }
+
     private companion object {
         private const val PRODUCTS_ENDPOINT = "/api/v1/products"
         private const val USERS_ENDPOINT = "/api/v1/users"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
         private const val CONCURRENT_LIKE_COUNT = 10
+        private val WAIT_TIMEOUT = Duration.ofSeconds(5)
+        private val POLL_INTERVAL = Duration.ofMillis(50)
     }
 }

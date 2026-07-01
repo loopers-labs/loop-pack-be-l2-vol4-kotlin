@@ -6,6 +6,8 @@ import com.loopers.application.productstat.ProductStatService
 import com.loopers.application.user.UserService
 import com.loopers.domain.brand.model.Brand
 import com.loopers.domain.brand.repository.BrandRepository
+import com.loopers.domain.like.event.LikeEventPublisher
+import com.loopers.domain.like.event.ProductLikeEvent
 import com.loopers.domain.like.model.Like
 import com.loopers.domain.like.repository.LikeRepository
 import com.loopers.domain.like.service.ProductLikeService
@@ -36,7 +38,7 @@ class LikeFacadeTest {
     @DisplayName("상품 좋아요 등록")
     @Nested
     inner class LikeProduct {
-        @DisplayName("좋아요 상태가 아니면 좋아요를 등록하고 좋아요 수를 증가시킨다")
+        @DisplayName("좋아요 상태가 아니면 좋아요를 등록하고 집계 이벤트를 발행한다")
         @Test
         fun likesProduct() {
             val fixture = LikeFacadeFixture()
@@ -44,14 +46,16 @@ class LikeFacadeTest {
 
             fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
-            val productStat = fixture.productStatRepository.findByProductId(10L)
+            val event = fixture.likeEventPublisher.singleEvent(ProductLikeEvent.Like::class.java)
             assertAll(
                 { assertThat(fixture.likeRepository.exists(memberId = 1L, productId = 10L)).isTrue() },
-                { assertThat(productStat?.likeCount).isEqualTo(1L) },
+                { assertThat(event.memberId).isEqualTo(1L) },
+                { assertThat(event.productId).isEqualTo(10L) },
+                { assertThat(event.brandId).isEqualTo(1L) },
             )
         }
 
-        @DisplayName("이미 좋아요 상태면 성공하되 좋아요 수를 증가시키지 않는다")
+        @DisplayName("이미 좋아요 상태면 성공하되 집계 이벤트를 발행하지 않는다")
         @Test
         fun ignoresDuplicateLike() {
             val fixture = LikeFacadeFixture()
@@ -61,8 +65,7 @@ class LikeFacadeTest {
 
             fixture.likeFacade.like(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
-            val productStat = fixture.productStatRepository.findByProductId(10L)
-            assertThat(productStat?.likeCount).isEqualTo(1L)
+            assertThat(fixture.likeEventPublisher.events).isEmpty()
         }
 
         @DisplayName("존재하지 않는 상품은 좋아요할 수 없다")
@@ -94,7 +97,7 @@ class LikeFacadeTest {
     @DisplayName("상품 좋아요 취소")
     @Nested
     inner class UnlikeProduct {
-        @DisplayName("좋아요 상태면 좋아요를 삭제하고 좋아요 수를 감소시킨다")
+        @DisplayName("좋아요 상태면 좋아요를 삭제하고 집계 이벤트를 발행한다")
         @Test
         fun unlikesProduct() {
             val fixture = LikeFacadeFixture()
@@ -104,14 +107,16 @@ class LikeFacadeTest {
 
             fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
-            val productStat = fixture.productStatRepository.findByProductId(10L)
+            val event = fixture.likeEventPublisher.singleEvent(ProductLikeEvent.Unlike::class.java)
             assertAll(
                 { assertThat(fixture.likeRepository.exists(memberId = 1L, productId = 10L)).isFalse() },
-                { assertThat(productStat?.likeCount).isEqualTo(0L) },
+                { assertThat(event.memberId).isEqualTo(1L) },
+                { assertThat(event.productId).isEqualTo(10L) },
+                { assertThat(event.brandId).isEqualTo(1L) },
             )
         }
 
-        @DisplayName("이미 좋아요하지 않은 상태면 성공하되 좋아요 수를 감소시키지 않는다")
+        @DisplayName("이미 좋아요하지 않은 상태면 성공하되 집계 이벤트를 발행하지 않는다")
         @Test
         fun ignoresAbsentLike() {
             val fixture = LikeFacadeFixture()
@@ -120,8 +125,7 @@ class LikeFacadeTest {
 
             fixture.likeFacade.unlike(loginId = LOGIN_ID, rawPassword = RAW_PASSWORD, productId = 10L)
 
-            val productStat = fixture.productStatRepository.findByProductId(10L)
-            assertThat(productStat?.likeCount).isEqualTo(1L)
+            assertThat(fixture.likeEventPublisher.events).isEmpty()
         }
 
         @DisplayName("존재하지 않는 상품은 좋아요 취소할 수 없다")
@@ -217,6 +221,7 @@ class LikeFacadeTest {
         val brandRepository = FakeBrandRepository()
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
+        val likeEventPublisher = RecordingLikeEventPublisher()
         val likeFacade = LikeFacade(
             likeService = LikeService(likeRepository),
             userService = UserService(userRepository, UserAccountService()),
@@ -224,6 +229,7 @@ class LikeFacadeTest {
             brandService = BrandService(brandRepository),
             productStatService = ProductStatService(productStatRepository),
             productLikeService = ProductLikeService(),
+            likeEventPublisher = likeEventPublisher,
         )
 
         init {
@@ -237,6 +243,22 @@ class LikeFacadeTest {
                     email = "loopers@example.com",
                 ),
             )
+        }
+    }
+
+    private class RecordingLikeEventPublisher : LikeEventPublisher {
+        val events = mutableListOf<Any>()
+
+        override fun publish(event: ProductLikeEvent.Like) {
+            events.add(event)
+        }
+
+        override fun publish(event: ProductLikeEvent.Unlike) {
+            events.add(event)
+        }
+
+        fun <T : Any> singleEvent(type: Class<T>): T {
+            return type.cast(events.single { type.isInstance(it) })
         }
     }
 

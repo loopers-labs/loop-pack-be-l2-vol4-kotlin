@@ -4,6 +4,8 @@ import com.loopers.application.brand.BrandService
 import com.loopers.application.product.ProductService
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.application.user.UserService
+import com.loopers.domain.like.event.LikeEventPublisher
+import com.loopers.domain.like.event.ProductLikeEvent
 import com.loopers.domain.like.service.ProductLikeService
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.support.error.CoreException
@@ -19,6 +21,7 @@ class LikeFacade(
     private val brandService: BrandService,
     private val productStatService: ProductStatService,
     private val productLikeService: ProductLikeService,
+    private val likeEventPublisher: LikeEventPublisher,
 ) {
     @Transactional
     fun like(loginId: String, rawPassword: String, productId: Long) {
@@ -27,7 +30,13 @@ class LikeFacade(
         val created = likeService.like(memberId = user.id, productId = product.id)
 
         if (created) {
-            productStatService.increaseLikeCount(productId = product.id, brandId = product.brandId)
+            likeEventPublisher.publish(
+                ProductLikeEvent.Like(
+                    memberId = user.id,
+                    productId = product.id,
+                    brandId = product.brandId,
+                ),
+            )
         }
     }
 
@@ -38,7 +47,13 @@ class LikeFacade(
         val deleted = likeService.unlike(memberId = user.id, productId = product.id)
 
         if (deleted) {
-            productStatService.decreaseLikeCount(productId = product.id, brandId = product.brandId)
+            likeEventPublisher.publish(
+                ProductLikeEvent.Unlike(
+                    memberId = user.id,
+                    productId = product.id,
+                    brandId = product.brandId,
+                ),
+            )
         }
     }
 

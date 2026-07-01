@@ -1,5 +1,6 @@
 package com.loopers.application.like
 
+import com.loopers.config.async.AsyncConfig
 import com.loopers.projection.product.ProductLikeCountCommandRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
@@ -13,7 +14,7 @@ class LikeCountProjectionEventListener(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Async
+    @Async(AsyncConfig.LIKE_EVENT_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: LikeChangedEvent) {
         try {

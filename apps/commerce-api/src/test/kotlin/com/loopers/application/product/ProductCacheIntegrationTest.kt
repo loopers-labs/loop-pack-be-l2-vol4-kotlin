@@ -23,7 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
 
-@SpringBootTest(properties = ["product.cache.enabled=true", "product.cache.ttl-seconds=302"])
+@SpringBootTest(properties = ["product.cache.enabled=true", "product.cache.ttl-seconds=30"])
 class ProductCacheIntegrationTest @Autowired constructor(
     private val productFacade: ProductFacade,
     private val productCacheService: ProductCacheService,

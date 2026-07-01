@@ -32,7 +32,7 @@ springdoc:
 product:
   cache:
     enabled: true
-    ttl-seconds: 302
+    ttl-seconds: 30
 
 ---
 spring:

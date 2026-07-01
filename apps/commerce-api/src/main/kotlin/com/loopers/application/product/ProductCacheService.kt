@@ -19,7 +19,7 @@ class ProductCacheService(
     private val objectMapper: ObjectMapper,
     @Value("\${product.cache.enabled:true}")
     private val enabled: Boolean,
-    @Value("\${product.cache.ttl-seconds:302}")
+    @Value("\${product.cache.ttl-seconds:30}")
     private val ttlSeconds: Long,
 ) {
     fun getProductDetail(productId: Long): ProductInfo? {

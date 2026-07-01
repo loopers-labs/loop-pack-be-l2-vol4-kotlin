@@ -6,4 +6,9 @@ enum class EventTopic(
     CATALOG_EVENTS("catalog-events"),
     ORDER_EVENTS("order-events"),
     COUPON_ISSUE_REQUESTS("coupon-issue-requests"),
+    ;
+
+    companion object {
+        const val COUPON_ISSUE_REQUESTS_VALUE = "coupon-issue-requests"
+    }
 }

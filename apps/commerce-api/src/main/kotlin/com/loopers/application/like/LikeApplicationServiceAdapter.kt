@@ -10,6 +10,7 @@ import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.like.LikeApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -19,17 +20,20 @@ class LikeApplicationServiceAdapter(
     private val productService: ProductService,
     private val userService: UserService,
     private val brandService: BrandService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) : LikeApplicationServicePort {
     @Transactional
     override fun like(userId: Long, productId: Long) {
         productService.getById(productId)
         likeService.register(userId, productId)
+        eventPublisher.publishEvent(LikeEvent(userId = userId, productId = productId, action = LikeEvent.LikeAction.LIKED))
     }
 
     @Transactional
     override fun unlike(userId: Long, productId: Long) {
         productService.getById(productId)
         likeService.cancel(userId, productId)
+        eventPublisher.publishEvent(LikeEvent(userId = userId, productId = productId, action = LikeEvent.LikeAction.UNLIKED))
     }
 
     @Transactional(readOnly = true)

@@ -12,6 +12,7 @@ import com.loopers.domain.stock.StockService
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
@@ -29,6 +30,7 @@ class OrderPlacement(
     private val stockService: StockService,
     private val userService: UserService,
     private val userCouponService: UserCouponService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     /**
      * 쿠폰 검증·사용 + 재고 차감 + 주문 저장을 한 트랜잭션으로 처리하고 CREATED 주문을 반환한다.
@@ -64,9 +66,11 @@ class OrderPlacement(
         orderItems.sortedBy { it.productId }
             .forEach { stockService.decrease(productId = it.productId, quantity = it.quantity) }
 
-        return orderService.save(
+        val saved = orderService.save(
             Order.create(userId = command.userId, items = OrderItems(orderItems), appliedCoupon = appliedCoupon),
         )
+        eventPublisher.publishEvent(OrderCreatedEvent(orderId = saved.id, userId = saved.userId))
+        return saved
     }
 
     private fun buildOrderItems(items: List<CreateOrderItemCommand>): List<OrderItem> {

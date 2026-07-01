@@ -11,6 +11,7 @@ import com.loopers.domain.payment.PaymentStatus
 import com.loopers.interfaces.api.payment.PaymentApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,6 +22,7 @@ class PaymentApplicationServiceAdapter(
     private val paymentGatewayPort: PaymentGatewayPort,
     private val paymentInitiation: PaymentInitiation,
     private val orderCancellation: OrderCancellation,
+    private val eventPublisher: ApplicationEventPublisher,
 ) : PaymentApplicationServicePort {
 
     override fun pay(command: PayCommand): PaymentResult {
@@ -77,9 +79,16 @@ class PaymentApplicationServiceAdapter(
     private fun applyResult(payment: Payment, status: PaymentStatus, reason: String?) {
         when (status) {
             PaymentStatus.SUCCESS -> {
-                paymentService.save(payment.approve())
+                val approvedPayment = paymentService.save(payment.approve())
                 val order = orderService.getById(payment.orderId)
                 orderService.save(order.updateStatus(OrderStatus.PAYMENT_COMPLETED))
+                eventPublisher.publishEvent(
+                    PaymentCompletedEvent(
+                        paymentId = approvedPayment.id,
+                        orderId = approvedPayment.orderId,
+                        userId = approvedPayment.userId,
+                    ),
+                )
             }
             PaymentStatus.FAILED -> {
                 paymentService.save(payment.fail(reason))

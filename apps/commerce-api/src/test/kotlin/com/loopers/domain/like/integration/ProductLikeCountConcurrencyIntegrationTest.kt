@@ -1,12 +1,17 @@
 package com.loopers.domain.like.integration
 
 import com.loopers.domain.like.application.service.LikeService
+import com.loopers.domain.like.infrastructure.persistence.LikeJpaEntity
+import com.loopers.domain.like.infrastructure.persistence.LikeJpaId
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
 import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import java.util.concurrent.CountDownLatch
@@ -32,6 +37,28 @@ class ProductLikeCountConcurrencyIntegrationTest
             likeService.initializeCount(상품_ID)
 
             assertThat(likeService.countByProductId(상품_ID)).isZero()
+        }
+
+        @Test
+        fun `집계_행이_없으면_좋아요_추가를_롤백한다`() {
+            val ex = assertThrows<CoreException> {
+                likeService.like(userId = 1L, productId = 상품_ID)
+            }
+
+            assertThat(ex.errorType).isEqualTo(ErrorType.INTERNAL_ERROR)
+            assertThat(likeJpaRepository.count()).isZero()
+        }
+
+        @Test
+        fun `집계_행이_없으면_좋아요_취소를_롤백한다`() {
+            likeJpaRepository.saveAndFlush(LikeJpaEntity(LikeJpaId(userId = 1L, productId = 상품_ID)))
+
+            val ex = assertThrows<CoreException> {
+                likeService.unlike(userId = 1L, productId = 상품_ID)
+            }
+
+            assertThat(ex.errorType).isEqualTo(ErrorType.INTERNAL_ERROR)
+            assertThat(likeJpaRepository.count()).isEqualTo(1L)
         }
 
         @Test

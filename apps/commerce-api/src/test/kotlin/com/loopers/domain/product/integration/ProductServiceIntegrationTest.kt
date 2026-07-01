@@ -3,6 +3,11 @@ package com.loopers.domain.product.integration
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
 import com.loopers.domain.like.application.service.LikeService
+import com.loopers.domain.like.infrastructure.persistence.LikeJpaEntity
+import com.loopers.domain.like.infrastructure.persistence.LikeJpaId
+import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
+import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaEntity
+import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
 import com.loopers.domain.product.application.command.ProductSearchCommand
 import com.loopers.domain.product.application.service.ProductService
 import com.loopers.domain.product.infrastructure.persistence.product.ProductJpaRepository
@@ -25,6 +30,8 @@ class ProductServiceIntegrationTest
         private val brandService: BrandService,
         private val productService: ProductService,
         private val likeService: LikeService,
+        private val likeJpaRepository: LikeJpaRepository,
+        private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
         private val productJpaRepository: ProductJpaRepository,
         private val databaseCleanUp: DatabaseCleanUp,
     ) {
@@ -115,6 +122,9 @@ class ProductServiceIntegrationTest
             val low = productService.register(상품_등록_커맨드(brandId = brand.id, name = "낮은 상품", price = 1_000))
             val high = productService.register(상품_등록_커맨드(brandId = brand.id, name = "높은 상품", price = 2_000))
             val middle = productService.register(상품_등록_커맨드(brandId = brand.id, name = "중간 상품", price = 3_000))
+            likeService.initializeCount(low.id)
+            likeService.initializeCount(high.id)
+            likeService.initializeCount(middle.id)
             likeService.like(userId = 1L, productId = low.id)
             likeService.like(userId = 1L, productId = high.id)
             likeService.like(userId = 2L, productId = high.id)
@@ -127,6 +137,34 @@ class ProductServiceIntegrationTest
             )
 
             assertThat(products.map { it.id }).containsExactly(high.id, middle.id)
+        }
+
+        @Test
+        fun `좋아요순_정렬은_실시간_집계가_아니라_집계_테이블을_기준으로_조회한다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val liveCountHigh = productService.register(
+                상품_등록_커맨드(brandId = brand.id, name = "실시간 집계 높은 상품", price = 1_000),
+            )
+            val countTableHigh = productService.register(
+                상품_등록_커맨드(brandId = brand.id, name = "집계 테이블 높은 상품", price = 2_000),
+            )
+            productLikeCountJpaRepository.saveAllAndFlush(
+                listOf(
+                    ProductLikeCountJpaEntity(productId = liveCountHigh.id, likeCount = 1L),
+                    ProductLikeCountJpaEntity(productId = countTableHigh.id, likeCount = 5L),
+                ),
+            )
+            likeJpaRepository.saveAllAndFlush(
+                (1L..10L).map { userId ->
+                    LikeJpaEntity(LikeJpaId(userId = userId, productId = liveCountHigh.id))
+                },
+            )
+
+            val products = productService.findProducts(
+                ProductSearchCommand.of(brandId = brand.id, sort = "likes_desc", page = 0, size = 2),
+            )
+
+            assertThat(products.map { it.id }).containsExactly(countTableHigh.id, liveCountHigh.id)
         }
 
         @Test

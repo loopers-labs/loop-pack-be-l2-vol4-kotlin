@@ -1,7 +1,7 @@
 package com.loopers.domain.product.infrastructure.persistence.product
 
 import com.loopers.domain.brand.infrastructure.persistence.QBrandJpaEntity
-import com.loopers.domain.like.infrastructure.persistence.QLikeJpaEntity
+import com.loopers.domain.like.infrastructure.persistence.QProductLikeCountJpaEntity
 import com.loopers.domain.product.model.ProductModel
 import com.loopers.domain.product.port.ProductRepository
 import com.loopers.domain.product.port.ProductSearchCondition
@@ -56,30 +56,20 @@ class ProductRepositoryImpl(
     private fun findByLikesDesc(condition: ProductSearchCondition): List<ProductModel> {
         val product = QProductJpaEntity.productJpaEntity
         val brand = QBrandJpaEntity.brandJpaEntity
-        val like = QLikeJpaEntity.likeJpaEntity
-        val likeCount = like.count()
+        val likeCount = QProductLikeCountJpaEntity.productLikeCountJpaEntity
 
         return queryFactory
             .select(product)
             .from(product)
             .join(brand).on(brand.id.eq(product.brandId))
-            .leftJoin(like).on(like.id.productId.eq(product.id))
+            .leftJoin(likeCount).on(likeCount.productId.eq(product.id))
             .where(
                 product.deletedAt.isNull,
                 brand.deletedAt.isNull,
                 brandIdEq(condition.brandId),
             )
-            .groupBy(
-                product.id,
-                product.brandId,
-                product.productName,
-                product.price,
-                product.createdAt,
-                product.updatedAt,
-                product.deletedAt,
-            )
             .orderBy(
-                likeCount.desc(),
+                likeCount.likeCount.coalesce(0L).desc(),
                 product.id.desc(),
             )
             .offset(condition.page.toLong() * condition.size)

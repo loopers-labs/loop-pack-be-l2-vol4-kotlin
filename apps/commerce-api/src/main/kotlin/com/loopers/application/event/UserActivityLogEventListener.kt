@@ -1,5 +1,6 @@
 package com.loopers.application.event
 
+import com.loopers.config.async.AsyncConfig
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
@@ -10,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener
 class UserActivityLogEventListener {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Async
+    @Async(AsyncConfig.EVENT_LISTENER_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: UserActivityEvent) {
         log.info(

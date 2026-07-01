@@ -10,8 +10,8 @@ import java.util.concurrent.ThreadPoolExecutor
 @EnableAsync
 @Configuration
 class AsyncConfig {
-    @Bean(LIKE_EVENT_EXECUTOR)
-    fun likeEventExecutor(): Executor {
+    @Bean(EVENT_LISTENER_EXECUTOR)
+    fun eventListenerExecutor(): Executor {
         return ThreadPoolTaskExecutor().apply {
             corePoolSize = 2
             maxPoolSize = 8
@@ -23,6 +23,6 @@ class AsyncConfig {
     }
 
     companion object {
-        const val LIKE_EVENT_EXECUTOR = "likeEventExecutor"
+        const val EVENT_LISTENER_EXECUTOR = "eventListenerExecutor"
     }
 }

@@ -14,7 +14,7 @@ class LikeCountProjectionEventListener(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Async(AsyncConfig.LIKE_EVENT_EXECUTOR)
+    @Async(AsyncConfig.EVENT_LISTENER_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: LikeChangedEvent) {
         try {

@@ -37,4 +37,10 @@ class PaymentRepositoryImpl(
         failureReason: PaymentFailureReason?,
         now: ZonedDateTime,
     ): Int = paymentJpaRepository.compareAndSetStatus(id, to, failureReason, now)
+
+    @Transactional
+    override fun incrementPollAttempts(
+        id: Long,
+        now: ZonedDateTime,
+    ): Int = paymentJpaRepository.incrementPollAttempts(id, now)
 }

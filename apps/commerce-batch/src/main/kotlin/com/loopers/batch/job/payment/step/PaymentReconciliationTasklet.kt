@@ -99,9 +99,10 @@ class PaymentReconciliationTasklet(
                     )
                     reflected++
                 } else {
-                    // 정상 폴링 추적
-                    payment.recordPoll(now)
-                    paymentRepository.save(payment)
+                    // 정상 폴링 추적 — 트랜잭션 밖에서 조회된 detached 엔티티를 save(merge)하면
+                    // 그 사이 도착한 콜백의 종결 상태를 PENDING 으로 덮어쓸 수 있으므로(Lost Update),
+                    // PENDING 인 건에 한해 추적 컬럼만 벌크 업데이트한다.
+                    paymentRepository.incrementPollAttempts(payment.id, now)
                 }
             }
         }

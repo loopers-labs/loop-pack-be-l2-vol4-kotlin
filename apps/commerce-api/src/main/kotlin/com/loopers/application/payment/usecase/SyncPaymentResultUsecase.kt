@@ -59,14 +59,18 @@ class SyncPaymentResultUsecase(
         val now = ZonedDateTime.now()
 
         when {
-            command.status == PgStatus.SUCCESS && orderStatus == OrderStatus.CANCELLED -> {
-                // R6: 결제 성공이지만 주문이 이미 취소됨 → REFUND_REQUIRED 격리 (주문 전이 없음)
+            command.status == PgStatus.SUCCESS &&
+                (orderStatus == OrderStatus.CANCELLED || orderStatus == OrderStatus.FAILED) -> {
+                // R6: 결제 성공이지만 주문이 이미 취소/실패됨 → REFUND_REQUIRED 격리 (주문 전이 없음).
+                // FAILED 를 함께 처리하지 않으면 markAsPaid() 상태 전이 위반으로 롤백되어
+                // 결제가 PENDING 으로 남아 배치가 무한 재시도하는 Stuck 상태가 된다.
                 val affected = paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.REFUND_REQUIRED, null, now)
                 if (affected == 1) {
                     log.warn(
-                        "Payment {} succeeded but order {} is CANCELLED — marked REFUND_REQUIRED, manual refund required",
+                        "Payment {} succeeded but order {} is {} — marked REFUND_REQUIRED, manual refund required",
                         payment.id,
                         payment.orderId,
+                        orderStatus,
                     )
                 }
             }

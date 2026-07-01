@@ -4,9 +4,11 @@ import com.loopers.application.payment.PaymentInfo
 import com.loopers.application.payment.SyncPaymentResultCommand
 import com.loopers.application.payment.usecase.RequestPaymentUsecase
 import com.loopers.application.payment.usecase.SyncPaymentResultUsecase
+import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PgClient
 import com.loopers.domain.payment.PgOrderLookup
+import com.loopers.domain.payment.PgPaymentResult
 import com.loopers.domain.payment.PgStatus
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.support.error.CoreException
@@ -51,7 +53,18 @@ class PaymentV1Controller(
             ?: throw CoreException(ErrorType.NOT_FOUND, "결제를 찾을 수 없습니다.")
         val result = payment.transactionKey
             ?.let { pgClient.getByTransactionKey(it) }
-            ?: (pgClient.findByOrderId(payment.orderId) as? PgOrderLookup.Found)?.result
+            ?: when (val lookup = pgClient.findByOrderId(payment.orderId)) {
+                is PgOrderLookup.Found -> lookup.result
+                // PG 미접수 확정 → 배치와 동일하게 FAILED(NOT_ACCEPTED) 로 종결 + 보상.
+                is PgOrderLookup.NotAccepted ->
+                    PgPaymentResult(
+                        transactionKey = null,
+                        status = PgStatus.FAILED,
+                        failureReason = PaymentFailureReason.NOT_ACCEPTED,
+                    )
+                // 조회 불명 → 상태 유지, reconciliation 재시도 대상.
+                is PgOrderLookup.Unknown -> null
+            }
         if (result != null && result.status != PgStatus.PENDING) {
             syncPaymentResultUsecase.apply(
                 SyncPaymentResultCommand(

@@ -30,7 +30,7 @@ interface PaymentJpaRepository : JpaRepository<PaymentModel, Long> {
         @Param("threshold") threshold: ZonedDateTime,
     ): List<PaymentModel>
 
-    @Modifying(clearAutomatically = true)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         """UPDATE PaymentModel p SET p.status = :to, p.failureReason = :reason, p.updatedAt = :now
            WHERE p.id = :id AND p.status = com.loopers.domain.payment.PaymentStatus.PENDING""",
@@ -39,6 +39,18 @@ interface PaymentJpaRepository : JpaRepository<PaymentModel, Long> {
         @Param("id") id: Long,
         @Param("to") to: PaymentStatus,
         @Param("reason") reason: PaymentFailureReason?,
+        @Param("now") now: ZonedDateTime,
+    ): Int
+
+    // Detached 엔티티 save(merge) 시 종결 상태를 PENDING 으로 덮어쓰는 Lost Update 방지 —
+    // PENDING 인 건에 대해서만 폴링 추적 컬럼을 벌크 업데이트한다.
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        """UPDATE PaymentModel p SET p.pollAttempts = p.pollAttempts + 1, p.lastPolledAt = :now
+           WHERE p.id = :id AND p.status = com.loopers.domain.payment.PaymentStatus.PENDING""",
+    )
+    fun incrementPollAttempts(
+        @Param("id") id: Long,
         @Param("now") now: ZonedDateTime,
     ): Int
 }

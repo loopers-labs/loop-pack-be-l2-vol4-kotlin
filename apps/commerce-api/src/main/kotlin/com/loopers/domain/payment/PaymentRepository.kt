@@ -23,4 +23,9 @@ interface PaymentRepository {
         failureReason: PaymentFailureReason?,
         now: ZonedDateTime,
     ): Int
+
+    fun incrementPollAttempts(
+        id: Long,
+        now: ZonedDateTime,
+    ): Int
 }

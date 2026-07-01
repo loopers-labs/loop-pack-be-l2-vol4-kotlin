@@ -26,8 +26,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.transaction.annotation.Transactional
 
 @SpringBootTest
+@Transactional
 class ProductApplicationServiceIntegrationTest @Autowired constructor(
     private val productApplicationService: ProductAdminApplicationServicePort,
     private val productRepositoryPort: ProductRepositoryPort,

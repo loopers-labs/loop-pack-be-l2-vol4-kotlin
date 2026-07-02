@@ -29,12 +29,14 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.context.ApplicationEventPublisher
 
 class ProductServiceTest {
     private val productRepository: ProductRepository = mock()
     private val brandRepository: BrandRepository = mock()
     private val inventoryRepository: InventoryRepository = mock()
-    private val productService = ProductService(productRepository, brandRepository, inventoryRepository)
+    private val eventPublisher: ApplicationEventPublisher = mock()
+    private val productService = ProductService(productRepository, brandRepository, inventoryRepository, eventPublisher)
 
     private fun product() = Product(brandId = 1L, name = ProductName("에어맥스"), price = Money(100_000))
 

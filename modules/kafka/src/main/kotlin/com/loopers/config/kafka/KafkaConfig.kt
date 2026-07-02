@@ -2,6 +2,8 @@ package com.loopers.config.kafka
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -22,6 +24,7 @@ import java.util.HashMap
 class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
+        const val OUTBOX_KAFKA_TEMPLATE = "OUTBOX_KAFKA_TEMPLATE"
 
         private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
         private const val FETCH_MIN_BYTES = (1024 * 1024) // 1mb
@@ -50,6 +53,18 @@ class KafkaConfig {
     @Bean
     fun kafkaTemplate(producerFactory: ProducerFactory<Any, Any>): KafkaTemplate<Any, Any> {
         return KafkaTemplate(producerFactory)
+    }
+
+    @Bean(OUTBOX_KAFKA_TEMPLATE)
+    fun outboxKafkaTemplate(
+        kafkaProperties: KafkaProperties,
+    ): KafkaTemplate<String, String> {
+        val props = HashMap(kafkaProperties.buildProducerProperties())
+            .apply {
+                put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java)
+                put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java)
+            }
+        return KafkaTemplate(DefaultKafkaProducerFactory(props))
     }
 
     @Bean

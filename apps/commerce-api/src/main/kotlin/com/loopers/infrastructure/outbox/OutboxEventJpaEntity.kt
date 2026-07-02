@@ -59,11 +59,6 @@ class OutboxEventJpaEntity(
     var publishedAt: ZonedDateTime? = null
         protected set
 
-    fun markPublished() {
-        status = OutboxStatus.PUBLISHED
-        publishedAt = ZonedDateTime.now()
-    }
-
     @PrePersist
     private fun prePersist() {
         createdAt = ZonedDateTime.now()
@@ -72,5 +67,6 @@ class OutboxEventJpaEntity(
 
 enum class OutboxStatus {
     PENDING,
+    PROCESSING,
     PUBLISHED,
 }

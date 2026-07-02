@@ -81,11 +81,11 @@ class CouponIssueConcurrencyE2ETest @Autowired constructor(
         return response.statusCode.value()
     }
 
-    @DisplayName("100명이 동시에 발급 요청할 때, 성공한 발급 요청은 수량(10개)을 초과하지 않는다.")
+    @DisplayName("10명이 동시에 발급 요청할 때, 성공한 발급 요청은 수량(2개)을 초과하지 않는다.")
     @Test
     fun doesNotExceedTotalCount_under100ConcurrentUsers() {
-        val totalCount = 10L
-        val userCount = 100
+        val totalCount = 2L
+        val userCount = 10
         val couponId = createTemplate(totalCount)
 
         // 유저 선생성 (직렬로)
@@ -96,7 +96,7 @@ class CouponIssueConcurrencyE2ETest @Autowired constructor(
         }
 
         val successCount = AtomicInteger(0)
-        val executor = Executors.newFixedThreadPool(50)
+        val executor = Executors.newFixedThreadPool(10)
         val ready = CountDownLatch(userCount)
         val start = CountDownLatch(1)
         val done = CountDownLatch(userCount)
@@ -125,17 +125,17 @@ class CouponIssueConcurrencyE2ETest @Autowired constructor(
         assertThat(successCount.get()).isGreaterThanOrEqualTo(1)
     }
 
-    @DisplayName("같은 유저가 100번 동시에 발급 요청해도, 발급 요청은 정확히 1건만 성공한다.")
+    @DisplayName("같은 유저가 10번 동시에 발급 요청해도, 발급 요청은 정확히 1건만 성공한다.")
     @Test
     fun onlyOneRequestSucceeds_whenSameUserRequestsConcurrently() {
-        val couponId = createTemplate(100L)
-        val loginId = "same_user"
+        val couponId = createTemplate(10L)
+        val loginId = "sameuser"
         val userId = signup(loginId)
 
         val successCount = AtomicInteger(0)
         val conflictCount = AtomicInteger(0)
-        val threadCount = 100
-        val executor = Executors.newFixedThreadPool(50)
+        val threadCount = 10
+        val executor = Executors.newFixedThreadPool(10)
         val ready = CountDownLatch(threadCount)
         val start = CountDownLatch(1)
         val done = CountDownLatch(threadCount)

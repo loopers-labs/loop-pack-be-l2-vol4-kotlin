@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 import java.time.ZonedDateTime
-import java.util.concurrent.TimeUnit
 
 @Component
 class OutboxKafkaRelayService(
@@ -30,8 +29,11 @@ class OutboxKafkaRelayService(
 
     private fun publishAndMark(outbox: Outbox) {
         runCatching {
-            kafkaTemplate.send(outbox.topic, outbox.payload).get(5, TimeUnit.SECONDS)
-            outboxWriter.markPublished(outbox.eventId)
+            kafkaTemplate.send(outbox.topic, outbox.payload)
+                .whenComplete { _, ex ->
+                    if (ex == null) outboxWriter.markPublished(outbox.eventId)
+                    else log.error("Failed to publish outbox event eventId={}", outbox.eventId, ex)
+                }
         }.onFailure {
             log.error("Failed to publish outbox event eventId={}", outbox.eventId, it)
         }

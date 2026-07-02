@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/v1/payments")
-class PaymentController(
-    private val paymentFacade: PaymentFacade,
-) {
+class PaymentController(private val paymentFacade: PaymentFacade) {
     @PostMapping
     fun pay(
         @RequestAttribute(ACCOUNT_ID) userId: Long,
@@ -25,19 +23,12 @@ class PaymentController(
         PaymentResponse.from(paymentFacade.pay(request.toCommand(userId)))
 }
 
-data class PaymentRequest(
-    val orderKey: String,
-    val cardType: CardType,
-    val cardNo: String,
-) {
+data class PaymentRequest(val orderKey: String, val cardType: CardType, val cardNo: String) {
     fun toCommand(userId: Long): PaymentCommand =
         PaymentCommand(userId = userId, orderKey = orderKey, cardType = cardType, cardNo = cardNo)
 }
 
-data class PaymentResponse(
-    val paymentId: Long,
-    val status: PaymentStatus,
-) {
+data class PaymentResponse(val paymentId: Long, val status: PaymentStatus) {
     companion object {
         fun from(info: PaymentInfo): PaymentResponse =
             PaymentResponse(paymentId = info.paymentId, status = info.status)

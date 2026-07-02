@@ -30,9 +30,4 @@ class PaymentFacade(
     }
 }
 
-data class PaymentCommand(
-    val userId: Long,
-    val orderKey: String,
-    val cardType: CardType,
-    val cardNo: String,
-)
+data class PaymentCommand(val userId: Long, val orderKey: String, val cardType: CardType, val cardNo: String)

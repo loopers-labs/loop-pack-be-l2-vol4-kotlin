@@ -14,10 +14,7 @@ import jakarta.persistence.UniqueConstraint
         UniqueConstraint(name = "uk_product_like_user_product", columnNames = ["user_id", "product_id"]),
     ],
 )
-class ProductLike(
-    userId: Long,
-    productId: Long,
-) : BaseEntity() {
+class ProductLike(userId: Long, productId: Long) : BaseEntity() {
     @Column(name = "user_id", nullable = false, updatable = false)
     val userId: Long = userId
 

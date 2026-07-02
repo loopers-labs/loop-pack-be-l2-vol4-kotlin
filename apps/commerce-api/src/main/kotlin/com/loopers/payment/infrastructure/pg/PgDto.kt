@@ -22,24 +22,10 @@ data class PgPaymentRequest(
     }
 }
 
-data class PgApiResponse<T>(
-    val meta: PgMeta,
-    val data: T?,
-)
+data class PgApiResponse<T>(val meta: PgMeta, val data: T?)
 
-data class PgMeta(
-    val result: String,
-    val errorCode: String?,
-    val message: String?,
-)
+data class PgMeta(val result: String, val errorCode: String?, val message: String?)
 
-data class PgTransactionResponse(
-    val transactionKey: String,
-    val status: String,
-    val reason: String?,
-)
+data class PgTransactionResponse(val transactionKey: String, val status: String, val reason: String?)
 
-data class PgOrderResponse(
-    val orderId: String,
-    val transactions: List<PgTransactionResponse>,
-)
+data class PgOrderResponse(val orderId: String, val transactions: List<PgTransactionResponse>)

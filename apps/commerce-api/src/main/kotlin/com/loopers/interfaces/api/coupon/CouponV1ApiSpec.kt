@@ -15,5 +15,15 @@ interface CouponV1ApiSpec {
         loginId: String,
         password: String,
         couponId: Long,
-    ): ApiResponse<CouponV1Dto.CouponIssueResponse>
+    ): ApiResponse<CouponV1Dto.CouponIssueRequestResponse>
+
+    @Operation(
+        summary = "쿠폰 발급 요청 조회",
+        description = "로그인한 회원의 쿠폰 발급 요청 처리 상태를 조회합니다.",
+    )
+    fun getIssueRequest(
+        loginId: String,
+        password: String,
+        requestId: String,
+    ): ApiResponse<CouponV1Dto.CouponIssueRequestResponse>
 }

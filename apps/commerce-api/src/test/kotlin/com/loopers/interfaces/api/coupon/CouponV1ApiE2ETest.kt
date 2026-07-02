@@ -1,11 +1,14 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.domain.coupon.enums.CouponIssueDisplayStatus
+import com.loopers.domain.coupon.enums.CouponIssueRequestStatus
 import com.loopers.domain.coupon.enums.CouponIssueStatus
 import com.loopers.domain.coupon.enums.DiscountType
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.coupon.entity.CouponEntity
 import com.loopers.infrastructure.coupon.entity.CouponIssueEntity
+import com.loopers.infrastructure.coupon.entity.CouponIssueRequestEntity
+import com.loopers.infrastructure.coupon.repository.CouponIssueRequestJpaRepository
 import com.loopers.infrastructure.coupon.repository.CouponIssueJpaRepository
 import com.loopers.infrastructure.coupon.repository.CouponJpaRepository
 import com.loopers.infrastructure.member.entity.MemberEntity
@@ -14,8 +17,13 @@ import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.coupon.dto.CouponV1Dto
 import com.loopers.interfaces.api.user.dto.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
+import org.apache.kafka.clients.admin.AdminClient
+import org.apache.kafka.clients.admin.AdminClientConfig
+import org.apache.kafka.clients.admin.NewTopic
+import org.apache.kafka.common.errors.TopicExistsException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -30,15 +38,30 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+private const val COUPON_ISSUE_REQUEST_TOPIC = "coupon-issue-requests-api-test"
+
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = [
+        "commerce.events.coupon-issue-request-topic=$COUPON_ISSUE_REQUEST_TOPIC",
+    ],
+)
 class CouponV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val memberJpaRepository: MemberJpaRepository,
     private val couponJpaRepository: CouponJpaRepository,
     private val couponIssueJpaRepository: CouponIssueJpaRepository,
+    private val couponIssueRequestJpaRepository: CouponIssueRequestJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
+    @BeforeEach
+    fun setUp() {
+        createTopicIfAbsent(COUPON_ISSUE_REQUEST_TOPIC)
+    }
+
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
@@ -47,7 +70,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
     @DisplayName("POST /api/v1/coupons/{couponId}/issue")
     @Nested
     inner class IssueCoupon {
-        @DisplayName("로그인한 회원에게 쿠폰을 발급하고 템플릿 정보를 스냅샷한다")
+        @DisplayName("로그인한 회원의 쿠폰 발급 요청을 접수한다")
         @Test
         fun issuesCoupon() {
             val member = createMember()
@@ -64,35 +87,26 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 "$COUPONS_ENDPOINT/${coupon.id}/issue",
                 HttpMethod.POST,
                 HttpEntity<Unit>(createAuthHeaders()),
-                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueRequestResponse>>() {},
             )
 
             val issues = couponIssueJpaRepository.findAll()
+            val requests = couponIssueRequestJpaRepository.findAll()
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-                { assertThat(response.body?.data?.issueId).isPositive() },
                 { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
                 { assertThat(response.body?.data?.memberId).isEqualTo(member.id) },
-                { assertThat(response.body?.data?.status).isEqualTo(CouponIssueDisplayStatus.AVAILABLE) },
-                { assertThat(response.body?.data?.type).isEqualTo(coupon.type) },
-                { assertThat(response.body?.data?.value).isEqualTo(coupon.discountValue) },
-                { assertThat(response.body?.data?.minOrderAmount).isEqualTo(coupon.minOrderAmount) },
-                { assertThat(response.body?.data?.expiredAt?.toInstant()).isEqualTo(coupon.expiredAt.toInstant()) },
-                { assertThat(issues).hasSize(1) },
-                { assertThat(issues.single().memberId).isEqualTo(member.id) },
-                { assertThat(issues.single().couponId).isEqualTo(coupon.id) },
-                { assertThat(issues.single().status).isEqualTo(CouponIssueStatus.AVAILABLE) },
-                { assertThat(issues.single().type).isEqualTo(coupon.type) },
-                { assertThat(issues.single().discountValue).isEqualTo(coupon.discountValue) },
-                { assertThat(issues.single().minOrderAmount).isEqualTo(coupon.minOrderAmount) },
-                { assertThat(issues.single().expiredAt.toInstant()).isEqualTo(coupon.expiredAt.toInstant()) },
-                { assertThat(issues.single().usedAt).isNull() },
+                { assertThat(response.body?.data?.status).isEqualTo(CouponIssueRequestStatus.REQUESTED) },
+                { assertThat(response.body?.data?.issueId).isNull() },
+                { assertThat(issues).isEmpty() },
+                { assertThat(requests).hasSize(1) },
+                { assertThat(requests.single().requestId).isEqualTo(response.body?.data?.requestId) },
             )
         }
 
-        @DisplayName("삭제된 쿠폰 템플릿은 발급할 수 없다")
+        @DisplayName("삭제된 쿠폰 템플릿도 발급 요청은 접수한다")
         @Test
-        fun returnsNotFound_whenCouponIsDeleted() {
+        fun acceptsRequest_whenCouponIsDeleted() {
             createMember()
             val coupon = couponJpaRepository.save(createCouponEntity(isDeleted = true))
 
@@ -100,18 +114,19 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 "$COUPONS_ENDPOINT/${coupon.id}/issue",
                 HttpMethod.POST,
                 HttpEntity<Unit>(createAuthHeaders()),
-                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueRequestResponse>>() {},
             )
 
             assertAll(
-                { assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND) },
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(CouponIssueRequestStatus.REQUESTED) },
                 { assertThat(couponIssueJpaRepository.findAll()).isEmpty() },
             )
         }
 
-        @DisplayName("만료된 쿠폰 템플릿은 발급할 수 없다")
+        @DisplayName("만료된 쿠폰 템플릿도 발급 요청은 접수한다")
         @Test
-        fun returnsBadRequest_whenCouponIsExpired() {
+        fun acceptsRequest_whenCouponIsExpired() {
             createMember()
             val coupon = couponJpaRepository.save(
                 createCouponEntity(expiredAt = ZonedDateTime.parse("2000-01-01T00:00:00+09:00")),
@@ -121,12 +136,12 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 "$COUPONS_ENDPOINT/${coupon.id}/issue",
                 HttpMethod.POST,
                 HttpEntity<Unit>(createAuthHeaders()),
-                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueRequestResponse>>() {},
             )
 
             assertAll(
-                { assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST) },
-                { assertThat(response.body?.meta?.message).isEqualTo("This coupon is not valid. : ${coupon.id}") },
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(CouponIssueRequestStatus.REQUESTED) },
                 { assertThat(couponIssueJpaRepository.findAll()).isEmpty() },
             )
         }
@@ -141,12 +156,49 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 "$COUPONS_ENDPOINT/${coupon.id}/issue",
                 HttpMethod.POST,
                 HttpEntity<Unit>(createAuthHeaders(password = "Wrong123!")),
-                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueRequestResponse>>() {},
             )
 
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
                 { assertThat(couponIssueJpaRepository.findAll()).isEmpty() },
+            )
+        }
+    }
+
+    @DisplayName("GET /api/v1/coupons/issue-requests/{requestId}")
+    @Nested
+    inner class GetIssueRequest {
+        @DisplayName("로그인한 회원의 쿠폰 발급 요청 상태를 조회한다")
+        @Test
+        fun returnsIssueRequest() {
+            val member = createMember()
+            val coupon = couponJpaRepository.save(createCouponEntity())
+            val request = couponIssueRequestJpaRepository.save(
+                CouponIssueRequestEntity(
+                    requestId = "request-1",
+                    couponId = coupon.id,
+                    memberId = member.id,
+                    status = CouponIssueRequestStatus.REQUESTED,
+                    issueId = null,
+                    reason = null,
+                    requestedAt = ZonedDateTime.parse("2026-01-01T00:00:00+09:00"),
+                ),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$COUPON_ISSUE_REQUESTS_ENDPOINT/${request.requestId}",
+                HttpMethod.GET,
+                HttpEntity<Unit>(createAuthHeaders()),
+                object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.CouponIssueRequestResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.requestId).isEqualTo(request.requestId) },
+                { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
+                { assertThat(response.body?.data?.memberId).isEqualTo(member.id) },
+                { assertThat(response.body?.data?.status).isEqualTo(CouponIssueRequestStatus.REQUESTED) },
             )
         }
     }
@@ -290,8 +342,24 @@ class CouponV1ApiE2ETest @Autowired constructor(
 
     private companion object {
         private const val COUPONS_ENDPOINT = "/api/v1/coupons"
+        private const val COUPON_ISSUE_REQUESTS_ENDPOINT = "/api/v1/coupons/issue-requests"
         private const val MY_COUPONS_ENDPOINT = "/api/v1/users/me/coupons"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
+
+        private fun createTopicIfAbsent(topic: String) {
+            val properties = mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to "localhost:19092")
+            AdminClient.create(properties).use { adminClient ->
+                try {
+                    adminClient.createTopics(listOf(NewTopic(topic, 1, 1)))
+                        .all()
+                        .get(5, TimeUnit.SECONDS)
+                } catch (e: ExecutionException) {
+                    if (e.cause !is TopicExistsException) {
+                        throw e
+                    }
+                }
+            }
+        }
     }
 }

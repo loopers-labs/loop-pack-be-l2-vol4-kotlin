@@ -29,6 +29,7 @@ commerce:
   events:
     catalog-topic: catalog-events
     order-topic: order-events
+    coupon-issue-request-topic: coupon-issue-requests
   outbox:
     relay:
       fixed-delay-millis: 1000

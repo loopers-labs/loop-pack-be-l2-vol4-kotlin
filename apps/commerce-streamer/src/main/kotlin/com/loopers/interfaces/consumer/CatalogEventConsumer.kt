@@ -4,22 +4,33 @@ import com.loopers.application.catalog.CatalogEventProjectionService
 import com.loopers.config.kafka.KafkaConfig
 import com.loopers.event.CatalogEventMessage
 import org.springframework.kafka.annotation.KafkaListener
+import org.springframework.kafka.annotation.RetryableTopic
+import org.springframework.kafka.retrytopic.DltStrategy
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
+import org.springframework.retry.annotation.Backoff
 
 @Component
 class CatalogEventConsumer(
     private val catalogEventProjectionService: CatalogEventProjectionService,
 ) {
+    @RetryableTopic(
+        attempts = "3",
+        backoff = Backoff(delay = 1000),
+        dltStrategy = DltStrategy.FAIL_ON_ERROR,
+        retryTopicSuffix = "-retry",
+        dltTopicSuffix = "-dlt",
+        kafkaTemplate = "kafkaTemplate",
+    )
     @KafkaListener(
         topics = ["\${commerce.events.catalog-topic:catalog-events}"],
-        containerFactory = KafkaConfig.BATCH_LISTENER,
+        containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
     fun handle(
-        messages: List<CatalogEventMessage>,
+        message: CatalogEventMessage,
         acknowledgment: Acknowledgment,
     ) {
-        messages.forEach(catalogEventProjectionService::project)
+        catalogEventProjectionService.project(message)
         acknowledgment.acknowledge()
     }
 }

@@ -25,8 +25,8 @@ class MetricsEventProcessor(
         when (event.eventType) {
             "ProductLikeMetricIncreased", "ProductLiked", "LIKE" -> handleLikeEvent(event)
             "ProductLikeMetricDecreased", "ProductUnliked", "UNLIKE" -> handleUnlikeEvent(event)
-            "ORDER_CREATED" -> handleOrderCreatedEvent(event)
             "PAYMENT_SUCCESS" -> handlePaymentSuccessEvent(event)
+            "PRODUCT_VIEWED" -> handleProductViewedEvent(event)
             else -> {
                 log.warn("알 수 없는 이벤트 타입: eventType={}", event.eventType)
                 return false
@@ -39,24 +39,28 @@ class MetricsEventProcessor(
 
     private fun handleLikeEvent(event: IncomingEvent) {
         val productId = event.payload["productId"]?.toString()?.toLong() ?: return
-        productMetricsJpaRepository.upsertLikeCount(productId, 1, event.version)
+        productMetricsJpaRepository.upsertLikeCount(productId, 1)
     }
 
     private fun handleUnlikeEvent(event: IncomingEvent) {
         val productId = event.payload["productId"]?.toString()?.toLong() ?: return
-        productMetricsJpaRepository.upsertLikeCount(productId, -1, event.version)
+        productMetricsJpaRepository.upsertLikeCount(productId, -1)
     }
 
-    private fun handleOrderCreatedEvent(event: IncomingEvent) {
-        val totalAmount = event.payload["totalAmount"]?.toString()?.toLong() ?: return
-        val orderId = event.payload["orderId"]?.toString()?.toLong() ?: return
-        productMetricsJpaRepository.upsertOrderMetrics(orderId, 1, totalAmount, event.version)
-    }
-
+    @Suppress("UNCHECKED_CAST")
     private fun handlePaymentSuccessEvent(event: IncomingEvent) {
-        val amount = event.payload["amount"]?.toString()?.toLong() ?: return
-        val orderId = event.payload["orderId"]?.toString()?.toLong() ?: return
-        productMetricsJpaRepository.upsertOrderMetrics(orderId, 0, amount, event.version)
+        val items = event.payload["items"] as? List<Map<String, Any>> ?: return
+        items.forEach { item ->
+            val productId = item["productId"]?.toString()?.toLong() ?: return@forEach
+            val quantity = item["quantity"]?.toString()?.toInt() ?: return@forEach
+            val amount = item["amount"]?.toString()?.toLong() ?: return@forEach
+            productMetricsJpaRepository.upsertOrderMetrics(productId, quantity.toLong(), amount)
+        }
+    }
+
+    private fun handleProductViewedEvent(event: IncomingEvent) {
+        val productId = event.payload["productId"]?.toString()?.toLong() ?: return
+        productMetricsJpaRepository.upsertViewCount(productId, 1)
     }
 
     private fun isAlreadyHandled(eventId: String): Boolean {
@@ -75,6 +79,5 @@ class MetricsEventProcessor(
 data class IncomingEvent(
     val eventId: String,
     val eventType: String,
-    val version: Long,
     val payload: Map<String, Any>,
 )

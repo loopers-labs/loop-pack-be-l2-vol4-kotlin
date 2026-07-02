@@ -24,8 +24,8 @@ class ProductMetricsJpaEntity(
     @Column(name = "sales_amount", nullable = false)
     var salesAmount: Long = 0,
 
-    @Column(name = "version", nullable = false)
-    var version: Long = 0,
+    @Column(name = "view_count", nullable = false)
+    var viewCount: Long = 0,
 ) {
     @Column(name = "created_at", nullable = false, updatable = false)
     lateinit var createdAt: ZonedDateTime

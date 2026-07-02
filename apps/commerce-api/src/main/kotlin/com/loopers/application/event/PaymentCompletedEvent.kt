@@ -7,6 +7,7 @@ data class PaymentCompletedEvent(
     val orderId: Long,
     val transactionKey: String,
     val amount: Long,
+    val items: List<OrderItemPayload>,
     override val occurredAt: String = ZonedDateTime.now().toString(),
 ) : UserActivityEvent, IntegrationEvent {
     override val activityType: String = EVENT_TYPE

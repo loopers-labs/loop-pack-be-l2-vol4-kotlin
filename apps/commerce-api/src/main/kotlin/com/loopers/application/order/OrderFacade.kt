@@ -1,6 +1,7 @@
 package com.loopers.application.order
 
 import com.loopers.application.event.OrderCreatedEvent
+import com.loopers.application.event.OrderItemPayload
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -19,6 +20,13 @@ class OrderFacade(
                 userId = preparedOrder.userId,
                 orderId = preparedOrder.id!!,
                 totalAmount = preparedOrder.paymentAmount.amount,
+                items = preparedOrder.items.map { item ->
+                    OrderItemPayload(
+                        productId = item.productId,
+                        quantity = item.quantity.value,
+                        amount = item.totalPrice.amount,
+                    )
+                },
             ),
         )
 

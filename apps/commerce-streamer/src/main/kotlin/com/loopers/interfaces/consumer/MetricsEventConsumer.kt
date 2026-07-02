@@ -37,13 +37,13 @@ class MetricsEventConsumer(
                     ?.value()?.let { String(it) }
                     ?: return@forEach
 
-                val payload: Map<String, Any> = objectMapper.readValue(record.value().toString())
+                val json = String(record.value() as ByteArray, Charsets.UTF_8)
+                val payload: Map<String, Any> = objectMapper.readValue(json)
 
                 metricsEventProcessor.process(
                     IncomingEvent(
                         eventId = eventId,
                         eventType = eventType,
-                        version = record.offset(),
                         payload = payload,
                     ),
                 )

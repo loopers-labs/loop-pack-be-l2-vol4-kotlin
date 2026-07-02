@@ -6,6 +6,7 @@ data class OrderCreatedEvent(
     override val userId: Long,
     val orderId: Long,
     val totalAmount: Long,
+    val items: List<OrderItemPayload>,
     override val occurredAt: String = ZonedDateTime.now().toString(),
 ) : UserActivityEvent, IntegrationEvent {
     override val activityType: String = EVENT_TYPE
@@ -19,3 +20,9 @@ data class OrderCreatedEvent(
         const val EVENT_TYPE = "ORDER_CREATED"
     }
 }
+
+data class OrderItemPayload(
+    val productId: Long,
+    val quantity: Int,
+    val amount: Long,
+)

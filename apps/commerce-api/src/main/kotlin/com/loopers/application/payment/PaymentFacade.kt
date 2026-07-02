@@ -1,14 +1,17 @@
 package com.loopers.application.payment
 
+import com.loopers.application.event.OrderItemPayload
 import com.loopers.application.event.PaymentCompletedEvent
 import com.loopers.application.event.PaymentFailedEvent
 import com.loopers.application.order.OrderApplicationService
+import com.loopers.application.order.OrderConfirmResult
 import com.loopers.application.order.OrderConfirmService
 import com.loopers.application.order.OrderReleaseService
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.Payment
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
@@ -22,6 +25,7 @@ class PaymentFacade(
     private val orderReleaseService: OrderReleaseService,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     fun requestPayment(command: RequestPaymentCommand): PaymentInfo {
         val order = orderApplicationService.getOrder(command.orderId)
 
@@ -56,15 +60,31 @@ class PaymentFacade(
         when (command.status) {
             PaymentStatus.SUCCESS -> {
                 paymentApplicationService.markSuccess(command.transactionKey, command.reason)
-                orderConfirmService.confirm(payment.orderId)
-                eventPublisher.publishEvent(
-                    PaymentCompletedEvent(
-                        userId = payment.userId,
-                        orderId = payment.orderId,
-                        transactionKey = command.transactionKey,
-                        amount = payment.amount,
-                    ),
-                )
+                when (val confirmResult = orderConfirmService.confirm(payment.orderId)) {
+                    is OrderConfirmResult.Confirmed -> {
+                        eventPublisher.publishEvent(
+                            PaymentCompletedEvent(
+                                userId = payment.userId,
+                                orderId = payment.orderId,
+                                transactionKey = command.transactionKey,
+                                amount = payment.amount,
+                                items = confirmResult.order.items.map { item ->
+                                    OrderItemPayload(
+                                        productId = item.productId,
+                                        quantity = item.quantity.value,
+                                        amount = item.totalPrice.amount,
+                                    )
+                                },
+                            ),
+                        )
+                    }
+                    is OrderConfirmResult.AlreadyPaid -> {
+                        log.info("이미 확정된 주문의 중복 콜백: orderId={}", payment.orderId)
+                    }
+                    is OrderConfirmResult.AlreadyTerminated -> {
+                        log.warn("취소/실패된 주문에 결제 성공 콜백: orderId={}, 환불 대상", payment.orderId)
+                    }
+                }
             }
             PaymentStatus.FAILED -> {
                 paymentApplicationService.markFailed(command.transactionKey, command.reason)

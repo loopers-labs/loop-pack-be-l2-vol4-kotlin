@@ -6,5 +6,6 @@ class ProductStatProjection(
     val brandId: Long,
     var likeCount: Long,
     var salesCount: Long,
+    var viewCount: Long,
     var latestEventVersion: Long,
 )

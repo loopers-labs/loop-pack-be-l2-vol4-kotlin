@@ -6,6 +6,7 @@ import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.domain.like.event.ProductLikeEvent
 import com.loopers.domain.order.event.OrderEvent
 import com.loopers.domain.payment.event.PaymentEvent
+import com.loopers.domain.product.event.ProductEvent
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.OrderEventMessage
 import org.springframework.beans.factory.annotation.Value
@@ -26,6 +27,10 @@ class EventRecordService(
 
     fun record(event: ProductLikeEvent.Unlike): EventOutbox {
         return saveCatalogMessage(ProductLikeExternalEventMessagePayload.from(event))
+    }
+
+    fun record(event: ProductEvent.Viewed): EventOutbox {
+        return saveCatalogMessage(ProductExternalEventMessagePayload.from(event))
     }
 
     fun record(event: OrderEvent.Created): EventOutbox {

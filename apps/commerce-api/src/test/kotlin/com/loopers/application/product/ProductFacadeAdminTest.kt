@@ -17,6 +17,8 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.domain.product.model.Product
 import com.loopers.domain.product.model.ProductStat
+import com.loopers.domain.product.event.ProductEvent
+import com.loopers.domain.product.event.ProductEventPublisher
 import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.domain.product.repository.ProductStatRepository
 import com.loopers.domain.product.service.ProductCatalogService
@@ -427,6 +429,7 @@ class ProductFacadeAdminTest {
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
         val productCacheRepository = FakeProductCacheRepository()
+        val productEventPublisher = FakeProductEventPublisher()
         val productService = ProductService(productRepository)
         val productCacheService = ProductCacheService(
             productService = productService,
@@ -440,7 +443,12 @@ class ProductFacadeAdminTest {
             productStatService = ProductStatService(productStatRepository),
             productCatalogService = ProductCatalogService(),
             productCacheService = productCacheService,
+            productEventPublisher = productEventPublisher,
         )
+    }
+
+    private class FakeProductEventPublisher : ProductEventPublisher {
+        override fun publish(event: ProductEvent.Viewed) = Unit
     }
 
     private class FakeBrandRepository : BrandRepository {

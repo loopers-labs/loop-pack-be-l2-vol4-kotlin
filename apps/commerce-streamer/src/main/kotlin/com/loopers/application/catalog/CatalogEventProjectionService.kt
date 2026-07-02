@@ -37,7 +37,10 @@ class CatalogEventProjectionService(
     private fun updateProductStat(message: CatalogEventMessage) {
         val current = productStatProjectionRepository.findByProductIdForUpdate(message.productId)
 
-        if (current != null && current.latestEventVersion > message.version) {
+        if (message.eventType != CatalogEventType.PRODUCT_VIEWED &&
+            current != null &&
+            current.latestEventVersion > message.version
+        ) {
             return
         }
 
@@ -46,6 +49,7 @@ class CatalogEventProjectionService(
             brandId = message.brandId ?: 0L,
             likeCount = 0L,
             salesCount = 0L,
+            viewCount = 0L,
             latestEventVersion = 0L,
         )
 
@@ -56,9 +60,12 @@ class CatalogEventProjectionService(
                     productStat.likeCount -= 1
                 }
             }
+            CatalogEventType.PRODUCT_VIEWED -> productStat.viewCount += 1
         }
 
-        productStat.latestEventVersion = message.version
+        if (message.eventType != CatalogEventType.PRODUCT_VIEWED) {
+            productStat.latestEventVersion = message.version
+        }
         productStatProjectionRepository.save(productStat)
     }
 
@@ -69,6 +76,7 @@ class CatalogEventProjectionService(
                 actionType = when (message.eventType) {
                     CatalogEventType.PRODUCT_LIKED -> UserActionType.PRODUCT_LIKED
                     CatalogEventType.PRODUCT_UNLIKED -> UserActionType.PRODUCT_UNLIKED
+                    CatalogEventType.PRODUCT_VIEWED -> UserActionType.PRODUCT_VIEWED
                 },
                 memberId = message.memberId,
                 aggregateId = message.aggregateId,

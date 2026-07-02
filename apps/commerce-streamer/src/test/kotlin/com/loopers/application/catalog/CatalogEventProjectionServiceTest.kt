@@ -51,6 +51,23 @@ class CatalogEventProjectionServiceTest {
         )
     }
 
+    @DisplayName("조회 이벤트를 조회수와 유저 행동 로그로 반영한다")
+    @Test
+    fun projectsViewedEvent() {
+        val fixture = Fixture()
+        val message = createMessage(eventId = "event-1", eventType = CatalogEventType.PRODUCT_VIEWED)
+
+        fixture.service.project(message)
+
+        val productStat = fixture.productStatRepository.findByProductIdForUpdate(10L)
+        val userActionLog = fixture.userActionLogRepository.logs.single()
+        assertAll(
+            { assertThat(productStat?.viewCount).isEqualTo(1L) },
+            { assertThat(productStat?.latestEventVersion).isEqualTo(0L) },
+            { assertThat(userActionLog.actionType).isEqualTo(UserActionType.PRODUCT_VIEWED) },
+        )
+    }
+
     private class Fixture {
         val eventHandledRepository = FakeEventHandledRepository()
         val productStatRepository = FakeProductStatProjectionRepository()

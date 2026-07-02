@@ -55,6 +55,7 @@ class OrderEventProjectionService(
                 brandId = 0L,
                 likeCount = 0L,
                 salesCount = 0L,
+                viewCount = 0L,
                 latestEventVersion = 0L,
             )
 

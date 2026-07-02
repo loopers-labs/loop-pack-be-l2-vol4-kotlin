@@ -22,6 +22,7 @@ class ProductStatProjectionRepositoryImpl(
                 brandId = productStatProjection.brandId,
                 likeCount = productStatProjection.likeCount,
                 salesCount = productStatProjection.salesCount,
+                viewCount = productStatProjection.viewCount,
                 latestEventVersion = productStatProjection.latestEventVersion,
             )
         } else {

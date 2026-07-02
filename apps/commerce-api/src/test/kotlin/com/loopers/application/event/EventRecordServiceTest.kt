@@ -7,6 +7,7 @@ import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.domain.like.event.ProductLikeEvent
 import com.loopers.domain.order.event.OrderEvent
 import com.loopers.domain.payment.event.PaymentEvent
+import com.loopers.domain.product.event.ProductEvent
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
 import com.loopers.event.OrderEventMessage
@@ -91,6 +92,42 @@ class EventRecordServiceTest {
             { assertThat(payload.orderId).isEqualTo(20L) },
             { assertThat(payload.memberId).isEqualTo(1L) },
             { assertThat(payload.paymentId).isNull() },
+        )
+    }
+
+    @DisplayName("상품 조회 이벤트를 catalog outbox record 로 저장한다")
+    @Test
+    fun recordsProductViewedEvent() {
+        val repository = RecordingEventOutboxRepository()
+        val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+        val service = EventRecordService(
+            eventOutboxRepository = repository,
+            objectMapper = objectMapper,
+            catalogTopic = "catalog-events",
+            orderTopic = "order-events",
+        )
+        val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
+
+        service.record(
+            ProductEvent.Viewed(
+                productId = 10L,
+                brandId = 100L,
+                eventId = "event-4",
+                occurredAt = occurredAt,
+                version = 123L,
+            ),
+        )
+
+        val outbox = repository.events.single()
+        val payload = objectMapper.readValue<CatalogEventMessage>(outbox.payload)
+        assertAll(
+            { assertThat(outbox.eventId).isEqualTo("event-4") },
+            { assertThat(outbox.topic).isEqualTo("catalog-events") },
+            { assertThat(outbox.partitionKey).isEqualTo("10") },
+            { assertThat(outbox.eventType).isEqualTo(CatalogEventType.PRODUCT_VIEWED.name) },
+            { assertThat(payload.eventType).isEqualTo(CatalogEventType.PRODUCT_VIEWED) },
+            { assertThat(payload.productId).isEqualTo(10L) },
+            { assertThat(payload.brandId).isEqualTo(100L) },
         )
     }
 

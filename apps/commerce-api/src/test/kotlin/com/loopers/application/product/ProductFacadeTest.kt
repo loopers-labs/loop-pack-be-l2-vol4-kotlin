@@ -17,6 +17,8 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.domain.product.model.Product
 import com.loopers.domain.product.model.ProductStat
+import com.loopers.domain.product.event.ProductEvent
+import com.loopers.domain.product.event.ProductEventPublisher
 import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.domain.product.repository.ProductStatRepository
 import com.loopers.domain.product.service.ProductCatalogService
@@ -116,6 +118,22 @@ class ProductFacadeTest {
             assertAll(
                 { assertThat(cachedProducts?.content).hasSize(1) },
                 { assertThat(cachedProducts?.content?.first()?.productId).isEqualTo(10L) },
+            )
+        }
+
+        @DisplayName("상품 상세 조회에 성공하면 조회 이벤트를 발행한다")
+        @Test
+        fun publishesViewedEvent() {
+            val fixture = ProductServiceFixture()
+            fixture.brandRepository.save(ProductBrandFixture.createBrand(id = 1L, name = "loopers"))
+            fixture.productRepository.save(ProductBrandFixture.createProduct(id = 10L, brandId = 1L))
+
+            fixture.productFacade.getProduct(10L)
+
+            val event = fixture.productEventPublisher.events.single()
+            assertAll(
+                { assertThat(event.productId).isEqualTo(10L) },
+                { assertThat(event.brandId).isEqualTo(1L) },
             )
         }
 
@@ -327,6 +345,7 @@ class ProductFacadeTest {
         val productRepository = FakeProductRepository()
         val productStatRepository = FakeProductStatRepository()
         val productCacheRepository = FakeProductCacheRepository()
+        val productEventPublisher = FakeProductEventPublisher()
         val productService = ProductService(productRepository)
         val productCacheService = ProductCacheService(
             productService = productService,
@@ -340,7 +359,16 @@ class ProductFacadeTest {
             productStatService = ProductStatService(productStatRepository),
             productCatalogService = ProductCatalogService(),
             productCacheService = productCacheService,
+            productEventPublisher = productEventPublisher,
         )
+    }
+
+    private class FakeProductEventPublisher : ProductEventPublisher {
+        val events = mutableListOf<ProductEvent.Viewed>()
+
+        override fun publish(event: ProductEvent.Viewed) {
+            events.add(event)
+        }
     }
 
     private class FakeBrandRepository : BrandRepository {

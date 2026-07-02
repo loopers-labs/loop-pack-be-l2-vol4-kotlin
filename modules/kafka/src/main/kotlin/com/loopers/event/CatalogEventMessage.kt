@@ -16,4 +16,5 @@ data class CatalogEventMessage(
 enum class CatalogEventType {
     PRODUCT_LIKED,
     PRODUCT_UNLIKED,
+    PRODUCT_VIEWED,
 }

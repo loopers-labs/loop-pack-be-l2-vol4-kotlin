@@ -14,6 +14,7 @@ class UserActionLog(
 enum class UserActionType {
     PRODUCT_LIKED,
     PRODUCT_UNLIKED,
+    PRODUCT_VIEWED,
     ORDER_CREATED,
     PAYMENT_REQUESTED,
     PAYMENT_SUCCEEDED,

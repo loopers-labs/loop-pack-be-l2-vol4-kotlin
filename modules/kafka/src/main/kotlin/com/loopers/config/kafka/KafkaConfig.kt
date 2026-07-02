@@ -2,6 +2,7 @@ package com.loopers.config.kafka
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.TopicPartition
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -13,8 +14,11 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.core.ProducerFactory
 import org.springframework.kafka.listener.ContainerProperties
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
+import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter
 import org.springframework.kafka.support.converter.ByteArrayJsonMessageConverter
+import org.springframework.util.backoff.FixedBackOff
 import java.util.HashMap
 
 @EnableKafka
@@ -22,6 +26,7 @@ import java.util.HashMap
 class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
+        const val RECORD_LISTENER = "RECORD_LISTENER_MANUAL_ACK"
 
         private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
         private const val FETCH_MIN_BYTES = (1024 * 1024) // 1mb
@@ -29,6 +34,8 @@ class KafkaConfig {
         private const val SESSION_TIMEOUT_MS = 60 * 1000 // session timeout = 1m
         private const val HEARTBEAT_INTERVAL_MS = 20 * 1000 // heartbeat interval = 20s ( 1/3 of session_timeout )
         private const val MAX_POLL_INTERVAL_MS = 2 * 60 * 1000 // max poll interval = 2m
+        private const val RETRY_BACKOFF_INTERVAL_MS = 1_000L
+        private const val RETRY_ATTEMPTS = 2L
     }
 
     @Bean
@@ -55,6 +62,41 @@ class KafkaConfig {
     @Bean
     fun jsonMessageConverter(objectMapper: ObjectMapper): ByteArrayJsonMessageConverter {
         return ByteArrayJsonMessageConverter(objectMapper)
+    }
+
+    @Bean
+    fun deadLetterPublishingRecoverer(
+        kafkaTemplate: KafkaTemplate<Any, Any>,
+    ): DeadLetterPublishingRecoverer {
+        return DeadLetterPublishingRecoverer(kafkaTemplate) { record, _ ->
+            TopicPartition("${record.topic()}.DLT", record.partition())
+        }
+    }
+
+    @Bean
+    fun defaultKafkaErrorHandler(
+        deadLetterPublishingRecoverer: DeadLetterPublishingRecoverer,
+    ): DefaultErrorHandler {
+        return DefaultErrorHandler(
+            deadLetterPublishingRecoverer,
+            FixedBackOff(RETRY_BACKOFF_INTERVAL_MS, RETRY_ATTEMPTS),
+        )
+    }
+
+    @Bean(RECORD_LISTENER)
+    fun defaultRecordListenerContainerFactory(
+        consumerFactory: ConsumerFactory<Any, Any>,
+        converter: ByteArrayJsonMessageConverter,
+        defaultKafkaErrorHandler: DefaultErrorHandler,
+    ): ConcurrentKafkaListenerContainerFactory<*, *> {
+        return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
+            this.consumerFactory = consumerFactory
+            containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
+            setRecordMessageConverter(converter)
+            setCommonErrorHandler(defaultKafkaErrorHandler)
+            setConcurrency(3)
+            isBatchListener = false
+        }
     }
 
     @Bean(BATCH_LISTENER)

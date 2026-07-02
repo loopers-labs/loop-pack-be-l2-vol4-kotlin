@@ -29,6 +29,13 @@ demo-kafka:
   test:
     topic-name: demo.internal.topic-v1
 
+commerce-events:
+  like-count:
+    topic-name: commerce.like-count-events.v1
+    dlt-topic-name: commerce.like-count-events.v1.DLT
+    partitions: 3
+    replicas: 1
+
 ---
 spring:
   config:

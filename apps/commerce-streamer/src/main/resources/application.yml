@@ -32,6 +32,7 @@ demo-kafka:
 commerce:
   events:
     catalog-topic: catalog-events
+    order-topic: order-events
 
 ---
 spring:

@@ -28,12 +28,14 @@ import java.util.concurrent.TimeUnit
 
 private const val BOOTSTRAP_SERVERS = "localhost:19092"
 private const val CATALOG_TOPIC = "catalog-events-integration-test"
+private const val ORDER_TOPIC = "order-events-integration-test"
 
 @Import(MySqlTestContainersConfig::class)
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
     properties = [
         "commerce.events.catalog-topic=$CATALOG_TOPIC",
+        "commerce.events.order-topic=$ORDER_TOPIC",
         "spring.kafka.bootstrap-servers=$BOOTSTRAP_SERVERS",
         "spring.kafka.admin.properties.bootstrap.servers=$BOOTSTRAP_SERVERS",
         "spring.kafka.consumer.group-id=commerce-streamer-integration-test",
@@ -52,6 +54,7 @@ class CatalogEventConsumerIntegrationTest
     @BeforeEach
     fun setUp() {
         createTopicIfAbsent(CATALOG_TOPIC)
+        createTopicIfAbsent(ORDER_TOPIC)
         databaseCleanUp.truncateAllTables()
     }
 

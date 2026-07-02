@@ -1,7 +1,9 @@
 package com.loopers.order.application
 
 import com.loopers.inventory.domain.Inventory
+import com.loopers.inventory.domain.InventoryErrorCode
 import com.loopers.inventory.domain.InventoryRepository
+import com.loopers.order.infrastructure.OrderJpaRepository
 import com.loopers.outbox.domain.OutboxStatus
 import com.loopers.outbox.infrastructure.OutboxEventJpaRepository
 import com.loopers.product.domain.Product
@@ -9,11 +11,13 @@ import com.loopers.product.domain.ProductName
 import com.loopers.product.domain.ProductRepository
 import com.loopers.shared.domain.Money
 import com.loopers.support.DatabaseCleanup
+import com.loopers.support.error.ConflictException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
@@ -25,6 +29,7 @@ class OrderOutboxIntegrationTest @Autowired constructor(
     private val orderFacade: OrderFacade,
     private val productRepository: ProductRepository,
     private val inventoryRepository: InventoryRepository,
+    private val orderJpaRepository: OrderJpaRepository,
     private val outboxEventJpaRepository: OutboxEventJpaRepository,
     private val databaseCleanup: DatabaseCleanup,
 ) {
@@ -57,6 +62,30 @@ class OrderOutboxIntegrationTest @Autowired constructor(
             { assertThat(outboxEvents[0].status).isEqualTo(OutboxStatus.INIT) },
             { assertThat(outboxEvents[0].payload).contains("\"eventId\"") },
             { assertThat(outboxEvents[0].payload).contains("\"orderId\":${info.id}") },
+        )
+    }
+
+    @DisplayName("재고 부족으로 주문이 실패하면, 주문과 outbox 모두 남지 않는다 — outbox 는 본 트랜잭션과 함께 롤백된다.")
+    @Test
+    fun insertsNothing_whenOrderFailsByInsufficientStock() {
+        val product = productRepository.save(Product(brandId = 1L, name = ProductName("에어맥스"), price = Money(10_000)))
+        inventoryRepository.save(Inventory.createFor(product.id, 1))
+
+        val result = assertThrows<ConflictException> {
+            orderFacade.place(
+                command = OrderCreateCommand(
+                    userId = 1L,
+                    items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 10_000)),
+                    expectedOriginalAmount = 20_000,
+                    expectedDiscountAmount = 0,
+                ),
+            )
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(InventoryErrorCode.STOCK_INSUFFICIENT) },
+            { assertThat(orderJpaRepository.findAll()).isEmpty() },
+            { assertThat(outboxEventJpaRepository.findAll()).isEmpty() },
         )
     }
 }

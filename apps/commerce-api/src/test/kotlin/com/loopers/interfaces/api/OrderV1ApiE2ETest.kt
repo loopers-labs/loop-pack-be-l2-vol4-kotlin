@@ -73,6 +73,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 value = value,
                 minOrderAmount = 0L,
                 expiredAt = java.time.LocalDateTime.now().plusDays(1),
+                totalCount = 100L,
             ),
         ).id
         return userCouponRepositoryPort.save(

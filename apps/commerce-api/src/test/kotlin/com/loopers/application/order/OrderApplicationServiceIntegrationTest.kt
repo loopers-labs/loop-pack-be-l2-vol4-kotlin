@@ -80,6 +80,7 @@ class OrderApplicationServiceIntegrationTest @Autowired constructor(
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            totalCount = 100L,
         ),
     ).id
 

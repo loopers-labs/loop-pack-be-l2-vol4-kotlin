@@ -28,6 +28,10 @@ spring:
 product-metric:
   topic: product.metric.v1
 
+coupon:
+  issue:
+    topic: coupon.issue.v1
+
 demo-kafka:
   test:
     topic-name: demo.internal.topic-v1

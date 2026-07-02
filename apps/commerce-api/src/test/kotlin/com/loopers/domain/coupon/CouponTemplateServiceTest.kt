@@ -41,6 +41,7 @@ class CouponTemplateServiceTest {
                 type = CouponType.RATE,
                 value = 10L,
                 expiredAt = expiredAt,
+                totalCount = 100L,
             )
             every { couponTemplateRepositoryPort.findById(1L) } returns template
 
@@ -69,8 +70,8 @@ class CouponTemplateServiceTest {
             val pageRequest = PageRequest(page = 0, size = 20)
             val pageResult = PageResult.of(
                 items = listOf(
-                    CouponTemplate(id = 2L, name = "B", type = CouponType.FIXED, value = 1_000L, expiredAt = expiredAt),
-                    CouponTemplate(id = 1L, name = "A", type = CouponType.RATE, value = 10L, expiredAt = expiredAt),
+                    CouponTemplate(id = 2L, name = "B", type = CouponType.FIXED, value = 1_000L, expiredAt = expiredAt, totalCount = 100L),
+                    CouponTemplate(id = 1L, name = "A", type = CouponType.RATE, value = 10L, expiredAt = expiredAt, totalCount = 100L),
                 ),
                 pageRequest = pageRequest,
                 totalElements = 2L,
@@ -97,6 +98,7 @@ class CouponTemplateServiceTest {
                 value = 10_000L,
                 minOrderAmount = 30_000L,
                 expiredAt = expiredAt,
+                totalCount = 100L,
             )
             val captured = slot<CouponTemplate>()
             every { couponTemplateRepositoryPort.save(capture(captured)) } returns saved
@@ -107,6 +109,7 @@ class CouponTemplateServiceTest {
                 value = 10_000L,
                 minOrderAmount = 30_000L,
                 expiredAt = expiredAt,
+                totalCount = 100L,
             )
 
             assertThat(result).isEqualTo(saved)
@@ -126,6 +129,7 @@ class CouponTemplateServiceTest {
                     value = 150L,
                     minOrderAmount = 0L,
                     expiredAt = expiredAt,
+                    totalCount = 100L,
                 )
             }
 

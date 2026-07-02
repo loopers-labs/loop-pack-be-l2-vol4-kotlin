@@ -16,12 +16,14 @@ class CouponTemplateTest {
         value: Long = 1_000L,
         minOrderAmount: Long = 0L,
         expiredAt: LocalDateTime = this.expiredAt,
+        totalCount: Long = 100L,
     ): CouponTemplate = CouponTemplate(
         name = name,
         type = type,
         value = value,
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
+        totalCount = totalCount,
     )
 
     @DisplayName("생성 불변식")
@@ -105,6 +107,7 @@ class CouponTemplateTest {
                 value = 1_000L,
                 minOrderAmount = 0L,
                 expiredAt = expiredAt,
+                totalCount = 50L,
             )
             val newExpiredAt = LocalDateTime.parse("2027-01-01T00:00:00")
 

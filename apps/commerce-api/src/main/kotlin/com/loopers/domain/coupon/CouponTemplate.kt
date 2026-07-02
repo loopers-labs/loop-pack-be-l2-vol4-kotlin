@@ -13,6 +13,7 @@ data class CouponTemplate(
     val value: Long,
     val minOrderAmount: Long = 0L,
     val expiredAt: LocalDateTime,
+    val totalCount: Long,
 ) {
     init {
         require(name.isNotBlank()) { "쿠폰 이름은 비어 있을 수 없습니다." }
@@ -21,6 +22,7 @@ data class CouponTemplate(
             require(value in 1..100) { "정률 쿠폰의 할인율은 1~100 사이여야 합니다." }
         }
         require(minOrderAmount >= 0) { "최소 주문 금액은 0 이상이어야 합니다." }
+        require(totalCount > 0) { "발급 수량은 0보다 커야 합니다." }
     }
 
     /**
@@ -73,12 +75,14 @@ data class CouponTemplate(
             value: Long,
             minOrderAmount: Long = 0L,
             expiredAt: LocalDateTime,
+            totalCount: Long,
         ): CouponTemplate = CouponTemplate(
             name = name,
             type = type,
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            totalCount = totalCount,
         )
     }
 }

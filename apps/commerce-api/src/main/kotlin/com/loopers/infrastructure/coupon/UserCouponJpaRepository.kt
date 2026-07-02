@@ -8,4 +8,5 @@ interface UserCouponJpaRepository : JpaRepository<UserCouponEntity, Long> {
     fun existsByUserIdAndCouponTemplateId(userId: Long, couponTemplateId: Long): Boolean
     fun findAllByUserIdOrderByIdDesc(userId: Long): List<UserCouponEntity>
     fun findAllByCouponTemplateId(couponTemplateId: Long, pageable: Pageable): Page<UserCouponEntity>
+    fun countByCouponTemplateId(couponTemplateId: Long): Long
 }

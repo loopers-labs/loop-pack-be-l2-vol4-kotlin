@@ -13,4 +13,7 @@ interface UserCouponRepositoryPort {
 
     /** 해당 쿠폰 템플릿의 발급 내역을 최근 발급순(id 내림차순)으로 페이지 조회한다. */
     fun findAllByCouponTemplateId(couponTemplateId: Long, pageRequest: PageRequest): PageResult<UserCoupon>
+
+    /** 해당 쿠폰 템플릿으로 발급된 쿠폰 수를 반환한다(cache miss 시 잔여 수량 계산용). */
+    fun countByCouponTemplateId(couponTemplateId: Long): Long
 }

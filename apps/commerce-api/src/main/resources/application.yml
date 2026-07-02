@@ -33,6 +33,10 @@ springdoc:
 product-metric:
   topic: product.metric.v1
 
+coupon:
+  issue:
+    topic: coupon.issue.v1
+
 outbox:
   relay:
     interval-ms: 30000

@@ -29,6 +29,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
+import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDateTime
 
 class OrderFacadeTest {
@@ -36,7 +37,8 @@ class OrderFacadeTest {
     private val couponService: CouponService = mock()
     private val inventoryService: InventoryService = mock()
     private val orderService: OrderService = mock()
-    private val orderFacade = OrderFacade(productService, couponService, inventoryService, orderService)
+    private val eventPublisher: ApplicationEventPublisher = mock()
+    private val orderFacade = OrderFacade(productService, couponService, inventoryService, orderService, eventPublisher)
 
     private fun product() = Product(brandId = 10L, name = ProductName("에어맥스"), price = Money(100_000))
 

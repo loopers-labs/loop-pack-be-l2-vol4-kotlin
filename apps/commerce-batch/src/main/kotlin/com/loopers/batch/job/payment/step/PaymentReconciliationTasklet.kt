@@ -90,14 +90,19 @@ class PaymentReconciliationTasklet(
                 // tMax 판정: acceptedAt 없으면 createdAt 기준
                 val baseline = payment.acceptedAt ?: payment.createdAt
                 if (baseline.isBefore(now.minusSeconds(tMaxSeconds))) {
-                    // UNRESOLVED 격리 — 주문 전이/보상 없음
-                    paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.FAILED, PaymentFailureReason.UNRESOLVED, now)
-                    log.warn(
-                        "[ALERT] Payment {} (orderId={}) exceeded tMax and is UNRESOLVED — manual intervention required",
-                        payment.id,
-                        payment.orderId,
-                    )
-                    reflected++
+                    // UNRESOLVED 격리 — 주문 전이/보상 없음.
+                    // CAS(PENDING 조건)가 실제로 1건 전이했을 때만 경보/카운트 — 그 사이 콜백이
+                    // 먼저 종결(affected=0)했다면 false ALERT 와 reflected 과다 집계를 막는다.
+                    val affected =
+                        paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.FAILED, PaymentFailureReason.UNRESOLVED, now)
+                    if (affected == 1) {
+                        log.warn(
+                            "[ALERT] Payment {} (orderId={}) exceeded tMax and is UNRESOLVED — manual intervention required",
+                            payment.id,
+                            payment.orderId,
+                        )
+                        reflected++
+                    }
                 } else {
                     // 정상 폴링 추적 — 트랜잭션 밖에서 조회된 detached 엔티티를 save(merge)하면
                     // 그 사이 도착한 콜백의 종결 상태를 PENDING 으로 덮어쓸 수 있으므로(Lost Update),

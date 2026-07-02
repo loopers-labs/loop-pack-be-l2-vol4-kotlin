@@ -7,6 +7,7 @@ import com.loopers.infrastructure.like.entity.LikeEntity
 import com.loopers.infrastructure.like.repository.LikeJpaRepository
 import com.loopers.infrastructure.member.entity.MemberEntity
 import com.loopers.infrastructure.member.repository.MemberJpaRepository
+import com.loopers.infrastructure.event.repository.EventOutboxJpaRepository
 import com.loopers.infrastructure.product.entity.ProductEntity
 import com.loopers.infrastructure.product.entity.ProductStatEntity
 import com.loopers.infrastructure.product.repository.ProductJpaRepository
@@ -14,6 +15,7 @@ import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.like.dto.LikeV1Dto
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.event.CatalogEventType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -28,7 +30,6 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
-import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -42,6 +43,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
     private val likeJpaRepository: LikeJpaRepository,
     private val productStatJpaRepository: ProductStatJpaRepository,
     private val memberJpaRepository: MemberJpaRepository,
+    private val eventOutboxJpaRepository: EventOutboxJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -66,11 +68,12 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val likeCount = waitUntilProductStatLikeCount(product.id, 1L)
+            val outbox = eventOutboxJpaRepository.findAll().single()
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll().single().memberId).isEqualTo(member.id) },
-                { assertThat(likeCount).isEqualTo(1L) },
+                { assertThat(outbox.eventType).isEqualTo(CatalogEventType.PRODUCT_LIKED.name) },
+                { assertThat(outbox.partitionKey).isEqualTo(product.id.toString()) },
             )
         }
 
@@ -97,15 +100,14 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val likeCount = waitUntilProductStatLikeCount(product.id, 1L)
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll()).hasSize(1) },
-                { assertThat(likeCount).isEqualTo(1L) },
+                { assertThat(eventOutboxJpaRepository.findAll()).hasSize(1) },
             )
         }
 
-        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요를 요청해도 좋아요 수가 정상 반영된다")
+        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요를 요청하면 요청 수만큼 outbox 이벤트를 기록한다")
         @Test
         fun countsLikes_whenRequestsAreConcurrent() {
             val members = (1..CONCURRENT_LIKE_COUNT).map { index ->
@@ -137,11 +139,10 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
             executor.shutdown()
 
-            val likeCount = waitUntilProductStatLikeCount(product.id, CONCURRENT_LIKE_COUNT.toLong())
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
                 { assertThat(likeJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
-                { assertThat(likeCount).isEqualTo(CONCURRENT_LIKE_COUNT.toLong()) },
+                { assertThat(eventOutboxJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
             )
         }
 
@@ -215,11 +216,12 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 object : ParameterizedTypeReference<ApiResponse<Any>>() {},
             )
 
-            val likeCount = waitUntilProductStatLikeCount(product.id, 0L)
+            val outbox = eventOutboxJpaRepository.findAll().single()
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(likeJpaRepository.findAll()).isEmpty() },
-                { assertThat(likeCount).isEqualTo(0L) },
+                { assertThat(outbox.eventType).isEqualTo(CatalogEventType.PRODUCT_UNLIKED.name) },
+                { assertThat(outbox.partitionKey).isEqualTo(product.id.toString()) },
             )
         }
 
@@ -248,7 +250,7 @@ class LikeV1ApiE2ETest @Autowired constructor(
             )
         }
 
-        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요 취소를 요청해도 좋아요 수가 정상 반영된다")
+        @DisplayName("동일한 상품에 여러 회원이 동시에 좋아요 취소를 요청하면 요청 수만큼 outbox 이벤트를 기록한다")
         @Test
         fun countsUnlikes_whenRequestsAreConcurrent() {
             val members = (1..CONCURRENT_LIKE_COUNT).map { index ->
@@ -287,11 +289,10 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val responses = futures.map { it.get(10, TimeUnit.SECONDS) }
             executor.shutdown()
 
-            val likeCount = waitUntilProductStatLikeCount(product.id, 0L)
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
                 { assertThat(likeJpaRepository.findAll()).isEmpty() },
-                { assertThat(likeCount).isEqualTo(0L) },
+                { assertThat(eventOutboxJpaRepository.findAll()).hasSize(CONCURRENT_LIKE_COUNT) },
             )
         }
 
@@ -508,25 +509,11 @@ class LikeV1ApiE2ETest @Autowired constructor(
         }
     }
 
-    private fun waitUntilProductStatLikeCount(productId: Long, expectedLikeCount: Long): Long? {
-        val deadline = System.nanoTime() + WAIT_TIMEOUT.toNanos()
-        var likeCount = productStatJpaRepository.findByProductId(productId)?.likeCount
-
-        while (likeCount != expectedLikeCount && System.nanoTime() < deadline) {
-            Thread.sleep(POLL_INTERVAL.toMillis())
-            likeCount = productStatJpaRepository.findByProductId(productId)?.likeCount
-        }
-
-        return likeCount
-    }
-
     private companion object {
         private const val PRODUCTS_ENDPOINT = "/api/v1/products"
         private const val USERS_ENDPOINT = "/api/v1/users"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
         private const val CONCURRENT_LIKE_COUNT = 10
-        private val WAIT_TIMEOUT = Duration.ofSeconds(5)
-        private val POLL_INTERVAL = Duration.ofMillis(50)
     }
 }

@@ -21,8 +21,21 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
+
+commerce:
+  events:
+    catalog-topic: catalog-events
+  outbox:
+    relay:
+      enabled: false
+      fixed-delay-millis: 1000
+      batch-size: 100
+  like:
+    local-stat-listener:
+      enabled: false
 
 springdoc:
   use-fqn: true

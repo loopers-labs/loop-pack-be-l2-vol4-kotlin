@@ -14,6 +14,10 @@ enum class CouponErrorCode(
     EXPIRED("만료된 쿠폰입니다."),
     ALREADY_USED("이미 사용된 쿠폰입니다."),
     DISCOUNT_NOT_MATCHED("요청된 할인 금액과 실제 할인 금액이 일치하지 않습니다."),
+    INVALID_TOTAL_QUANTITY("쿠폰 발급 수량은 0보다 커야 합니다."),
+    NOT_ISSUABLE("선착순 발급 대상 쿠폰이 아닙니다."),
+    SOLD_OUT("선착순 쿠폰이 모두 소진되었습니다."),
+    ALREADY_ISSUED("이미 발급받은 쿠폰입니다."),
     ;
 
     override val code: String

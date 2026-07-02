@@ -5,8 +5,12 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.loopers.domain.event.model.EventOutbox
 import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.domain.like.event.ProductLikeEvent
+import com.loopers.domain.order.event.OrderEvent
+import com.loopers.domain.payment.event.PaymentEvent
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
+import com.loopers.event.OrderEventMessage
+import com.loopers.event.OrderEventType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -23,6 +27,7 @@ class EventRecordServiceTest {
             eventOutboxRepository = repository,
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
+            orderTopic = "order-events",
         )
         val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
 
@@ -48,6 +53,82 @@ class EventRecordServiceTest {
             { assertThat(payload.productId).isEqualTo(10L) },
             { assertThat(payload.memberId).isEqualTo(1L) },
             { assertThat(payload.version).isEqualTo(123L) },
+        )
+    }
+
+    @DisplayName("주문 생성 이벤트를 order outbox record 로 저장한다")
+    @Test
+    fun recordsOrderCreatedEvent() {
+        val repository = RecordingEventOutboxRepository()
+        val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+        val service = EventRecordService(
+            eventOutboxRepository = repository,
+            objectMapper = objectMapper,
+            catalogTopic = "catalog-events",
+            orderTopic = "order-events",
+        )
+        val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
+
+        service.record(
+            OrderEvent.Created(
+                orderId = 20L,
+                orderNumber = "order-20",
+                memberId = 1L,
+                amount = 10_000L,
+                eventId = "event-2",
+                occurredAt = occurredAt,
+            ),
+        )
+
+        val outbox = repository.events.single()
+        val payload = objectMapper.readValue<OrderEventMessage>(outbox.payload)
+        assertAll(
+            { assertThat(outbox.eventId).isEqualTo("event-2") },
+            { assertThat(outbox.topic).isEqualTo("order-events") },
+            { assertThat(outbox.partitionKey).isEqualTo("20") },
+            { assertThat(outbox.eventType).isEqualTo(OrderEventType.ORDER_CREATED.name) },
+            { assertThat(payload.eventType).isEqualTo(OrderEventType.ORDER_CREATED) },
+            { assertThat(payload.orderId).isEqualTo(20L) },
+            { assertThat(payload.memberId).isEqualTo(1L) },
+            { assertThat(payload.paymentId).isNull() },
+        )
+    }
+
+    @DisplayName("결제 성공 이벤트를 order outbox record 로 저장한다")
+    @Test
+    fun recordsPaymentSucceededEvent() {
+        val repository = RecordingEventOutboxRepository()
+        val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+        val service = EventRecordService(
+            eventOutboxRepository = repository,
+            objectMapper = objectMapper,
+            catalogTopic = "catalog-events",
+            orderTopic = "order-events",
+        )
+        val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
+
+        service.record(
+            PaymentEvent.Succeeded(
+                paymentId = 30L,
+                orderId = 20L,
+                orderNumber = "order-20",
+                memberId = 1L,
+                amount = 10_000L,
+                eventId = "event-3",
+                occurredAt = occurredAt,
+            ),
+        )
+
+        val outbox = repository.events.single()
+        val payload = objectMapper.readValue<OrderEventMessage>(outbox.payload)
+        assertAll(
+            { assertThat(outbox.eventId).isEqualTo("event-3") },
+            { assertThat(outbox.topic).isEqualTo("order-events") },
+            { assertThat(outbox.partitionKey).isEqualTo("20") },
+            { assertThat(outbox.eventType).isEqualTo(OrderEventType.PAYMENT_SUCCEEDED.name) },
+            { assertThat(payload.eventType).isEqualTo(OrderEventType.PAYMENT_SUCCEEDED) },
+            { assertThat(payload.orderId).isEqualTo(20L) },
+            { assertThat(payload.paymentId).isEqualTo(30L) },
         )
     }
 

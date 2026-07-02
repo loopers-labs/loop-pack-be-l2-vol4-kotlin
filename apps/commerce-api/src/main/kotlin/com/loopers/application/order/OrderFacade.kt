@@ -8,6 +8,8 @@ import com.loopers.application.order.dto.OrderInfo
 import com.loopers.application.order.dto.OrderSummaryInfo
 import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
+import com.loopers.domain.order.event.OrderEvent
+import com.loopers.domain.order.event.OrderEventPublisher
 import com.loopers.domain.order.dto.OrderPlacementItem
 import com.loopers.domain.order.service.OrderPlacementService
 import org.springframework.data.domain.Page
@@ -24,6 +26,7 @@ class OrderFacade(
     private val inventoryService: InventoryService,
     private val couponService: CouponService,
     private val orderPlacementService: OrderPlacementService,
+    private val orderEventPublisher: OrderEventPublisher,
 ) {
     @Transactional
     fun placeOrder(
@@ -51,7 +54,18 @@ class OrderFacade(
 
         inventoryService.updateInventories(result.inventories)
         result.couponIssue?.let(couponService::saveCouponIssue)
-        return orderService.save(result.order)
+        val order = orderService.save(result.order)
+        orderEventPublisher.publish(
+            OrderEvent.Created(
+                orderId = order.id,
+                orderNumber = order.orderNumber,
+                memberId = order.memberId,
+                amount = order.totalAmount,
+                occurredAt = order.orderedAt,
+            ),
+        )
+
+        return order
             .let(OrderInfo::from)
     }
 

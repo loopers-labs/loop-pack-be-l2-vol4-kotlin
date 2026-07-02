@@ -28,6 +28,7 @@ spring:
 commerce:
   events:
     catalog-topic: catalog-events
+    order-topic: order-events
   outbox:
     relay:
       fixed-delay-millis: 1000

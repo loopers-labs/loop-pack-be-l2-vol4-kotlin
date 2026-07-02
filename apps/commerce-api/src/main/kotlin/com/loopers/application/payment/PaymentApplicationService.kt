@@ -31,9 +31,6 @@ class PaymentApplicationService(
                 orderId = savedPayment.orderId,
                 userId = savedPayment.userId,
                 callbackUrl = callbackUrl,
-                cardType = savedPayment.cardType,
-                cardNo = savedPayment.cardNo,
-                amount = savedPayment.amount,
             ),
         )
         return savedPayment

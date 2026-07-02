@@ -7,9 +7,6 @@ data class PaymentRequestedEvent(
     val orderId: Long,
     val userId: Long,
     val callbackUrl: String,
-    val cardType: String,
-    val cardNo: String,
-    val amount: Long,
     override val occurredAt: String = ZonedDateTime.now().toString(),
 ) : IntegrationEvent {
     override val eventType: String = EVENT_TYPE

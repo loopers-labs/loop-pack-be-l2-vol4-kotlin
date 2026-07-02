@@ -1,7 +1,7 @@
 package com.loopers.interfaces.event.like
 
 import com.loopers.application.event.ProductLikeExternalEventMessagePayload
-import com.loopers.application.event.ProductLikeExternalEventSendService
+import com.loopers.application.event.ExternalEventSendService
 import com.loopers.config.event.ApplicationEventAsyncConfig.Companion.EVENT_ASYNC_TASK_EXECUTOR
 import com.loopers.domain.like.event.ProductLikeEvent
 import org.springframework.scheduling.annotation.Async
@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener
 
 @Component
 class ProductLikeEventMessageListener(
-    private val sendService: ProductLikeExternalEventSendService,
+    private val sendService: ExternalEventSendService,
 ) {
     @Async(EVENT_ASYNC_TASK_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

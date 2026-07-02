@@ -1,6 +1,6 @@
 package com.loopers.interfaces.event.like
 
-import com.loopers.application.event.ProductLikeExternalEventSendService
+import com.loopers.application.event.ExternalEventSendService
 import com.loopers.domain.like.event.ProductLikeEvent
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
@@ -12,7 +12,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 
 class ProductLikeEventMessageListenerTest {
-    private val sendService = mock<ProductLikeExternalEventSendService>()
+    private val sendService = mock<ExternalEventSendService>()
     private val listener = ProductLikeEventMessageListener(sendService)
 
     @DisplayName("좋아요 이벤트를 외부 카탈로그 이벤트로 발행 요청한다")

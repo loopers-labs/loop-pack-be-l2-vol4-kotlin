@@ -23,11 +23,53 @@ spring:
       - redis.yml
       - logging.yml
       - monitoring.yml
+  cloud:
+    openfeign:
+      client:
+        config:
+          pgSimulatorClient:
+            # connect: 연결 수립, read: 응답 대기. 지연이 스레드를 오래 점유하지 못하게 짧게 잡는다.
+            connect-timeout: 1000
+            read-timeout: 2000
+            logger-level: basic
 
 springdoc:
   use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
+
+# 외부 PG(pg-simulator) 연동 설정
+pg:
+  simulator:
+    url: http://localhost:8082
+  # pg-simulator 는 콜백 URL 이 http://localhost:8080 으로 시작해야 함을 강제한다.
+  callback-url: http://localhost:8080/api/v1/payments/callback
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      pgClient:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50          # 실패율 50% 초과 시 Open
+        slow-call-duration-threshold: 2s    # 2s 이상 응답은 '느린 호출'로 간주
+        slow-call-rate-threshold: 50        # 느린 호출 비율 50% 초과 시 Open
+        wait-duration-in-open-state: 10s    # Open 유지 시간
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+  retry:
+    instances:
+      pgClient:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        # 일시적 실패(5xx, 연결/응답 타임아웃)만 재시도한다. 요청은 사전 검증되므로 4xx 는 대상 아님.
+        retry-exceptions:
+          - feign.RetryableException
+          - feign.FeignException$FeignServerException
 
 ---
 spring:

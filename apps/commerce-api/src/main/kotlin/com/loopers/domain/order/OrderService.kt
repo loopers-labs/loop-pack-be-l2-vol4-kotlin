@@ -29,6 +29,18 @@ class OrderService(
             ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
     }
 
+    /**
+     * PENDING 주문만 결제 완료로 전이한다. 이미 PAID 면 멱등하게 무시한다. (콜백 중복 수신 대비)
+     */
+    @Transactional
+    fun payIfPending(orderId: Long) {
+        val order = getById(orderId)
+        if (order.status == OrderStatus.PENDING) {
+            order.pay()
+            orderRepository.save(order)
+        }
+    }
+
     fun getById(orderId: Long): OrderModel {
         return orderRepository.findActiveById(orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")

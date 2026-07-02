@@ -1,0 +1,60 @@
+### ──────────────────────────────────────────────
+### User: 주문 결제 요청 (PG 카드 결제)
+### - 금액은 서버가 주문(finalAmount)에서 계산한다. 요청 바디에 amount 없음.
+### - PG 는 비동기 처리이므로 응답 status 는 PENDING, 최종 결과는 콜백/동기화로 확정.
+### ──────────────────────────────────────────────
+POST {{commerce-api}}/api/v1/payments
+X-Loopers-LoginId: user123
+X-Loopers-LoginPw: Valid1!pw
+Content-Type: application/json
+
+{
+  "orderId": "1",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451"
+}
+
+### User: 결제 상태 동기화 (콜백 유실/타임아웃 복구 - 수동 트리거)
+POST {{commerce-api}}/api/v1/payments/sync?orderId=1
+X-Loopers-LoginId: user123
+X-Loopers-LoginPw: Valid1!pw
+
+### ──────────────────────────────────────────────
+### PG → commerce-api: 결제 결과 콜백 (pg-simulator 가 호출. 테스트용 수동 호출 예시)
+### ──────────────────────────────────────────────
+POST {{commerce-api}}/api/v1/payments/callback
+Content-Type: application/json
+
+{
+  "transactionKey": "20250816:TR:9577c5",
+  "orderId": "000001",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": 5000,
+  "status": "SUCCESS",
+  "reason": null
+}
+
+### ──────────────────────────────────────────────
+### 참고: PG-Simulator 직접 호출 (pg-simulator 포트 8082)
+### ──────────────────────────────────────────────
+### PG: 결제 요청
+POST {{pg-simulator}}/api/v1/payments
+X-USER-ID: 1
+Content-Type: application/json
+
+{
+  "orderId": "000001",
+  "cardType": "SAMSUNG",
+  "cardNo": "1234-5678-9814-1451",
+  "amount": "5000",
+  "callbackUrl": "http://localhost:8080/api/v1/payments/callback"
+}
+
+### PG: 결제 정보 확인 (단건)
+GET {{pg-simulator}}/api/v1/payments/20250816:TR:9577c5
+X-USER-ID: 1
+
+### PG: 주문에 엮인 결제 정보 조회
+GET {{pg-simulator}}/api/v1/payments?orderId=000001
+X-USER-ID: 1

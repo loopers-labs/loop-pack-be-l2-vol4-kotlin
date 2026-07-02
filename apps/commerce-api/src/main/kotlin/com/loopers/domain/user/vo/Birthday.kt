@@ -1,5 +1,6 @@
 package com.loopers.domain.user.vo
 
+import com.loopers.domain.user.constant.UserErrorMessages
 import com.loopers.domain.user.exception.InvalidUserException
 import java.time.LocalDate
 
@@ -17,7 +18,7 @@ value class Birthday private constructor(
 
         private fun validate(value: LocalDate) {
             if (!value.isBefore(LocalDate.now())) {
-                throw InvalidUserException("생년월일은 과거 일자여야 합니다.")
+                throw InvalidUserException(UserErrorMessages.BIRTHDAY_MUST_BE_PAST)
             }
         }
     }

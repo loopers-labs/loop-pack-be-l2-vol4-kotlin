@@ -1,5 +1,6 @@
 package com.loopers.domain.product.vo
 
+import com.loopers.domain.product.constant.ProductErrorMessages
 import com.loopers.domain.product.exception.InvalidProductException
 
 @JvmInline
@@ -18,7 +19,7 @@ value class StockQuantity private constructor(
 
         private fun validate(value: Long) {
             if (value < 0) {
-                throw InvalidProductException("재고는 음수일 수 없습니다.")
+                throw InvalidProductException(ProductErrorMessages.STOCK_MUST_NOT_BE_NEGATIVE)
             }
         }
     }

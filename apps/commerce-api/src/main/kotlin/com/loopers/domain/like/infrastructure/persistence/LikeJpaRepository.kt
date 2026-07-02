@@ -32,8 +32,3 @@ interface LikeJpaRepository : JpaRepository<LikeJpaEntity, LikeJpaId> {
         @Param("productId") productId: Long,
     ): Int
 }
-
-interface ProductLikeCountRow {
-    fun getProductId(): Long
-    fun getLikeCount(): Long
-}

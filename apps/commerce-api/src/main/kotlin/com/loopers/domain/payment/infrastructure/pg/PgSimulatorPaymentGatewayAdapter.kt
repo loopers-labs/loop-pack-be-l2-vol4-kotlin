@@ -1,5 +1,6 @@
 package com.loopers.domain.payment.infrastructure.pg
 
+import com.loopers.domain.payment.constant.PaymentErrorMessages
 import com.loopers.domain.payment.port.PaymentGatewayPort
 import com.loopers.domain.payment.port.PaymentGatewayRequest
 import com.loopers.domain.payment.port.PaymentGatewayResult
@@ -70,7 +71,7 @@ class PgSimulatorPaymentGatewayAdapter(
                 }
             }
         } catch (e: CallNotPermittedException) {
-            throw PaymentGatewayUnknownException("PG 서킷이 열려 결제 상태를 확정할 수 없습니다.", e)
+            throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_CIRCUIT_OPEN, e)
         }
 
     private fun retryConfig(): RetryConfig =
@@ -118,9 +119,9 @@ class PgSimulatorPaymentGatewayAdapter(
                 responseType,
             )
         } catch (e: RestClientException) {
-            throw PaymentGatewayUnknownException("PG 결제 상태를 확정할 수 없습니다.", e)
+            throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_STATUS_UNCONFIRMED, e)
         }
-        return response.body?.data ?: throw PaymentGatewayUnknownException("PG 응답에 데이터가 없습니다.")
+        return response.body?.data ?: throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_RESPONSE_NO_DATA)
     }
 }
 

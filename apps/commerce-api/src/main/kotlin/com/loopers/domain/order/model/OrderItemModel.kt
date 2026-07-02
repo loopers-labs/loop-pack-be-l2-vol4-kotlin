@@ -1,5 +1,6 @@
 package com.loopers.domain.order.model
 
+import com.loopers.domain.order.constant.OrderErrorMessages
 import com.loopers.domain.order.exception.InvalidOrderException
 import com.loopers.domain.product.vo.Money
 import com.loopers.domain.product.vo.Quantity
@@ -38,19 +39,19 @@ data class OrderItemModel(
 
         private fun validateOrderId(orderId: Long) {
             if (orderId < 0) {
-                throw InvalidOrderException("주문 ID는 음수일 수 없습니다.")
+                throw InvalidOrderException(OrderErrorMessages.ORDER_ID_NEGATIVE)
             }
         }
 
         private fun validateProductId(productId: Long) {
             if (productId <= 0) {
-                throw InvalidOrderException("상품 ID는 양수여야 합니다.")
+                throw InvalidOrderException(OrderErrorMessages.PRODUCT_ID_MUST_BE_POSITIVE)
             }
         }
 
         private fun validateSnapshotProductName(snapshotProductName: String) {
             if (snapshotProductName.isBlank()) {
-                throw InvalidOrderException("주문 상품명 스냅샷은 필수입니다.")
+                throw InvalidOrderException(OrderErrorMessages.SNAPSHOT_PRODUCT_NAME_REQUIRED)
             }
         }
     }

@@ -18,9 +18,3 @@ class LikeCountReconciliationService(
         )
     }
 }
-
-data class LikeCountReconciliationResult(
-    val productRows: Long,
-    val likeRows: Long,
-    val projectionRows: Long,
-)

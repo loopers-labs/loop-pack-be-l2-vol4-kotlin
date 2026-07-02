@@ -1,5 +1,6 @@
 package com.loopers.domain.like.infrastructure.persistence
 
+import com.loopers.domain.like.constant.LikeErrorMessages
 import com.loopers.domain.like.port.ProductLikeCountRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -45,7 +46,7 @@ class ProductLikeCountRepositoryImpl(
 
     private fun ensureUpdated(updatedRows: Int) {
         if (updatedRows != 1) {
-            throw CoreException(ErrorType.INTERNAL_ERROR, "상품 좋아요 수 집계 행을 갱신할 수 없습니다.")
+            throw CoreException(ErrorType.INTERNAL_ERROR, LikeErrorMessages.LIKE_COUNT_UPDATE_FAILED)
         }
     }
 }

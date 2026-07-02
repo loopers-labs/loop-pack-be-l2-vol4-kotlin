@@ -1,5 +1,6 @@
 package com.loopers.domain.brand.vo
 
+import com.loopers.domain.brand.constant.BrandErrorMessages
 import com.loopers.domain.brand.exception.InvalidBrandException
 
 @JvmInline
@@ -14,7 +15,7 @@ value class BrandName private constructor(
 
         private fun validate(value: String) {
             if (value.isBlank()) {
-                throw InvalidBrandException("브랜드명은 공백일 수 없습니다.")
+                throw InvalidBrandException(BrandErrorMessages.BRAND_NAME_MUST_NOT_BE_BLANK)
             }
         }
     }

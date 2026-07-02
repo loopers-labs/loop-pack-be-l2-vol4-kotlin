@@ -1,5 +1,6 @@
 package com.loopers.domain.payment.model
 
+import com.loopers.domain.payment.constant.PaymentErrorMessages
 import com.loopers.domain.payment.exception.InvalidPaymentException
 import java.time.ZonedDateTime
 
@@ -29,7 +30,7 @@ data class PaymentModel(
             return this
         }
         if (this.externalTransactionKey != null) {
-            throw InvalidPaymentException("외부 거래 키는 변경할 수 없습니다.")
+            throw InvalidPaymentException(PaymentErrorMessages.EXTERNAL_TRANSACTION_KEY_IMMUTABLE)
         }
         if (status.isCompleted()) {
             return this
@@ -89,34 +90,34 @@ data class PaymentModel(
 
         private fun validateId(id: Long) {
             if (id < 0) {
-                throw InvalidPaymentException("결제 ID는 음수일 수 없습니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.PAYMENT_ID_NEGATIVE)
             }
         }
 
         private fun validatePersistedId(id: Long) {
             if (id <= 0) {
-                throw InvalidPaymentException("저장된 결제 ID는 양수여야 합니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.STORED_PAYMENT_ID_NOT_POSITIVE)
             }
         }
 
         private fun validateOrderId(orderId: Long) {
             if (orderId <= 0) {
-                throw InvalidPaymentException("주문 ID는 양수여야 합니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.ORDER_ID_NOT_POSITIVE)
             }
         }
 
         private fun validateTransactionKey(externalTransactionKey: String) {
             if (externalTransactionKey.isBlank()) {
-                throw InvalidPaymentException("외부 거래 키는 비어 있을 수 없습니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.EXTERNAL_TRANSACTION_KEY_BLANK)
             }
         }
 
         private fun validateCompletion(status: PaymentStatus, completedAt: ZonedDateTime?) {
             if (status.isCompleted() && completedAt == null) {
-                throw InvalidPaymentException("완료 결제는 완료 시각이 필요합니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.COMPLETED_PAYMENT_REQUIRES_COMPLETED_AT)
             }
             if (!status.isCompleted() && completedAt != null) {
-                throw InvalidPaymentException("미완료 결제는 완료 시각을 가질 수 없습니다.")
+                throw InvalidPaymentException(PaymentErrorMessages.INCOMPLETE_PAYMENT_HAS_COMPLETED_AT)
             }
         }
     }

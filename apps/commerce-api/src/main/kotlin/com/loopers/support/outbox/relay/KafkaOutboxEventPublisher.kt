@@ -2,7 +2,6 @@ package com.loopers.support.outbox.relay
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.support.outbox.OutboxEventModel
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
@@ -35,14 +34,6 @@ class KafkaOutboxEventPublisher(
         )
     }
 }
-
-data class LikeCountChangedKafkaMessage(
-    val eventId: UUID,
-    val eventType: String,
-    val productId: Long,
-    val userId: Long,
-    val delta: Int,
-)
 
 private data class LikeCountChangedPayload(
     val productId: Long?,

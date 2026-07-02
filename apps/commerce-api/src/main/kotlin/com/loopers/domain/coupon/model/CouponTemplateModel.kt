@@ -1,5 +1,6 @@
 package com.loopers.domain.coupon.model
 
+import com.loopers.domain.coupon.constant.CouponErrorMessages
 import com.loopers.domain.coupon.exception.CouponNotIssuableException
 import com.loopers.domain.coupon.exception.CouponNotUsableException
 import com.loopers.domain.coupon.exception.InvalidCouponException
@@ -24,22 +25,22 @@ data class CouponTemplateModel(
 
     fun requireIssuable(now: LocalDateTime) {
         if (deletedAt != null) {
-            throw CouponNotIssuableException("삭제된 쿠폰 템플릿은 발급할 수 없습니다.")
+            throw CouponNotIssuableException(CouponErrorMessages.COUPON_TEMPLATE_NOT_ISSUABLE_DELETED)
         }
         if (!now.isBefore(expiredAt)) {
-            throw CouponNotIssuableException("만료된 쿠폰 템플릿은 발급할 수 없습니다.")
+            throw CouponNotIssuableException(CouponErrorMessages.COUPON_TEMPLATE_NOT_ISSUABLE_EXPIRED)
         }
     }
 
     fun requireUsable(totalPrice: Money, now: LocalDateTime) {
         if (deletedAt != null) {
-            throw CouponNotUsableException("삭제된 쿠폰은 사용할 수 없습니다.")
+            throw CouponNotUsableException(CouponErrorMessages.COUPON_NOT_USABLE_DELETED)
         }
         if (!now.isBefore(expiredAt)) {
-            throw CouponNotUsableException("만료된 쿠폰은 사용할 수 없습니다.")
+            throw CouponNotUsableException(CouponErrorMessages.COUPON_NOT_USABLE_EXPIRED)
         }
         if (totalPrice < minOrderAmount) {
-            throw CouponNotUsableException("최소 주문 금액을 만족하지 않습니다.")
+            throw CouponNotUsableException(CouponErrorMessages.COUPON_NOT_USABLE_MIN_ORDER_AMOUNT)
         }
     }
 
@@ -70,13 +71,13 @@ data class CouponTemplateModel(
     companion object {
         private fun validateId(id: Long) {
             if (id < 0) {
-                throw InvalidCouponException("쿠폰 템플릿 ID는 음수일 수 없습니다.")
+                throw InvalidCouponException(CouponErrorMessages.COUPON_TEMPLATE_ID_NEGATIVE)
             }
         }
 
         private fun validatePersistedId(id: Long) {
             if (id <= 0) {
-                throw InvalidCouponException("저장된 쿠폰 템플릿 ID는 양수여야 합니다.")
+                throw InvalidCouponException(CouponErrorMessages.COUPON_TEMPLATE_PERSISTED_ID_NOT_POSITIVE)
             }
         }
     }

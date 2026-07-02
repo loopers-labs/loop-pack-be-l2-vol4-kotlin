@@ -3,13 +3,6 @@ package com.loopers.support.outbox
 import java.time.ZonedDateTime
 import java.util.UUID
 
-enum class OutboxEventStatus {
-    PENDING,
-    PUBLISHING,
-    PUBLISHED,
-    FAILED,
-}
-
 data class OutboxEventModel(
     val id: Long = 0L,
     val eventId: UUID = UUID.randomUUID(),

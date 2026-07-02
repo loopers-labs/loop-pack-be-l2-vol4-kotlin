@@ -1,5 +1,6 @@
 package com.loopers.domain.user.vo
 
+import com.loopers.domain.user.constant.UserErrorMessages
 import com.loopers.domain.user.exception.InvalidPasswordException
 import com.loopers.domain.user.port.PasswordEncoder
 import java.time.format.DateTimeFormatter
@@ -31,12 +32,12 @@ class Password private constructor(
         private fun validateFormat(raw: String) {
             validate(
                 PASSWORD_REGEX.matches(raw),
-                "비밀번호는 8~16자의 영문 대문자, 소문자, 숫자, 특수문자를 포함해야 하며 공백을 포함할 수 없습니다.",
+                UserErrorMessages.INVALID_PASSWORD_FORMAT,
             )
         }
 
         private fun validateNotContainsBirthday(raw: String, birthday: Birthday) {
-            validate(!containsBirthdayToken(raw, birthday), "비밀번호에 생년월일을 포함할 수 없습니다.")
+            validate(!containsBirthdayToken(raw, birthday), UserErrorMessages.PASSWORD_CONTAINS_BIRTHDAY)
         }
 
         private fun containsBirthdayToken(raw: String, birthday: Birthday): Boolean =

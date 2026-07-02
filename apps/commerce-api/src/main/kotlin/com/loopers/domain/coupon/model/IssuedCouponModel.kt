@@ -1,20 +1,10 @@
 package com.loopers.domain.coupon.model
 
+import com.loopers.domain.coupon.constant.CouponErrorMessages
 import com.loopers.domain.coupon.exception.CouponNotOwnedException
 import com.loopers.domain.coupon.exception.InvalidCouponException
 import com.loopers.domain.coupon.exception.IssuedCouponNotAvailableException
 import java.time.LocalDateTime
-
-enum class IssuedCouponStatus {
-    AVAILABLE,
-    USED,
-}
-
-enum class IssuedCouponDisplayStatus {
-    AVAILABLE,
-    USED,
-    EXPIRED,
-}
 
 data class IssuedCouponModel(
     val id: Long = 0L,
@@ -81,25 +71,25 @@ data class IssuedCouponModel(
 
         private fun validateId(id: Long) {
             if (id < 0) {
-                throw InvalidCouponException("발급 쿠폰 ID는 음수일 수 없습니다.")
+                throw InvalidCouponException(CouponErrorMessages.ISSUED_COUPON_ID_NEGATIVE)
             }
         }
 
         private fun validatePersistedId(id: Long) {
             if (id <= 0) {
-                throw InvalidCouponException("저장된 발급 쿠폰 ID는 양수여야 합니다.")
+                throw InvalidCouponException(CouponErrorMessages.ISSUED_COUPON_PERSISTED_ID_NOT_POSITIVE)
             }
         }
 
         private fun validateCouponTemplateId(couponTemplateId: Long) {
             if (couponTemplateId <= 0) {
-                throw InvalidCouponException("쿠폰 템플릿 ID는 양수여야 합니다.")
+                throw InvalidCouponException(CouponErrorMessages.COUPON_TEMPLATE_ID_NOT_POSITIVE)
             }
         }
 
         private fun validateUserId(userId: Long) {
             if (userId <= 0) {
-                throw InvalidCouponException("사용자 ID는 양수여야 합니다.")
+                throw InvalidCouponException(CouponErrorMessages.USER_ID_NOT_POSITIVE)
             }
         }
     }

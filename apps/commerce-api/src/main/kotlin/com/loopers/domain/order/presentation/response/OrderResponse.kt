@@ -2,7 +2,6 @@ package com.loopers.domain.order.presentation.response
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.loopers.domain.order.application.info.OrderInfo
-import com.loopers.domain.order.application.info.OrderItemInfo
 
 data class OrderResponse(
     val id: Long,
@@ -25,24 +24,6 @@ data class OrderResponse(
             discountPrice = info.discountPrice,
             paymentPrice = info.paymentPrice,
             items = info.items.map { OrderItemResponse.from(it) },
-        )
-    }
-}
-
-data class OrderItemResponse(
-    val productId: Long,
-    val quantity: Long,
-    val productName: String,
-    val unitPrice: Long,
-    val linePrice: Long,
-) {
-    companion object {
-        fun from(info: OrderItemInfo): OrderItemResponse = OrderItemResponse(
-            productId = info.productId,
-            quantity = info.quantity,
-            productName = info.productName,
-            unitPrice = info.unitPrice,
-            linePrice = info.linePrice,
         )
     }
 }

@@ -1,6 +1,7 @@
 package com.loopers.domain.payment.presentation
 
 import com.loopers.domain.payment.application.PaymentFacade
+import com.loopers.domain.payment.constant.PaymentErrorMessages
 import com.loopers.domain.payment.presentation.request.PaymentCallbackRequest
 import com.loopers.domain.payment.presentation.request.PaymentRequest
 import com.loopers.domain.payment.presentation.response.PaymentRecoveryResponse
@@ -53,7 +54,7 @@ class PaymentController(
         val provided = secret?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
         val expected = callbackSecret.toByteArray(StandardCharsets.UTF_8)
         if (!MessageDigest.isEqual(provided, expected)) {
-            throw CoreException(ErrorType.UNAUTHORIZED, "콜백 시크릿이 일치하지 않습니다.")
+            throw CoreException(ErrorType.UNAUTHORIZED, PaymentErrorMessages.CALLBACK_SECRET_MISMATCH)
         }
     }
 

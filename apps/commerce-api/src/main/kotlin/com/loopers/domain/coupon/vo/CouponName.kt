@@ -1,5 +1,6 @@
 package com.loopers.domain.coupon.vo
 
+import com.loopers.domain.coupon.constant.CouponErrorMessages
 import com.loopers.domain.coupon.exception.InvalidCouponException
 
 @JvmInline
@@ -14,7 +15,7 @@ value class CouponName private constructor(
 
         private fun validate(value: String) {
             if (value.isBlank()) {
-                throw InvalidCouponException("쿠폰명은 필수입니다.")
+                throw InvalidCouponException(CouponErrorMessages.COUPON_NAME_REQUIRED)
             }
         }
     }

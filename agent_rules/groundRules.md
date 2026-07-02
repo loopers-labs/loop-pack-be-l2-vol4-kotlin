@@ -97,22 +97,35 @@ domain/<aggregate>/
 ├── application/                # 유스케이스 계층
 │   ├── <Aggregate>Facade       # 도메인 조합 — application 직하
 │   ├── service/                # 애플리케이션 서비스(단일 도메인 트랜잭션 경계)
-│   ├── info/                   # 응용 결과 DTO
+│   ├── info/                   # Facade 가 외부(presentation)로 내보내는 응용 결과 DTO
+│   ├── result/                 # 애플리케이션 서비스 내부의 전이/처리 결과 DTO (info/ 와 구분)
 │   └── command/                # 유스케이스 입력 DTO
 ├── infrastructure/
 │   └── persistence/<model>/    # 모델별 JPA Entity·Spring Data Repository·port 구현 (예: product/, stock/)
 ├── presentation/               # 컨트롤러, API spec, 요청/응답 DTO
 ├── model/                      # DDD 애그리거트 루트·엔티티(POJO)
 ├── vo/                         # 값 객체
+├── constant/                   # 도메인 상수(outbox 이벤트 타입 enum·aggregateType, 에러 메시지 상수 등)
 ├── service/                    # 도메인 서비스(필요할 때만 생성)
 └── port/                       # 외부 협력자 인터페이스
 ```
-- `application` 내부는 `<Aggregate>Facade` 를 직하에 두고, 애플리케이션 서비스/결과 DTO/입력 DTO 를 각각 `service/`·`info/`·`command/` 하위에 둔다. `user`/`product` 도메인이 이 형태로 정렬되어 있다.
+- `application` 내부는 `<Aggregate>Facade` 를 직하에 두고, 애플리케이션 서비스/입력 DTO 를 각각 `service/`·`command/` 하위에 둔다. `user`/`product` 도메인이 이 형태로 정렬되어 있다.
+- 응용 결과 DTO 는 성격에 따라 나눈다. Facade 가 presentation 으로 내보내는 결과는 `info/`, 애플리케이션 서비스가 반환하는 내부 전이/처리 결과(예: `PaymentTransitionResult`)는 `result/` 에 둔다. 결과 DTO 를 서비스 파일 최상위에 인라인 선언하지 않는다.
 - 트리 최상위 `service/`(도메인 서비스)와 `application/service/`(애플리케이션 서비스)는 다른 개념이다. 전자는 도메인 객체 간 협력으로 표현하기 어려운 무상태 규칙용이며 필요할 때만 만든다.
 - `infrastructure/persistence/` 아래는 한 애그리거트가 여러 영속 모델을 가지면 모델별 하위 패키지(`product/`, `stock/`)로 나눈다.
 - `util/`, `constant/` 는 실제 추출 대상이 생길 때만 추가한다.
+- `constant/` 는 도메인 상수의 자리다. outbox 이벤트 타입은 발행 서비스 companion 의 문자열 상수 대신 `constant/` 의 enum 으로 두고, 저장 경계에서 `.name` 으로 String 컬럼에 매핑한다(outbox `type` 컬럼은 도메인 공용 String 이므로 컬럼 타입은 바꾸지 않는다). aggregateType 은 `const` 로 둔다. 예외 메시지 문자열도 `constant/` 로 추출한다(아래 "예외 메시지 상수화" 참조). `payment` 도메인이 이 형태로 정렬되어 있으며, `like` 는 후속 정렬 대상이다.
 - 단순 편의를 위한 공용 패키지를 먼저 만들지 않는다.
 - 본 트리는 도메인별 패키지의 **목표 구조** (도메인-계층 순) 다. 신규 도메인은 본 트리를 따르고, 미정렬 도메인(`example`)은 별도 마이그레이션 작업에서 본 트리대로 정렬한다.
+
+### 파일 구성 (1 클래스 1 파일)
+- 하나의 파일에는 하나의 top-level 선언만 둔다. 파일명은 그 선언명과 일치시킨다(예: `PaymentService.kt` 에는 `PaymentService` 만).
+- 예외 계층(base + 하위 예외), sealed 계층(sealed class/interface + 하위 타입), 포트+계약 타입, DTO/command 묶음도 예외 없이 각각 파일로 분리한다. sealed 하위 타입은 같은 패키지에 두면 언어상 문제없다.
+- 이 원칙은 현재 정적 검증 도구(ktlint standard 룰에는 strict 룰이 없다)로 강제하지 않고 코드 리뷰로 확인한다. 도구 도입은 후속 논의 대상이다.
+
+### 예외 메시지 상수화
+- 예외 클래스 자체는 도메인별 `exception/` 에 두되, 정적 리터럴 메시지 문자열은 도메인 `constant/` 의 상수(`object` + `const val`)로 추출해 참조한다.
+- 런타임 값을 보간하는 메시지는 상수화가 불가능하므로 인라인으로 두거나 메시지 템플릿 함수로 표현한다. 무리하게 상수화하지 않는다.
 
 ### 도메인 & 객체 설계 전략
 - 도메인 객체는 비즈니스 규칙을 캡슐화한다. 불변식은 VO, Aggregate Root, Entity 중 가장 가까운 도메인 객체에 둔다.

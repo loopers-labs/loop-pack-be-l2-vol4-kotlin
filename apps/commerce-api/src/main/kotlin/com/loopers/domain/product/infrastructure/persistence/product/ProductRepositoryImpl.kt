@@ -2,6 +2,7 @@ package com.loopers.domain.product.infrastructure.persistence.product
 
 import com.loopers.domain.brand.infrastructure.persistence.QBrandJpaEntity
 import com.loopers.domain.like.infrastructure.persistence.QProductLikeCountJpaEntity
+import com.loopers.domain.product.constant.ProductErrorMessages
 import com.loopers.domain.product.model.ProductModel
 import com.loopers.domain.product.port.ProductRepository
 import com.loopers.domain.product.port.ProductSearchCondition
@@ -89,6 +90,6 @@ class ProductRepositoryImpl(
                 .and(Sort.by(Sort.Direction.DESC, "id"))
             ProductSort.PRICE_ASC -> Sort.by(Sort.Direction.ASC, "price")
                 .and(Sort.by(Sort.Direction.DESC, "id"))
-            ProductSort.LIKES_DESC -> throw IllegalArgumentException("좋아요순 정렬은 QueryDSL 경로에서 처리합니다.")
+            ProductSort.LIKES_DESC -> throw IllegalArgumentException(ProductErrorMessages.LIKES_SORT_HANDLED_BY_QUERYDSL)
         }
 }

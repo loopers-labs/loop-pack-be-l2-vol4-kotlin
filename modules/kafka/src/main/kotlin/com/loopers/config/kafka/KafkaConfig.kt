@@ -3,8 +3,11 @@ package com.loopers.config.kafka
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.annotation.EnableKafka
@@ -15,8 +18,11 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.core.ProducerFactory
 import org.springframework.kafka.listener.ContainerProperties
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
+import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter
 import org.springframework.kafka.support.converter.ByteArrayJsonMessageConverter
+import org.springframework.util.backoff.FixedBackOff
 import java.util.HashMap
 
 @EnableKafka
@@ -25,7 +31,9 @@ class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
         const val SINGLE_LISTENER = "SINGLE_LISTENER"
+        const val SINGLE_LISTENER_WITH_DLT = "SINGLE_LISTENER_WITH_DLT"
         const val OUTBOX_KAFKA_TEMPLATE = "OUTBOX_KAFKA_TEMPLATE"
+        const val DLT_KAFKA_TEMPLATE = "DLT_KAFKA_TEMPLATE"
 
         private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
         private const val FETCH_MIN_BYTES = (1024 * 1024) // 1mb
@@ -33,6 +41,8 @@ class KafkaConfig {
         private const val SESSION_TIMEOUT_MS = 60 * 1000 // session timeout = 1m
         private const val HEARTBEAT_INTERVAL_MS = 20 * 1000 // heartbeat interval = 20s ( 1/3 of session_timeout )
         private const val MAX_POLL_INTERVAL_MS = 2 * 60 * 1000 // max poll interval = 2m
+        private const val DLT_RETRY_INTERVAL_MS = 1_000L
+        private const val DLT_RETRY_COUNT = 3L
     }
 
     @Bean
@@ -68,6 +78,18 @@ class KafkaConfig {
         return KafkaTemplate(DefaultKafkaProducerFactory(props))
     }
 
+    @Bean(DLT_KAFKA_TEMPLATE)
+    fun dltKafkaTemplate(
+        kafkaProperties: KafkaProperties,
+    ): KafkaTemplate<String, ByteArray> {
+        val props = HashMap(kafkaProperties.buildProducerProperties())
+            .apply {
+                put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java)
+                put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer::class.java)
+            }
+        return KafkaTemplate(DefaultKafkaProducerFactory(props))
+    }
+
     @Bean
     fun jsonMessageConverter(objectMapper: ObjectMapper): ByteArrayJsonMessageConverter {
         return ByteArrayJsonMessageConverter(objectMapper)
@@ -81,6 +103,29 @@ class KafkaConfig {
         return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
             consumerFactory = DefaultKafkaConsumerFactory(consumerConfig)
             containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
+            isBatchListener = false
+        }
+    }
+
+    @Bean(SINGLE_LISTENER_WITH_DLT)
+    fun singleRecordListenerContainerFactoryWithDlt(
+        kafkaProperties: KafkaProperties,
+        @Qualifier(DLT_KAFKA_TEMPLATE)
+        dltKafkaTemplate: KafkaTemplate<String, ByteArray>,
+    ): ConcurrentKafkaListenerContainerFactory<*, *> {
+        val consumerConfig = HashMap(kafkaProperties.buildConsumerProperties())
+        val recoverer = DeadLetterPublishingRecoverer(dltKafkaTemplate) { record, _ ->
+            TopicPartition("${record.topic()}.DLT", -1)
+        }
+        val errorHandler = DefaultErrorHandler(
+            recoverer,
+            FixedBackOff(DLT_RETRY_INTERVAL_MS, DLT_RETRY_COUNT),
+        )
+
+        return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
+            consumerFactory = DefaultKafkaConsumerFactory(consumerConfig)
+            containerProperties.ackMode = ContainerProperties.AckMode.RECORD
+            setCommonErrorHandler(errorHandler)
             isBatchListener = false
         }
     }

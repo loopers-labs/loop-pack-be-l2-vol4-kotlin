@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Round 7 요구사항 정리 — 이벤트 분리 · Kafka 파이프라인 · 선착순 쿠폰</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.q{background:var(--blue-bg2);border-color:var(--blue-bg)}
+  .note.q .tag{color:var(--blue-deep)} .note.q strong{color:var(--blue-deep)}
+  .note.q .ask{font-size:18px;font-weight:700;color:var(--blue-deep);letter-spacing:-.02em;
+    display:block;margin-bottom:8px;line-height:1.45}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  /* checklist — 체크 항목 (li 는 block, box 는 absolute, tag 는 float; 인라인 요소가 세로로 깨지지 않도록) */
+  .checklist{list-style:none;margin:24px 0;padding:0}
+  .checklist li{position:relative;display:block;padding:13px 16px 13px 48px;margin-bottom:8px;
+    background:var(--g50);border:1px solid var(--g200);border-radius:14px;font-size:15px;
+    line-height:1.62;color:var(--g700);font-weight:500}
+  .checklist li .box{position:absolute;left:16px;top:14px;width:20px;height:20px;border-radius:6px;
+    border:2px solid var(--g300);background:var(--white)}
+  .checklist li.done{background:var(--blue-bg);border-color:#cfe4ff}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:6px;height:11px;
+    border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+  .checklist li .tag{float:right;font-family:var(--mono);font-size:10.5px;font-weight:700;
+    color:var(--g500);background:var(--g100);padding:3px 9px;border-radius:7px;margin-left:10px}
+  .checklist li.must .tag{color:var(--blue-deep);background:#d8e9ff}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .term{white-space:normal}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  /* xlink — 형제 문서 연결 카드 */
+  .xlink{display:flex;align-items:center;gap:15px;text-decoration:none;margin:14px 0;
+    padding:18px 22px;border-radius:18px;background:var(--blue-bg2);border:1px solid var(--blue-bg);transition:.18s}
+  .xlink:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .xlink .ic{flex:none;width:40px;height:40px;border-radius:12px;background:var(--blue);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:18px}
+  .xlink .t{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.04em;display:block;margin-bottom:3px}
+  .xlink .h{font-size:15.5px;font-weight:700;color:var(--g900);line-height:1.4;display:block}
+  .xlink .h small{display:block;font-size:13px;font-weight:500;color:var(--g600);margin-top:3px}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 7 · 요구사항 명세</span>
+      <h1 class="title">무엇을 해야 하는가<br><span class="hl">이벤트 분리 · Kafka · 선착순 쿠폰</span></h1>
+      <p class="lede">Round 7의 테마는 <b>무거운 동기 트랜잭션을 애플리케이션 이벤트로 잘라내고</b>, 서비스 경계를 넘어야 하는 이벤트는 <b>Kafka로 발행</b>해 별도 Consumer 앱이 후속 처리·운영을 맡는 구조로 확장하는 것입니다. 이 문서는 개념 설명이나 코드 적용 방법이 아니라, <b>해야 할 일 · 합격 기준 · 판단해야 할 것</b>을 MECE하게 정리한 명세·체크리스트입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">테마</span><span class="v">동기 → 비동기 경계 분리</span></div>
+        <div class="chip"><span class="k">전달 보장</span><span class="v">At Least Once · 멱등 · DLQ</span></div>
+        <div class="chip"><span class="k">핵심 패턴</span><span class="v">Transactional Outbox</span></div>
+        <div class="chip"><span class="k">대표 기능</span><span class="v">선착순 쿠폰 발급</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a class="cur" href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-concepts.html"><span class="n">01</span>개념</a>
+    <a href="02-codebase-application.html"><span class="n">02</span>코드베이스 적용</a>
+    <a href="03-delivery-guarantees.html"><span class="n">03</span>전달 보장</a>
+    <a href="04-like-count-consistency.html"><span class="n">04</span>좋아요 정합성</a>
+    <a href="05-transactional-outbox-pattern.html"><span class="n">05</span>Outbox 패턴</a>
+    <a href="06-eventlistener-transaction-semantics.html"><span class="n">06</span>리스너 트랜잭션</a>
+    <a href="07-implementation-plan.html"><span class="n">07</span>구현 계획</a>
+    <a href="08-coupon-issue-experiment-plan.html"><span class="n">08</span>쿠폰 실험</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">한눈에 보기 — Must-Have vs Nice-To-Have</a></li>
+      <li><a href="#s2">Step 1 — ApplicationEvent로 경계 나누기</a></li>
+      <li><a href="#s3">Step 2 — Kafka 이벤트 파이프라인</a></li>
+      <li><a href="#s4">Step 3 — Kafka 기반 선착순 쿠폰 발급</a></li>
+      <li><a href="#s5">Technical Writing Quest</a></li>
+      <li><a href="#s6">전체 제출 체크리스트</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">SCOPE AT A GLANCE</p><h2 class="sec">한눈에 보기 — Must-Have vs Nice-To-Have</h2></div>
+    </div>
+
+    <p class="lead">Implementation Quest는 <strong>반드시 해야 하는 것(Must-Have)</strong>과 <strong>시간이 되면 하는 것(Nice-To-Have)</strong>으로 나뉩니다. 먼저 무엇이 합격선이고 무엇이 가산점인지 경계를 분명히 합니다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">MUST</span> 무조건 구현</h4>
+        <p>이 다섯 가지는 Round 7의 합격선입니다. 하나라도 빠지면 테마(동기 → 비동기 경계 분리)가 성립하지 않습니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">NICE</span> 시간 되면</h4>
+        <p>전달 보장·운영 성숙도를 끌어올리는 가산점 항목입니다. Must-Have가 끝난 뒤에 손댑니다.</p>
+      </div>
+    </div>
+
+    <h3>Must-Have — 합격선</h3>
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><b>Event vs Command 구분</b> — 무엇이 명령이고 무엇이 사실(이벤트)인지 분류 <span class="tag">STEP 1</span></li>
+      <li class="must"><span class="box"></span><b>Application Event</b> — 주요/부가 로직 경계를 스프링 이벤트로 분리 <span class="tag">STEP 1</span></li>
+      <li class="must"><span class="box"></span><b>Kafka Producer · Consumer 기본 파이프라인</b> — <span class="term">commerce-api</span> → Kafka → Consumer 앱 <span class="tag">STEP 2</span></li>
+      <li class="must"><span class="box"></span><b>Transactional Outbox Pattern</b> — At Least Once 발행 보장 <span class="tag">STEP 2</span></li>
+      <li class="must"><span class="box"></span><b>Kafka 기반 선착순 쿠폰 발급</b> — 발행만 하는 API + Consumer 발급 + 동시성 제어 <span class="tag">STEP 3</span></li>
+    </ul>
+
+    <h3>Nice-To-Have — 가산점</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>Consumer Group 분리</b> — 관심사별(집계 / 쿠폰 / 로깅)로 컨슈머 그룹을 나눠 독립 처리 <span class="tag">운영</span></li>
+      <li><span class="box"></span><b>Consumer 배치 처리</b> — 레코드를 묶어 한 번에 소비해 처리량 향상 <span class="tag">성능</span></li>
+      <li><span class="box"></span><b>DLQ 구성</b> — 반복 실패 메시지를 Dead Letter Queue로 격리 <span class="tag">전달 보장</span></li>
+    </ul>
+
+    <div class="note key"><span class="tag">이번 라운드 한 문장</span><strong>핵심 트랜잭션은 동기로 지키고, 부가·집계·전파는 이벤트로 떼어낸다.</strong> 그중 서비스 경계를 넘어야 하는 것만 Kafka로 보내고, 그 발행을 <strong>Outbox</strong>로, 그 소비를 <strong>멱등</strong>하게 보장합니다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STEP 1 · APPLICATION EVENT</p><h2 class="sec">ApplicationEvent로 경계 나누기</h2></div>
+    </div>
+
+    <p class="lead">"무조건 이벤트로 분리"가 아니라 <strong>주요 로직과 부가 로직의 경계를 판단</strong>하는 것이 이 단계의 본질입니다. 무엇을 떼어낼지 정하고, 트랜잭션 결과와의 상관관계에 맞는 리스너로 연결합니다.</p>
+
+    <h3>해야 할 일</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>주문–결제 플로우</b>에서 부가 로직(유저 행동 로깅, 알림 등)을 이벤트로 분리한다.</li>
+      <li><span class="box"></span><b>좋아요–집계 플로우</b>에 eventual consistency를 적용한다 — 집계가 실패해도 <b>좋아요 자체는 성공</b>한다.</li>
+      <li><span class="box"></span><b>유저 행동</b>(조회 · 클릭 · 좋아요 · 주문)에 대한 서버 레벨 로깅을 이벤트로 발생시킨다.</li>
+      <li><span class="box"></span>트랜잭션 결과와의 상관관계에 따라 적절한 리스너(<span class="term">@TransactionalEventListener</span> phase 등)를 선택해 연결한다.</li>
+    </ul>
+
+    <h3>판단 기준 — "이걸 이벤트로 분리해야 하는가"</h3>
+    <p>이 판단 기준 자체가 Step 1의 핵심 학습 포인트입니다. 아래는 <strong>"기준 항목"</strong>만 제시합니다 — 각 기준의 개념·근거는 <a href="01-concepts.html" style="color:var(--blue-deep);font-weight:700">01-concepts</a>에서 다룹니다. 하나의 동작을 두고 아래를 차례로 물어, 분리 여부와 리스너 phase를 정합니다.</p>
+
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>판단 기준 (질문)</th><th>예 (분리 신호)</th><th>아니오 (동기 유지)</th></tr></thead>
+      <tbody>
+        <tr><td>도메인 핵심 불변식인가?</td><td>아니오 → 분리 후보</td><td>예 → 본 트랜잭션 안에 둔다</td></tr>
+        <tr><td>실패해도 본 트랜잭션은 성공해야 하나?</td><td>예 → 분리(부가 로직)</td><td>아니오 → 함께 롤백</td></tr>
+        <tr><td>외부 I/O인가? (알림 · 외부 API)</td><td>예 → 비동기로 분리</td><td>아니오 → 내부 동기</td></tr>
+        <tr><td>순서 의존이 있는가?</td><td>예 → 순서 보장 설계 필요</td><td>아니오 → 자유 분리</td></tr>
+        <tr><td>강결합 제거 가치가 있는가?</td><td>예 → 이벤트로 디커플</td><td>아니오 → 직접 호출 유지</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note q"><span class="tag">보존 질문 · STEP 1</span><span class="ask">"이걸 이벤트로 분리해야 하는가?"</span>모든 부가 동작에 기계적으로 답하지 말고, 위 기준을 근거로 분리/유지와 리스너 phase를 <strong>스스로 정당화</strong>할 수 있어야 합니다.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">STEP 2 · KAFKA PIPELINE</p><h2 class="sec">Kafka 이벤트 파이프라인</h2></div>
+    </div>
+
+    <p class="lead">Step 1에서 분리한 이벤트 중 <strong>시스템 간 전파가 필요한 것</strong>을 Kafka로 발행합니다. <span class="term">commerce-api</span>가 Producer, <span class="term">commerce-streamer</span>가 Consumer가 되어 집계를 <span class="term">product_metrics</span>에 upsert합니다.</p>
+
+    <div class="note"><span class="tag">Consumer 앱 명칭</span>과제 원문의 Consumer 앱 명칭은 <span class="term">commerce-collector</span>이지만, 우리 레포에는 이미 Kafka로 배선된 <strong>commerce-streamer</strong> consumer 앱이 있어 이를 사용합니다.</div>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="PIPELINE">
+        <svg viewBox="0 0 1120 600" role="img" aria-label="Kafka 이벤트 파이프라인: commerce-api가 Producer로서 Transactional Outbox를 통해 catalog-events, order-events, coupon-issue-requests 세 토픽으로 발행한다. commerce-streamer의 집계 컨슈머가 catalog-events와 order-events를 소비해 product_metrics에 upsert하고, 쿠폰 발급 컨슈머가 coupon-issue-requests를 소비해 발급 결과를 저장한다.">
+          <defs>
+            <marker id="pa1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- commerce-streamer 컨테이너 -->
+          <rect x="636" y="70" width="278" height="476" rx="20" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.3" stroke-dasharray="6 5"/>
+          <text class="svg-t" x="656" y="98" fill="#1B64DA">commerce-streamer</text>
+          <text class="svg-s" x="656" y="116" fill="#3182F6">Consumer · manual Ack · 멱등</text>
+
+          <!-- commerce-api (Producer) -->
+          <rect x="20" y="215" width="190" height="140" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="20" y="215" width="190" height="140"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">commerce-api</div><div class="s">Producer<br/>Transactional Outbox<br/>acks=all · idempotence</div></div></foreignObject>
+
+          <!-- 토픽 3종 -->
+          <rect x="300" y="70" width="270" height="84" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="300" y="70" width="270" height="84"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">catalog-events</div><div class="s">key=productId · 상품·재고·좋아요</div></div></foreignObject>
+
+          <rect x="300" y="243" width="270" height="84" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="300" y="243" width="270" height="84"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">order-events</div><div class="s">key=orderId · 주문·결제</div></div></foreignObject>
+
+          <rect x="300" y="430" width="270" height="84" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="300" y="430" width="270" height="84"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">coupon-issue-requests</div><div class="s">key=couponId · 발급 요청</div></div></foreignObject>
+
+          <!-- api → 토픽 -->
+          <line x1="210" y1="255" x2="298" y2="120" stroke="#4E5968" stroke-width="2" marker-end="url(#pa1)"/>
+          <line x1="210" y1="285" x2="298" y2="285" stroke="#4E5968" stroke-width="2" marker-end="url(#pa1)"/>
+          <line x1="210" y1="315" x2="298" y2="468" stroke="#4E5968" stroke-width="2" marker-end="url(#pa1)"/>
+          <text class="svg-l" x="250" y="150" text-anchor="middle" fill="#4E5968">발행</text>
+
+          <!-- 컨슈머 박스 -->
+          <rect x="656" y="138" width="240" height="150" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="656" y="138" width="240" height="150"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">집계 컨슈머</div><div class="s">event_handled(event_id) 멱등<br/>version / updated_at 최신만<br/>PartitionKey 순서 보장</div></div></foreignObject>
+
+          <rect x="656" y="430" width="240" height="100" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="656" y="430" width="240" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">쿠폰 발급 컨슈머</div><div class="s">수량 확인 → 발급/거절<br/>userId 중복 방지</div></div></foreignObject>
+
+          <!-- 토픽 → 컨슈머 -->
+          <line x1="570" y1="112" x2="654" y2="180" stroke="#0A8F5B" stroke-width="2" marker-end="url(#pa1)"/>
+          <line x1="570" y1="285" x2="654" y2="240" stroke="#0A8F5B" stroke-width="2" marker-end="url(#pa1)"/>
+          <line x1="570" y1="472" x2="654" y2="478" stroke="#0A8F5B" stroke-width="2" marker-end="url(#pa1)"/>
+
+          <!-- 컨슈머 → 산출물 -->
+          <rect x="956" y="148" width="148" height="130" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="956" y="148" width="148" height="130"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">product_metrics</div><div class="s">UPSERT<br/>좋아요 수·판매량·조회 수</div></div></foreignObject>
+
+          <rect x="956" y="440" width="148" height="80" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="956" y="440" width="148" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">coupon_issue_result</div><div class="s">발급/거절 저장</div></div></foreignObject>
+
+          <line x1="896" y1="213" x2="954" y2="213" stroke="#15C47E" stroke-width="2" marker-end="url(#pa1)"/>
+          <line x1="896" y1="480" x2="954" y2="480" stroke="#15C47E" stroke-width="2" marker-end="url(#pa1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> Kafka 이벤트 파이프라인. <b>파란 박스</b>=Producer·토픽, <b>초록</b>=Consumer 처리, <b>회색</b>=영속 산출물. 발행은 <b>Outbox</b>로 At Least Once를, 소비는 <b>event_handled</b> 멱등으로 중복 반영을 막습니다. 쿠폰 흐름은 §4에서 상세히 다룹니다.</figcaption>
+    </figure>
+
+    <h3>Producer 필수 설정</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>항목</th><th>설정</th><th>목적</th></tr></thead>
+      <tbody>
+        <tr><td>acks</td><td><span class="term">all</span></td><td>모든 ISR 복제 확인 후 ack — 유실 방지</td></tr>
+        <tr><td>idempotence</td><td><span class="term">true</span></td><td>재시도 시 브로커 중복 적재 방지</td></tr>
+        <tr><td>발행 보장</td><td>Transactional Outbox</td><td>DB 커밋과 발행을 한 트랜잭션 의도로 묶어 At Least Once</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Consumer 필수 처리</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>항목</th><th>해야 할 처리</th><th>합격 기준</th></tr></thead>
+      <tbody>
+        <tr><td>Ack</td><td>manual Ack</td><td>처리 성공 후에만 오프셋 커밋</td></tr>
+        <tr><td>멱등 처리</td><td><span class="term">event_handled(event_id PK)</span> (DB or Redis)</td><td>이미 처리한 event_id면 skip</td></tr>
+        <tr><td>최신성</td><td><span class="term">version</span> 또는 <span class="term">updated_at</span> 기준</td><td>오래된 이벤트가 최신 집계를 덮어쓰지 않음</td></tr>
+        <tr><td>순서 보장</td><td>PartitionKey 기반 라우팅</td><td>같은 키 이벤트는 같은 파티션 → 순서 유지</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>토픽 설계 (예시)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>토픽</th><th>담는 이벤트</th><th>Partition Key</th></tr></thead>
+      <tbody>
+        <tr><td>catalog-events</td><td>상품 · 재고 · 좋아요</td><td><span class="term">productId</span></td></tr>
+        <tr><td>order-events</td><td>주문 · 결제</td><td><span class="term">orderId</span></td></tr>
+        <tr><td>coupon-issue-requests</td><td>쿠폰 발급 요청</td><td><span class="term">couponId</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Step 2 체크리스트</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>시스템 간 전파가 필요한 이벤트만 골라 Kafka로 발행한다.</li>
+      <li><span class="box"></span>Producer에 <b>acks=all · idempotence=true</b>를 설정한다.</li>
+      <li><span class="box"></span>발행을 <b>Transactional Outbox Pattern</b>으로 At Least Once 보장한다.</li>
+      <li><span class="box"></span>Consumer가 <b>manual Ack</b> + <b>event_handled 멱등</b> + <b>version/updated_at 최신성</b> + <b>PartitionKey 순서</b>를 모두 처리한다.</li>
+      <li><span class="box"></span>Consumer가 집계(좋아요 수 · 판매량 · 조회 수)를 <span class="term">product_metrics</span>에 upsert한다.</li>
+    </ul>
+
+    <div class="note q"><span class="tag">보존 질문 · STEP 2</span><span class="ask">"왜 이벤트 핸들링 테이블과 로그 테이블을 분리하는 걸까?"</span>멱등을 위한 <span class="term">event_handled</span>와, 유저 행동 로그를 쌓는 테이블을 굳이 나누는 이유를 설계 근거로 답할 수 있어야 합니다. (개념은 <a href="01-concepts.html" style="color:var(--blue-deep);font-weight:700">01-concepts</a>)</div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">STEP 3 · FIRST-COME COUPON</p><h2 class="sec">Kafka 기반 선착순 쿠폰 발급</h2></div>
+    </div>
+
+    <p class="lead">API는 발급 <strong>요청을 Kafka에 발행만 하고 빠르게 응답</strong>하고, Consumer가 실제 발급을 <strong>순차 처리</strong>합니다. 수량 제한 동시성 제어와, 유저가 결과를 확인할 수 있는 구조가 핵심입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="COUPON FLOW">
+        <svg viewBox="0 0 1120 430" role="img" aria-label="선착순 쿠폰 발급 흐름: 사용자가 POST /coupons/issue를 호출하면 API는 coupon-issue-requests 토픽에 발행만 하고 requestId를 즉시 응답한다. 쿠폰 컨슈머가 순차로 수량을 확인해 발급 또는 거절하고 userId 중복을 방지하며 결과를 저장한다. 사용자는 GET /coupons/issue/{requestId}로 결과를 조회한다.">
+          <defs>
+            <marker id="ca1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- 1. POST -->
+          <rect x="20" y="150" width="210" height="120" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="20" y="150" width="210" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">POST /coupons/issue</div><div class="s">발행만 · 빠른 응답<br/>requestId 즉시 반환</div></div></foreignObject>
+
+          <!-- 2. 토픽 -->
+          <rect x="300" y="150" width="220" height="120" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="300" y="150" width="220" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">coupon-issue-requests</div><div class="s">key=couponId<br/>단일 파티션 → 순차</div></div></foreignObject>
+
+          <!-- 3. 컨슈머 -->
+          <rect x="590" y="110" width="270" height="200" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <foreignObject x="590" y="110" width="270" height="200"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">쿠폰 발급 컨슈머 (순차)</div><div class="s">① 수량 확인 (선착순 100)<br/>② 발급 또는 거절<br/>③ userId 중복 방지<br/>④ 결과 저장</div></div></foreignObject>
+
+          <!-- 4. 결과 저장 -->
+          <rect x="920" y="60" width="180" height="100" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="920" y="60" width="180" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">coupon_issue_result</div><div class="s">requestId별<br/>발급/거절 상태</div></div></foreignObject>
+
+          <!-- 5. GET -->
+          <rect x="920" y="260" width="180" height="120" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="920" y="260" width="180" height="120"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">GET /coupons/issue/{requestId}</div><div class="s">polling · 결과 조회</div></div></foreignObject>
+
+          <!-- 화살표 -->
+          <line x1="230" y1="210" x2="298" y2="210" stroke="#4E5968" stroke-width="2" marker-end="url(#ca1)"/>
+          <text class="svg-l" x="264" y="198" text-anchor="middle" fill="#4E5968">발행</text>
+          <line x1="520" y1="210" x2="588" y2="210" stroke="#0A8F5B" stroke-width="2" marker-end="url(#ca1)"/>
+          <text class="svg-l" x="554" y="198" text-anchor="middle" fill="#0A8F5B">순차 소비</text>
+          <line x1="860" y1="150" x2="918" y2="120" stroke="#15C47E" stroke-width="2" marker-end="url(#ca1)"/>
+          <line x1="1010" y1="160" x2="1010" y2="258" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ca1)"/>
+          <text class="svg-l" x="1010" y="216" text-anchor="middle" fill="#6B7684">조회</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 선착순 쿠폰 발급 흐름. API는 <b>발행만</b> 하고 <b>requestId</b>를 즉시 반환합니다. 컨슈머가 <b>순차</b>로 수량을 확인해 발급/거절하고, 유저는 <b>GET</b>으로 결과를 polling합니다.</figcaption>
+    </figure>
+
+    <h3>흐름 — 해야 할 일</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">POST /coupons/issue</span> — 발급 요청을 Kafka에 발행만 하고 빠르게 응답한다(<b>requestId</b> 반환).</li>
+      <li><span class="box"></span>Consumer가 순차 처리: <b>수량 확인 → 발급/거절</b>, <b>userId 중복 방지</b>, <b>결과 저장</b>.</li>
+      <li><span class="box"></span><span class="term">GET /coupons/issue/{requestId}</span> — 유저가 발급 완료/실패 결과를 polling으로 확인한다.</li>
+      <li><span class="box"></span>발급 수량 제한(예: 선착순 100명)에 대한 <b>동시성 제어</b>를 구현한다.</li>
+    </ul>
+
+    <h3>동시성 — 합격 기준</h3>
+    <div class="note warn"><span class="tag">동시성 테스트 합격 조건</span>1만 명이 동시에 요청해도 <strong>수량 초과 발급이 단 한 건도 발생하지 않아야</strong> 합니다. 100장 한도면 발급 성공은 정확히 <strong>최대 100건</strong>, 같은 <span class="term">userId</span>는 <strong>중복 발급되지 않습니다</strong>. 동시성 테스트로 이를 검증합니다.</div>
+
+    <ul class="checklist">
+      <li><span class="box"></span>발급 성공 건수 ≤ 한도 수량 (수량 초과 0건) <span class="tag">검증</span></li>
+      <li><span class="box"></span>동일 userId 중복 발급 0건 <span class="tag">검증</span></li>
+      <li><span class="box"></span>거절된 요청도 결과 저장 — 유저가 "거절" 상태를 조회 가능 <span class="tag">검증</span></li>
+    </ul>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">TECHNICAL WRITING</p><h2 class="sec">Technical Writing Quest</h2></div>
+    </div>
+
+    <p class="lead">GitHub Issue 4포맷 중 <strong>1개</strong>를 작성하고, 블로그 글 하나를 씁니다. 블로그는 <strong>"무엇을 했다"보다 "왜 그렇게 판단했나"</strong>를 중심으로, <strong>TL;DR을 필수</strong>로 포함합니다.</p>
+
+    <h3>GitHub Issue — 4포맷 중 택 1</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>포맷</th><th>무엇을 쓰나</th><th>이 라운드 적합 소재</th></tr></thead>
+      <tbody>
+        <tr><td>① Design Doc</td><td>설계 의사결정 기록</td><td>이벤트 분리 경계 · Outbox 도입 결정</td></tr>
+        <tr><td>② Retrospective</td><td>회고 · 트러블슈팅</td><td>멱등/순서 보장 구현 중 겪은 문제</td></tr>
+        <tr><td>③ Challenge Story</td><td>도전 → 해결 서사</td><td>선착순 쿠폰 수량 초과 막기</td></tr>
+        <tr><td>④ Benchmark Report</td><td>A vs B 측정 비교</td><td>동기 vs 비동기 집계 · DB vs Redis 멱등</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>블로그 — 기준</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>TL;DR 필수</b> — 글 맨 앞에 핵심 결론 요약.</li>
+      <li><span class="box"></span><b>"왜 그렇게 판단했나" 중심</b> — 구현 나열이 아니라 의사결정과 트레이드오프.</li>
+    </ul>
+
+    <h3>블로그 — 추천 주제</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>주제</th><th>핵심 질문</th></tr></thead>
+      <tbody>
+        <tr><td>경계 판단</td><td>ApplicationEvent로 충분한 경계 vs Kafka가 필요한 경계</td></tr>
+        <tr><td>분리의 이유</td><td>트랜잭션에 다 넣을 수 있는데 굳이 나누는 이유</td></tr>
+        <tr><td>동기/비동기</td><td>좋아요는 동기, 집계는 비동기인 이유</td></tr>
+        <tr><td>Outbox 필요성</td><td>Outbox 없이 Kafka만 쓰면 무엇이 깨지나</td></tr>
+        <tr><td>선착순 설계</td><td>선착순 쿠폰 Redis vs Kafka</td></tr>
+        <tr><td>부하 시나리오</td><td>100장에 1만 명 동시 요청을 어떻게 막나</td></tr>
+        <tr><td>멱등 저장소</td><td>멱등 처리 DB vs Redis 트레이드오프</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">SUBMISSION</p><h2 class="sec">전체 제출 체크리스트</h2></div>
+    </div>
+
+    <p class="lead">제출 전 한 번에 점검합니다. <strong>MUST</strong> 표시는 합격선, 나머지는 가산점·문서 산출물입니다.</p>
+
+    <h3>Implementation</h3>
+    <ul class="checklist">
+      <li class="must"><span class="box"></span>Event vs Command를 구분해 분류했다 <span class="tag">MUST · S2</span></li>
+      <li class="must"><span class="box"></span>주요/부가 로직 경계를 ApplicationEvent로 분리했다 <span class="tag">MUST · S2</span></li>
+      <li class="must"><span class="box"></span>좋아요는 성공, 집계 실패와 무관한 eventual consistency를 적용했다 <span class="tag">MUST · S2</span></li>
+      <li class="must"><span class="box"></span>Kafka Producer·Consumer 기본 파이프라인을 구성했다 <span class="tag">MUST · S3</span></li>
+      <li class="must"><span class="box"></span>Producer에 acks=all · idempotence=true를 설정했다 <span class="tag">MUST · S3</span></li>
+      <li class="must"><span class="box"></span>Transactional Outbox로 At Least Once 발행을 보장했다 <span class="tag">MUST · S3</span></li>
+      <li class="must"><span class="box"></span>Consumer 멱등(event_handled) · 최신성 · 순서 · manual Ack을 처리했다 <span class="tag">MUST · S3</span></li>
+      <li class="must"><span class="box"></span>집계를 product_metrics에 upsert했다 <span class="tag">MUST · S3</span></li>
+      <li class="must"><span class="box"></span>Kafka 기반 선착순 쿠폰 발급(발행 → 컨슈머 발급 → 결과 조회)을 구현했다 <span class="tag">MUST · S4</span></li>
+      <li class="must"><span class="box"></span>수량 초과 0건 · userId 중복 0건을 동시성 테스트로 검증했다 <span class="tag">MUST · S4</span></li>
+      <li><span class="box"></span>Consumer Group을 관심사별로 분리했다 <span class="tag">NICE</span></li>
+      <li><span class="box"></span>Consumer 배치 처리를 적용했다 <span class="tag">NICE</span></li>
+      <li><span class="box"></span>DLQ를 구성했다 <span class="tag">NICE</span></li>
+    </ul>
+
+    <h3>Technical Writing</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>GitHub Issue 4포맷 중 1개를 작성했다 <span class="tag">S5</span></li>
+      <li><span class="box"></span>블로그 글을 TL;DR 포함, "왜" 중심으로 작성했다 <span class="tag">S5</span></li>
+    </ul>
+
+    <div class="note key"><span class="tag">제출 직전 한 줄</span>Must-Have 10개가 모두 체크되면 합격선입니다. 그 위에서 <strong>동시성 테스트 통과</strong>와 <strong>"왜" 중심 글</strong>이 이번 라운드의 변별점입니다.</div>
+
+    <h3>형제 문서</h3>
+    <a class="xlink" href="01-concepts.html">
+      <span class="ic">→</span>
+      <span><span class="t">개념 정리편</span><span class="h">01 · 개념 정리<small>Event vs Command, Outbox, At Least Once, 멱등, DLQ가 무엇인지 — 이 문서가 미룬 "왜"의 근거.</small></span></span>
+    </a>
+    <a class="xlink" href="02-codebase-application.html">
+      <span class="ic">→</span>
+      <span><span class="t">코드베이스 적용편</span><span class="h">02 · 코드베이스 적용<small>우리 commerce-api / commerce-streamer에 이 요구사항을 어떻게 배선할지.</small></span></span>
+    </a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 7 요구사항 정리 — 이벤트 분리 · Kafka 파이프라인 · 선착순 쿠폰<br>
+    무엇을 · 합격 기준 · 판단할 것 중심 명세 · 개념은 01-concepts · 적용은 02-codebase-application
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>like/count 정합성 전략 — MECE 정리 + 평가</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.q{background:var(--blue-bg2);border-color:var(--blue-bg)}
+  .note.q .tag{color:var(--blue-deep)} .note.q strong{color:var(--blue-deep)}
+  .note.q .ask{font-size:18px;font-weight:700;color:var(--blue-deep);letter-spacing:-.02em;
+    display:block;margin-bottom:8px;line-height:1.45}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col.g{background:var(--green-bg);border-color:#c4efdb}
+  .col.r{background:var(--red-bg);border-color:#f8d4d4}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)} .col.g h4{color:var(--green-deep)} .col.r h4{color:var(--red-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col.g h4 .mk{background:var(--green);color:#fff}
+  .col.r h4 .mk{background:var(--red);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  .yes{color:var(--green-deep);font-weight:700}
+  .no{color:var(--red-deep);font-weight:700}
+  .mid{color:var(--g500);font-weight:700}
+  .tcmp td{text-align:center} .tcmp td:first-child{text-align:left} .tcmp td:last-child{text-align:left;color:var(--g700);font-weight:500}
+  .checklist{list-style:none;margin:24px 0;padding:0}
+  .checklist li{position:relative;display:block;padding:13px 16px 13px 48px;margin-bottom:8px;
+    background:var(--g50);border:1px solid var(--g200);border-radius:14px;font-size:15px;
+    line-height:1.62;color:var(--g700);font-weight:500}
+  .checklist li .box{position:absolute;left:16px;top:14px;width:20px;height:20px;border-radius:6px;
+    border:2px solid var(--g300);background:var(--white)}
+  .checklist li.done{background:var(--blue-bg);border-color:#cfe4ff}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:6px;height:11px;
+    border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+  .checklist li .tag{float:right;font-family:var(--mono);font-size:10.5px;font-weight:700;
+    color:var(--g500);background:var(--g100);padding:3px 9px;border-radius:7px;margin-left:10px}
+  .checklist li.must .tag{color:var(--blue-deep);background:#d8e9ff}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .term{white-space:normal}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  .tbl-wrap.refs td:last-child{color:var(--blue-deep);font-weight:600}
+  .tbl-wrap.refs td:last-child a{color:var(--blue-deep);text-decoration:none;word-break:break-all}
+  .tbl-wrap.refs td:last-child a:hover{text-decoration:underline}
+  .tbl-wrap.refs td:first-child{font-family:var(--mono);font-size:12px;color:var(--blue);white-space:nowrap}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 7 · 설계 보강</span>
+      <h1 class="title">like / count 정합성<br><span class="hl">방법 7가지 · MECE 비교</span></h1>
+      <p class="lede">좋아요 수를 <b>어디에 저장하고 언제 갱신하느냐</b>에 따라 정합성·실시간성·결합도가 갈립니다. 지금까지 논의한 모든 방법을 <b>저장 위치 × 갱신 메커니즘</b> 축으로 MECE하게 나열하고, <b>신선도 · 내구성 · 디커플링 · 부품 수</b>로 평가합니다. 결론은 <b>"용도로 가른다"</b> — 실시간 노출과 분석 집계는 다른 읽기 모델입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">평가 축</span><span class="v">신선도 · 내구성 · 디커플링</span></div>
+        <div class="chip"><span class="k">방법 수</span><span class="v">DB 4 + Redis 3</span></div>
+        <div class="chip"><span class="k">현 추천</span><span class="v">노출=in-tx · 분석=outbox</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-concepts.html"><span class="n">01</span>개념</a>
+    <a href="02-codebase-application.html"><span class="n">02</span>코드베이스 적용</a>
+    <a href="03-delivery-guarantees.html"><span class="n">03</span>전달 보장</a>
+    <a class="cur" href="04-like-count-consistency.html"><span class="n">04</span>좋아요 정합성</a>
+    <a href="05-transactional-outbox-pattern.html"><span class="n">05</span>Outbox 패턴</a>
+    <a href="06-eventlistener-transaction-semantics.html"><span class="n">06</span>리스너 트랜잭션</a>
+    <a href="07-implementation-plan.html"><span class="n">07</span>구현 계획</a>
+    <a href="08-coupon-issue-experiment-plan.html"><span class="n">08</span>쿠폰 실험</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">평가 기준 — 정합성 트릴레마</a></li>
+      <li><a href="#s2">마스터 비교표</a></li>
+      <li><a href="#s3">그룹 A — 카운트를 DB 행에</a></li>
+      <li><a href="#s4">그룹 B — 카운트를 Redis에</a></li>
+      <li><a href="#s5">결정 프레이밍 · 결론 · 멘토링 질문</a></li>
+      <li><a href="#refs">참고 문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">EVALUATION AXIS</p><h2 class="sec">평가 기준 — 정합성 트릴레마</h2></div>
+    </div>
+
+    <p class="lead">비정규화 카운터는 아래 셋을 <strong>동시에 갖기 어렵습니다.</strong> 모든 방법은 무엇을 얻고 무엇을 포기하느냐로 갈립니다. 여기에 <em>읽기 비용</em>과 <em>부품 수(운영 복잡도)</em>를 더해 평가합니다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">F</span> 신선도</h4>
+        <p>좋아요 즉시 화면에 반영되는가 (real-time).</p>
+      </div>
+      <div class="col g">
+        <h4><span class="mk">D</span> 내구성 · 수렴</h4>
+        <p>실패해도 결국 올바른 값에 도달하는가 (= 진짜 eventual consistency).</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">K</span> 디커플링</h4>
+        <p>좋아요 저장과 분리 + 인기 상품 핫-행 UPDATE 경합 회피.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">#</span> 부품 수</h4>
+        <p>유지·운영해야 하는 구성요소 개수. 적을수록 단순·견고.</p>
+      </div>
+    </div>
+
+    <div class="note warn"><span class="tag">핵심 구분</span><strong>"집계 실패해도 좋아요는 성공"(디커플링)과 "결과적 정합성"(수렴)은 다른 보장입니다.</strong> 비동기 핸들러가 실패 시 로그만 남기고 버리면 디커플링은 되지만 수렴하지 않아 <strong>eventual consistency가 아닙니다.</strong> 수렴하려면 실패한 갱신을 언젠가 반드시 적용하는 <strong>durable 복구 경로</strong>가 있어야 합니다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">AT A GLANCE</p><h2 class="sec">마스터 비교표</h2></div>
+    </div>
+
+    <p class="lead">7가지 방법을 한 표로. <span class="yes">✅</span>=충족 · <span class="mid">🟡</span>=부분/조건부 · <span class="no">❌</span>=미충족.</p>
+
+    <div class="tbl-wrap"><table class="tcmp">
+      <thead><tr><th>방식</th><th>신선</th><th>내구</th><th>디커플</th><th>부품</th><th>평가</th></tr></thead>
+      <tbody>
+        <tr><td>A1 · in-tx (DB행)</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">❌</td><td>1</td><td>미측정 규모 최선 — <strong>현 추천</strong></td></tr>
+        <tr><td>A2 · async (현재)</td><td class="yes">✅</td><td class="no">❌</td><td class="yes">✅</td><td>2</td><td>디커플만, 유실 → eventual 아님</td></tr>
+        <tr><td>A2+ · 재집계 보정</td><td class="yes">✅</td><td class="mid">🟡</td><td class="yes">✅</td><td>+배치</td><td>절대 SET이 live 증분과 race·풀스캔 비용</td></tr>
+        <tr><td>A3 · outbox+polling</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅</td><td>4</td><td>진짜 eventual, 실시간 X → <strong>분석용</strong></td></tr>
+        <tr><td>A4 · outbox+CDC</td><td class="mid">🟡</td><td class="yes">✅</td><td class="yes">✅</td><td>+Debezium</td><td>셋 다 주나 like엔 과함 · 대규모 정답</td></tr>
+        <tr><td>B1 · Redis read + relay</td><td class="no">❌</td><td class="yes">✅</td><td class="yes">✅</td><td>多</td><td>신선도 relay 종속 + 읽기 오프로드 이득 0</td></tr>
+        <tr><td>B2 · Redis INCR + outbox</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td>6~7</td><td>셋 다 주나 부품 폭증 · 둘 다 실측병목시만</td></tr>
+        <tr><td>B3 · Redis primary + flush</td><td class="yes">✅</td><td class="mid">🟡</td><td class="yes">✅</td><td>多</td><td>대규모 카운터 정석 · 미측정엔 과함</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note"><span class="tag">읽는 법</span>윗쪽(A1~A2)은 <strong>단순하지만 한 축을 포기</strong>, 아랫쪽(A4·B2)은 <strong>세 축을 다 채우지만 부품·인프라가 폭증</strong>합니다. 가운데(A3)는 균형점이되 실시간을 포기 — 그래서 분석용으로 분류됩니다.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">GROUP A · COUNT IN DB</p><h2 class="sec">그룹 A — 카운트를 DB 행에</h2></div>
+    </div>
+
+    <p class="lead"><span class="term">Product.like_count</span> 컬럼에 둔다. 목록 쿼리에 <strong>공짜로 딸려오고</strong> <span class="term">ORDER BY</span> 정렬이 SQL로 가능한 게 공통 장점.</p>
+
+    <h3>A1 · in-tx — 좋아요 트랜잭션에서 <span class="term">like_count++</span></h3>
+    <p>저장과 카운트 증가를 한 트랜잭션에 묶는다. <span class="yes">신선 ✅</span> <span class="yes">내구 ✅(강한 일관성)</span> <span class="no">디커플 ❌</span>. 유일한 비용은 <strong>인기 상품 핫-행 UPDATE 경합</strong>과 주요/부가 미분리. 그런데 그 경합은 <strong>아직 측정된 적이 없어</strong>, 피하려 다른 방법으로 가는 건 조기 최적화. <strong>store 1개, dedup·relay 0개.</strong> → <strong>현 추천.</strong></p>
+
+    <h3>A2 · async — <span class="term">@Async + @TransactionalEventListener(AFTER_COMMIT)</span> (현재 구현)</h3>
+    <p>커밋 후 비동기로 증감, 실패 시 로그만. <span class="yes">신선 ✅(~즉시)</span> <span class="yes">디커플 ✅</span> <span class="no">내구 ❌</span>. "집계 실패해도 좋아요 성공"은 되지만 <strong>실패한 증분이 영구 유실 → 수렴 안 함 → eventual consistency가 아니다.</strong> 신선하지만 내구성이 없는 게 약점.</p>
+
+    <h3>A2+ · 재집계 보정 (논의 후 기각)</h3>
+    <p>주기적으로 <span class="term">COUNT(*)</span> 재계산해 SET. 수렴을 노리나, <strong>절대값 SET이 동시 진행 중인 원자 증분과 충돌</strong>(덮어쓰기 vs 증분 race)해 오히려 정합성을 깬다. 10만 상품 풀스캔도 낭비. <strong>단일 writer 원칙 위반 → 부적합.</strong></p>
+
+    <h3>A3 · outbox + Polling Publisher</h3>
+    <p>좋아요 트랜잭션에 <strong>outbox 레코드를 원자 저장</strong>, 폴링 relay가 읽어 발행/적용. <span class="yes">내구 ✅(at-least-once 수렴)</span> <span class="yes">디커플 ✅</span> <span class="no">신선 ❌(폴링 주기만큼 지연)</span>. 촘촘히 돌리면 서버 부담, 느리면 반영 지연. 멀티 인스턴스면 중복 폴링 → <span class="term">ShedLock</span>/단일 relay 필요.<a href="#r2" class="cite">[2]</a><a href="#r4" class="cite">[4]</a> <strong>실시간 노출엔 부적합, 분석 집계(product_metrics)에 적합.</strong></p>
+
+    <h3>A4 · outbox + CDC (Debezium)</h3>
+    <p>relay 대신 DB <strong>binlog를 tailing</strong>해 outbox insert를 감지·발행. Debezium <span class="term">Outbox Event Router</span>가 표준.<a href="#r1" class="cite">[1]</a><a href="#r3" class="cite">[3]</a> 지연 ms 수준 → <span class="mid">신선 🟡(거의 즉시)</span> <span class="yes">내구 ✅</span> <span class="yes">디커플 ✅</span> — <strong>셋 다.</strong> 단 Kafka Connect + Debezium 커넥터 인프라가 like 숫자 하나엔 과함. 우아한형제들도 이 방식으로 outbox를 흘린다.<a href="#r5" class="cite">[5]</a> <strong>대규모 정답.</strong></p>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">GROUP B · COUNT IN REDIS</p><h2 class="sec">그룹 B — 카운트를 Redis에</h2></div>
+    </div>
+
+    <p class="lead">서빙을 Redis로. 공통 함정 둘: <strong>① count는 어차피 product 행 컬럼이라 읽기 오프로드 이득이 거의 0</strong>, <strong>② 정렬은 SQL이 아니라 ZSET이 필요</strong>.</p>
+
+    <h3>B1 · Redis read model + relay 갱신 (sync INCR 없음)</h3>
+    <p>relay만 Redis를 갱신, 읽기는 Redis. <span class="no">신선 ❌</span> <span class="yes">내구 ✅</span> <span class="yes">디커플 ✅</span>. <strong>읽는 곳을 Redis로 옮겨도 신선도는 relay(폴링)가 정한다</strong> — "빠른 읽기 ≠ 신선한 읽기". 게다가 오프로드 이득 0. <strong>이득 없이 복잡도만 증가.</strong></p>
+
+    <h3>B2 · Redis sync INCR + outbox backstop (<span class="term">event_id</span> 멱등)</h3>
+    <p>좋아요 시 Redis <span class="term">INCR</span>(실시간) + outbox relay가 실패분만 멱등 보정. <span class="yes">신선 ✅</span> <span class="yes">내구 ✅</span> <span class="yes">디커플 ✅</span> — <strong>셋 다 달성.</strong> 그러나 sync INCR은 DB 트랜잭션과 atomic이 아닌 <strong>dual-write</strong>라, 이를 바로잡으려면 부품이 폭증한다:</p>
+    <ul class="checklist">
+      <li><span class="box"></span>DB <span class="term">ProductLike</span> (누가 눌렀나의 진실)</li>
+      <li><span class="box"></span><span class="term">outbox</span> 테이블 + <span class="term">event_handled</span> 멱등표 (이중 카운트 방지)</li>
+      <li><span class="box"></span>내구 카운트 저장소 (Redis 휘발 대비 DB <span class="term">like_count</span>)</li>
+      <li><span class="box"></span>Redis (서빙) + sync INCR + relay (backstop)</li>
+    </ul>
+    <p>→ <strong>부품 6~7개.</strong> 읽기·쓰기가 <strong>둘 다 실측 병목</strong>일 때만 정당.</p>
+
+    <h3>B3 · Redis primary + 주기 DB flush</h3>
+    <p>Redis INCR이 진실, 주기적으로 DB flush + 재시작 시 복구. <span class="yes">신선 ✅</span> <span class="mid">내구 🟡(flush 주기 사이 손실은 bounded)</span> <span class="yes">디커플 ✅</span>. 대규모 view/like 카운터 정석. dual-write·reconcile 복잡도 → <strong>미측정엔 과함.</strong></p>
+
+    <div class="note warn"><span class="tag">Redis 공통 결론</span>Redis 계열은 모두 <strong>"읽기·쓰기가 실측 병목으로 올라왔을 때"의 escalation</strong>입니다. 카운트는 이미 product 행 컬럼이라 읽기가 공짜이고, sync INCR은 dual-write를 재도입하므로, <strong>미측정 현 상황에선 전부 과설계.</strong></div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">DECISION</p><h2 class="sec">결정 프레이밍 · 결론 · 멘토링 질문</h2></div>
+    </div>
+
+    <p class="lead">가장 중요한 한 줄: <strong>하나의 값에 모든 걸 요구하지 말고, 용도로 가른다.</strong> 실시간 노출과 분석 집계는 SLA가 다른 별개의 읽기 모델이다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">노출</span> 실시간 중요</h4>
+        <p><strong>A1 · in-tx</strong>. 신선 + 강한 일관성 + 공짜·정렬가능 읽기. <span class="term">Product.like_count</span>.</p>
+      </div>
+      <div class="col g">
+        <h4><span class="mk">분석</span> 지연 허용</h4>
+        <p><strong>A3 · outbox + polling → product_metrics</strong>. 폴링 지연이 문제 안 됨. 과제의 eventual consistency는 여기서 충족.</p>
+      </div>
+    </div>
+
+    <h3>현 라운드 결론</h3>
+    <ul class="checklist">
+      <li class="done must"><span class="box"></span><b>like_count (노출)</b> = <b>A1 in-tx</b> — 강한 일관성으로 둔다 <span class="tag">확정 후보</span></li>
+      <li class="done must"><span class="box"></span><b>product_metrics (분석)</b> = <b>A3 outbox + polling</b> (Step 2) <span class="tag">확정 후보</span></li>
+      <li><span class="box"></span>B2 · B3 · A4 = 읽기·쓰기 규모 <b>실측 후</b> 꺼내는 카드 <span class="tag">보류</span></li>
+    </ul>
+
+    <div class="note q"><span class="tag">멘토링 질문 초안</span><span class="ask">"실시간 노출 값은 in-tx, 지연 허용 분석은 outbox" — 이 분리 기준이 타당한가요?</span>sync Redis INCR + outbox backstop(event_id 멱등)까지 그려봤는데, 부품이 6~7개로 늘고 Redis 휘발 대비 DB 카운트가 또 필요해, <strong>경합이 실측되기 전엔 in-tx 한 트랜잭션</strong>이 낫다고 판단했습니다. like_count까지 디커플링할 가치가 생기는 기준(트래픽·규모·경합)은 보통 어디서 잡나요?</div>
+
+    <div class="note key"><span class="tag">한 줄 요약</span>정합성·실시간·디커플 셋을 한 값에 다 욱여넣으면 부품이 폭증한다. <strong>용도로 가르면(노출=in-tx, 분석=outbox) 각각은 단순해진다.</strong> Redis·CDC는 규모를 <strong>측정한 뒤</strong>의 escalation 경로다.</div>
+  </section>
+
+  <!-- ===================== REFS ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">※</div>
+      <div><p class="sec-eyebrow">REFERENCES</p><h2 class="sec">참고 문헌</h2></div>
+    </div>
+    <p>공식 문서 + 빅테크 공식 기술블로그만. 각 링크는 클릭하면 원문으로 이동합니다.</p>
+    <div class="tbl-wrap refs"><table>
+      <tbody>
+        <tr id="r1"><td>[1]</td><td>Debezium 공식 — Outbox Event Router (CDC로 outbox 라우팅)</td><td><a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html" target="_blank" rel="noopener">debezium.io/.../outbox-event-router</a></td></tr>
+        <tr id="r2"><td>[2]</td><td>microservices.io — Pattern: Polling publisher</td><td><a href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener">microservices.io/patterns/data/polling-publisher</a></td></tr>
+        <tr id="r3"><td>[3]</td><td>microservices.io — Pattern: Transaction log tailing</td><td><a href="https://microservices.io/patterns/data/transaction-log-tailing.html" target="_blank" rel="noopener">microservices.io/patterns/data/transaction-log-tailing</a></td></tr>
+        <tr id="r4"><td>[4]</td><td>ShedLock 공식 repo — "it's just a lock", not a scheduler (멀티 인스턴스 중복 방지)</td><td><a href="https://github.com/lukas-krecan/ShedLock" target="_blank" rel="noopener">github.com/lukas-krecan/ShedLock</a></td></tr>
+        <tr id="r5"><td>[5]</td><td>우아한형제들 — CDC 너두 할 수 있어 (Kafka CDC 적용)</td><td><a href="https://techblog.woowahan.com/10000/" target="_blank" rel="noopener">techblog.woowahan.com/10000</a></td></tr>
+        <tr id="r6"><td>[6]</td><td>microservices.io — Pattern: Transactional outbox</td><td><a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">microservices.io/patterns/data/transactional-outbox</a></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>형제 문서</h3>
+    <div class="tbl-wrap"><table>
+      <tbody>
+        <tr><td>00</td><td>요구사항 명세 — Must/Nice, Step 1~3</td></tr>
+        <tr><td>01</td><td>개념 정리 — Event/Command, Outbox, 멱등, DLQ</td></tr>
+        <tr><td>02</td><td>코드베이스 적용 — commerce-api / streamer 배선</td></tr>
+        <tr><td>03</td><td>전달 보장 — acks · ISR · idempotence · Outbox</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 7 설계 보강 — like/count 정합성 전략 MECE 정리<br>
+    저장 위치(DB·Redis) × 갱신 메커니즘(in-tx·async·outbox·CDC)으로 분류 · 신선도·내구성·디커플링·부품 수로 평가
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -23,6 +23,13 @@ class KafkaTopicConfig {
             .build()
 
     @Bean
+    fun couponIssueRequestsDltTopic(): NewTopic =
+        TopicBuilder.name(KafkaTopics.COUPON_ISSUE_REQUESTS_DLT)
+            .partitions(3)
+            .replicas(1)
+            .build()
+
+    @Bean
     fun orderEventsTopic(): NewTopic =
         TopicBuilder.name(KafkaTopics.ORDER_EVENTS)
             .partitions(3)

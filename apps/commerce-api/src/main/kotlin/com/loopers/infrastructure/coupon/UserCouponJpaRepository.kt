@@ -18,4 +18,6 @@ interface UserCouponJpaRepository : JpaRepository<UserCouponModel, Long> {
     fun findByUserId(userId: Long): List<UserCouponModel>
 
     fun countAllByCoupon_Id(couponId: Long): Long
+
+    fun existsByCoupon_IdAndUserId(couponId: Long, userId: Long): Boolean
 }

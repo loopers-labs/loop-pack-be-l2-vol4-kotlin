@@ -13,4 +13,6 @@ interface UserCouponRepository {
     fun save(userCouponModel: UserCouponModel): UserCouponModel
 
     fun countAllByCouponId(couponId: Long): Long
+
+    fun existsByCouponIdAndUserId(couponId: Long, userId: Long): Boolean
 }

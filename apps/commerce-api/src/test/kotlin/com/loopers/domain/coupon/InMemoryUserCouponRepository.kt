@@ -35,4 +35,7 @@ class InMemoryUserCouponRepository : UserCouponRepository {
         data.values.filter { it.userId == userId }
 
     override fun findWithLockById(id: Long): UserCouponModel? = data[id]
+
+    override fun existsByCouponIdAndUserId(couponId: Long, userId: Long): Boolean =
+        data.values.any { it.coupon.id == couponId && it.userId == userId }
 }

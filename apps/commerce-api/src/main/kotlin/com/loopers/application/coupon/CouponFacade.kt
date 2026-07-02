@@ -81,6 +81,10 @@ class CouponFacade(
             couponIssueRequest.markSoldOut()
             return
         }
+        if (userCouponService.hasIssuedTo(coupon.id, payload.userId)) {
+            couponIssueRequest.markFailed()
+            return
+        }
         userCouponService.issueCoupon(payload.userId, coupon)
         couponIssueRequest.markSuccess()
     }

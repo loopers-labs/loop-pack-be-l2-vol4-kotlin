@@ -23,4 +23,7 @@ class UserCouponService(
 
     fun countIssuedByCouponId(couponId: Long) =
         userCouponRepository.countAllByCouponId(couponId)
+
+    fun hasIssuedTo(couponId: Long, userId: Long) =
+        userCouponRepository.existsByCouponIdAndUserId(couponId, userId)
 }

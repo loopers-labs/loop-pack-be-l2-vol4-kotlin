@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.order
 import com.loopers.application.order.OrderDetailInfo
 import com.loopers.application.order.OrderInfo
 import com.loopers.application.order.OrderItemCommand
+import com.loopers.domain.order.OrderStatus
 import java.time.ZonedDateTime
 
 class OrderV1Dto {
@@ -23,6 +24,7 @@ class OrderV1Dto {
 
     data class OrderResponse(
         val orderId: Long,
+        val status: OrderStatus,
         val totalPrice: Long,
         val itemCount: Int,
         val createdAt: ZonedDateTime,
@@ -30,6 +32,7 @@ class OrderV1Dto {
         companion object {
             fun from(info: OrderInfo) = OrderResponse(
                 orderId = info.orderId,
+                status = info.status,
                 totalPrice = info.totalPrice,
                 itemCount = info.itemCount,
                 createdAt = info.createdAt,
@@ -39,6 +42,7 @@ class OrderV1Dto {
 
     data class OrderDetailResponse(
         val orderId: Long,
+        val status: OrderStatus,
         val originalPrice: Long,
         val discountAmount: Long,
         val totalPrice: Long,
@@ -57,6 +61,7 @@ class OrderV1Dto {
         companion object {
             fun from(info: OrderDetailInfo) = OrderDetailResponse(
                 orderId = info.orderId,
+                status = info.status,
                 originalPrice = info.originalPrice,
                 discountAmount = info.discountAmount,
                 totalPrice = info.totalPrice,

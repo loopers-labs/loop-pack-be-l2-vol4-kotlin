@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 @Tag(name = "Order", description = "주문 API")
 interface OrderV1ApiSpec {
 
-    @Operation(summary = "주문 생성", description = "재고 차감 + Mock 결제 + 스냅샷 저장")
+    @Operation(summary = "주문 생성", description = "재고 차감 + 스냅샷 저장 (PENDING 상태)")
     fun createOrder(
         loginId: String,
         password: String,

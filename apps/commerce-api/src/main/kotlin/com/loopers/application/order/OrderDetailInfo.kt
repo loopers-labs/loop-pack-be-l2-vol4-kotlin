@@ -2,10 +2,12 @@ package com.loopers.application.order
 
 import com.loopers.domain.order.OrderItemModel
 import com.loopers.domain.order.OrderModel
+import com.loopers.domain.order.OrderStatus
 import java.time.ZonedDateTime
 
 data class OrderDetailInfo(
     val orderId: Long,
+    val status: OrderStatus,
     val originalPrice: Long,
     val discountAmount: Long,
     val totalPrice: Long,
@@ -38,6 +40,7 @@ data class OrderDetailInfo(
         fun from(order: OrderModel): OrderDetailInfo {
             return OrderDetailInfo(
                 orderId = order.id,
+                status = order.status,
                 originalPrice = order.originalPrice,
                 discountAmount = order.discountAmount,
                 totalPrice = order.totalPrice,

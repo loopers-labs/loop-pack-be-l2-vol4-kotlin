@@ -51,6 +51,17 @@ class IssuedCouponModel(
         usedAt = now
     }
 
+    fun restoreUsage() {
+        if (status != CouponStatus.USED) {
+            throw CoreException(
+                errorType = ErrorType.CONFLICT,
+                customMessage = "사용된 쿠폰만 복원할 수 있습니다. 현재 상태: $status",
+            )
+        }
+        status = CouponStatus.AVAILABLE
+        usedAt = null
+    }
+
     fun isUsable(): Boolean = status == CouponStatus.AVAILABLE
 
     fun validateOwner(userId: Long) {

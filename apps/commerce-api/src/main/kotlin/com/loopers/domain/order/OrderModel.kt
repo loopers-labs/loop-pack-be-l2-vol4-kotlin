@@ -6,6 +6,8 @@ import com.loopers.support.error.ErrorType
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 
@@ -39,6 +41,11 @@ class OrderModel(
     var couponId: Long? = couponId
         protected set
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    var status: OrderStatus = OrderStatus.PENDING
+        protected set
+
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     val orderItems: MutableList<OrderItemModel> = mutableListOf()
 
@@ -53,6 +60,26 @@ class OrderModel(
         this.couponId = couponId
         this.discountAmount = discountAmount
         this.totalPrice = maxOf(originalPrice - discountAmount, 0)
+    }
+
+    fun markPaid() {
+        if (status != OrderStatus.PENDING) {
+            throw CoreException(
+                errorType = ErrorType.CONFLICT,
+                customMessage = "결제 완료 처리할 수 없는 주문 상태입니다. (status=$status)",
+            )
+        }
+        this.status = OrderStatus.PAID
+    }
+
+    fun markCancelled() {
+        if (status != OrderStatus.PENDING) {
+            throw CoreException(
+                errorType = ErrorType.CONFLICT,
+                customMessage = "취소 처리할 수 없는 주문 상태입니다. (status=$status)",
+            )
+        }
+        this.status = OrderStatus.CANCELLED
     }
 
     companion object {

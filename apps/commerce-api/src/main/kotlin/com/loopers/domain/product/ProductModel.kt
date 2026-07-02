@@ -67,6 +67,13 @@ class ProductModel(
         stock -= quantity
     }
 
+    fun increaseStock(quantity: Long) {
+        if (quantity <= 0) {
+            throw CoreException(errorType = ErrorType.BAD_REQUEST, customMessage = "복원 수량은 0보다 커야 합니다.")
+        }
+        stock += quantity
+    }
+
     fun update(name: String, price: Long, stock: Long) {
         if (name.isBlank()) {
             throw CoreException(errorType = ErrorType.BAD_REQUEST, customMessage = "상품 이름은 비어있을 수 없습니다.")

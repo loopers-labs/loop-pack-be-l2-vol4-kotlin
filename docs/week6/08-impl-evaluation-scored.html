@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volume6 PG 결제 — 11개 구현 채점 보고서</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  h3 .pt{margin-left:auto;font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:9px;padding:3px 11px}
+  h3.tier1::before{background:var(--green)} h3.tier1 .pt{color:var(--green-deep);background:var(--green-bg)}
+  h3.tier3::before{background:var(--red)} h3.tier3 .pt{color:var(--red-deep);background:var(--red-bg)}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:22px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.good{background:var(--green-bg);border-color:#bcecd6}
+  .note.good .tag{color:var(--green-deep)} .note.good strong{color:var(--green-deep)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0}
+  .col{border-radius:16px;padding:18px 20px;font-size:14.5px;line-height:1.65}
+  .col h4{margin:0 0 8px;font-size:14px;font-weight:700}
+  .col.x{background:var(--g50);border:1px solid var(--g200)} .col.x h4{color:var(--g700)}
+  .col.o{background:var(--blue-bg2);border:1px solid var(--blue-bg)} .col.o h4{color:var(--blue-deep)}
+  .col.up{background:var(--green-bg);border:1px solid #bcecd6} .col.up h4{color:var(--green-deep)}
+  .col.dn{background:var(--red-bg);border:1px solid #f8d4d4} .col.dn h4{color:var(--red-deep)}
+  .col ul{margin:0;padding-left:17px} .col li{margin:4px 0}
+  figure{margin:30px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:30px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .svg-s{font-family:var(--mono);font-size:10px;font-weight:500}
+  .tbl-wrap{overflow-x:auto;margin:22px 0;border-radius:16px;border:1px solid var(--g200)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:640px}
+  th,td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--g100)}
+  thead th{background:var(--g50);font-weight:700;color:var(--g700);font-size:12px;white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td .term,th .term{font-size:11px}
+  table .me{background:var(--red-bg)} table .me:hover{background:#fbe0e2}
+  .tot{font-family:var(--mono);font-weight:700;color:var(--blue-deep);text-align:center}
+  .c{text-align:center;font-family:var(--mono);font-weight:500;color:var(--g600)}
+  .checklist{list-style:none;margin:22px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;text-decoration:none;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500;transition:.18s}
+  a.ref:hover{border-color:var(--blue);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    .cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · 동료 구현 채점 보고서</span>
+      <h1 class="title">PG 결제 11개 구현<br><span class="hl">기준을 세워 점수를 매긴다</span></h1>
+      <p class="lede">Kotlin 3 + Java 8, 총 <b>11개 Volume6 구현</b>을 <b>7개 아키텍처 기준(100점 만점)</b>으로 채점했다. 특징·고려한 점·장단점을 코드 근거로 정리하고, <b>회의적 리뷰어 관점</b>에서 감점 사유를 명시한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">대상</span><span class="v">Kotlin 3 · Java 8</span></div>
+        <div class="chip"><span class="k">기준</span><span class="v">7축 · 100점</span></div>
+        <div class="chip"><span class="k">근거</span><span class="v">PR diff 실코드</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="06-pg-feign-sequence.html"><span class="n">06</span>Feign 시퀀스</a>
+    <a href="07-payment-implementation.html"><span class="n">07</span>내 구현</a>
+    <a class="cur" href="08-impl-evaluation-scored.html"><span class="n">08</span>채점 보고서</a>
+    <a href="09-sequence-insights-my-improvements.html"><span class="n">09</span>인사이트·반영</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">평가 기준 (7축 rubric)</a></li>
+      <li><a href="#s2">종합 순위 · 점수표</a></li>
+      <li><a href="#s3">상위 티어 (70점+)</a></li>
+      <li><a href="#s4">중위 티어 (55~68)</a></li>
+      <li><a href="#s5">하위 티어 · 내 구현</a></li>
+      <li><a href="#refs">참고 (PR 출처)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">RUBRIC</p><h2 class="sec">평가 기준 — 7축 100점</h2></div>
+    </div>
+    <p class="lead">"잘 짰다"를 감으로 말하지 않으려고, 이 과제의 본질(외부 장애 격리 + 결제 정합성)에서 7개 독립 축을 뽑고 가중치를 줬다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>축</th><th>무엇을 보나</th><th>배점</th></tr></thead>
+        <tbody>
+          <tr><td><b>C1 · 장애 격리</b></td><td>CB/Retry/Timeout/TimeLimiter 적절성, <b>멱등성 기준 재시도</b>(비멱등 결제에 timeout 재시도 금지), fallback 전파 차단</td><td class="tot">20</td></tr>
+          <tr><td><b>C2 · 정합성 회복</b></td><td>reconcile 자동화(스케줄러), <b>orderId 역조회</b>, 거짓음성(타임아웃인데 결제됨) 복구, NOT_FOUND grace·재시도 상한</td><td class="tot">20</td></tr>
+          <tr><td><b>C3 · 데이터 정합성</b></td><td>FAILED 시 <b>재고·쿠폰 보상</b>, 동시 중복결제 차단(UNIQUE/락), 콜백 멱등</td><td class="tot">15</td></tr>
+          <tr><td><b>C4 · 상태 모델링</b></td><td><b>미확정(UNKNOWN)</b>을 1급으로 표현했나, 상태머신 전이 명확성·역전 차단</td><td class="tot">15</td></tr>
+          <tr><td><b>C5 · 트랜잭션 경계</b></td><td>PG 외부 호출을 <b>DB 트랜잭션 밖</b>으로 뺐나(커넥션 점유 회피), 경계 분리 일관성</td><td class="tot">10</td></tr>
+          <tr><td><b>C6 · 임계값 근거</b></td><td><b>40% 함정</b> 회피(실패율 임계 &gt; 40), k6·Grafana <b>측정 기반</b> 결정 vs 휴리스틱</td><td class="tot">10</td></tr>
+          <tr><td><b>C7 · 코드 품질</b></td><td>도메인-인프라 분리, 본문↔코드 일치, 보안(콜백 인증·cardNo)</td><td class="tot">10</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">채점 철학</span>가산점이 아니라 <strong>감점식</strong>이다. "있으면 만점"이 아니라 "이 과제가 요구하는 함정(이중결제·거짓음성·40% 실패율·커넥션 점유)을 피했는가"로 깎는다. 그래서 화려한 모니터링보다 <strong>정합성 회복(C2)</strong>·<strong>장애 격리(C1)</strong>에 배점이 크다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">SCOREBOARD</p><h2 class="sec">종합 순위 · 점수표</h2></div>
+    </div>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="RANKING">
+        <svg viewBox="0 0 720 384" role="img" aria-label="11개 구현 총점 막대 그래프. minbo265 74, sung260 73, 호준88 72, 재희87 68, byun258 65, seung263 60, KWB255 58, game264 56, kmkim266 55, 나 47, Sooche262 25.">
+          <line x1="180" y1="24" x2="180" y2="360" stroke="#D1D6DB" stroke-width="1"/>
+          <!-- rows: y = 30 + i*30 -->
+          <!-- 1 minbo265 74 green -->
+          <text class="svg-l" x="170" y="46" text-anchor="end" fill="#333D4B">minbo265</text>
+          <rect x="180" y="34" width="340" height="17" rx="5" fill="#15C47E"/><text class="svg-s" x="528" y="46" fill="#0A8F5B" font-weight="700">74</text>
+          <!-- 2 sung260 73 -->
+          <text class="svg-l" x="170" y="76" text-anchor="end" fill="#333D4B">sung260</text>
+          <rect x="180" y="64" width="336" height="17" rx="5" fill="#15C47E"/><text class="svg-s" x="524" y="76" fill="#0A8F5B" font-weight="700">73</text>
+          <!-- 3 호준88 72 -->
+          <text class="svg-l" x="170" y="106" text-anchor="end" fill="#333D4B">호준88 · kt</text>
+          <rect x="180" y="94" width="331" height="17" rx="5" fill="#15C47E"/><text class="svg-s" x="519" y="106" fill="#0A8F5B" font-weight="700">72</text>
+          <!-- 4 재희87 68 blue -->
+          <text class="svg-l" x="170" y="136" text-anchor="end" fill="#333D4B">재희87 · kt</text>
+          <rect x="180" y="124" width="313" height="17" rx="5" fill="#3182F6"/><text class="svg-s" x="501" y="136" fill="#1B64DA" font-weight="700">68</text>
+          <!-- 5 byun258 65 -->
+          <text class="svg-l" x="170" y="166" text-anchor="end" fill="#333D4B">byun258</text>
+          <rect x="180" y="154" width="299" height="17" rx="5" fill="#3182F6"/><text class="svg-s" x="487" y="166" fill="#1B64DA" font-weight="700">65</text>
+          <!-- 6 seung263 60 -->
+          <text class="svg-l" x="170" y="196" text-anchor="end" fill="#333D4B">seung263</text>
+          <rect x="180" y="184" width="276" height="17" rx="5" fill="#3182F6"/><text class="svg-s" x="464" y="196" fill="#1B64DA" font-weight="700">60</text>
+          <!-- 7 KWB255 58 -->
+          <text class="svg-l" x="170" y="226" text-anchor="end" fill="#333D4B">KWB255</text>
+          <rect x="180" y="214" width="267" height="17" rx="5" fill="#6B7684"/><text class="svg-s" x="455" y="226" fill="#4E5968" font-weight="700">58</text>
+          <!-- 8 game264 56 -->
+          <text class="svg-l" x="170" y="256" text-anchor="end" fill="#333D4B">game264</text>
+          <rect x="180" y="244" width="258" height="17" rx="5" fill="#6B7684"/><text class="svg-s" x="446" y="256" fill="#4E5968" font-weight="700">56</text>
+          <!-- 9 kmkim266 55 -->
+          <text class="svg-l" x="170" y="286" text-anchor="end" fill="#333D4B">kmkim266</text>
+          <rect x="180" y="274" width="253" height="17" rx="5" fill="#6B7684"/><text class="svg-s" x="441" y="286" fill="#4E5968" font-weight="700">55</text>
+          <!-- 10 나 47 red -->
+          <text class="svg-l" x="170" y="316" text-anchor="end" fill="#C9303C" font-weight="700">나 (현재)</text>
+          <rect x="180" y="304" width="216" height="17" rx="5" fill="#F04452"/><text class="svg-s" x="404" y="316" fill="#C9303C" font-weight="700">47</text>
+          <!-- 11 Sooche262 25 red -->
+          <text class="svg-l" x="170" y="346" text-anchor="end" fill="#333D4B">Sooche262</text>
+          <rect x="180" y="334" width="115" height="17" rx="5" fill="#F04452"/><text class="svg-s" x="303" y="346" fill="#C9303C" font-weight="700">25</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 총점 순위. <b>녹색</b>=상위(70+), <b>파랑</b>=중상, <b>회색</b>=중위, <b>빨강</b>=하위·내 구현. 내 구현(47)은 resilience·reconcile·보상이 비어 하위권 — 의도된 진단이다.</figcaption>
+    </figure>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>구현</th><th>C1 격리<br>/20</th><th>C2 회복<br>/20</th><th>C3 정합<br>/15</th><th>C4 상태<br>/15</th><th>C5 Tx<br>/10</th><th>C6 측정<br>/10</th><th>C7 품질<br>/10</th><th>총점</th></tr></thead>
+        <tbody>
+          <tr><td><b>minbo265</b> <span class="term">java</span></td><td class="c">16</td><td class="c">16</td><td class="c">11</td><td class="c">12</td><td class="c">9</td><td class="c">3</td><td class="c">7</td><td class="tot">74</td></tr>
+          <tr><td><b>sung260</b> <span class="term">java</span></td><td class="c">15</td><td class="c">17</td><td class="c">8</td><td class="c">14</td><td class="c">9</td><td class="c">2</td><td class="c">8</td><td class="tot">73</td></tr>
+          <tr><td><b>호준88</b> <span class="term">kt</span></td><td class="c">13</td><td class="c">17</td><td class="c">11</td><td class="c">9</td><td class="c">9</td><td class="c">7</td><td class="c">6</td><td class="tot">72</td></tr>
+          <tr><td><b>재희87</b> <span class="term">kt</span></td><td class="c">15</td><td class="c">8</td><td class="c">14</td><td class="c">10</td><td class="c">7</td><td class="c">7</td><td class="c">7</td><td class="tot">68</td></tr>
+          <tr><td><b>byun258</b> <span class="term">java</span></td><td class="c">16</td><td class="c">11</td><td class="c">8</td><td class="c">7</td><td class="c">6</td><td class="c">9</td><td class="c">8</td><td class="tot">65</td></tr>
+          <tr><td><b>seung263</b> <span class="term">java</span></td><td class="c">12</td><td class="c">15</td><td class="c">5</td><td class="c">9</td><td class="c">9</td><td class="c">2</td><td class="c">8</td><td class="tot">60</td></tr>
+          <tr><td><b>KWB255</b> <span class="term">java</span></td><td class="c">13</td><td class="c">10</td><td class="c">10</td><td class="c">9</td><td class="c">8</td><td class="c">2</td><td class="c">6</td><td class="tot">58</td></tr>
+          <tr><td><b>game264</b> <span class="term">java</span></td><td class="c">11</td><td class="c">10</td><td class="c">8</td><td class="c">8</td><td class="c">9</td><td class="c">2</td><td class="c">8</td><td class="tot">56</td></tr>
+          <tr><td><b>kmkim266</b> <span class="term">java</span></td><td class="c">10</td><td class="c">11</td><td class="c">5</td><td class="c">13</td><td class="c">9</td><td class="c">2</td><td class="c">5</td><td class="tot">55</td></tr>
+          <tr class="me"><td><b>나 (현재)</b></td><td class="c">8</td><td class="c">2</td><td class="c">6</td><td class="c">13</td><td class="c">9</td><td class="c">2</td><td class="c">7</td><td class="tot">47</td></tr>
+          <tr><td><b>Sooche262</b> <span class="term">java</span></td><td class="c">6</td><td class="c">4</td><td class="c">5</td><td class="c">3</td><td class="c">2</td><td class="c">2</td><td class="c">3</td><td class="tot">25</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">읽는 법</span>총점은 순위일 뿐, <strong>축별 점수가 진짜 정보</strong>다. 내 구현(나)은 <strong>C4 상태(13/15) · C5 Tx(9/10)는 최상위권</strong>인데 <strong>C2 회복(2/20)</strong>이 바닥이라 총점이 낮다. 즉 "기반은 좋고 회복탄력성만 비었다"가 정확한 진단이다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">TIER 1 · 70점+</p><h2 class="sec">상위 티어</h2></div>
+    </div>
+
+    <h3 class="tier1">minbo265 — RestClient + 멱등 재시도<span class="pt">74점</span></h3>
+    <p><b>특징</b> — 유일하게 <span class="term">RestClient</span> 사용. 내부 상태는 <span class="term">PENDING/SUCCESS/FAILED</span> 3개로 단순하게 두되, "미확정의 종류"를 <strong>boolean <span class="term">pgRequestAttempted</span> + <span class="term">Outcome(TIMEOUT/NOT_ATTEMPTED)</span></strong>로 분리해 복구 스케줄러가 사각지대를 구분한다.</p>
+    <p><b>무엇을 고려했나</b> — 재시도 대상을 "성공률"이 아니라 <strong>"중복결제 안전성"</strong>으로 골랐다. <span class="term">5xx(HttpServerErrorException)</span>만 화이트리스트로 재시도하고 <strong>read timeout은 의도적으로 제외</strong>(거래 생성됐을 수 있어 재시도 시 이중결제). 멱등성은 <span class="term">order_id UNIQUE</span>로 INSERT 단계에서 차단.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>멱등 기준 화이트리스트 재시도 (C1 16)</li><li>스케줄러 + orderId 역조회 + attempts&lt;5 + 경보 (C2 16)</li><li>fallback이 예외 대신 결과타입 반환 → 전파 차단</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li>쿠폰 원복 코드/테스트 미확인 (재고만)</li><li>k6·Grafana 측정 없음 (C6 3)</li><li>콜백 무서명(금액대조만 일부 방어)</li></ul></div>
+    </div>
+
+    <h3 class="tier1">sung260 — timeout=UNKNOWN 1급 + grace<span class="pt">73점</span></h3>
+    <p><b>특징</b> — 상태 6종(<span class="term">REQUESTING/PENDING/SUCCEEDED/FAILED/UNKNOWN/REQUEST_FAILED</span>). <strong>timeout을 실패가 아닌 UNKNOWN</strong>으로 기록하고, 결제요청 POST는 <strong>아예 재시도하지 않는다</strong>(중복거래 원천 차단). 회복은 상태조회로만.</p>
+    <p><b>무엇을 고려했나</b> — 거짓음성을 성급히 실패로 굳히지 않으려고 <strong>NOT_FOUND 120s grace</strong>를 뒀다. <span class="term">PG_TRANSACTION_NOT_FOUND && REQUESTING/UNKNOWN && grace 경과</span> <strong>3조건 모두</strong> 충족해야 REQUEST_FAILED 확정. 요청용/조회용 CB를 <strong>물리적으로 분리</strong>해 쓰기 CB가 열려도 복구 조회는 동작. 동시결제는 <span class="term">uk_payment_active_order(order_id, active_marker)</span>로 차단.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>거짓음성 처리 11명 중 최정교 (C2 17)</li><li>UNKNOWN 1급 + 예외→상태 매핑 (C4 14)</li><li>요청/조회 CB 분리, active_marker UNIQUE</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li><b>보상 트랜잭션 전무</b> (C3 8)</li><li>복구 재시도 횟수 상한 없음 → 영구 떠돌 위험</li><li>측정 없음 (C6 2)</li></ul></div>
+    </div>
+
+    <h3 class="tier1">호준88 (Kotlin) — reconcile + 측정의 정석<span class="pt">72점</span></h3>
+    <p><b>특징</b> — <span class="term">@Retry</span>+<span class="term">@CircuitBreaker</span>, 동기 실패는 <span class="term">runCatching</span>이 흡수해 <span class="term">txKey=null PENDING</span> 유지. 핵심은 <strong>reconcile</strong>: 스케줄러(10s) + orderId 역조회 + 거짓음성 복구 + <strong>2건 이상이면 멱등위반 알람(자동처리 금지)</strong>.</p>
+    <p><b>무엇을 고려했나</b> — 임계값을 <strong>k6 + Grafana + Alertmanager</strong>로 측정해 결정하려 했고, CB 실패율을 70으로 둬 <strong>40% 함정</strong>을 피했다.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>reconcile 완성도 최상 (C2 17)</li><li>유일하게 Alertmanager 경보까지 (C6 7)</li><li>CB 70 — 40% 정상실패 위로 여유</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li><b>본문 "50" / 코드 "70" 모순</b> → 측정 신뢰성 훼손</li><li>본문 mermaid의 recheckCount 단계적 autoFail 미구현</li><li>RetryableException 전체 재시도(timeout 포함) → 이중결제 여지</li></ul></div>
+    </div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">TIER 2 · 55~68</p><h2 class="sec">중위 티어</h2></div>
+    </div>
+
+    <h3>재희87 (Kotlin) — 코드품질·보상 최고, 플로우 순서가 약점<span class="pt">68점</span></h3>
+    <p><b>특징</b> — 도메인 <span class="term">Payment</span>(순수)와 인프라 <span class="term">PaymentEntity</span>를 enum까지 분리(가장 깔끔). fallback의 <span class="term">is CoreException</span> 분기로 도메인 예외는 503으로 안 뭉갠다. <strong>유일하게 재고+쿠폰 둘 다 보상</strong>(<span class="term">OrderCancellation</span>).</p>
+    <p><b>무엇을 고려했나</b> — 재시도 화이트리스트(IOException), aspect 순서(@Retry⊃@CB)를 주석으로 명시. 그러나 <strong>PG-first</strong>(PG 호출 후 저장)라 접수 후 저장 전 장애 시 <strong>고아 결제</strong>가 생기는데 reconcile에 <strong>orderId 역조회가 없어</strong> 못 잡는다.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>재고+쿠폰 완전 보상 (C3 14)</li><li>도메인/인프라 분리·fallback 분기 (C7)</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li>PG-first 고아 + orderId 역조회 부재 (C2 8)</li><li><b>cardNo 평문 저장</b>, 본문↔코드 다수 불일치</li></ul></div>
+    </div>
+
+    <h3>byun258 — 유일한 TimeLimiter + k6 최다<span class="pt">65점</span></h3>
+    <p><b>특징</b> — Feign CB 자동 + <strong>유일하게 <span class="term">TimeLimiter 600ms</span></strong> 적용. fallbackFactory를 <strong>CB OPEN vs 일시장애 2단</strong>으로 분류해, CB 열린 상태에서 retry가 HALF-OPEN 프로브를 소진하는 문제를 차단. 콜백 body의 status를 <strong>불신하고 PG에 재조회</strong>(위조 방어).</p>
+    <p><b>무엇을 고려했나</b> — <strong>k6 6종</strong>으로 sliding-window type·retry×CB·커넥션풀을 실측(풀 타임아웃 7.02%→2.37%). 측정 근거 최다.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>TimeLimiter로 slow-call 능동 차단 (C1 16)</li><li>k6 정량 측정 최다 (C6 9)</li><li>콜백 불신 재조회</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li><b>콜백·복구를 Tx 안에서 PG 호출</b> (requestPayment와 모순, C5 6)</li><li>보상 전무, UNKNOWN을 cardType 값에 욱여넣음</li></ul></div>
+    </div>
+
+    <h3>seung263 — 세 입구→단일 converge<span class="pt">60점</span></h3>
+    <p><b>특징</b> — 콜백·keyed 폴링·keyless 정산 <strong>세 입구가 한 <span class="term">converge</span>로 수렴</strong>. 멱등 도메인 전이가 중복·순서뒤바뀜을 흡수. 서킷 집계를 <span class="term">record-exceptions</span> 화이트리스트로 <strong>인프라 예외만</strong> 한정(비즈니스 실패가 "PG 장애"로 둔갑 방지).</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>단일 수렴점 + keyless 복구 트랙 (C2 15)</li><li>record-exceptions로 40% 함정 영리하게 회피</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li>보상 전무 (C3 5)</li><li>ShedLock 없어 다중 인스턴스 시 중복 스캔</li></ul></div>
+    </div>
+
+    <h3>KWB255 — @ExternalSystemGuard 캡슐화<span class="pt">58점</span></h3>
+    <p><b>특징</b> — <strong>자작 메타 어노테이션 <span class="term">@ExternalSystemGuard</span> + Aspect</strong>로 CB+Retry를 한 겹 뒤에 숨김. PG 클라이언트는 resilience4j를 모르고, 모든 외부 실패를 단일 <span class="term">503</span>으로 정규화. <span class="term">PROCESSING</span> 중간 상태로 멱등성을 상태머신화.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>관심사 캡슐화 우아 (C7)</li><li>PG-side userId+orderId UNIQUE 멱등</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li>수동 reconcile만(스케줄러 없음, C2 10)</li><li>콜백 무인증 + callbackUrl 하드코딩</li></ul></div>
+    </div>
+
+    <h3>game264 — PaymentConfirmer 단일 빈 + TSID<span class="pt">56점</span></h3>
+    <p><b>특징</b> — 확정 로직을 <span class="term">PaymentConfirmer</span> 단일 빈으로 추출(비관락+멱등+주문 cascade를 한 Tx). 콜백·reconcile이 이 빈을 <strong>공유</strong>. 앱 생성 <strong>TSID</strong>를 PK로.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>self-invocation 프록시 함정을 빈 분리로 정공법</li><li>카드 마스킹/원본 이중 표현</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li><b>Feign timeout 미설정 + TimeLimiter 없음</b> → 지연장애 무방비 (C1 11)</li><li>스케줄러 없음, 보상 위임(미포함)</li></ul></div>
+    </div>
+
+    <h3>kmkim266 — ABORTED 1급 개념<span class="pt">55점</span></h3>
+    <p><b>특징</b> — <span class="term">ABORTED + failureCode==null</span> 조합으로 "PG 미도달"을 1급으로 표현. <span class="term">TransactionTemplate</span> 3단 분리로 PG 대기 중 커넥션 비점유. 정상 전이용 <span class="term">markSuccess()</span>와 복구 전용 <span class="term">applyPgResult()</span>를 분리.</p>
+    <div class="cols">
+      <div class="col up"><h4>장점</h4><ul><li>미도달 상태의 의미론적 모델링 (C4 13)</li><li>TxTemplate 3분할 (C5 9)</li></ul></div>
+      <div class="col dn"><h4>감점</h4><ul><li>보상 전무 + <b>min-calls 기본100 vs window10 충돌</b>(CB가 안 열림)</li><li>콜백 무검증(HMAC 없음, 본문 자인), 자동복구 없음</li></ul></div>
+    </div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">TIER 3 · 하위 · 내 구현</p><h2 class="sec">하위 티어 · 내 구현</h2></div>
+    </div>
+
+    <h3 class="tier3">나 (현재) — 기반은 최상위, 회복탄력성이 비었다<span class="pt">47점</span></h3>
+    <p><b>특징</b> — <strong>유일하게 2-PG failover</strong>(PG-A/PG-B) + <strong>명시적 UNKNOWN enum</strong> + "timeout·5xx는 failover 금지"(이중결제 함정 회피) 정책. Model A(주문과 분리된 결제 호출, 서버가 금액 확정), cardNo 비영속(PCI).</p>
+    <p><b>무엇을 비웠나</b> — resilience4j 임계값(C1)·reconcile(C2)·보상(C3)을 <strong>의도적으로 DEFERRED</strong>. 그래서 <span class="term">UNKNOWN</span>을 1급으로 만들어놓고도 그걸 해소할 reconcile이 없어 <strong>영구 미해결로 남는 게 현재 최대 구멍</strong>.</p>
+    <div class="cols">
+      <div class="col up"><h4>강점 (이미 보유)</h4><ul><li>UNKNOWN 1급 상태머신 (C4 13)</li><li>Facade 무Tx + 분할 + PG 밖 (C5 9)</li><li>2-PG failover·이중결제 함정 정책 (남들 없음)</li></ul></div>
+      <div class="col dn"><h4>비운 곳 (반영 대상)</h4><ul><li>reconcile 전무 (C2 2) ← 1순위</li><li>resilience4j 임계값 (C1 8)</li><li>재고/쿠폰 보상 (C3 6)</li></ul></div>
+    </div>
+    <div class="note good"><span class="tag">전략적 함의</span>내 구현은 남들이 안 한 <strong>2-PG failover·UNKNOWN 1급</strong>을 가졌고, 남들이 한 <strong>resilience4j·reconcile·보상</strong>이 비었다. 즉 <strong>상보적</strong> — 09번 리포트에서 sung260의 grace, minbo265의 멱등 재시도, 재희87의 보상을 내 UNKNOWN/failover 위에 얹으면 상위 티어로 직행한다.</div>
+
+    <h3 class="tier3">Sooche262 — 안티패턴 집합<span class="pt">25점</span></h3>
+    <p><b>특징</b> — String 상태, 코드트리 2개 혼재. <strong>PG를 DB 트랜잭션 안에서 호출</strong> + 스케줄러가 <strong>orderId 역조회 없이 재결제</strong>(이중결제) + 설정이 yml/properties/test <strong>3곳 모두 다른 값</strong>.</p>
+    <div class="note warn"><span class="tag">반면교사</span>이 구현의 가치는 <strong>"하지 말아야 할 것"의 카탈로그</strong>다 — ① 외부 I/O를 Tx 안에 두지 말 것, ② reconcile은 역조회지 재결제가 아님, ③ 설정은 단일 소스. 셋 다 다른 구현이 정확히 반대로 해서 점수를 받았다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고 (PR 출처)</h2></div>
+    </div>
+    <p>점수는 전부 아래 PR diff의 실제 코드(application.yml·resilience4j 설정·Facade·Scheduler·도메인 전이)에서 도출했다. 본문 주장과 코드가 어긋난 경우 <strong>코드를 기준</strong>으로 채점했다.</p>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88" target="_blank" rel="noopener"><span class="n">88</span><span class="b"><b>Kotlin · 호준88 (Hojun Na)</b> — @Retry+@CB, PaymentReconciler(스케줄러·역조회·멱등위반알람), k6+Grafana+Alertmanager.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88</span></span></a>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87" target="_blank" rel="noopener"><span class="n">87</span><span class="b"><b>Kotlin · 재희87 (yuntasha)</b> — 화이트리스트 재시도+fallback503, 도메인/인프라 분리, OrderCancellation 보상.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/266" target="_blank" rel="noopener"><span class="n">266</span><span class="b"><b>Java · kmkim266</b> · <b>265 minbo</b> · <b>264 game</b> · <b>263 seung</b> · <b>262 Sooche</b> · <b>260 sung</b> · <b>258 byun</b> · <b>255 KWB</b> — Volume-6 PR 8건.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/266 · /265 · /264 · /263 · /262 · /260 · /258 · /255</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week6 · PG 결제 11개 구현 채점 보고서 (7축 100점)<br>
+    근거: loopers-labs kotlin PR #88·#87 + java PR #266·265·264·263·262·260·258·255 diff
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POST /api/v1/users — commerce-api</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* 번호 단계 리스트 (비즈니스 로직) */
+  .steps{list-style:none;margin:26px 0;padding:0;counter-reset:st;display:flex;flex-direction:column;gap:10px}
+  .steps li{position:relative;padding:18px 20px 18px 64px;background:var(--g50);border:1px solid var(--g200);
+    border-radius:16px;font-size:15.5px;line-height:1.6;color:var(--g700);font-weight:500;counter-increment:st}
+  .steps li::before{content:counter(st);position:absolute;left:18px;top:16px;font-family:var(--mono);
+    font-size:13px;font-weight:700;color:var(--white);background:var(--blue);border-radius:10px;
+    width:30px;height:30px;display:grid;place-items:center}
+  .steps li b{color:var(--g900);font-weight:700}
+  .steps li .ec{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--red-deep);
+    background:var(--red-bg);border-radius:7px;padding:2px 8px;white-space:nowrap}
+  .steps li .ok{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--green-deep);
+    background:var(--green-bg);border-radius:7px;padding:2px 8px;white-space:nowrap}
+
+  /* docnav — 문서 시리즈 네비게이션. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>계정 · REST API</span>
+      <h1 class="title">POST<br><span class="hl">/api/v1/users</span></h1>
+      <p class="lede">loginId · email · 비밀번호로 <b>계정을 신규 등록</b>한다. 비밀번호는 BCrypt 로 해싱되어 저장된다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">AUTH</span><span class="v">공개 (permitAll)</span></div>
+        <div class="chip"><span class="k">REQUEST</span><span class="v">AccountCreateRequest</span></div>
+        <div class="chip"><span class="k">RESPONSE</span><span class="v">본문 없음 (200)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="index.html"><span class="n">◆</span>인덱스</a>
+    <a class="cur" href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요</a></li>
+      <li><a href="#s2">요청 · 응답</a></li>
+      <li><a href="#s3">시퀀스 다이어그램</a></li>
+      <li><a href="#s4">비즈니스 로직</a></li>
+      <li><a href="#s5">주의 사항</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ===================== S1 개요 ===================== -->
+    <section id="s1" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">01</div>
+        <div>
+          <p class="sec-eyebrow">OVERVIEW</p>
+          <h2 class="sec">개요</h2>
+        </div>
+      </div>
+
+      <p class="lead">새 사용자 계정을 등록하는 <strong>공개 endpoint</strong>다. 인증 없이 누구나 호출할 수 있다.</p>
+
+      <p><span class="term">AccountController.createAccount</span> 가 <span class="term">POST /api/v1/users</span> 를 매핑한다. 요청 body 인 <span class="term">AccountCreateRequest</span> 를 <span class="term">AccountCreateCommand</span> 로 변환해 <span class="term">AccountService.create</span> 에 전달하고, 서비스가 입력 검증 · 중복 확인 · 비밀번호 해싱 · 저장을 한 트랜잭션 안에서 수행한다.</p>
+
+      <div class="note key"><span class="tag">공개 endpoint 확인</span><span class="term">AccountSecurityConfig</span> 의 filter chain 에서 <strong>requestMatchers(POST, "/api/v1/users").permitAll()</strong> 로 선언되어 있어 인증 토큰 없이 접근 가능하다. (그 외 경로는 <span class="term">anyRequest().authenticated()</span>)</div>
+
+      <p><strong>내부 도메인 명칭은 <span class="term">account</span></strong> 를 유지한다. 외부 라우트만 평가 스펙에 맞춰 <span class="term">/api/v1/users</span> 를 쓰며, <span class="term">user</span> 는 MySQL <span class="term">mysql.user</span> 시스템 테이블 / Spring Security <span class="term">User</span> 와 충돌하므로 내부 코드에 도입하지 않는다. 따라서 컨트롤러 · 패키지 · 테이블은 모두 <span class="term">account_*</span> 명칭이다.</p>
+    </section>
+
+    <!-- ===================== S2 요청 · 응답 ===================== -->
+    <section id="s2" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">02</div>
+        <div>
+          <p class="sec-eyebrow">REQUEST · RESPONSE</p>
+          <h2 class="sec">요청 · 응답</h2>
+        </div>
+      </div>
+
+      <h3>컨트롤러 시그니처</h3>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">AccountController.kt</span>
+        </div>
+<pre><span class="kw">@RestController</span>
+<span class="kw">@RequestMapping</span>(<span class="st">"/api/v1/users"</span>)
+<span class="kw">class</span> <span class="ty">AccountController</span>(
+    <span class="kw">private val</span> accountService: <span class="ty">AccountService</span>,
+) {
+    <span class="kw">@PostMapping</span>
+    <span class="kw">fun</span> <span class="fn">createAccount</span>(
+        <span class="kw">@RequestBody</span> request: <span class="ty">AccountCreateRequest</span>,
+    ) {
+        accountService.<span class="fn">create</span>(request.<span class="fn">toCommand</span>())   <span class="cm">// 반환값 없음 (Unit)</span>
+    }
+}</pre>
+      </div>
+
+      <h3>요청 Body — AccountCreateRequest</h3>
+      <p>모든 필드는 <strong>필수</strong>다. <span class="term">@Valid</span> 를 쓰지 않으며, 형식 검증은 서비스/도메인 레이어에서 수동(fail-fast)으로 수행한다. <span class="term">birthDate</span> 는 Jackson 이 <span class="term">LocalDate</span> 로 바인딩한다.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>loginId</td><td>String</td><td>로그인 ID. 영문 대소문자 · 숫자만 (<code>^[A-Za-z0-9]+$</code>), 최대 255자. PASSWORD 인증의 식별자로 쓰인다</td></tr>
+            <tr><td>email</td><td>String</td><td>이메일. <code>^[A-Za-z0-9._%+-]+@...</code> 형식, 최대 255자. 계정당 unique</td></tr>
+            <tr><td>password</td><td>String</td><td>비밀번호. 8~16자, 출력 가능 ASCII(<code>[!-~]</code>)만, 생년월일 숫자(YYYYMMDD/YYMMDD) 포함 금지</td></tr>
+            <tr><td>name</td><td>String</td><td>이름. 공백 불가, 최대 100자</td></tr>
+            <tr><td>birthDate</td><td>LocalDate</td><td>생년월일(<code>yyyy-MM-dd</code>). 미래 날짜 불가</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>응답</h3>
+      <p><strong>성공 시 응답 body 가 없다.</strong> 컨트롤러 메서드가 <span class="term">Unit</span> 을 반환하고 <span class="term">@ResponseStatus</span> 를 두지 않으므로 HTTP 상태는 <strong>200 OK</strong> 다. 빈 응답이라도 <span class="term">ApiResponseBodyAdvice</span> 가 가로채 공통 <span class="term">ApiResponse</span> 로 감싼다.</p>
+
+      <div class="note"><span class="tag">공통 래핑</span><span class="term">ApiResponseBodyAdvice.beforeBodyWrite</span> 가 본문(여기선 <span class="term">null</span>)을 <strong>ApiResponse.success(null)</strong> 로 감싼다. 결과는 <span class="term">meta</span>(isSuccess/status/code/message/timestamp) + <span class="term">data</span> 구조이며, Jackson <span class="term">NON_NULL</span> 정책에 따라 <span class="term">data</span> 가 null 이면 직렬화에서 생략된다.</p></div>
+
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">200 OK — ApiResponse 래핑 결과 (data 는 null 이라 생략)</span>
+        </div>
+<pre>{
+  <span class="st">"isSuccess"</span>: <span class="kw">true</span>,
+  <span class="st">"status"</span>: <span class="ty">200</span>,
+  <span class="st">"code"</span>: <span class="kw">null</span>,
+  <span class="st">"message"</span>: <span class="kw">null</span>,
+  <span class="st">"timestamp"</span>: <span class="st">"2026-06-17T12:00:00+09:00"</span>
+}</pre>
+      </div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>상황</th><th>HTTP</th><th>code (실패 시)</th></tr></thead>
+          <tbody>
+            <tr><td>가입 성공</td><td>200 OK</td><td>—</td></tr>
+            <tr><td>형식 위반 (email/loginId/password/name/birthDate)</td><td>400 Bad Request</td><td>ACCOUNT:INVALID_*</td></tr>
+            <tr><td>loginId 중복</td><td>409 Conflict</td><td>ACCOUNT:DUPLICATE_LOGIN_ID</td></tr>
+            <tr><td>email 중복</td><td>409 Conflict</td><td>ACCOUNT:DUPLICATE_EMAIL</td></tr>
+            <tr><td>unique 제약 race (동시성)</td><td>409 Conflict</td><td>COMMON:CONFLICT</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== S3 시퀀스 다이어그램 ===================== -->
+    <section id="s3" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">03</div>
+        <div>
+          <p class="sec-eyebrow">SEQUENCE</p>
+          <h2 class="sec">시퀀스 다이어그램</h2>
+        </div>
+      </div>
+
+      <p class="lead">Client 요청이 레이어를 따라 흐르며 검증 · 해싱 · 저장되는 과정이다.</p>
+
+      <figure class="fig-wide">
+        <div class="fig-box" data-fig="SEQUENCE">
+          <svg viewBox="0 0 1120 600" role="img" aria-label="회원가입 시퀀스: Client 가 AccountController 에 POST 요청을 보내면 AccountService.create 가 입력을 검증하고 도메인 객체를 생성한 뒤 중복을 확인하고, 비밀번호를 BCrypt 로 해싱하여 Repository 를 통해 DB 에 Account 와 Credential 을 저장한다">
+            <defs>
+              <marker id="reg-call" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+
+            <!-- 라이프라인 헤더 박스 (6개) -->
+            <!-- Client -->
+            <rect x="20" y="20" width="130" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="85" y="50" text-anchor="middle" fill="#4E5968">Client</text>
+            <line x1="85" y1="70" x2="85" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- AccountController -->
+            <rect x="178" y="20" width="158" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="257" y="50" text-anchor="middle" fill="#1B64DA">AccountController</text>
+            <line x1="257" y1="70" x2="257" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- AccountService -->
+            <rect x="368" y="20" width="148" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="442" y="50" text-anchor="middle" fill="#1B64DA">AccountService</text>
+            <line x1="442" y1="70" x2="442" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- Domain -->
+            <rect x="548" y="20" width="170" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="633" y="44" text-anchor="middle" fill="#1B64DA">Domain</text>
+            <text class="svg-s" x="633" y="60" text-anchor="middle" fill="#3182F6">VO · Validator</text>
+            <line x1="633" y1="70" x2="633" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- Repository -->
+            <rect x="750" y="20" width="150" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="825" y="50" text-anchor="middle" fill="#4E5968">Repository</text>
+            <line x1="825" y1="70" x2="825" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- DB -->
+            <rect x="932" y="20" width="150" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="1007" y="50" text-anchor="middle" fill="#4E5968">DB</text>
+            <line x1="1007" y1="70" x2="1007" y2="560" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+            <!-- 트랜잭션 경계 (AccountService.create @Transactional) -->
+            <rect x="408" y="110" width="640" height="408" rx="14" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text class="svg-l" x="418" y="128" text-anchor="start" fill="#6B7684">@Transactional 경계</text>
+
+            <!-- 1. Client → Controller -->
+            <line x1="85" y1="150" x2="255" y2="150" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="90" y="142" text-anchor="start" fill="#1B64DA">1 POST /api/v1/users</text>
+
+            <!-- 2. Controller → Service -->
+            <line x1="259" y1="180" x2="440" y2="180" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="264" y="172" text-anchor="start" fill="#1B64DA">2 create(command)</text>
+
+            <!-- 3. Service → Domain : 검증 + VO 생성 -->
+            <line x1="444" y1="218" x2="631" y2="218" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="449" y="210" text-anchor="start" fill="#1B64DA">3 VO 생성 · 검증</text>
+            <text class="svg-s" x="449" y="232" text-anchor="start" fill="#6B7684">birthDate · Identifier · Email · Name · Password</text>
+
+            <!-- 4. Service → Repository : 중복 확인 -->
+            <line x1="444" y1="276" x2="823" y2="276" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="449" y="268" text-anchor="start" fill="#1B64DA">4 existsBy / existsByEmail</text>
+            <line x1="823" y1="300" x2="446" y2="300" stroke="#0A8F5B" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="635" y="316" text-anchor="middle" fill="#0A8F5B">중복이면 409 Conflict</text>
+
+            <!-- 5. Service → Domain : 비밀번호 BCrypt 해싱 -->
+            <line x1="444" y1="350" x2="631" y2="350" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="449" y="342" text-anchor="start" fill="#1B64DA">5 encode(password)</text>
+            <text class="svg-s" x="449" y="364" text-anchor="start" fill="#6B7684">BCrypt 해싱 → CredentialSecret</text>
+
+            <!-- 6. Service → Repository → DB : save Account -->
+            <line x1="444" y1="402" x2="823" y2="402" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="449" y="394" text-anchor="start" fill="#1B64DA">6 save(Account)</text>
+            <line x1="827" y1="424" x2="1005" y2="424" stroke="#15C47E" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="916" y="416" text-anchor="middle" fill="#0A8F5B">INSERT account</text>
+
+            <!-- 7. Service → Repository → DB : save Credential -->
+            <line x1="444" y1="462" x2="823" y2="462" stroke="#3182F6" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="449" y="454" text-anchor="start" fill="#1B64DA">7 save(AccountCredential)</text>
+            <line x1="827" y1="484" x2="1005" y2="484" stroke="#15C47E" stroke-width="2" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="916" y="476" text-anchor="middle" fill="#0A8F5B">INSERT account_credential</text>
+
+            <!-- 8. return → Client -->
+            <line x1="255" y1="540" x2="87" y2="540" stroke="#0A8F5B" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#reg-call)"/>
+            <text class="svg-l" x="171" y="532" text-anchor="middle" fill="#0A8F5B">8 200 OK (본문 없음)</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 1.</b> 회원가입 호출 흐름. <b>3</b> VO/Validator 가 입력을 fail-fast 검증 → <b>4</b> loginId·email 중복 확인 → <b>5</b> 비밀번호 BCrypt 해싱 → <b>6·7</b> Account 와 Credential 을 한 트랜잭션 안에서 저장. 검증·중복 실패는 즉시 예외로 흐름을 끊는다.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===================== S4 비즈니스 로직 ===================== -->
+    <section id="s4" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">04</div>
+        <div>
+          <p class="sec-eyebrow">BUSINESS LOGIC</p>
+          <h2 class="sec">비즈니스 로직</h2>
+        </div>
+      </div>
+
+      <p class="lead"><span class="term">AccountService.create</span> 가 <strong>@Transactional</strong> 경계 안에서 아래 순서로 처리한다. 모든 검증은 <strong>수동 fail-fast</strong> 이며 <span class="term">@Valid</span> 를 사용하지 않는다.</p>
+
+      <ol class="steps">
+        <li><b>생년월일 검증</b> — <span class="term">validateBirthDate</span> 가 미래 날짜를 거부한다. <span class="ec">400 INVALID_BIRTH_DATE</span></li>
+        <li><b>식별자(loginId) 검증 · VO 생성</b> — <span class="term">CredentialIdentifier(PASSWORD, loginId)</span> 의 <span class="term">init</span> 에서 길이(≤255) + 패턴(<code>^[A-Za-z0-9]+$</code>) 검사. <span class="ec">400 INVALID_CREDENTIAL_IDENTIFIER</span></li>
+        <li><b>이메일 검증 · VO 생성</b> — <span class="term">Email(email)</span> 의 <span class="term">init</span> 에서 길이(≤255) + 형식 정규식 검사. <span class="ec">400 INVALID_EMAIL</span></li>
+        <li><b>이름 검증 · VO 생성</b> — <span class="term">AccountName(name)</span> 의 <span class="term">init</span> 에서 공백 불가 + 길이(≤100) 검사. <span class="ec">400 INVALID_ACCOUNT_NAME</span></li>
+        <li><b>비밀번호 검증</b> — <span class="term">PasswordValidator.validate</span> 가 길이(8~16) · 허용 문자(<code>[!-~]</code>) · 생년월일 숫자(YYYYMMDD/YYMMDD) 미포함을 검사. <span class="ec">400 INVALID_PASSWORD</span></li>
+        <li><b>loginId 중복 확인</b> — <span class="term">accountCredentialRepository.existsBy(PASSWORD, identifier)</span> 가 true 면 거부. <span class="ec">409 DUPLICATE_LOGIN_ID</span></li>
+        <li><b>email 중복 확인</b> — <span class="term">accountRepository.existsByEmail(email)</span> 가 true 면 거부. <span class="ec">409 DUPLICATE_EMAIL</span></li>
+        <li><b>Account 저장</b> — <span class="term">Account(name, birthDate, email, role=USER)</span> 를 생성해 <span class="term">accountRepository.save</span>. <span class="ok">INSERT account</span></li>
+        <li><b>비밀번호 BCrypt 해싱</b> — <span class="term">passwordEncryptor.encode(password)</span> (<span class="term">BCryptPasswordEncoder</span>) 결과를 <span class="term">CredentialSecret</span> 으로 감싼다. <strong>평문은 저장하지 않는다.</strong></li>
+        <li><b>Credential 저장</b> — <span class="term">AccountCredential(account, PASSWORD, identifier, secret)</span> 를 <span class="term">accountCredentialRepository.save</span>. <span class="ok">INSERT account_credential</span></li>
+      </ol>
+
+      <h3>발생 예외 정리</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>예외</th><th>에러코드</th><th>HTTP</th></tr></thead>
+          <tbody>
+            <tr><td>BadRequestException</td><td>ACCOUNT:INVALID_BIRTH_DATE</td><td>400</td></tr>
+            <tr><td>BadRequestException</td><td>ACCOUNT:INVALID_CREDENTIAL_IDENTIFIER</td><td>400</td></tr>
+            <tr><td>BadRequestException</td><td>ACCOUNT:INVALID_EMAIL</td><td>400</td></tr>
+            <tr><td>BadRequestException</td><td>ACCOUNT:INVALID_ACCOUNT_NAME</td><td>400</td></tr>
+            <tr><td>BadRequestException</td><td>ACCOUNT:INVALID_PASSWORD</td><td>400</td></tr>
+            <tr><td>ConflictException</td><td>ACCOUNT:DUPLICATE_LOGIN_ID</td><td>409</td></tr>
+            <tr><td>ConflictException</td><td>ACCOUNT:DUPLICATE_EMAIL</td><td>409</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note"><span class="tag">예외 → HTTP 매핑</span>도메인 예외는 <span class="term">CoreException</span> 서브클래스(<span class="term">BadRequestException</span>/<span class="term">ConflictException</span>)로 던지고, <span class="term">ApiControllerAdvice</span> 가 서브클래스별로 HTTP 상태를 매핑한다(BadRequest→400, Conflict→409). 응답 body 는 <span class="term">ApiResponse.fail</span> 이 <span class="term">errorCode.code</span> + <span class="term">message</span> 로 직렬화한다.</div>
+    </section>
+
+    <!-- ===================== S5 주의 사항 ===================== -->
+    <section id="s5" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">05</div>
+        <div>
+          <p class="sec-eyebrow">CAUTION</p>
+          <h2 class="sec">주의 사항</h2>
+        </div>
+      </div>
+
+      <div class="note warn"><span class="tag">중복 가입 동시성</span>사전 <span class="term">existsBy</span> / <span class="term">existsByEmail</span> 체크는 <strong>race condition 을 막지 못한다</strong>. 동시에 같은 loginId/email 로 가입하면 두 요청 모두 체크를 통과한 뒤 INSERT 에서 충돌한다. 이때 <span class="term">account</span>(uk_account_email) / <span class="term">account_credential</span>(uk_account_credential_method_identifier) <strong>DB unique 제약</strong>이 최종 방어선이다. 위반 시 <span class="term">DataIntegrityViolationException</span> 이 발생하고, <span class="term">ApiControllerAdvice.handleConflict</span> 가 메시지에 "Duplicate" 가 포함되면 <strong>409 COMMON:CONFLICT</strong> 로, 그 외(FK/NOT NULL 등)는 500 으로 변환한다.</div>
+
+      <div class="note warn"><span class="tag">평문 비밀번호 로깅 금지</span>비밀번호는 <span class="term">CredentialSecret</span> VO 로 감싸지며, 이 VO 의 <span class="term">toString()</span> 은 원문 대신 <strong>"[PROTECTED]"</strong> 를 반환한다. 또한 도메인 예외는 <span class="term">errorCode</span> 만 사용하고 사용자 입력값(이메일/loginId/비밀번호)을 <span class="term">customMessage</span> 에 끼워넣지 않는다 — advice 가 <span class="term">e.message</span> 를 로깅할 때 PII 가 로그에 남는 것을 막기 위함이다.</div>
+
+      <div class="note"><span class="tag">참고</span>비밀번호 형식 검증(8~16자 등)은 회원가입과 비밀번호 변경에서 동일한 <span class="term">PasswordValidator</span> 규칙을 공유하지만, 같은 형식 위반이 인증(로그인) 단계에서는 401 이 아니라 <strong>400</strong> 으로 자연 전파되는 등 컨텍스트별로 status 가 갈리는 것이 의도된 설계다.</div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서<br>
+    Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

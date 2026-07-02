@@ -13,6 +13,7 @@ enum class CouponErrorCode(
     MIN_ORDER_NOT_MET("최소 주문 금액을 충족하지 않습니다."),
     EXPIRED("만료된 쿠폰입니다."),
     ALREADY_USED("이미 사용된 쿠폰입니다."),
+    DISCOUNT_NOT_MATCHED("요청된 할인 금액과 실제 할인 금액이 일치하지 않습니다."),
     ;
 
     override val code: String

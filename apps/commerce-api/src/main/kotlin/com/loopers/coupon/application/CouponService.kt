@@ -65,16 +65,27 @@ class CouponService(
     }
 
     @Transactional
-    fun use(userId: Long, couponId: Long, orderAmount: Money, now: LocalDateTime): Money {
+    fun use(userId: Long, couponId: Long, orderAmount: Long, expectedDiscount: Long, now: LocalDateTime): Money {
         val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
             ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
         val coupon = couponRepository.findById(couponId)
             ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
 
         coupon.validateUsable(orderAmount, now)
+        val discount = DiscountPolicy.calculateDiscount(coupon.type, coupon.value, orderAmount)
+        if (discount.amount != expectedDiscount) {
+            throw ConflictException(CouponErrorCode.DISCOUNT_NOT_MATCHED)
+        }
         userCoupon.use(now)
 
-        return DiscountPolicy.calculateDiscount(coupon.type, coupon.value, orderAmount)
+        return discount
+    }
+
+    @Transactional
+    fun cancelUse(userId: Long, couponId: Long) {
+        val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        userCoupon.cancelUse()
     }
 }
 

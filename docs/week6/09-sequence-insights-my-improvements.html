@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시퀀스 인사이트 → 내 구현 반영 리포트</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--green-bg);
+    color:var(--green-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--green-deep)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--green-bg);border-color:#bcecd6;color:var(--green-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--green)}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--green-deep);background:var(--green-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--green);color:var(--green-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--green);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(21,196,126,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--green-deep);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--green);flex:none}
+  h3 .from{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--green-deep);
+    background:var(--green-bg);border-radius:9px;padding:3px 11px}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:22px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.good{background:var(--green-bg);border-color:#bcecd6}
+  .note.good .tag{color:var(--green-deep)} .note.good strong{color:var(--green-deep)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:22px 0}
+  .col{border-radius:16px;padding:18px 20px;font-size:14.5px;line-height:1.65}
+  .col h4{margin:0 0 8px;font-size:14px;font-weight:700}
+  .col.x{background:var(--g50);border:1px solid var(--g200)} .col.x h4{color:var(--g700)}
+  .col.o{background:var(--green-bg);border:1px solid #bcecd6} .col.o h4{color:var(--green-deep)}
+  .col.dn{background:var(--red-bg);border:1px solid #f8d4d4} .col.dn h4{color:var(--red-deep)}
+  .col ul{margin:0;padding-left:17px} .col li{margin:4px 0}
+  figure{margin:30px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;padding:30px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .svg-s{font-family:var(--mono);font-size:9.5px;font-weight:500}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:4px 8px;box-sizing:border-box;overflow:hidden;line-height:1.2;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:12px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:9px;color:var(--g600);margin-top:1px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .checklist{list-style:none;margin:22px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--white);
+    border-radius:7px;padding:2px 9px;float:right;margin-left:8px}
+  .checklist li .tag.p0{background:var(--red)} .checklist li .tag.p1{background:var(--blue)} .checklist li .tag.p2{background:var(--g400)}
+  .code{margin:22px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.7;color:#D1D6DB}
+  pre .cm{color:#6B7684;font-style:italic} pre .kw{color:#7DA9FF}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;text-decoration:none;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;font-weight:500;transition:.18s}
+  a.ref:hover{border-color:var(--green);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--green)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    .cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · 시퀀스 인사이트 → 내 반영</span>
+      <h1 class="title">남들 시퀀스에서 건진 것<br><span class="hl">내 코드에 무엇을 얹나</span></h1>
+      <p class="lede">11개 구현의 <b>결제·장애 시퀀스</b>에서 "생각해보면 좋은 지점"을 6개 패턴으로 추리고, 내 구현(2-PG failover + UNKNOWN)에 <b>무엇을·누구 걸·어떤 순서로</b> 얹을지 우선순위 백로그로 정리한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">건진 패턴</span><span class="v">6개</span></div>
+        <div class="chip"><span class="k">반영 백로그</span><span class="v">P0·P1·P2</span></div>
+        <div class="chip"><span class="k">목표</span><span class="v">47점 → 상위 티어</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="06-pg-feign-sequence.html"><span class="n">06</span>Feign 시퀀스</a>
+    <a href="07-payment-implementation.html"><span class="n">07</span>내 구현</a>
+    <a href="08-impl-evaluation-scored.html"><span class="n">08</span>채점 보고서</a>
+    <a class="cur" href="09-sequence-insights-my-improvements.html"><span class="n">09</span>인사이트·반영</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">시퀀스에서 건진 6패턴</a></li>
+      <li><a href="#s2">내 구현 현재 진단</a></li>
+      <li><a href="#s3">목표 통합 시퀀스</a></li>
+      <li><a href="#s4">반영 백로그 (P0·P1·P2)</a></li>
+      <li><a href="#refs">참고 (PR 출처)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">PATTERNS</p><h2 class="sec">시퀀스에서 건진 6패턴</h2></div>
+    </div>
+    <p class="lead">"이 화살표가 실패하면?"을 따라가면 좋은 설계가 드러난다. 11개 시퀀스를 겹쳐보고 추린 6가지.</p>
+
+    <h3>① 재시도는 시간이 아니라 멱등성으로 가른다<span class="from">minbo265 · 재희87 · sung260</span></h3>
+    <p>제출 화살표 <span class="term">POST /payments</span>가 실패했을 때, "실패했으니 재시도"가 아니라 <strong>"PG에 거래가 생겼을 수 있나?"</strong>로 갈라야 한다. 결제는 비멱등이라 timeout 재시도는 곧 이중결제다.</p>
+    <div class="cols">
+      <div class="col o"><h4>✓ 재시도해도 안전</h4><ul><li><b>5xx(거래 미생성 보장)</b> — minbo265는 <span class="term">HttpServerErrorException</span>만 화이트리스트</li><li>connection refused (호출 안 됨 확실) → 내 failover 와 동일 논리</li></ul></div>
+      <div class="col dn"><h4>✕ 재시도 금지</h4><ul><li><b>read timeout</b> — 거래가 생겼을 수 있음 → UNKNOWN/조회로</li><li>sung260은 POST 자체를 아예 무재시도 + 조회 복구</li></ul></div>
+    </div>
+
+    <h3>② 미확정(UNKNOWN)을 1급 상태로<span class="from">sung260 · kmkim266 · 나</span></h3>
+    <p>승인/실패만 있는 상태머신은 "타임아웃"을 표현할 곳이 없어 PENDING에 욱여넣는다. <strong>UNKNOWN을 별도 상태로 두면</strong> reconcile이 "확정 대기"와 "결과 모름"을 구분해 처리할 수 있다. sung260은 <span class="term">timeout→UNKNOWN</span>, kmkim266은 <span class="term">ABORTED+failureCode=null</span>, 내 구현은 <span class="term">UNKNOWN enum</span>. (단 1급으로 만들어도 ③ 없으면 영구 잔존.)</p>
+
+    <h3>③ reconcile은 transactionKey 유무로 두 갈래<span class="from">호준88 · sung260 · minbo265</span></h3>
+    <p>콜백이 유실되거나 타임아웃이 나면 회복 경로가 둘로 갈린다. 이 분기가 reconcile 설계의 핵심이다.</p>
+    <div class="cols">
+      <div class="col x"><h4>txKey 있음 (콜백 유실)</h4><ul><li><span class="term">GET /payments/{txKey}</span> 단건 조회</li><li>SUCCESS/FAILED면 확정</li></ul></div>
+      <div class="col o"><h4>txKey 없음 (타임아웃 거짓음성)</h4><ul><li><span class="term">GET /payments?orderId=</span> <b>역조회</b></li><li>거래 있으면 key 역채움 + 복구 / 없으면 grace 후 FAILED</li></ul></div>
+    </div>
+    <div class="note warn"><span class="tag">반면교사</span>재희87은 reconcile에 <strong>orderId 역조회가 없어</strong> PG-first로 생긴 고아 결제를 못 잡는다. Sooche262는 역조회 대신 <strong>재결제</strong>를 보내 이중결제. 역조회는 reconcile의 필수 절반이다.</div>
+
+    <h3>④ 거짓음성에는 grace를 줘라<span class="from">sung260</span></h3>
+    <p>orderId 역조회가 <span class="term">404 NOT_FOUND</span>라고 즉시 FAILED로 굳히면, PG가 늦게 반영 중인 거래를 실패로 오판한다. sung260은 <strong>NOT_FOUND + 활성상태 + 120s grace 경과</strong> 3조건을 모두 만족해야 실패 확정. 그 전엔 재예약. 성급한 확정을 막는 안전장치.</p>
+
+    <h3>⑤ 콜백은 못 믿는다 — 멱등 + 재조회 + 인증<span class="from">byun258 · 전원</span></h3>
+    <p>pg-simulator 콜백은 <strong>타임아웃도 재시도도 서명도 없다</strong>(<span class="term">runCatching</span>). 그래서 ⓐ 이미 종결 상태면 no-op(전원 공통), ⓑ byun258은 콜백 body status를 <strong>불신하고 txKey로 재조회</strong>해 위조 방어, ⓒ 다수가 콜백 인증을 비워둠(개선 여지). 콜백은 "힌트"고 진실은 조회다.</p>
+
+    <h3>⑥ 보상은 결제 실패 플로우의 일부다<span class="from">재희87</span></h3>
+    <p>FAILED 화살표 뒤에 <strong>재고·쿠폰 원복</strong>이 없으면, 주문 시 차감한 자원이 영구 누수된다. <strong>11명 중 8명이 이걸 빠뜨렸다</strong>. 재희87의 <span class="term">OrderCancellation</span>(재고+쿠폰+주문취소)만 플로우를 닫았다. 동시 중복결제는 별개로 <span class="term">order_id UNIQUE</span>(minbo265·sung260)가 INSERT에서 막는다.</p>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">DIAGNOSIS</p><h2 class="sec">내 구현 현재 진단</h2></div>
+    </div>
+    <p class="lead">채점(08)에서 47점. 축별로 보면 "기반은 최상위, 회복탄력성만 비었다"가 정확하다.</p>
+    <div class="cols">
+      <div class="col o"><h4>이미 가진 강점 (남들 없음)</h4><ul><li><b>2-PG failover</b> — 11명 중 유일</li><li><b>UNKNOWN 1급 enum</b> + 전이(UNKNOWN→SUCCESS/FAILED 이미 존재)</li><li><b>이중결제 함정 정책</b> — timeout·5xx는 failover 금지</li><li>Facade 무Tx + 분할 + PG 호출 Tx 밖 (C5 9/10)</li></ul></div>
+      <div class="col dn"><h4>비운 곳 (이 리포트의 대상)</h4><ul><li><b>reconcile 전무</b> (C2 2/20) — UNKNOWN이 영구 잔존</li><li>resilience4j 임계값 (C1 8/20)</li><li>재고/쿠폰 보상 (C3 6/15)</li><li>측정 근거 (C6 2/10)</li></ul></div>
+    </div>
+    <div class="note key"><span class="tag">핵심 진단</span>내가 만든 <strong>UNKNOWN 상태가 지금 가장 큰 역설</strong>이다 — 1급으로 모델링해놓고 그걸 해소할 <strong>reconcile이 없어</strong> 영영 UNKNOWN에 머문다. 그래서 P0는 resilience4j가 아니라 <strong>reconcile</strong>이다. 내 상태머신이 이미 받을 준비가 됐으므로 가성비도 최고다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">TARGET</p><h2 class="sec">목표 통합 시퀀스</h2></div>
+    </div>
+    <p class="lead">내 failover·UNKNOWN 골격 위에 ①~⑥을 얹은 지향 플로우. 각 화살표 옆 <span class="term">← 누구</span>가 차용 출처다.</p>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="TARGET FLOW">
+        <svg viewBox="0 0 1120 600" role="img" aria-label="목표 통합 결제 시퀀스. PaymentService가 order_id UNIQUE로 PENDING을 선저장하고, PgPaymentGateway가 @CircuitBreaker+@Retry(5xx만)로 PG-A를 호출한다. connection refused나 CB OPEN이면 PG-B로 failover, timeout이나 5xx면 markUnknown하고 failover를 금지한다. 콜백은 멱등 처리되고, PaymentReconciler 스케줄러가 txKey 유무로 단건조회 또는 orderId 역조회를 하며 NOT_FOUND는 120초 grace 후에만 FAILED로 확정하고 재고·쿠폰을 보상한다.">
+          <defs>
+            <marker id="t1" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- lifelines -->
+          <line x1="70" y1="58" x2="70" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <line x1="290" y1="58" x2="290" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <line x1="500" y1="58" x2="500" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <line x1="690" y1="58" x2="690" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <line x1="870" y1="58" x2="870" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <line x1="1050" y1="58" x2="1050" y2="590" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <!-- heads -->
+          <rect x="5" y="12" width="130" height="46" rx="12" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="5" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">클라이언트</div><div class="s">사용자</div></div></foreignObject>
+          <rect x="225" y="12" width="130" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="225" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">PaymentService</div><div class="s">@Transactional</div></div></foreignObject>
+          <rect x="435" y="12" width="130" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="435" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">PgPaymentGateway</div><div class="s">@CB + @Retry</div></div></foreignObject>
+          <rect x="625" y="12" width="130" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="625" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">PG-A</div><div class="s">:8082</div></div></foreignObject>
+          <rect x="805" y="12" width="130" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="805" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">PG-B</div><div class="s">:8092</div></div></foreignObject>
+          <rect x="985" y="12" width="130" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="985" y="12" width="130" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">Reconciler</div><div class="s">@Scheduled</div></div></foreignObject>
+          <!-- m1 -->
+          <text class="svg-l" x="180" y="88" text-anchor="middle" fill="#1B64DA">POST /payments {orderId, cardType, cardNo}</text>
+          <line x1="70" y1="96" x2="288" y2="96" stroke="#3182F6" stroke-width="1.8" marker-end="url(#t1)"/>
+          <!-- m2 self -->
+          <path d="M290 110 h46 v22 h-46" fill="none" stroke="#6B7684" stroke-width="1.6" marker-end="url(#t1)"/>
+          <text class="svg-s" x="344" y="122" fill="#4E5968">@Tx Payment(PENDING) 저장</text>
+          <text class="svg-s" x="344" y="134" fill="#0A8F5B">order_id UNIQUE 멱등  ← minbo265 · sung260</text>
+          <!-- m3 -->
+          <text class="svg-l" x="395" y="160" text-anchor="middle" fill="#1B64DA">submit(amount, callbackUrl)</text>
+          <line x1="290" y1="166" x2="498" y2="166" stroke="#3182F6" stroke-width="1.8" marker-end="url(#t1)"/>
+          <!-- m4 -->
+          <text class="svg-l" x="595" y="186" text-anchor="middle" fill="#0A8F5B">POST /payments · @CircuitBreaker + @Retry</text>
+          <text class="svg-s" x="595" y="198" text-anchor="middle" fill="#0A8F5B">5xx만 재시도 · timeout 제외  ← minbo265 · 재희87</text>
+          <line x1="500" y1="204" x2="688" y2="204" stroke="#15C47E" stroke-width="1.8" marker-end="url(#t1)"/>
+          <!-- alt frame -->
+          <rect x="440" y="218" width="660" height="148" rx="10" fill="none" stroke="#F04452" stroke-width="1.3"/>
+          <rect x="440" y="218" width="120" height="22" rx="6" fill="#FEEFEF" stroke="#F04452" stroke-width="1.1"/>
+          <text class="svg-s" x="452" y="233" fill="#C9303C" font-weight="700">alt · PG-A 응답 유형</text>
+          <!-- sec1 -->
+          <text class="svg-s" x="452" y="256" fill="#0A8F5B" font-weight="700">[200] Accepted(transactionKey) → accept</text>
+          <line x1="690" y1="262" x2="502" y2="262" stroke="#15C47E" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#t1)"/>
+          <line x1="440" y1="274" x2="1100" y2="274" stroke="#F04452" stroke-width="1" stroke-dasharray="6 4"/>
+          <!-- sec2 -->
+          <text class="svg-s" x="452" y="292" fill="#C9303C" font-weight="700">[connection refused · CB OPEN — 호출 안 됨 확실]</text>
+          <text class="svg-l" x="780" y="312" text-anchor="middle" fill="#0A8F5B">failover → PG-B  ← 내 정책(유일)</text>
+          <line x1="500" y1="318" x2="868" y2="318" stroke="#15C47E" stroke-width="1.8" marker-end="url(#t1)"/>
+          <text class="svg-s" x="780" y="336" text-anchor="middle" fill="#0A8F5B">200 {transactionKey}</text>
+          <line x1="870" y1="342" x2="502" y2="342" stroke="#15C47E" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#t1)"/>
+          <line x1="440" y1="350" x2="1100" y2="350" stroke="#F04452" stroke-width="1" stroke-dasharray="6 4"/>
+          <!-- sec3 -->
+          <text class="svg-s" x="452" y="363" fill="#C9303C" font-weight="700">[timeout · 전송 후 5xx — 됐을 수도] markUnknown() · ✕ failover 금지</text>
+          <!-- divider callback -->
+          <line x1="70" y1="392" x2="1100" y2="392" stroke="#D1D6DB" stroke-width="1" stroke-dasharray="6 4"/>
+          <text class="svg-s" x="70" y="386" fill="#1B64DA" font-weight="700">— 비동기 콜백 (멱등) —</text>
+          <text class="svg-l" x="480" y="414" text-anchor="middle" fill="#0A8F5B">POST /callback · 이미 종결이면 no-op  ← 전원 공통</text>
+          <line x1="690" y1="420" x2="292" y2="420" stroke="#15C47E" stroke-width="1.8" marker-end="url(#t1)"/>
+          <!-- divider reconcile -->
+          <line x1="70" y1="444" x2="1100" y2="444" stroke="#D1D6DB" stroke-width="1" stroke-dasharray="6 4"/>
+          <text class="svg-s" x="70" y="438" fill="#0A8F5B" font-weight="700">— reconcile 스케줄러 (내 UNKNOWN 해소) —</text>
+          <!-- r1 self reconciler leftward -->
+          <path d="M1050 456 h-44 v20 h44" fill="none" stroke="#6B7684" stroke-width="1.6" marker-end="url(#t1)"/>
+          <text class="svg-s" x="1000" y="468" text-anchor="end" fill="#4E5968">@Scheduled · stale UNKNOWN/PENDING 조회</text>
+          <!-- r2 reconciler→gateway -->
+          <text class="svg-s" x="775" y="496" text-anchor="middle" fill="#1B64DA">txKey 있음→GET /{key} · 없음→GET ?orderId= 역조회  ← 호준88 · sung260</text>
+          <line x1="1050" y1="502" x2="502" y2="502" stroke="#3182F6" stroke-width="1.8" marker-end="url(#t1)"/>
+          <!-- r3 self reconciler leftward -->
+          <path d="M1050 514 h-44 v20 h44" fill="none" stroke="#C9303C" stroke-width="1.6" marker-end="url(#t1)"/>
+          <text class="svg-s" x="1000" y="526" text-anchor="end" fill="#C9303C">NOT_FOUND 120s grace 후에만 FAILED 확정  ← sung260</text>
+          <!-- r4 reconciler→service -->
+          <text class="svg-l" x="660" y="556" text-anchor="middle" fill="#0A8F5B">확정(UNKNOWN→SUCCESS/FAILED) or 보상(재고+쿠폰 원복)  ← 재희87</text>
+          <line x1="1050" y1="562" x2="292" y2="562" stroke="#15C47E" stroke-width="1.8" marker-end="url(#t1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 내 골격(2-PG failover · UNKNOWN)은 그대로 두고, <b>녹색 차용 포인트</b>(멱등 재시도·역조회·grace·보상)를 얹는다. UNKNOWN이 reconcile로 흘러 확정되는 닫힌 고리가 핵심.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">BACKLOG</p><h2 class="sec">반영 백로그 (P0·P1·P2)</h2></div>
+    </div>
+    <p class="lead">우선순위는 "지금 가장 큰 구멍" + "내 기존 골격과의 접합 가성비" 순. P0는 reconcile이다.</p>
+    <ul class="checklist">
+      <li><span class="box"></span><b>reconcile 스케줄러 + orderId 역조회</b> — <span class="term">@Scheduled</span>로 stale UNKNOWN/PENDING 조회 → txKey 있으면 <span class="term">GET /{key}</span>, 없으면 <span class="term">GET ?orderId=</span> 역조회. 내 <span class="term">UNKNOWN→SUCCESS/FAILED</span> 전이가 이미 있어 접합 가성비 최고. <span class="tag p0">P0</span></li>
+      <li><span class="box"></span><b>NOT_FOUND grace</b> — 역조회 404를 즉시 FAILED로 안 굳히고, <em>활성상태 + N초 경과</em> 조건 후에만 확정. UNKNOWN 오판 방지. <span class="tag p0">P0</span></li>
+      <li><span class="box"></span><b>resilience4j @CircuitBreaker + @Retry</b> — Gateway 어댑터에. 재시도는 <b>5xx만 화이트리스트, timeout 제외</b>(내 failover 정책과 동일 철학). aspect 순서 @Retry⊃@CB. <span class="tag p1">P1</span></li>
+      <li><span class="box"></span><b>CB 실패율 임계 60~70</b> — pg-simulator 정상 실패율 40% 위로. 또는 <span class="term">record-exceptions</span> 화이트리스트로 인프라 예외만 집계. <span class="tag p1">P1</span></li>
+      <li><span class="box"></span><b>FAILED 보상 트랜잭션</b> — 재희87 <span class="term">OrderCancellation</span>처럼 재고+쿠폰 원복. 현재 Order만 FAILED라 자원 누수. <span class="tag p1">P1</span></li>
+      <li><span class="box"></span><b>order_id UNIQUE 동시결제 차단</b> — 활성 결제 1건 보장(INSERT 단계). check-then-act 대신 DB 제약. <span class="tag p1">P1</span></li>
+      <li><span class="box"></span><b>k6 부하테스트로 임계값 근거화</b> — 단, 호준88/재희87처럼 <b>본문↔코드 불일치를 내지 말 것</b>. 측정값과 yml을 일치시켜 커밋. <span class="tag p2">P2</span></li>
+      <li><span class="box"></span><b>콜백 재조회·인증</b> — body status 불신, txKey로 재확인(byun258). 콜백 서명/시크릿은 여건 되면. <span class="tag p2">P2</span></li>
+    </ul>
+    <div class="note good"><span class="tag">한 줄 결론</span>내 구현은 남이 안 한 걸 가졌고 남이 한 걸 비웠다. <strong>P0(reconcile+grace)만 채워도</strong> UNKNOWN 고리가 닫혀 C2가 2→15+로 뛰고 총점이 상위 티어권으로 올라간다. resilience4j(P1)는 그 위에 얹는 순서가 맞다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고 (PR 출처)</h2></div>
+    </div>
+    <p>차용 포인트는 전부 아래 PR의 실제 코드에서 확인한 패턴이다. 채점 근거는 <a href="08-impl-evaluation-scored.html" style="color:var(--green-deep);font-weight:700">08 채점 보고서</a> 참조.</p>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/260" target="_blank" rel="noopener"><span class="n">260</span><span class="b"><b>Java · sung260</b> — timeout=UNKNOWN 1급, NOT_FOUND 120s grace, 요청/조회 CB 분리, active_marker UNIQUE.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/260</span></span></a>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/265" target="_blank" rel="noopener"><span class="n">265</span><span class="b"><b>Java · minbo265</b> — 5xx만 화이트리스트 재시도, order_id UNIQUE 멱등, 스케줄러 역조회 + attempts 상한.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/265</span></span></a>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88" target="_blank" rel="noopener"><span class="n">88</span><span class="b"><b>Kotlin · 호준88</b> — PaymentReconciler 스케줄러 + orderId 역조회 + 멱등위반 알람, k6+Grafana.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/88</span></span></a>
+    <a class="ref primary" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87" target="_blank" rel="noopener"><span class="n">87</span><span class="b"><b>Kotlin · 재희87</b> — OrderCancellation(재고+쿠폰 보상), fallback is CoreException 분기, 화이트리스트 재시도.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-kotlin/pull/87</span></span></a>
+    <a class="ref" href="https://github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/258" target="_blank" rel="noopener"><span class="n">258</span><span class="b"><b>Java · byun258</b> — 콜백 body 불신 재조회, TimeLimiter 600ms, fallbackFactory 2단 분류, k6 6종.<span class="src">github.com/loopers-labs/loop-pack-be-l2-vol4-java/pull/258</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week6 · 시퀀스 인사이트 → 내 구현 반영 리포트<br>
+    근거: loopers-labs kotlin/java Volume6 PR diff · 08 채점 보고서
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

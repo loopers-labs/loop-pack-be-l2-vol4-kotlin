@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POST /api/v1/orders — commerce-api</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈 네비게이션. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>주문 · REST API</span>
+      <h1 class="title">POST<br><span class="hl">/api/v1/orders</span></h1>
+      <p class="lede">여러 상품·수량을 <b>하나의 주문</b>으로 생성한다. 상품 조회 · 금액 검증 · 쿠폰 할인 · 재고 차감을 <b>단일 트랜잭션</b>으로 묶는 교차 도메인 오케스트레이션.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">AUTH</span><span class="v">ACCOUNT_ID</span></div>
+        <div class="chip"><span class="k">REQUEST</span><span class="v">OrderCreateRequest</span></div>
+        <div class="chip"><span class="k">RESPONSE</span><span class="v">OrderCreateResponse</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="index.html"><span class="n">◆</span>인덱스</a>
+    <a href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a class="cur" href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요</a></li>
+      <li><a href="#s2">요청 · 응답</a></li>
+      <li><a href="#s3">시퀀스 다이어그램</a></li>
+      <li><a href="#s4">비즈니스 로직</a></li>
+      <li><a href="#s5">주의사항</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ===================== S1 개요 ===================== -->
+    <section id="s1" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">1</div>
+        <div>
+          <p class="sec-eyebrow">OVERVIEW</p>
+          <h2 class="sec">개요</h2>
+        </div>
+      </div>
+
+      <p class="lead">한 번의 요청으로 여러 상품·수량을 묶어 주문을 만든다. 인증된 사용자의 <span class="term">ACCOUNT_ID</span> 를 주체로, 상품 조회 → 금액 계산 → 기대 금액 검증 → 쿠폰 할인 → 재고 차감을 <strong>하나의 트랜잭션</strong> 안에서 순서대로 처리한다.</p>
+
+      <p>이 엔드포인트는 가장 복잡한 교차 도메인 흐름이다. 한 요청이 <strong>product · coupon · inventory · order</strong> 네 도메인의 애플리케이션 서비스를 차례로 호출하며, <span class="term">OrderFacade.place</span> 가 오케스트레이션과 트랜잭션 경계를 책임진다. 어느 단계든 실패하면 전체가 롤백되어 부분 반영이 남지 않는다.</p>
+
+      <div class="note key"><span class="tag">핵심</span>클라이언트가 보낸 <strong>expected* 금액 3종</strong>은 신뢰하지 않는다. 서버가 상품 가격·쿠폰으로 다시 계산한 금액과 다르면 <span class="term">PRICE_CHANGED</span> 로 거절한다. 가격 변동 중 주문을 막는 낙관적 방어선이다.</p></div>
+
+      <h3>관여 도메인</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>도메인</th><th>서비스</th><th>이 흐름에서의 책임</th></tr></thead>
+          <tbody>
+            <tr><td>order</td><td>OrderFacade · OrderService</td><td>오케스트레이션, 트랜잭션 경계, 금액 검증, 주문 저장</td></tr>
+            <tr><td>product</td><td>ProductService</td><td>주문 대상 활성 상품 일괄 조회 (가격 스냅샷 출처)</td></tr>
+            <tr><td>coupon</td><td>CouponService</td><td>쿠폰 유효성·소유 확인, 사용 처리, 할인액 계산</td></tr>
+            <tr><td>inventory</td><td>InventoryService</td><td>비관적 락 기반 재고 차감</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note"><span class="tag">참고</span>이 흐름에는 <strong>포인트 차감도, 도메인 이벤트 발행도 없다</strong>. 주문은 <span class="term">PENDING_PAYMENT</span> 상태로 생성될 뿐 결제·이벤트 처리는 이 엔드포인트의 책임이 아니다 (코드 기준).</div>
+    </section>
+
+    <!-- ===================== S2 요청·응답 ===================== -->
+    <section id="s2" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">2</div>
+        <div>
+          <p class="sec-eyebrow">REQUEST &amp; RESPONSE</p>
+          <h2 class="sec">요청 · 응답</h2>
+        </div>
+      </div>
+
+      <h3>요청 — OrderCreateRequest</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>items</td><td>List&lt;OrderLineRequest&gt;</td><td>주문 항목 목록. 비어 있으면 EMPTY_ORDER_ITEMS</td></tr>
+            <tr><td>couponId</td><td>Long?</td><td>적용할 쿠폰 ID. 없으면 null (할인 0)</td></tr>
+            <tr><td>expectedOriginalAmount</td><td>Long</td><td>클라이언트가 기대한 원금액 (서버 재계산값과 대조)</td></tr>
+            <tr><td>expectedDiscountAmount</td><td>Long</td><td>클라이언트가 기대한 할인액 (대조)</td></tr>
+            <tr><td>expectedTotalAmount</td><td>Long</td><td>클라이언트가 기대한 최종 결제액 (대조)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>OrderLineRequest — 주문 항목</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>productId</td><td>Long</td><td>주문할 상품 ID</td></tr>
+            <tr><td>quantity</td><td>Int</td><td>수량. 1 미만이면 INVALID_ORDER_QUANTITY</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>응답 — OrderCreateResponse</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>orderId</td><td>Long</td><td>생성된 주문 ID</td></tr>
+            <tr><td>status</td><td>OrderStatus</td><td>생성 직후 항상 PENDING_PAYMENT</td></tr>
+            <tr><td>originalAmount</td><td>Long</td><td>할인 전 원금액 (서버 계산값)</td></tr>
+            <tr><td>discountAmount</td><td>Long</td><td>적용된 할인액</td></tr>
+            <tr><td>totalAmount</td><td>Long</td><td>최종 결제액 = originalAmount − discountAmount</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>핸들러 시그니처</h3>
+      <div class="fn-card">
+        <div class="fn-sig"><span class="fn">order</span>(<span class="pa">userId</span>: Long, <span class="pa">request</span>: OrderCreateRequest) <span class="rt">→ OrderCreateResponse</span><span class="mut">MUTATES · DB I/O</span></div>
+        <div class="tbl-wrap"><table><tbody>
+          <tr><td>인증</td><td>@RequestAttribute(ACCOUNT_ID) userId — 인증 필터가 주입</td></tr>
+          <tr><td>위임</td><td>orderFacade.place(userId, request.toCommand())</td></tr>
+          <tr><td>변환</td><td>OrderCreateResponse.from(orderInfo) 로 응답 매핑</td></tr>
+        </tbody></table></div>
+      </div>
+
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">OrderController.kt</span>
+        </div>
+<pre><span class="kw">@PostMapping</span>
+<span class="kw">fun</span> <span class="fn">order</span>(
+    <span class="kw">@RequestAttribute</span>(ACCOUNT_ID) userId: <span class="ty">Long</span>,
+    <span class="kw">@RequestBody</span> request: <span class="ty">OrderCreateRequest</span>,
+): <span class="ty">OrderCreateResponse</span> =
+    OrderCreateResponse.<span class="fn">from</span>(orderFacade.<span class="fn">place</span>(userId, request.<span class="fn">toCommand</span>()))</pre>
+      </div>
+
+      <div class="note"><span class="tag">참고</span>컨트롤러는 <span class="term">OrderCreateResponse</span> 를 그대로 반환한다. 공통 <span class="term">ApiResponse</span> 래핑은 web 인프라의 <span class="term">ResponseBodyAdvice</span> 가 담당하므로 최종 본문은 <code>{ "meta": ..., "data": { ... } }</code> 형태로 감싸진다.</div>
+    </section>
+
+    <!-- ===================== S3 시퀀스 다이어그램 ===================== -->
+    <section id="s3" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">3</div>
+        <div>
+          <p class="sec-eyebrow">SEQUENCE</p>
+          <h2 class="sec">시퀀스 다이어그램</h2>
+        </div>
+      </div>
+
+      <p class="lead">한 번의 <span class="term">place()</span> 호출이 네 도메인을 순서대로 거친다. <strong>점선 박스 = 단일 @Transactional 경계</strong> — 그 안의 모든 DB 변경은 전부 커밋되거나 전부 롤백된다.</p>
+
+      <figure class="fig-wide">
+        <div class="fig-box" data-fig="SEQUENCE">
+          <svg viewBox="0 0 1120 880" role="img" aria-label="주문 생성 시퀀스: 클라이언트가 OrderController를 호출하면 OrderFacade가 단일 트랜잭션 안에서 ProductService로 활성 상품을 일괄 조회하고 원금액을 계산한 뒤, CouponService로 쿠폰 할인을 적용하고, OrderService에서 기대금액을 검증하며 주문을 저장하고, InventoryService가 비관적 락으로 재고를 차감한 다음, 커밋 후 응답을 반환한다">
+            <defs>
+              <marker id="s1arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+              <marker id="s1ret" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+
+            <!-- ===== 라이프라인 헤더 박스 (7개) ===== -->
+            <!-- Client -->
+            <rect x="14" y="14" width="120" height="48" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="74" y="43" text-anchor="middle" fill="#4E5968">Client</text>
+            <!-- OrderController -->
+            <rect x="166" y="14" width="138" height="48" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="235" y="37" text-anchor="middle" fill="#1B64DA">Order</text>
+            <text class="svg-t" x="235" y="54" text-anchor="middle" fill="#1B64DA">Controller</text>
+            <!-- OrderFacade -->
+            <rect x="336" y="14" width="138" height="48" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="405" y="37" text-anchor="middle" fill="#1B64DA">OrderFacade</text>
+            <text class="svg-s" x="405" y="53" text-anchor="middle" fill="#3182F6">application</text>
+            <!-- ProductService -->
+            <rect x="506" y="14" width="130" height="48" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="571" y="37" text-anchor="middle" fill="#4E5968">Product</text>
+            <text class="svg-t" x="571" y="54" text-anchor="middle" fill="#4E5968">Service</text>
+            <!-- CouponService -->
+            <rect x="668" y="14" width="126" height="48" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="731" y="37" text-anchor="middle" fill="#4E5968">Coupon</text>
+            <text class="svg-t" x="731" y="54" text-anchor="middle" fill="#4E5968">Service</text>
+            <!-- OrderService + Repository -->
+            <rect x="826" y="14" width="128" height="48" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="890" y="37" text-anchor="middle" fill="#1B64DA">OrderService</text>
+            <text class="svg-s" x="890" y="53" text-anchor="middle" fill="#3182F6">+ Repository</text>
+            <!-- InventoryService -->
+            <rect x="986" y="14" width="120" height="48" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="1046" y="37" text-anchor="middle" fill="#4E5968">Inventory</text>
+            <text class="svg-t" x="1046" y="54" text-anchor="middle" fill="#4E5968">Service</text>
+
+            <!-- ===== 라이프라인 점선 ===== -->
+            <line x1="74"   y1="62" x2="74"   y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="235"  y1="62" x2="235"  y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="405"  y1="62" x2="405"  y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="571"  y1="62" x2="571"  y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="731"  y1="62" x2="731"  y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="890"  y1="62" x2="890"  y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <line x1="1046" y1="62" x2="1046" y2="828" stroke="#D1D6DB" stroke-width="1.2" stroke-dasharray="5 4"/>
+
+            <!-- (0) Client → Controller -->
+            <line x1="74" y1="92" x2="229" y2="92" stroke="#6B7684" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="80" y="84" fill="#4E5968">POST /api/v1/orders</text>
+            <!-- (1) Controller → Facade -->
+            <line x1="235" y1="124" x2="399" y2="124" stroke="#6B7684" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="241" y="116" fill="#4E5968">place(userId, command)</text>
+
+            <!-- ===== @Transactional 경계 점선 박스 ===== -->
+            <rect x="356" y="148" width="752" height="568" rx="18" fill="none" stroke="#3182F6" stroke-width="1.6" stroke-dasharray="7 5"/>
+            <rect x="356" y="148" width="196" height="26" rx="9" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.1"/>
+            <text class="svg-l" x="368" y="166" fill="#1B64DA">@Transactional · OrderFacade.place</text>
+
+            <!-- (2) Facade: empty check (self) -->
+            <text class="svg-l" x="412" y="196" fill="#0A8F5B">① items 비어있음 검증 (EMPTY_ORDER_ITEMS)</text>
+
+            <!-- (3) Facade → ProductService -->
+            <line x1="405" y1="222" x2="565" y2="222" stroke="#15C47E" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="411" y="214" fill="#0A8F5B">② getActiveProducts(ids)</text>
+            <line x1="565" y1="248" x2="411" y2="248" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#s1ret)"/>
+            <text class="svg-l" x="430" y="264" fill="#6B7684">Map&lt;id, Product&gt; (없으면 PRODUCT_NOT_FOUND)</text>
+
+            <!-- (4) Facade: 원금액 계산 (self) -->
+            <text class="svg-l" x="412" y="296" fill="#0A8F5B">③ originalAmount = Σ price × quantity</text>
+
+            <!-- (5) Facade → CouponService (optional) -->
+            <line x1="405" y1="322" x2="725" y2="322" stroke="#15C47E" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="411" y="314" fill="#0A8F5B">④ use(userId, couponId, originalAmount, now) · couponId 있을 때만</text>
+            <line x1="725" y1="348" x2="411" y2="348" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#s1ret)"/>
+            <text class="svg-l" x="430" y="364" fill="#6B7684">discountAmount (validateUsable + UserCoupon.use)</text>
+
+            <!-- (6) Facade → OrderService.create -->
+            <line x1="405" y1="392" x2="884" y2="392" stroke="#15C47E" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="411" y="384" fill="#0A8F5B">⑤ create(userId, command, products, discountAmount)</text>
+
+            <!-- OrderService activation: validate + save -->
+            <rect x="876" y="410" width="28" height="92" rx="6" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.1"/>
+            <text class="svg-l" x="700" y="430" fill="#1B64DA">⑥ 기대금액 검증: expected* ≠ 재계산 → PRICE_CHANGED</text>
+            <text class="svg-l" x="700" y="452" fill="#1B64DA">⑦ Order.create(snapshots) · orderRepository.save</text>
+            <line x1="884" y1="474" x2="411" y2="474" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#s1ret)"/>
+            <text class="svg-l" x="500" y="490" fill="#6B7684">OrderInfo (status = PENDING_PAYMENT)</text>
+
+            <!-- (7) Facade → InventoryService -->
+            <line x1="405" y1="528" x2="1040" y2="528" stroke="#15C47E" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="411" y="520" fill="#0A8F5B">⑧ decreaseStock(lines) · 비관락은 맨 마지막</text>
+            <!-- Inventory activation: SELECT FOR UPDATE + decrease -->
+            <rect x="1032" y="546" width="28" height="92" rx="6" fill="#FEEFEF" stroke="#F04452" stroke-width="1.1"/>
+            <text class="svg-l" x="820" y="566" fill="#C9303C">⑨ SELECT … FOR UPDATE (productId 정렬)</text>
+            <text class="svg-l" x="820" y="588" fill="#C9303C">⑩ decrease() · 부족 시 STOCK_INSUFFICIENT</text>
+            <line x1="1032" y1="610" x2="411" y2="610" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#s1ret)"/>
+            <text class="svg-l" x="560" y="626" fill="#6B7684">stock decreased (dirty checking flush)</text>
+
+            <!-- COMMIT 라인 -->
+            <line x1="358" y1="678" x2="1106" y2="678" stroke="#15C47E" stroke-width="1.4" stroke-dasharray="3 3"/>
+            <text class="svg-l" x="412" y="700" fill="#0A8F5B">⑪ 모든 단계 성공 → COMMIT (실패 시 전체 ROLLBACK)</text>
+
+            <!-- (8) Facade → Controller return (밖) -->
+            <line x1="399" y1="744" x2="241" y2="744" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#s1ret)"/>
+            <text class="svg-l" x="250" y="736" fill="#6B7684">OrderInfo</text>
+            <!-- (9) Controller → Client -->
+            <line x1="229" y1="784" x2="80" y2="784" stroke="#1B64DA" stroke-width="2" marker-end="url(#s1arr)"/>
+            <text class="svg-l" x="86" y="776" fill="#1B64DA">200 · OrderCreateResponse (ApiResponse 래핑)</text>
+            <text class="svg-s" x="86" y="810" fill="#8B95A1">커밋 후 응답은 트랜잭션 경계 밖에서 매핑·반환</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 1.</b> 주문 생성 시퀀스. <b>파란 점선 박스</b>가 <span class="term">@Transactional</span> 경계 — ②~⑩ 의 모든 DB 변경이 ⑪ 에서 함께 커밋된다. <b>빨간 활성 막대</b>(InventoryService)가 비관적 락 구간이며 행 점유를 최소화하려 맨 마지막에 배치된다.</figcaption>
+      </figure>
+
+      <div class="note key"><span class="tag">핵심</span>재고 차감(비관적 락)이 <strong>일부러 마지막 단계</strong>다. <span class="term">OrderFacade</span> 주석 그대로 — "비관락(재고)은 맨 마지막 — 행 점유 시간 최소화". 락을 잡은 채로 상품 조회·금액 검증 같은 다른 작업을 기다리지 않게 한다.</div>
+    </section>
+
+    <!-- ===================== S4 비즈니스 로직 ===================== -->
+    <section id="s4" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">4</div>
+        <div>
+          <p class="sec-eyebrow">BUSINESS LOGIC</p>
+          <h2 class="sec">비즈니스 로직</h2>
+        </div>
+      </div>
+
+      <p class="lead">코드에서 확인된 단계만 순서대로 정리한다. 모든 단계는 <span class="term">OrderFacade.place</span> 의 단일 트랜잭션 안에서 실행된다.</p>
+
+      <ul class="checklist">
+        <li><span class="box"></span><b>① 인증</b> — 인증 필터가 주입한 <span class="term">@RequestAttribute(ACCOUNT_ID)</span> 로 주체 userId 확보.</li>
+        <li><span class="box"></span><b>② 빈 주문 검증</b> — <code>items</code> 가 비어 있으면 <span class="term">BadRequestException(EMPTY_ORDER_ITEMS)</span>.</li>
+        <li><span class="box"></span><b>③ 상품 일괄 조회·활성 확인</b> — <span class="term">ProductService.getActiveProducts(ids)</span> 가 활성 상품을 Map으로 반환. 요청 ID 중 하나라도 없으면 <span class="term">NotFoundException(PRODUCT_NOT_FOUND)</span>. 가격은 이 시점의 상품 가격을 스냅샷으로 사용.</li>
+        <li><span class="box"></span><b>④ 원금액 계산</b> — <code>originalAmount = Σ (상품 price × quantity)</code> 를 서버가 직접 계산.</li>
+        <li><span class="box"></span><b>⑤ 쿠폰 적용 (선택)</b> — <code>couponId</code> 가 있을 때만 <span class="term">CouponService.use</span> 호출. 사용자 보유 쿠폰 조회(없으면 COUPON_NOT_FOUND), <span class="term">validateUsable</span> 로 최소주문금액(MIN_ORDER_NOT_MET)·만료(EXPIRED) 검증, 이미 사용 시 ALREADY_USED, 그 후 할인액 계산. 없으면 할인 0.</li>
+        <li><span class="box"></span><b>⑥ 기대 금액 검증</b> — <span class="term">OrderService.create</span> 가 재계산한 <code>original·discount·total</code> 과 요청의 <code>expected*</code> 3종이 하나라도 다르면 <span class="term">ConflictException(PRICE_CHANGED)</span>. 클라이언트 금액은 신뢰하지 않는다.</li>
+        <li><span class="box"></span><b>⑦ 주문 저장</b> — <span class="term">Order.create(userId, snapshots, couponId, discountAmount)</span> 로 항목·금액·할인을 채우고 <span class="term">orderRepository.save</span>. 초기 상태는 <span class="term">PENDING_PAYMENT</span>.</li>
+        <li><span class="box"></span><b>⑧ 재고 차감 (비관적 락)</b> — <span class="term">InventoryService.decreaseStock</span> 가 <span class="term">SELECT … FOR UPDATE</span> (<span class="term">PESSIMISTIC_WRITE</span>) 로 재고 행을 productId 정렬 순서로 잠그고 <span class="term">decrease()</span>. 재고 부족 시 <span class="term">ConflictException(STOCK_INSUFFICIENT)</span>, 행 없으면 INVENTORY_NOT_FOUND.</li>
+        <li><span class="box"></span><b>⑨ 원자적 커밋</b> — 위 모든 단계가 성공하면 트랜잭션이 커밋된다. 어느 단계든 예외가 나면 <strong>전체 롤백</strong> — 주문도 재고도 쿠폰 사용도 반영되지 않는다.</li>
+      </ul>
+
+      <h3>할인 계산 규칙</h3>
+      <div class="note"><span class="tag">참고</span><span class="term">DiscountPolicy.calculateDiscount</span> — <strong>RATE</strong>: <code>price × value / 100</code>, <strong>FIXED</strong>: <code>value</code>. 두 경우 모두 <code>minOf(raw, price)</code> 로 캡 — 할인이 주문 금액을 넘지 않는다.</div>
+
+      <h3>주문 상태 전이</h3>
+      <div class="note"><span class="tag">참고</span>생성 직후 <span class="term">PENDING_PAYMENT</span>. 이후 <span class="term">PAID</span> / <span class="term">FAILED</span> / <span class="term">UNKNOWN</span> 로만 전이 가능하며, <span class="term">PAID</span>·<span class="term">FAILED</span> 는 종착 상태다. 잘못된 전이는 <span class="term">INVALID_STATUS_TRANSITION</span>. (이 엔드포인트는 PENDING_PAYMENT 생성까지만 책임)</div>
+
+      <h3>주요 에러 코드</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>코드</th><th>상황</th><th>예외 타입</th></tr></thead>
+          <tbody>
+            <tr><td>ORDER:EMPTY_ORDER_ITEMS</td><td>주문 항목이 비어 있음</td><td>BadRequestException</td></tr>
+            <tr><td>ORDER:INVALID_ORDER_QUANTITY</td><td>수량 1 미만</td><td>BadRequestException</td></tr>
+            <tr><td>PRODUCT:PRODUCT_NOT_FOUND</td><td>활성 상품 누락</td><td>NotFoundException</td></tr>
+            <tr><td>COUPON:MIN_ORDER_NOT_MET</td><td>최소 주문 금액 미달</td><td>BadRequestException</td></tr>
+            <tr><td>COUPON:EXPIRED</td><td>만료된 쿠폰</td><td>BadRequestException</td></tr>
+            <tr><td>COUPON:ALREADY_USED</td><td>이미 사용한 쿠폰</td><td>ConflictException</td></tr>
+            <tr><td>ORDER:PRICE_CHANGED</td><td>expected* ≠ 서버 재계산</td><td>ConflictException</td></tr>
+            <tr><td>INVENTORY:STOCK_INSUFFICIENT</td><td>재고 부족</td><td>ConflictException</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details class="tg">
+        <summary><span class="tw">심화</span>금액 검증은 왜 OrderService 안에서 일어나나<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+        <div class="tg-body">
+          <p><span class="term">OrderFacade</span> 는 상품 Map과 할인액을 모은 뒤 <span class="term">OrderService.create</span> 에 넘긴다. create 가 스냅샷 기준으로 <code>originalAmount</code> 와 <code>totalAmount = original − discount</code> 를 다시 계산하고, 이 세 값이 요청의 <code>expected*</code> 와 일치하는지 마지막으로 검산한다. 즉 금액 진실의 출처는 항상 서버이고, 클라이언트 값은 "내가 본 가격이 맞나" 확인용일 뿐이다.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ===================== S5 주의사항 ===================== -->
+    <section id="s5" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">5</div>
+        <div>
+          <p class="sec-eyebrow">CAUTION</p>
+          <h2 class="sec">주의사항</h2>
+        </div>
+      </div>
+
+      <div class="note warn"><span class="tag">주의 · 동시성</span>재고 차감은 <strong>비관적 쓰기 락(PESSIMISTIC_WRITE)</strong> 으로 보호된다. JPQL <code>SELECT … FOR UPDATE</code> 에 <strong><code>ORDER BY productId</code></strong> 를 강제해 여러 주문이 동일 상품 집합을 교차로 잠글 때 <strong>데드락</strong>을 막는다 (락 획득 순서 통일). 락 구간은 트랜잭션 맨 마지막에 두어 행 점유 시간을 최소화한다.</div>
+
+      <div class="note warn"><span class="tag">주의 · 금액 신뢰</span><strong>expected* 금액을 그대로 믿으면 안 된다.</strong> 결제액·할인액은 서버가 상품 가격과 쿠폰으로 재계산한 값이 진실이고, 요청의 expected* 는 대조용 방어선이다. 불일치 시 <span class="term">PRICE_CHANGED</span> 로 거절해 가격 변동 중 잘못된 금액의 주문 성립을 막는다.</div>
+
+      <div class="note warn"><span class="tag">주의 · 부분 실패</span>상품 조회 · 쿠폰 사용 · 주문 저장 · 재고 차감이 <strong>하나의 트랜잭션</strong>이다. 마지막 재고 차감에서 STOCK_INSUFFICIENT 가 나면 앞서 처리된 <strong>쿠폰 사용(UserCoupon.use)과 주문 저장까지 전부 롤백</strong>된다. 부분 반영(쿠폰만 소진, 주문만 생성 등)은 발생하지 않는다.</div>
+
+      <div class="note"><span class="tag">참고 · 확장 지점</span><span class="term">OrderFacade</span> 주석에 따르면 추후 PG 연동(O-F1) 시 트랜잭션 구간을 안쪽 메서드로 분리하고 외부 호출은 트랜잭션 밖에 둘 예정이다. 현재 코드에는 외부 결제 호출·포인트 차감·도메인 이벤트 발행이 <strong>존재하지 않는다</strong>.</div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서<br>
+    Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>commerce-api · REST API 인덱스</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>commerce-api · REST API</span>
+      <h1 class="title">API<br><span class="hl">인덱스</span></h1>
+      <p class="lede">commerce-api 가 노출하는 <b>모든 REST 엔드포인트</b>를 도메인별로 모았습니다. 각 행의 <b>경로</b>나 <b>문서 →</b> 를 누르면 시퀀스 다이어그램과 비즈니스 로직이 담긴 상세 페이지로 이동합니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">ENDPOINTS</span><span class="v">8개</span></div>
+        <div class="chip"><span class="k">DOMAINS</span><span class="v">계정 · 상품 · 주문 · 쿠폰</span></div>
+        <div class="chip"><span class="k">ACCESS</span><span class="v">공개 3 · 인증 3 · 관리자 2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a class="cur" href="index.html"><span class="n">◆</span>인덱스</a>
+    <a href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요 · 읽는 법</a></li>
+      <li><a href="#s2">계정 (Account)</a></li>
+      <li><a href="#s3">상품 (Product)</a></li>
+      <li><a href="#s4">주문 (Order)</a></li>
+      <li><a href="#s5">쿠폰 (Coupon)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 개요 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">OVERVIEW</p><h2 class="sec">개요 · 읽는 법</h2></div>
+    </div>
+
+    <p class="lead">commerce-api(단일 앱)가 외부로 노출하는 HTTP 엔드포인트는 총 8개, 4개 도메인입니다.</p>
+    <p>코드는 Clean Architecture 레이어(<span class="term">interfaces → application → domain → infrastructure</span>)로 나뉘어 있고, 각 상세 페이지는 그 흐름을 <strong>레이어 시퀀스 다이어그램</strong>으로 그린 뒤 검증·예외·트랜잭션·동시성까지 설명합니다. 성공 응답은 모두 <span class="term">ApiResponseBodyAdvice</span> 가 공통 <span class="term">ApiResponse</span>(isSuccess · status · code · message · data · timestamp) 로 감쌉니다.</p>
+
+    <div class="note key"><span class="tag">접근 권한 범례</span><strong>공개</strong> — 인증 없이 호출(<span class="term">permitAll</span>). · <strong>인증</strong> — <span class="term">X-Loopers-LoginId</span>/<span class="term">X-Loopers-LoginPw</span> 헤더를 <span class="term">AccountHeaderAuthenticationFilter</span> 가 검증해 <span class="term">ACCOUNT_ID</span>/<span class="term">LOGIN_ID</span> 를 주입. · <strong>관리자</strong> — <span class="term">/api-admin/v1/**</span>, <span class="term">AdminLdapAuthenticationFilter</span> 가 <span class="term">X-Loopers-Ldap</span> 헤더 + 자격증명 + <strong>role == ADMIN</strong> 까지 검증(아니면 401).</div>
+
+    <div class="note"><span class="tag">REST 미노출 내부 도메인</span><span class="term">brand</span> · <span class="term">like</span> · <span class="term">inventory</span> 는 application/domain 계층만 존재하고 <strong>독립 컨트롤러가 없습니다</strong>. 브랜드명은 상품 상세에 실려 나가고(<a href="product-detail.html" style="color:var(--blue-deep);text-decoration:none;font-weight:600">상품 상세 →</a>), 재고 차감은 주문 생성 트랜잭션 안에서 일어납니다(<a href="order-create.html" style="color:var(--blue-deep);text-decoration:none;font-weight:600">주문 생성 →</a>). <span class="term">commerce-batch</span>/<span class="term">commerce-streamer</span> 모듈은 HTTP 엔드포인트가 없습니다(배치 · Kafka).</div>
+  </section>
+
+  <!-- ===================== S2 계정 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">ACCOUNT</p><h2 class="sec">계정</h2></div>
+    </div>
+
+    <p class="lead">회원가입 · 내 정보 조회 · 비밀번호 변경. 외부 라우트는 <span class="term">/api/v1/users</span>, 내부 도메인 명칭은 <span class="term">account</span> 입니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>메서드 · 경로</th><th>설명</th><th>접근</th><th>문서</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="account-register.html" style="color:var(--g900);text-decoration:none">POST /api/v1/users</a></td>
+            <td>회원가입 — loginId · email · password · name · birthDate 검증 후 계정 + 자격증명 생성</td>
+            <td>공개</td>
+            <td><a href="account-register.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+          <tr>
+            <td><a href="account-me.html" style="color:var(--g900);text-decoration:none">GET /api/v1/users/me</a></td>
+            <td>내 정보 조회 — 인증된 사용자 본인의 프로필(이름 마스킹)</td>
+            <td>인증</td>
+            <td><a href="account-me.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+          <tr>
+            <td><a href="account-change-password.html" style="color:var(--g900);text-decoration:none">PUT /api/v1/users/password</a></td>
+            <td>비밀번호 변경 — 현재 비밀번호 검증 후 새 비밀번호로 교체</td>
+            <td>인증</td>
+            <td><a href="account-change-password.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== S3 상품 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">PRODUCT</p><h2 class="sec">상품</h2></div>
+    </div>
+
+    <p class="lead">상품 목록(키셋 커서 페이지네이션) · 상품 상세. Week 5 "조회 병목 해결"의 핵심 읽기 경로입니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>메서드 · 경로</th><th>설명</th><th>접근</th><th>문서</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="product-list.html" style="color:var(--g900);text-decoration:none">GET /api/v1/products</a></td>
+            <td>상품 목록 — 정렬(LATEST · PRICE_ASC · LIKES_DESC) · 브랜드 필터 · 불투명 base64 커서 · size 1~100. 키셋(seek) 방식</td>
+            <td>공개</td>
+            <td><a href="product-list.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+          <tr>
+            <td><a href="product-detail.html" style="color:var(--g900);text-decoration:none">GET /api/v1/products/{productId}</a></td>
+            <td>상품 상세 — 단건 조회 + 브랜드명 결합. 미존재 시 404</td>
+            <td>공개</td>
+            <td><a href="product-detail.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== S4 주문 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">ORDER</p><h2 class="sec">주문</h2></div>
+    </div>
+
+    <p class="lead">주문 생성. 상품 조회 · 금액 검증 · 쿠폰 적용 · 재고 차감(비관적 락)이 하나의 트랜잭션에서 일어나는, 가장 복잡한 교차 도메인 흐름입니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>메서드 · 경로</th><th>설명</th><th>접근</th><th>문서</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="order-create.html" style="color:var(--g900);text-decoration:none">POST /api/v1/orders</a></td>
+            <td>주문 생성 — 다중 상품 · 선택 쿠폰 · 기대 금액 3종 검증. 서버 재계산 불일치 시 409(PRICE_CHANGED), 재고 차감은 비관적 락. 상태 PENDING_PAYMENT 까지 생성</td>
+            <td>인증</td>
+            <td><a href="order-create.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== S5 쿠폰 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">COUPON · ADMIN</p><h2 class="sec">쿠폰</h2></div>
+    </div>
+
+    <p class="lead">쿠폰 정책 생성 · 사용자에게 발급. 둘 다 <span class="term">/api-admin/v1/**</span> 관리자 전용 경로입니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>메서드 · 경로</th><th>설명</th><th>접근</th><th>문서</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="coupon-create.html" style="color:var(--g900);text-decoration:none">POST /api-admin/v1/coupons</a></td>
+            <td>쿠폰 생성 — 할인 타입(FIXED · RATE) · 값 · 만료일 · 최소 주문 금액. 발급 가능한 쿠폰 템플릿 정의</td>
+            <td>관리자</td>
+            <td><a href="coupon-create.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+          <tr>
+            <td><a href="coupon-grant.html" style="color:var(--g900);text-decoration:none">POST /api-admin/v1/coupons/{couponId}/grant</a></td>
+            <td>쿠폰 발급 — 특정 사용자에게 지급(UserCoupon 생성). 만료 · 중복 발급 검증</td>
+            <td>관리자</td>
+            <td><a href="coupon-grant.html" style="color:var(--blue-deep);text-decoration:none">문서 →</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서 인덱스<br>
+    8 엔드포인트 · 4 도메인 · Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

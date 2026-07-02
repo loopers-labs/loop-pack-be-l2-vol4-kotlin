@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>결제창(SDK) 결제 흐름 와이어프레임 — 화면·데이터·의미</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>PG 연동 · 결제창(SDK) 방식</span>
+      <h1 class="title">결제창 결제는<br><span class="hl">화면·데이터·의미</span>로 본다</h1>
+      <p class="lede">실무 B2C 결제(토스·포트원 같은 결제창 방식)에서 <b>사용자가 보는 5개 화면</b>과, 그 뒤에서 <b>브라우저·서버·PG가 주고받는 데이터</b>, 그리고 각 데이터의 <b>의미</b>를 한 장에 정리합니다. 핵심은 하나 — <b>결제 확정의 주체는 클라이언트가 아니라 서버(confirm)</b>입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">결제창 결제 흐름</span></div>
+        <div class="chip"><span class="k">대비</span><span class="v">과제 = 직접연동(서버→PG)</span></div>
+        <div class="chip"><span class="k">기반</span><span class="v">내 학습노트 2종</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">전체 플로우 (화면+서버+PG)</a></li>
+      <li><a href="#s2">무슨 데이터가 오가나 (시퀀스)</a></li>
+      <li><a href="#s3">데이터 한눈에 보기 (표)</a></li>
+      <li><a href="#s4">금액은 사실 여러 개다</a></li>
+      <li><a href="#s5">왜 서버가 confirm 하나</a></li>
+      <li><a href="#s6">과제(직접연동)와 뭐가 다른가</a></li>
+      <li><a href="#s7">과제 PG 연동 — 전체 플로우</a></li>
+      <li><a href="#s8">결제 생태계 — 승인·매입·정산</a></li>
+      <li><a href="#s9">pg-simulator 응답 케이스 (MECE)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ============ S1 : 화면 5개 ============ -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">FULL FLOW</p><h2 class="sec">전체 플로우 (화면 + 서버·PG 처리)</h2></div>
+    </div>
+    <p class="lead">왼쪽 위부터 8칸이 차례로 흐릅니다(2줄). <em>폰 화면 → 서버 처리 → 폰 화면 → PG 처리</em>가 핑퐁하며, 서버·PG 칸엔 <strong>안에서 무슨 처리를 하는지</strong>, 화살표 대신 각 칸에 <strong>받는/보내는 데이터</strong>를 적었습니다.</p>
+    <p>두 가지만 먼저 박아두세요. <strong>③ 결제창은 내 서비스가 아니라 PG가 그려주는 화면</strong>이고, <strong>⑥ 서버 confirm이 돈이 실제로 빠지는 단 하나의 지점</strong>입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.1 — STORYBOARD">
+        <svg viewBox="0 0 1160 720" role="img" aria-label="결제창 결제 전체 플로우 스토리보드: 폰 화면과 서버·PG 처리 모형이 8칸으로 핑퐁하는 흐름">
+          <defs>
+            <marker id="ahb" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#3182F6"/></marker>
+            <marker id="ahd" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#B0B8C1"/></marker>
+          </defs>
+
+          <!-- ============ ROW 1 ============ -->
+          <!-- N1 폰 주문서 -->
+          <foreignObject x="10" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">1</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">주문서</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column">
+                <div style="font-size:9px;font-weight:800;color:var(--g800);margin-bottom:5px">🛍 주문서</div>
+                <div style="font-size:8.5px;color:var(--g600)">에어팟 프로 · 1개</div>
+                <div style="margin-top:auto">
+                  <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:800;color:var(--g900);margin-bottom:6px"><span>결제금액</span><span>58,000원</span></div>
+                  <div style="background:var(--blue);color:#fff;text-align:center;font-size:9px;font-weight:800;padding:6px;border-radius:7px">결제하기</div>
+                </div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--blue-deep)">→ 보냄: 주문 {상품, 수량}</div>
+            </div>
+          </foreignObject>
+
+          <!-- N2 서버 처리 -->
+          <foreignObject x="294" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g300);border-radius:16px;background:var(--g50);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--g800);border-radius:6px;padding:2px 7px">2</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--g800);border-radius:5px;padding:2px 6px">🖥 서버</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">주문 생성</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.85">
+                <div>① 주문 엔티티 생성</div>
+                <div>② 금액 <b style="color:var(--g900)">(B)</b> 계산·확정</div>
+                <div>③ status = <b style="color:var(--g900)">PENDING</b> 저장</div>
+                <div>④ <b style="color:var(--g900)">orderId</b> 발급</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g200);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 받음: 주문요청</div>
+                <div style="color:var(--blue-deep)">→ 보냄: {orderId, 금액 B}</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- N3 폰 결제창 -->
+          <foreignObject x="578" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">3</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">결제창 <span style="color:var(--red-deep);font-size:9px">(PG가 그림)</span></span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column">
+                <div style="font-size:9px;font-weight:800;color:var(--blue-deep);margin-bottom:5px">🔒 PG 결제창</div>
+                <div style="display:flex;gap:4px;margin-bottom:7px">
+                  <span style="font-size:8px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 5px">삼성</span>
+                  <span style="font-size:8px;color:var(--g600);background:#fff;border:1px solid var(--g200);border-radius:5px;padding:2px 5px">현대</span>
+                  <span style="font-size:8px;color:var(--g600);background:#fff;border:1px solid var(--g200);border-radius:5px;padding:2px 5px">국민</span>
+                </div>
+                <div style="border:1px solid var(--g300);border-radius:6px;padding:6px;font-family:var(--mono);font-size:8.5px;color:var(--g700);background:#fff">1234 56●● ●●●●</div>
+                <div style="margin-top:auto;background:var(--blue);color:#fff;text-align:center;font-size:9px;font-weight:800;padding:6px;border-radius:7px">인증하기</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55">
+                <div style="color:var(--green-deep)">→ PG로: requestPayment {orderId, 금액, 카드정보}</div>
+                <div style="color:var(--g600)">🔑 클라이언트 키(공개) · 카드주인은 결제창서 인증</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- N4 PG 처리 -->
+          <foreignObject x="862" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid #bdebd6;border-radius:16px;background:var(--green-bg);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:6px;padding:2px 7px">4</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:5px;padding:2px 6px">🏦 PG</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">PG 처리</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #bdebd6;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.85">
+                <div>① 카드 인증 <span style="color:var(--g500)">(결제자 식별)</span></div>
+                <div>② <b style="color:var(--g900)">paymentKey</b> 발급</div>
+                <div style="color:var(--red-deep);font-weight:700">③ 아직 미차감!</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #bdebd6;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 받음: 결제요청+카드</div>
+                <div style="color:var(--g700)">→ redirect {paymentKey, 금액 C}</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- ============ ROW 2 ============ -->
+          <!-- N5 폰 복귀 -->
+          <foreignObject x="10" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">5</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">복귀 화면</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+                <div style="width:34px;height:34px;border-radius:50%;border:4px solid var(--g200);border-top-color:var(--blue);margin-bottom:10px"></div>
+                <div style="font-size:9px;font-weight:700;color:var(--g800)">결제 확인 중…</div>
+                <div style="font-size:8px;color:var(--g500);margin-top:4px">successUrl로 복귀됨</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--blue-deep)">→ 서버로: {paymentKey, orderId, 금액 C}</div>
+            </div>
+          </foreignObject>
+
+          <!-- N6 서버 confirm ★ -->
+          <foreignObject x="294" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:2px solid var(--blue);border-radius:16px;background:var(--blue-bg2);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">6 ★</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--g800);border-radius:5px;padding:2px 6px">🖥 서버</span>
+                <span style="font-size:11px;font-weight:800;color:var(--blue-deep);margin-left:auto">검증·승인</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #cfe4ff;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.8">
+                <div>① 금액 검증 <b style="color:var(--red-deep)">B == C ?</b></div>
+                <div>② PG에 <b style="color:var(--blue-deep)">confirm</b> 호출</div>
+                <div>③ 응답 → status <b style="color:var(--g900)">PAID</b></div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #cfe4ff;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 받음: {paymentKey, 금액 C}</div>
+                <div style="color:var(--blue-deep);font-weight:700">→ PG로: confirm {paymentKey, 금액}</div>
+                <div style="color:var(--g600)">🔑 시크릿 키(서버 전용·강한 키)</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- N7 PG 차감 -->
+          <foreignObject x="578" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid #bdebd6;border-radius:16px;background:var(--green-bg);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:6px;padding:2px 7px">7</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:5px;padding:2px 6px">🏦 PG</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">실제 차감</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #bdebd6;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.85">
+                <div style="color:var(--green-deep);font-weight:700">① 실제 카드 차감 💳</div>
+                <div>② 승인번호 발급</div>
+                <div>③ 결제 확정</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #bdebd6;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 받음: confirm 요청</div>
+                <div style="color:var(--g700)">→ 서버로: {status:DONE, 승인번호}</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- N8 폰 완료 -->
+          <foreignObject x="862" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">8</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">완료</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;color:var(--green-deep);font-size:18px;font-weight:800;margin-bottom:9px">✓</div>
+                <div style="font-size:11px;font-weight:800;color:var(--g900)">결제 완료</div>
+                <div style="font-size:9px;color:var(--g700);margin-top:3px;font-weight:700">58,000원</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--g500)">← 받음: 결과 → 화면 갱신</div>
+            </div>
+          </foreignObject>
+
+          <!-- arrows row1 -->
+          <path d="M272,165 L290,165" stroke="#3182F6" stroke-width="2.5" marker-end="url(#ahb)"/>
+          <path d="M556,165 L574,165" stroke="#B0B8C1" stroke-width="2.5" marker-end="url(#ahd)"/>
+          <path d="M840,165 L858,165" stroke="#3182F6" stroke-width="2.5" marker-end="url(#ahb)"/>
+          <!-- wrap N4 -> N5 -->
+          <path d="M992,314 L992,355 L140,355 L140,396" fill="none" stroke="#B0B8C1" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#ahd)"/>
+          <text x="566" y="349" text-anchor="middle" class="svg-s" fill="#6B7684">④ 리다이렉트 (인증결과를 들고 내 서비스로 복귀)</text>
+          <!-- arrows row2 -->
+          <path d="M272,545 L290,545" stroke="#3182F6" stroke-width="2.5" marker-end="url(#ahb)"/>
+          <path d="M556,545 L574,545" stroke="#3182F6" stroke-width="3.5" marker-end="url(#ahb)"/>
+          <path d="M840,545 L858,545" stroke="#B0B8C1" stroke-width="2.5" marker-end="url(#ahd)"/>
+        </svg>
+      </div>
+      <figcaption>그림 1. <b>📱폰 화면</b>과 <b>🖥서버·🏦PG 처리 모형</b>이 8칸으로 핑퐁. 각 칸의 <b>← 받음 / → 보냄</b>이 오가는 데이터다. <b>파란 테두리(⑥)</b>의 confirm에서만 실제 차감이 일어난다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">먼저 박아둘 것</span>결제창(③)은 <strong>내 서비스가 아니라 PG가 그린 화면</strong>이라 카드번호가 내 서버를 안 거칩니다(그래서 PCI-DSS 부담을 PG로 넘김). 그리고 화면이 "완료"처럼 보여도 <strong>확정의 주체는 서버의 confirm(⑥)</strong>입니다.</div>
+    <div class="note"><span class="tag">🔑 인증(키)이 흐름 어디에 붙나</span><strong>③ 결제창은 클라이언트 키(공개)</strong>로 띄우고 카드 주인은 그 안에서 인증합니다. <strong>⑥ confirm은 시크릿 키(서버 전용)</strong>로 호출 — 그래서 클라이언트 키가 노출돼도 돈은 못 움직입니다. <strong>키 = "어느 회사"</strong>, <strong>카드 인증 = "누가 결제하는지"</strong>를 식별합니다.</div>
+  </section>
+
+  <!-- ============ S2 : 데이터 시퀀스 ============ -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">DATA ON THE WIRE</p><h2 class="sec">무슨 데이터가 오가나</h2></div>
+    </div>
+    <p class="lead">화면 뒤에서 <em>브라우저 · 서버 · PG</em> 세 주체가 주고받는 메시지입니다. 실선은 요청, 점선은 응답/통지.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.2 — SEQUENCE">
+        <svg viewBox="0 0 1160 620" role="img" aria-label="브라우저 서버 PG 사이의 결제 데이터 시퀀스 다이어그램">
+          <defs>
+            <marker id="s2b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#3182F6"/></marker>
+            <marker id="s2g" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"/></marker>
+            <marker id="s2v" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#15C47E"/></marker>
+          </defs>
+
+          <!-- lane headers -->
+          <rect x="60" y="18" width="200" height="42" rx="12" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <text x="160" y="44" text-anchor="middle" class="svg-l" fill="#1B64DA">브라우저 (사용자)</text>
+          <rect x="480" y="18" width="200" height="42" rx="12" fill="#191F28"/>
+          <text x="580" y="44" text-anchor="middle" class="svg-l" fill="#fff">내 서버 (Spring)</text>
+          <rect x="900" y="18" width="200" height="42" rx="12" fill="#E7F9F1" stroke="#bdebd6"/>
+          <text x="1000" y="44" text-anchor="middle" class="svg-l" fill="#0A8F5B">PG사</text>
+
+          <!-- lifelines -->
+          <line x1="160" y1="62" x2="160" y2="600" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="3 4"/>
+          <line x1="580" y1="62" x2="580" y2="600" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="3 4"/>
+          <line x1="1000" y1="62" x2="1000" y2="600" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+          <!-- 1: browser -> server -->
+          <text x="370" y="92" text-anchor="middle" class="svg-s" fill="#4E5968">① 주문 생성 { 상품, 수량 }</text>
+          <path d="M160,100 L580,100" stroke="#3182F6" stroke-width="2" marker-end="url(#s2b)"/>
+
+          <!-- server self: store -->
+          <rect x="486" y="112" width="188" height="34" rx="9" fill="#F2F4F6" stroke="#E5E8EB"/>
+          <text x="580" y="133" text-anchor="middle" class="svg-s" fill="#333D4B">order PENDING 저장 · 금액 B 확정</text>
+
+          <!-- 2: server -> browser (resp) -->
+          <text x="370" y="170" text-anchor="middle" class="svg-s" fill="#8B95A1">{ orderId, 금액 B }</text>
+          <path d="M580,178 L160,178" stroke="#B0B8C1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#s2g)"/>
+
+          <!-- 3: browser -> PG -->
+          <text x="580" y="208" text-anchor="middle" class="svg-s" fill="#4E5968">② requestPayment { orderId, 금액, 카드정보 } + 인증</text>
+          <path d="M160,216 L1000,216" stroke="#3182F6" stroke-width="2" marker-end="url(#s2b)"/>
+
+          <!-- PG self: auth -->
+          <rect x="906" y="228" width="188" height="34" rx="9" fill="#E7F9F1" stroke="#bdebd6"/>
+          <text x="1000" y="249" text-anchor="middle" class="svg-s" fill="#0A8F5B">인증 → paymentKey 발급 (미차감)</text>
+
+          <!-- 4: PG -> browser redirect -->
+          <text x="580" y="286" text-anchor="middle" class="svg-s" fill="#8B95A1">③ redirect { paymentKey, orderId, 금액 C }</text>
+          <path d="M1000,294 L160,294" stroke="#B0B8C1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#s2g)"/>
+
+          <!-- 5: browser -> server -->
+          <text x="370" y="324" text-anchor="middle" class="svg-s" fill="#4E5968">④ { paymentKey, orderId, 금액 C }</text>
+          <path d="M160,332 L580,332" stroke="#3182F6" stroke-width="2" marker-end="url(#s2b)"/>
+
+          <!-- server self: verify -->
+          <rect x="486" y="344" width="188" height="34" rx="9" fill="#FEEFEF" stroke="#f8d4d4"/>
+          <text x="580" y="365" text-anchor="middle" class="svg-s" fill="#C9303C">검증: 저장 B == 받은 C ?</text>
+
+          <!-- 6: server -> PG confirm -->
+          <text x="790" y="404" text-anchor="middle" class="svg-l" fill="#1B64DA">★ ⑤ confirm { paymentKey, 금액 }</text>
+          <path d="M580,412 L1000,412" stroke="#3182F6" stroke-width="3" marker-end="url(#s2b)"/>
+
+          <!-- PG self: charge -->
+          <rect x="906" y="424" width="188" height="34" rx="9" fill="#E7F9F1" stroke="#bdebd6"/>
+          <text x="1000" y="445" text-anchor="middle" class="svg-s" fill="#0A8F5B">실제 차감 · 승인 확정</text>
+
+          <!-- 7: PG -> server resp -->
+          <text x="790" y="482" text-anchor="middle" class="svg-s" fill="#8B95A1">{ status: DONE, 승인번호 }</text>
+          <path d="M1000,490 L580,490" stroke="#B0B8C1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#s2g)"/>
+
+          <!-- 8: PG -> server webhook -->
+          <text x="790" y="520" text-anchor="middle" class="svg-s" fill="#0A8F5B">⑥ 웹훅 { 결제 status 변경 } (보조)</text>
+          <path d="M1000,528 L580,528" stroke="#15C47E" stroke-width="2" marker-end="url(#s2v)"/>
+
+          <!-- 9: server -> PG re-query -->
+          <text x="790" y="558" text-anchor="middle" class="svg-s" fill="#4E5968">단건조회 { paymentKey } — 본문 안 믿고 재확인</text>
+          <path d="M580,566 L1000,566" stroke="#3182F6" stroke-width="2" marker-end="url(#s2b)"/>
+        </svg>
+      </div>
+      <figcaption>그림 2. <b>★ ⑤ confirm</b>이 굵은 화살표 — 여기서만 돈이 움직인다. ①~⑤가 결제 확정의 주 경로, <b>⑥(웹훅)+단건조회는 정합성 보강용 보조 경로.</b></figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ S3 : 데이터 표 ============ -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">DATA TABLE</p><h2 class="sec">데이터 한눈에 보기</h2></div>
+    </div>
+    <p class="lead">각 데이터가 <em>왜 그 방향으로, 무슨 의미로</em> 흐르는지가 핵심입니다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>단계</th><th>방향</th><th>데이터</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>①</td><td>브라우저 → 서버</td><td><code>상품, 수량</code></td><td>주문 의도 전달</td></tr>
+          <tr><td>①</td><td>서버 내부</td><td><code>order 저장(PENDING)</code> + <code>금액 B</code></td><td>"이 주문은 B원"을 서버가 못박음 — 이후 위변조 검증의 기준</td></tr>
+          <tr><td>②</td><td>서버 → 브라우저</td><td><code>orderId, 금액 B</code></td><td>결제창 SDK 초기화에 필요한 값</td></tr>
+          <tr><td>②</td><td>브라우저 → PG</td><td><code>orderId, 금액, 카드정보</code></td><td>카드정보는 <strong>PG가 직접 수령</strong>(내 서버 미경유)</td></tr>
+          <tr><td>③</td><td>PG → 브라우저</td><td><code>paymentKey, orderId, 금액 C</code></td><td>인증 성공 증표 — <strong>아직 미차감</strong>. C는 결제창에서 돌아온 금액</td></tr>
+          <tr><td>④</td><td>브라우저 → 서버</td><td><code>paymentKey, orderId, 금액 C</code></td><td>"인증됐다"는 통보 (결제 확정 아님)</td></tr>
+          <tr><td>④</td><td>서버 검증</td><td><code>저장 B == 받은 C ?</code></td><td><strong>금액 위변조 차단</strong> — 다르면 승인 거절</td></tr>
+          <tr><td>⑤</td><td>서버 → PG</td><td><code>confirm(paymentKey, 금액)</code></td><td>★ <strong>여기서 실제 차감</strong> — 결제 확정의 단일 지점</td></tr>
+          <tr><td>⑤</td><td>PG → 서버</td><td><code>status: DONE, 승인번호</code></td><td>차감 완료 → 주문 PAID 전이</td></tr>
+          <tr><td>⑥</td><td>PG → 서버</td><td><code>웹훅(status)</code></td><td>보조 통지 — 리다이렉트가 끊겨도 결과 도착</td></tr>
+          <tr><td>⑥</td><td>서버 → PG</td><td><code>단건조회(paymentKey)</code></td><td>웹훅 본문을 안 믿고 <strong>실제 상태 재확인</strong> 후 반영</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ S4 : 금액 ============ -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">AMOUNTS</p><h2 class="sec">금액은 사실 여러 개다</h2></div>
+    </div>
+    <p class="lead">같은 "58,000원"처럼 보여도, 출처가 다른 금액이 최소 둘입니다. 이걸 구분 못 하면 검증 로직이 흔들립니다.</p>
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">B</span>서버 저장 금액</h4>
+        <p>① 주문 생성 때 <strong>서버가 계산·저장</strong>한 진짜 금액. 신뢰의 기준점. 쿠폰·할인 적용 후 최종값.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">C</span>결제창에서 온 금액</h4>
+        <p>③ 리다이렉트로 <strong>클라이언트를 거쳐</strong> 돌아온 금액. 중간에 조작될 수 있어 <strong>믿을 수 없음.</strong></p>
+      </div>
+    </div>
+    <div class="note warn"><span class="tag">검증 규칙</span>confirm <strong>전에</strong> 반드시 <strong>B == C</strong>를 확인합니다. 클라이언트가 amount를 1원으로 바꿔 보내도, 서버가 저장한 B와 다르면 승인하지 않습니다. <strong>"받은 값"이 아니라 "내가 저장한 값"으로 승인</strong>하는 게 핵심.</div>
+    <div class="note"><span class="tag">참고</span>실제로는 주문서 표시가(A)까지 더해 3개로 보기도 합니다 — A(화면 표시) vs B(서버 저장)는 주문 생성 시점 검증, B vs C는 결제 승인 시점 검증. 지금은 B/C 두 개만 확실히 잡아도 충분합니다.</div>
+  </section>
+
+  <!-- ============ S5 : 왜 서버 confirm ============ -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">WHY SERVER</p><h2 class="sec">왜 서버가 confirm 하나</h2></div>
+    </div>
+    <p class="lead">"클라이언트가 결제창에서 인증까지 했는데 왜 서버가 한 번 더?" — 클라이언트는 신뢰할 수 없기 때문입니다.</p>
+    <p>인증(③)까지는 브라우저가 주도하지만, 브라우저는 <strong>사용자가 조작할 수 있는 영역</strong>입니다. 금액을 바꿔치기하거나, 가짜 성공 신호를 보낼 수 있습니다. 그래서 <strong>돈을 실제로 빼는 결정(confirm)은 신뢰 경계 안쪽인 서버</strong>가 직접 PG에 요청합니다. 이게 "서버가 한 번 더 승인"의 이유입니다.</p>
+    <blockquote>
+      <p>"결제 인증과 승인이 비동기적으로 일어나기 때문에, 결제 결과를 받으려면 반드시 웹훅을 연동해야 합니다."</p>
+      <cite>— 토스페이먼츠, 결제 흐름 이해하기 (내 학습노트 인용)</cite>
+    </blockquote>
+    <h3>실무에서 결제 사고는 거의 이 2개를 빼먹어서 난다</h3>
+    <div class="cols">
+      <div class="col x">
+        <h4>1 · 금액 검증 (승인 전)</h4>
+        <p>클라이언트가 <code>amount</code>를 1원으로 조작해 승인 요청 → <strong>서버 저장 금액(B)과 일치 확인</strong> 후에만 confirm.</p>
+      </div>
+      <div class="col x">
+        <h4>2 · 웹훅 재검증 (수신 후)</h4>
+        <p>위조된 가짜 웹훅을 진짜로 믿고 주문 완료 처리 → 웹훅 본문 말고 <strong>PG 단건조회로 실제 상태 재확인</strong>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ S6 : 과제 대비 ============ -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">VS ASSIGNMENT</p><h2 class="sec">과제(직접연동)와 뭐가 다른가</h2></div>
+    </div>
+    <p class="lead">위 흐름은 <em>결제창 방식</em>입니다. 우리 과제의 <code>pg-simulator</code>는 <em>직접연동</em>이라 결제창 단계가 통째로 빠집니다.</p>
+    <div class="cols">
+      <div class="col x">
+        <h4>실무 B2C · 결제창(SDK)</h4>
+        <p>브라우저가 PG 결제창을 띄움 → 리다이렉트 → <strong>서버 confirm</strong>으로 확정 → 웹훅 보조. 카드정보는 PG가 받음.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">과제</span>직접연동 (서버→PG)</h4>
+        <p>결제창·브라우저·리다이렉트 <strong>없음</strong>. 서버가 카드정보를 담아 <code>POST /payments</code> 직접 호출 → 즉시 PENDING → <strong>콜백/조회로 확정</strong>.</p>
+      </div>
+    </div>
+    <div class="note key"><span class="tag">대응 관계</span>결제창 방식의 <strong>confirm 단계</strong>가, 과제에선 <strong>콜백 + 단건조회</strong>로 대체됩니다. "최종 확정을 클라이언트에 맡기지 않는다"는 원칙은 두 방식 모두 동일 — 다만 과제는 <strong>비동기 결과 + 장애 대응(Timeout·CircuitBreaker·Fallback)</strong>에 집중합니다.</div>
+    <div class="note"><span class="tag">그래서 과제에서 신경 쓸 데이터</span><code>transactionKey</code>(결제 식별), <code>orderId</code>(주문 매칭), <code>status</code>(PENDING→SUCCESS/FAILED), <code>callbackUrl</code>(결과 통지 주소). 콜백이 안 와도 <code>GET /payments/{transactionKey}</code>로 복구하는 게 reconciliation입니다.</div>
+  </section>
+
+  <!-- ============ S7 : 과제 직접연동 플로우 ============ -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">THIS PROJECT</p><h2 class="sec">과제 PG 연동 — 전체 플로우</h2></div>
+    </div>
+    <p class="lead">이제 <em>우리 과제(pg-simulator · 직접연동)</em> 버전입니다. 결제창·브라우저·리다이렉트가 없고, <strong>서버가 PG에 직접 쏜 뒤 비동기 결과를 콜백·조회로 확정</strong>합니다.</p>
+    <p>차이 둘만 기억하세요. <strong>① 응답이 즉시 PENDING</strong>이라 동기로는 결과를 모르고, <strong>② 요청 자체가 40% 실패 + 콜백도 유실</strong>될 수 있어 <strong>Timeout · CircuitBreaker · 조회 복구</strong>가 필수입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.4 — ASSIGNMENT FLOW">
+        <svg viewBox="0 0 1160 720" role="img" aria-label="과제 직접연동 결제 플로우 스토리보드: 폰, commerce 서버, pg-simulator가 콜백과 조회로 확정하는 8칸 흐름">
+          <defs>
+            <marker id="b_b" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#3182F6"/></marker>
+            <marker id="b_d" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#B0B8C1"/></marker>
+            <marker id="b_v" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#15C47E"/></marker>
+          </defs>
+
+          <!-- ===== ROW 1 ===== -->
+          <!-- B1 폰 결제요청 -->
+          <foreignObject x="10" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">1</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">결제 요청</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column">
+                <div style="font-size:9px;font-weight:800;color:var(--g800);margin-bottom:5px">💳 결제하기</div>
+                <div style="font-size:8.5px;color:var(--g600)">에어팟 프로 · 58,000원</div>
+                <div style="font-size:8.5px;color:var(--g600);margin-top:3px">카드: 삼성 ●●●●</div>
+                <div style="margin-top:auto;background:var(--blue);color:#fff;text-align:center;font-size:9px;font-weight:800;padding:6px;border-radius:7px">결제 요청</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--blue-deep)">→ 서버로: {orderId, cardType, cardNo}</div>
+            </div>
+          </foreignObject>
+
+          <!-- B2 commerce 서버 -->
+          <foreignObject x="294" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g300);border-radius:16px;background:var(--g50);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--g800);border-radius:6px;padding:2px 7px">2</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--g800);border-radius:5px;padding:2px 6px">🖥 서버</span>
+                <span style="font-size:11px;font-weight:800;color:var(--g900);margin-left:auto">commerce-api</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.8">
+                <div>① 주문 <b style="color:var(--g900)">PENDING</b> 확인</div>
+                <div>② Payment(PENDING) 생성</div>
+                <div>③ PG 직접 호출 <b style="color:var(--blue-deep)">(Timeout·CB로 감쌈)</b></div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g200);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 받음: 결제요청</div>
+                <div style="color:var(--blue-deep)">→ PG로: 직접 호출</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- B3 PG 요청 수신 -->
+          <foreignObject x="578" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid #bdebd6;border-radius:16px;background:var(--green-bg);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:6px;padding:2px 7px">3</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:5px;padding:2px 6px">🏦 PG</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">요청 수신</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #bdebd6;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.8">
+                <div>① 100~500ms 지연</div>
+                <div style="color:var(--red-deep);font-weight:700">② 40% 확률 요청 실패 ↯</div>
+                <div>③ <b style="color:var(--g900)">transactionKey</b> + PENDING 즉시 반환</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #bdebd6;padding-top:6px;font-family:var(--mono);font-size:8.3px;line-height:1.55">
+                <div style="color:var(--g500)">← POST /payments {…}+X-USER-ID</div>
+                <div style="color:var(--g700)">→ {transactionKey, status:PENDING}</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- B4 폰 진행중 -->
+          <foreignObject x="862" y="20" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g200);border-radius:16px;background:#fff;padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">4</span>
+                <span style="font-size:9px;font-weight:700;color:var(--blue-deep);background:var(--blue-bg);border-radius:5px;padding:2px 6px">📱 폰</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">진행 중</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:var(--g50);padding:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+                <div style="width:34px;height:34px;border-radius:50%;border:4px solid var(--g200);border-top-color:var(--blue);margin-bottom:10px"></div>
+                <div style="font-size:9px;font-weight:700;color:var(--g800)">결제 진행 중…</div>
+                <div style="font-size:8px;color:var(--g500);margin-top:4px">결과는 곧 안내됩니다</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g100);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--g500)">← 받음: PENDING (아직 미확정)</div>
+            </div>
+          </foreignObject>
+
+          <!-- ===== ROW 2 ===== -->
+          <!-- B5 PG 비동기 처리 -->
+          <foreignObject x="10" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid #bdebd6;border-radius:16px;background:var(--green-bg);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:6px;padding:2px 7px">5</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:5px;padding:2px 6px">🏦 PG</span>
+                <span style="font-size:11px;font-weight:800;color:var(--g900);margin-left:auto">비동기 처리</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #bdebd6;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.7">
+                <div style="color:var(--g500);margin-bottom:3px">1~5s 뒤, AFTER_COMMIT 비동기</div>
+                <div style="color:var(--green-deep);font-weight:700">✓ 성공 70%</div>
+                <div style="color:var(--red-deep)">✗ 한도초과 20%</div>
+                <div style="color:var(--red-deep)">✗ 잘못된 카드 10%</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #bdebd6;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--g500)">PG 내부에서 결과 확정</div>
+            </div>
+          </foreignObject>
+
+          <!-- B6 PG 콜백 -->
+          <foreignObject x="294" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid #bdebd6;border-radius:16px;background:var(--green-bg);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:6px;padding:2px 7px">6</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:5px;padding:2px 6px">🏦 PG</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">콜백 통지</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #bdebd6;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.8">
+                <div>① callbackUrl로 POST</div>
+                <div>② {transactionKey, status}</div>
+                <div style="color:var(--red-deep);font-weight:700">③ ↯ 콜백 유실 가능!</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #bdebd6;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--green-deep)">→ 서버로: 콜백 {…, status}</div>
+            </div>
+          </foreignObject>
+
+          <!-- B7 서버 콜백 처리 -->
+          <foreignObject x="578" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:1px solid var(--g300);border-radius:16px;background:var(--g50);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--g800);border-radius:6px;padding:2px 7px">7</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--g800);border-radius:5px;padding:2px 6px">🖥 서버</span>
+                <span style="font-size:12px;font-weight:800;color:var(--g900);margin-left:auto">콜백 처리</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid var(--g200);border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.75">
+                <div>① <b style="color:var(--g900)">단건조회</b>로 재확인(본문 안 믿음)</div>
+                <div>② 주문 confirm / fail 전이</div>
+                <div>③ <b style="color:var(--blue-deep)">멱등</b> 처리 (중복 콜백 안전)</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid var(--g200);padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.6">
+                <div style="color:var(--g500)">← 콜백</div>
+                <div style="color:var(--blue-deep)">→ 주문 PAID · FAILED</div>
+              </div>
+            </div>
+          </foreignObject>
+
+          <!-- B8 서버 안전망 -->
+          <foreignObject x="862" y="400" width="260" height="290">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;box-sizing:border-box;border:2px solid var(--blue);border-radius:16px;background:var(--blue-bg2);padding:11px 12px;display:flex;flex-direction:column;font-family:var(--sans)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:9px">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#fff;background:var(--blue);border-radius:6px;padding:2px 7px">8 ★</span>
+                <span style="font-size:9px;font-weight:700;color:#fff;background:var(--g800);border-radius:5px;padding:2px 6px">🖥 서버</span>
+                <span style="font-size:11px;font-weight:800;color:var(--blue-deep);margin-left:auto">안전망(조회)</span>
+              </div>
+              <div style="flex:1;min-height:0;border:1.5px solid #cfe4ff;border-radius:10px;background:#fff;padding:10px;font-size:9px;color:var(--g700);line-height:1.7">
+                <div style="color:var(--g500);margin-bottom:3px">콜백 안 오거나 타임아웃이면</div>
+                <div>① <b style="color:var(--g900)">GET /payments/{transactionKey}</b> 조회</div>
+                <div>② <b style="color:var(--g900)">UNKNOWN</b> → PAID/FAILED 복구</div>
+              </div>
+              <div style="margin-top:8px;border-top:1px solid #cfe4ff;padding-top:6px;font-family:var(--mono);font-size:8.5px;line-height:1.55;color:var(--blue-deep)">reconciliation (주기·수동)</div>
+            </div>
+          </foreignObject>
+
+          <!-- arrows row1 -->
+          <path d="M272,165 L290,165" stroke="#3182F6" stroke-width="2.5" marker-end="url(#b_b)"/>
+          <path d="M556,165 L574,165" stroke="#3182F6" stroke-width="2.5" marker-end="url(#b_b)"/>
+          <path d="M840,165 L858,165" stroke="#B0B8C1" stroke-width="2.5" marker-end="url(#b_d)"/>
+          <!-- wrap B4 -> B5 -->
+          <path d="M992,314 L992,355 L140,355 L140,396" fill="none" stroke="#B0B8C1" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#b_d)"/>
+          <text x="566" y="349" text-anchor="middle" class="svg-s" fill="#6B7684">비동기 — 응답(PENDING)과 실제 결과가 분리됨</text>
+          <!-- arrows row2 -->
+          <path d="M272,545 L290,545" stroke="#15C47E" stroke-width="2.5" marker-end="url(#b_v)"/>
+          <path d="M556,545 L574,545" stroke="#15C47E" stroke-width="2.5" marker-end="url(#b_v)"/>
+          <path d="M840,545 L858,545" stroke="#3182F6" stroke-width="2.5" marker-end="url(#b_b)"/>
+        </svg>
+      </div>
+      <figcaption>그림 4. 결제창이 없어 <b>서버(②)가 PG에 직접 호출</b>. 응답은 즉시 PENDING(③④)이고, <b>실제 결과는 비동기 콜백(⑥)+단건조회</b>로 확정. <b>파란 테두리(⑧)</b>가 콜백 유실까지 메우는 reconciliation.</figcaption>
+    </figure>
+
+    <div class="note warn"><span class="tag">🛡 Resilience (과제 Must-Have)</span>PG 호출(②)을 <strong>Timeout + CircuitBreaker</strong>로 감싸고, 타임아웃·서킷 open 시 <strong>Fallback → 주문 <code>markUnknown()</code></strong> + 사용자에겐 정상 응답. PG 장애가 서비스 전체를 무너뜨리지 않게 하는 게 이번 과제의 알맹이입니다.</div>
+    <div class="note"><span class="tag">🔑 인증 (실무 대비)</span>과제는 클라이언트/시크릿 키 분리 없이 <code>X-USER-ID</code> 헤더로 단순화했습니다. 실무라면 이 <strong>서버→PG 직접 호출(②)</strong>에 <strong>시크릿 키</strong>가 붙습니다. 결제창 confirm 자리를, 과제에선 <strong>콜백(⑥)+단건조회(⑦⑧)</strong>가 대신합니다.</div>
+    <div class="note key"><span class="tag">확정의 주체는 여전히 서버</span>결제창 방식이든 직접연동이든 <strong>최종 확정을 클라이언트에 맡기지 않는다</strong>는 원칙은 동일합니다. 다만 과제는 <strong>비동기 결과 + 장애 대응</strong>에 무게가 실립니다.</div>
+  </section>
+
+  <!-- ============ S8 : 결제 생태계 승인·매입·정산 ============ -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">ECOSYSTEM</p><h2 class="sec">결제 생태계 — 승인·매입·정산</h2></div>
+    </div>
+    <p class="lead">같은 6명의 참여자가 <em>3단계(인증 → 매입 → 정산)</em>에서 각각 다르게 움직입니다. 단계마다 <strong>실시간이냐 배치냐</strong>, 그리고 <strong>돈이 어디서 어디로</strong> 가는지가 핵심.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.5 — ECOSYSTEM">
+        <svg viewBox="0 0 1160 720" role="img" aria-label="결제 생태계 6 참여자의 인증 매입 정산 3단계 흐름">
+          <defs>
+            <marker id="e_b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#3182F6"/></marker>
+            <marker id="e_g" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"/></marker>
+            <marker id="e_v" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#15C47E"/></marker>
+            <marker id="e_k" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#4E5968"/></marker>
+          </defs>
+
+          <!-- band backgrounds -->
+          <rect x="10" y="84" width="1140" height="205" rx="14" fill="#F4F9FF"/>
+          <rect x="10" y="297" width="1140" height="188" rx="14" fill="#F9FAFB"/>
+          <rect x="10" y="493" width="1140" height="217" rx="14" fill="#E7F9F1"/>
+
+          <!-- column headers -->
+          <foreignObject x="35" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--g900)">고객</div><div style="font-size:8.5px;color:var(--g500)">카드 주인</div></div></foreignObject>
+          <foreignObject x="215" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid #cfe4ff;border-radius:11px;background:var(--blue-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--blue-deep)">가맹점</div><div style="font-size:8.5px;color:var(--g600)">우리 서비스</div></div></foreignObject>
+          <foreignObject x="395" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--g900)">PG</div><div style="font-size:8.5px;color:var(--g500)">중개·연동</div></div></foreignObject>
+          <foreignObject x="575" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--g900)">매입사</div><div style="font-size:8.5px;color:var(--g500)">가맹점 측 정산</div></div></foreignObject>
+          <foreignObject x="755" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--g900)">카드망</div><div style="font-size:8.5px;color:var(--g500)">VISA·MC</div></div></foreignObject>
+          <foreignObject x="935" y="18" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans)"><div style="font-size:12px;font-weight:800;color:var(--g900)">발급사</div><div style="font-size:8.5px;color:var(--g500)">고객 카드 은행</div></div></foreignObject>
+
+          <!-- lifelines -->
+          <line x1="110" y1="78" x2="110" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+          <line x1="290" y1="78" x2="290" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+          <line x1="470" y1="78" x2="470" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+          <line x1="650" y1="78" x2="650" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+          <line x1="830" y1="78" x2="830" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+          <line x1="1010" y1="78" x2="1010" y2="706" stroke="#E5E8EB" stroke-width="1.5"/>
+
+          <!-- phase tags -->
+          <foreignObject x="20" y="92" width="210" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--blue);border-radius:7px;padding:3px 10px;display:inline-block">① 인증 · 실시간·건별</div></foreignObject>
+          <foreignObject x="20" y="305" width="210" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--g700);border-radius:7px;padding:3px 10px;display:inline-block">② 매입 · 배치·묶음</div></foreignObject>
+          <foreignObject x="20" y="501" width="210" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--green-deep);border-radius:7px;padding:3px 10px;display:inline-block">③ 정산 · T+N일</div></foreignObject>
+
+          <!-- ===== Band 1 : 인증 (forward blue) ===== -->
+          <text x="200" y="130" text-anchor="middle" class="svg-s" fill="#1B64DA">카드 제시(결제)</text>
+          <path d="M110,136 L290,136" stroke="#3182F6" stroke-width="2" marker-end="url(#e_b)"/>
+          <text x="380" y="158" text-anchor="middle" class="svg-s" fill="#1B64DA">결제 요청</text>
+          <path d="M290,164 L470,164" stroke="#3182F6" stroke-width="2" marker-end="url(#e_b)"/>
+          <text x="560" y="186" text-anchor="middle" class="svg-s" fill="#1B64DA">승인요청 전달</text>
+          <path d="M470,192 L650,192" stroke="#3182F6" stroke-width="2" marker-end="url(#e_b)"/>
+          <text x="740" y="214" text-anchor="middle" class="svg-s" fill="#1B64DA">승인 라우팅</text>
+          <path d="M650,220 L830,220" stroke="#3182F6" stroke-width="2" marker-end="url(#e_b)"/>
+          <text x="920" y="242" text-anchor="middle" class="svg-s" fill="#1B64DA">승인 요청</text>
+          <path d="M830,248 L1010,248" stroke="#3182F6" stroke-width="2" marker-end="url(#e_b)"/>
+          <foreignObject x="930" y="252" width="160" height="22"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:8.5px;color:var(--red-deep);text-align:center">한도·잔액 확인 (체크=즉시출금)</div></foreignObject>
+          <text x="650" y="280" text-anchor="middle" class="svg-s" fill="#6B7684">승인 응답 (역방향으로 가맹점까지)</text>
+          <path d="M1010,285 L290,285" stroke="#B0B8C1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#e_g)"/>
+
+          <!-- ===== Band 2 : 매입 (dark) ===== -->
+          <foreignObject x="215" y="334" width="150" height="36"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px dashed var(--g400);border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-family:var(--mono);font-size:8.5px;color:var(--g700);padding:2px 6px">하루치 승인거래 집계(배치)</div></foreignObject>
+          <text x="470" y="392" text-anchor="middle" class="svg-s" fill="#4E5968">묶음 청구 제출(매입)</text>
+          <path d="M290,398 L650,398" stroke="#4E5968" stroke-width="2" marker-end="url(#e_k)"/>
+          <text x="740" y="424" text-anchor="middle" class="svg-s" fill="#4E5968">청구(clearing)</text>
+          <path d="M650,430 L830,430" stroke="#4E5968" stroke-width="2" marker-end="url(#e_k)"/>
+          <text x="920" y="424" text-anchor="middle" class="svg-s" fill="#4E5968">청구 전달</text>
+          <path d="M830,430 L1010,430" stroke="#4E5968" stroke-width="2" marker-end="url(#e_k)"/>
+          <foreignObject x="380" y="450" width="400" height="22"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:8.5px;color:var(--g500);text-align:center">⚠ 실시간 아님 — 하루치 모아서 한 번에 (그래서 정산이 며칠 뒤)</div></foreignObject>
+
+          <!-- ===== Band 3 : 정산 (green money) ===== -->
+          <text x="920" y="538" text-anchor="middle" class="svg-s" fill="#0A8F5B">대금 지급</text>
+          <path d="M1010,544 L830,544" stroke="#15C47E" stroke-width="2.5" marker-end="url(#e_v)"/>
+          <text x="740" y="568" text-anchor="middle" class="svg-s" fill="#0A8F5B">대금 전달</text>
+          <path d="M830,574 L650,574" stroke="#15C47E" stroke-width="2.5" marker-end="url(#e_v)"/>
+          <text x="470" y="598" text-anchor="middle" class="svg-s" fill="#0A8F5B">수수료 떼고 입금 (T+N일)</text>
+          <path d="M650,604 L290,604" stroke="#15C47E" stroke-width="3" marker-end="url(#e_v)"/>
+          <text x="560" y="642" text-anchor="middle" class="svg-s" fill="#6B7684">신용=청구일 후불 / 체크=이미 출금됨</text>
+          <path d="M110,648 L1010,648" stroke="#B0B8C1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#e_g)"/>
+          <foreignObject x="330" y="668" width="500" height="22"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--mono);font-size:8.5px;color:var(--green-deep);text-align:center">💰 가맹점이 실제 돈을 받는 건 여기 (매입 후 T+N일)</div></foreignObject>
+        </svg>
+      </div>
+      <figcaption>그림 5. <b>① 인증</b>은 실시간·건별(파랑), <b>② 매입</b>은 배치·묶음(회색), <b>③ 정산</b>은 며칠 뒤 자금이 발급사→매입사→가맹점으로(초록). <b>"내가 돈 내는 시점 ≠ 가게가 받는 시점".</b></figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">돈의 두 흐름</span><strong>❶ 고객 ↔ 발급사</strong> — 체크카드는 승인 즉시 출금, 신용카드는 청구일에 후불. <strong>❷ 발급사 → 매입사 → 가맹점</strong> — 매입(배치) 후 T+N일에 정산. 이 둘의 타이밍이 달라서 "내 통장에선 빠졌는데 가게는 며칠 뒤 받는" 일이 생깁니다.</div>
+    <div class="note"><span class="tag">과제 관점</span>이 6명 중 <strong>매입사·카드망·발급사는 전부 PG 뒤에 가려집니다.</strong> 과제에선 "PG가 비동기로 승인 결과를 준다"까지가 경계 — 매입·정산은 신경 쓸 필요 없습니다. 이건 면접용 배경지식입니다.</div>
+  </section>
+
+  <!-- ============ S9 : pg-simulator 응답 케이스 MECE ============ -->
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">MECE CASES</p><h2 class="sec">pg-simulator 응답 케이스 (MECE)</h2></div>
+    </div>
+    <p class="lead">pg-simulator와 주고받을 때 나올 수 있는 모든 응답을, <em>상호작용 지점별</em>로 빠짐없이·겹치지 않게 나눴습니다. 핵심은 — 결국 우리 시스템 귀결은 <strong>PAID · FAILED · UNKNOWN 세 개</strong>로 수렴합니다.</p>
+
+    <h3>유스케이스 다이어그램 — 누가 무슨 기능을 쓰나</h3>
+    <p>먼저 범위부터. 액터(고객 · PG-Simulator)와 우리 서버(commerce-api)의 기능 관계입니다.</p>
+    <figure>
+      <div class="fig-box" data-fig="FIG.6 — USE CASE">
+        <svg viewBox="0 0 760 430" role="img" aria-label="결제 연동 유스케이스 다이어그램: 고객과 PG-Simulator 액터, commerce-api 유스케이스">
+          <defs>
+            <marker id="uc_i" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"/></marker>
+          </defs>
+          <!-- system boundary -->
+          <rect x="200" y="36" width="360" height="360" rx="16" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <text x="220" y="62" class="svg-l" fill="#4E5968">commerce-api (우리 서버)</text>
+
+          <!-- actor 고객 (졸라맨) -->
+          <g stroke="#333D4B" stroke-width="2.5" fill="none" stroke-linecap="round">
+            <circle cx="70" cy="150" r="12" fill="#fff"/>
+            <line x1="70" y1="162" x2="70" y2="200"/>
+            <line x1="48" y1="176" x2="92" y2="176"/>
+            <line x1="70" y1="200" x2="52" y2="226"/>
+            <line x1="70" y1="200" x2="88" y2="226"/>
+          </g>
+          <text x="70" y="250" text-anchor="middle" class="svg-t" fill="#191F28">고객</text>
+
+          <!-- actor PG (졸라맨) -->
+          <g stroke="#0A8F5B" stroke-width="2.5" fill="none" stroke-linecap="round">
+            <circle cx="695" cy="150" r="12" fill="#fff"/>
+            <line x1="695" y1="162" x2="695" y2="200"/>
+            <line x1="673" y1="176" x2="717" y2="176"/>
+            <line x1="695" y1="200" x2="677" y2="226"/>
+            <line x1="695" y1="200" x2="713" y2="226"/>
+          </g>
+          <text x="695" y="250" text-anchor="middle" class="svg-t" fill="#0A8F5B">PG-Simulator</text>
+
+          <!-- use cases -->
+          <ellipse cx="320" cy="110" rx="88" ry="30" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <text x="320" y="115" text-anchor="middle" class="svg-t" fill="#1B64DA">결제 요청</text>
+          <ellipse cx="320" cy="200" rx="88" ry="30" fill="#fff" stroke="#D1D6DB"/>
+          <text x="320" y="205" text-anchor="middle" class="svg-t" fill="#333D4B">Resilience 처리</text>
+          <ellipse cx="470" cy="155" rx="78" ry="30" fill="#E7F9F1" stroke="#bdebd6"/>
+          <text x="470" y="160" text-anchor="middle" class="svg-t" fill="#0A8F5B">콜백 수신</text>
+          <ellipse cx="470" cy="245" rx="78" ry="30" fill="#fff" stroke="#D1D6DB"/>
+          <text x="470" y="250" text-anchor="middle" class="svg-t" fill="#333D4B">상태 조회</text>
+          <ellipse cx="380" cy="335" rx="92" ry="30" fill="#fff" stroke="#D1D6DB"/>
+          <text x="380" y="340" text-anchor="middle" class="svg-t" fill="#333D4B">결제·주문 확정</text>
+
+          <!-- associations -->
+          <line x1="92" y1="150" x2="232" y2="115" stroke="#8B95A1" stroke-width="1.5"/>
+          <line x1="408" y1="105" x2="640" y2="150" stroke="#8B95A1" stroke-width="1.5"/>
+          <line x1="548" y1="150" x2="673" y2="155" stroke="#8B95A1" stroke-width="1.5"/>
+          <line x1="548" y1="245" x2="668" y2="160" stroke="#8B95A1" stroke-width="1.5"/>
+          <!-- includes -->
+          <line x1="320" y1="140" x2="320" y2="170" stroke="#B0B8C1" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#uc_i)"/>
+          <text x="358" y="160" class="svg-s" fill="#8B95A1">«include»</text>
+          <line x1="448" y1="183" x2="404" y2="312" stroke="#B0B8C1" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#uc_i)"/>
+          <line x1="455" y1="273" x2="410" y2="308" stroke="#B0B8C1" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#uc_i)"/>
+        </svg>
+      </div>
+      <figcaption>그림 6. <b>고객</b>은 결제 요청만, <b>PG-Simulator</b>는 결제요청 호출·콜백·조회 3곳에 연결. 콜백/조회 결과가 <b>결제·주문 확정</b>으로 모인다(«include»).</figcaption>
+    </figure>
+
+    <h3>응답 분기 트리 — 모든 케이스가 PAID·FAILED·UNKNOWN로 수렴</h3>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.7 — DECISION TREE">
+        <svg viewBox="0 0 1160 540" role="img" aria-label="pg-simulator 응답 분기 트리: 결제 요청부터 PAID FAILED UNKNOWN까지">
+          <defs>
+            <marker id="t_k" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#8B95A1"/></marker>
+            <marker id="t_v" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#15C47E"/></marker>
+            <marker id="t_r" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#F04452"/></marker>
+          </defs>
+
+          <!-- root -->
+          <foreignObject x="470" y="14" width="220" height="46"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:2px solid var(--blue);border-radius:12px;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:12px;font-weight:800;color:var(--blue-deep)">결제 요청 POST /payments</div></foreignObject>
+
+          <!-- level 1 : sync response -->
+          <foreignObject x="120" y="110" width="220" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--g800);padding:4px"><b>접수됨 (PENDING)</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">200 · txKey · 60%</span></div></foreignObject>
+          <foreignObject x="470" y="110" width="220" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid #f8d4d4;border-radius:11px;background:var(--red-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--red-deep);padding:4px"><b>요청 거부</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">500 · 40%</span></div></foreignObject>
+          <foreignObject x="820" y="110" width="220" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:var(--g50);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--g800);padding:4px"><b>타임아웃·무응답</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">in-doubt</span></div></foreignObject>
+
+          <path d="M520,60 L300,108" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+          <path d="M580,60 L580,108" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+          <path d="M640,60 L880,108" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+
+          <!-- level 2 : async result of 접수됨 -->
+          <foreignObject x="40" y="230" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid #bdebd6;border-radius:11px;background:var(--green-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--green-deep);padding:4px"><b>승인 SUCCESS</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">70%</span></div></foreignObject>
+          <foreignObject x="222" y="230" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid #f8d4d4;border-radius:11px;background:var(--red-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--red-deep);padding:4px"><b>한도초과 FAILED</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">20%</span></div></foreignObject>
+          <foreignObject x="404" y="230" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid #f8d4d4;border-radius:11px;background:var(--red-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--red-deep);padding:4px"><b>잘못된 카드 FAILED</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">10%</span></div></foreignObject>
+          <foreignObject x="600" y="230" width="180" height="56"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:1px solid var(--g300);border-radius:11px;background:var(--g50);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:11px;color:var(--g800);padding:4px"><b>콜백 유실·지연</b><span style="font-size:9px;color:var(--g500);font-family:var(--mono)">결과 안 옴</span></div></foreignObject>
+
+          <path d="M230,166 L150,228" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+          <path d="M230,166 L290,228" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+          <path d="M240,166 L470,228" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+          <path d="M260,166 L660,228" stroke="#8B95A1" stroke-width="1.5" marker-end="url(#t_k)"/>
+
+          <!-- leaves : our outcome -->
+          <foreignObject x="80" y="400" width="190" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:2px solid var(--green);border-radius:13px;background:var(--green-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:13px;font-weight:800;color:var(--green-deep)">✅ PAID<span style="font-size:9px;font-weight:600;color:var(--g600);font-family:var(--mono)">주문 confirmPayment()</span></div></foreignObject>
+          <foreignObject x="300" y="400" width="190" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:2px solid var(--red);border-radius:13px;background:var(--red-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:13px;font-weight:800;color:var(--red-deep)">❌ FAILED<span style="font-size:9px;font-weight:600;color:var(--g600);font-family:var(--mono)">주문 failPayment()</span></div></foreignObject>
+          <foreignObject x="700" y="400" width="220" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;border:2px solid var(--g400);border-radius:13px;background:var(--g50);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:var(--sans);font-size:13px;font-weight:800;color:var(--g700)">❓ UNKNOWN<span style="font-size:9px;font-weight:600;color:var(--g600);font-family:var(--mono)">markUnknown() → 조회로 해소</span></div></foreignObject>
+
+          <!-- leaf arrows -->
+          <path d="M130,286 L150,398" stroke="#15C47E" stroke-width="2" marker-end="url(#t_v)"/>
+          <path d="M300,286 L360,398" stroke="#F04452" stroke-width="2" marker-end="url(#t_r)"/>
+          <path d="M480,286 L420,398" stroke="#F04452" stroke-width="2" marker-end="url(#t_r)"/>
+          <path d="M690,286 L800,398" stroke="#8B95A1" stroke-width="2" marker-end="url(#t_k)"/>
+          <path d="M580,166 L800,398" stroke="#8B95A1" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#t_k)"/>
+          <path d="M930,166 L840,398" stroke="#8B95A1" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#t_k)"/>
+
+          <foreignObject x="300" y="478" width="560" height="40"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:var(--sans);font-size:11px;color:var(--g600);text-align:center;line-height:1.5">❓ UNKNOWN은 끝이 아니라 <b style="color:var(--g900)">조회(reconciliation)로 PAID/FAILED로 해소</b>하는 임시 상태</div></foreignObject>
+        </svg>
+      </div>
+      <figcaption>그림 7. 요청 거부(500)·타임아웃·콜백 유실은 전부 <b>❓UNKNOWN</b>으로 모이고, 조회로 PAID/FAILED로 확정한다. <b>MECE: 어떤 케이스든 결국 셋 중 하나.</b></figcaption>
+    </figure>
+
+    <h3>케이스 표 — 지점별 빠짐없이</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>지점</th><th>케이스</th><th>응답</th><th>우리 처리</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="3">요청<br>(동기)</td><td>접수 성공 (60%)</td><td>200 · transactionKey · PENDING</td><td>Payment PENDING 저장, 결과 대기</td></tr>
+          <tr><td>요청 거부 (40%)</td><td>500 INTERNAL_ERROR</td><td>재시도(멱등) 또는 → UNKNOWN</td></tr>
+          <tr><td>타임아웃·무응답</td><td>응답 없음 (in-doubt)</td><td>→ <strong>UNKNOWN</strong> (성공/실패 모름)</td></tr>
+          <tr><td rowspan="3">비동기<br>결과</td><td>승인 (70%)</td><td>SUCCESS</td><td>→ <strong>PAID</strong></td></tr>
+          <tr><td>한도초과 (20%)</td><td>FAILED</td><td>→ <strong>FAILED</strong></td></tr>
+          <tr><td>잘못된 카드 (10%)</td><td>FAILED</td><td>→ <strong>FAILED</strong></td></tr>
+          <tr><td rowspan="2">통지<br>(콜백)</td><td>콜백 정상 수신</td><td>POST {txKey, status}</td><td>단건조회 재확인 후 확정 (멱등)</td></tr>
+          <tr><td>콜백 유실·지연</td><td>안 옴 / 늦게 옴</td><td>→ UNKNOWN, 조회로 보완</td></tr>
+          <tr><td rowspan="3">조회<br>(복구)</td><td>PENDING</td><td>아직 처리 중</td><td>대기 후 재조회</td></tr>
+          <tr><td>SUCCESS / FAILED</td><td>최종 상태</td><td>→ PAID / FAILED 확정</td></tr>
+          <tr><td>조회 실패</td><td>없는 txKey 등</td><td>예외 처리 · 알림</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note key"><span class="tag">설계 payoff</span>모든 케이스가 <strong>PAID · FAILED · UNKNOWN</strong> 셋으로 닫힙니다(MECE). 그래서 <code>OrderStatus</code>에 이 셋만 있으면 충분하고, <strong>UNKNOWN을 조회로 해소하는 경로</strong>가 이 과제 설계의 핵심입니다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">기반 노트</h2></div>
+    </div>
+    <a class="ref" href="payment-pg-flow.html" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>payment-pg-flow.html</b> — 실제 PG 결제 흐름(결제창·승인·웹훅), 오해 교정 + place() 쪼개기.<span class="src">./payment-pg-flow.html</span></span></a>
+    <a class="ref" href="pg-integration-study.html" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>pg-integration-study.html</b> — PG 연동의 모든 것(3사 비교·pg-simulator 분석·체크리스트).<span class="src">./pg-integration-study.html</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    결제창(SDK) 결제 흐름 — 화면 · 데이터 · 의미<br>
+    기반: 내 학습노트(payment-pg-flow · pg-integration-study)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

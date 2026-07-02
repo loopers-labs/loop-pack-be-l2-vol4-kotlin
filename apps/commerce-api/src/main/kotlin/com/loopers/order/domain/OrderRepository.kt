@@ -7,5 +7,7 @@ interface OrderRepository {
 
     fun findById(id: Long): Order?
 
+    fun findByOrderKey(orderKey: String): Order?
+
     fun findByUserIdAndOrderedAtBetween(userId: Long, startAt: LocalDateTime, endAt: LocalDateTime): List<Order>
 }

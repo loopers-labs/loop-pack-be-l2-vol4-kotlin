@@ -21,6 +21,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
 
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("io.github.resilience4j:resilience4j-spring-boot3")
+
+    developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 

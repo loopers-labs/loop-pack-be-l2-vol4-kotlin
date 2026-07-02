@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GET /api/v1/products/{productId} — commerce-api</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈 네비게이션. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>상품 · REST API</span>
+      <h1 class="title">GET<br><span class="hl">/api/v1/products/{productId}</span></h1>
+      <p class="lede">단일 상품의 상세 정보를 조회합니다. 상품 자체 필드에 더해 <b>브랜드명</b>을 결합해 반환하며, 인증 없이 접근 가능한 <b>공개 엔드포인트</b>입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">AUTH</span><span class="v">공개 (permitAll)</span></div>
+        <div class="chip"><span class="k">REQUEST</span><span class="v">productId (path)</span></div>
+        <div class="chip"><span class="k">RESPONSE</span><span class="v">ProductDetailResponse</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="index.html"><span class="n">◆</span>인덱스</a>
+    <a href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a class="cur" href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요</a></li>
+      <li><a href="#s2">요청 · 응답</a></li>
+      <li><a href="#s3">시퀀스 다이어그램</a></li>
+      <li><a href="#s4">비즈니스 로직</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ===================== S1 개요 ===================== -->
+    <section id="s1" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">1</div>
+        <div>
+          <p class="sec-eyebrow">OVERVIEW</p>
+          <h2 class="sec">개요</h2>
+        </div>
+      </div>
+      <p class="lead">경로 변수 <span class="term">productId</span> 로 활성 상품 하나를 조회해 상세 정보를 돌려줍니다.</p>
+      <p>상품의 식별자·이름·가격·좋아요 수에 더해, 해당 상품이 속한 브랜드의 <strong>brandName</strong> 을 함께 반환합니다. 브랜드명은 별도 컬럼이 아니라 <span class="term">BrandRepository</span> 에서 따로 조회해 응답 시점에 결합합니다.</p>
+      <p>인증이 필요 없는 <strong>공개 엔드포인트</strong>입니다. <span class="term">AccountSecurityConfig</span> 에서 <span class="term">GET /api/v1/products/*</span> 경로를 <span class="term">permitAll()</span> 로 열어 두었습니다.</p>
+      <div class="note key"><span class="tag">핵심</span>상품과 브랜드는 FK JOIN 이 아니라 <strong>각각 활성 상태로 단건 조회</strong>한 뒤 애플리케이션 레이어에서 결합합니다. 상품이 없으면 <strong>404 PRODUCT_NOT_FOUND</strong>, 브랜드가 없으면 <strong>404 BRAND_NOT_FOUND</strong>.</div>
+    </section>
+
+    <!-- ===================== S2 요청 · 응답 ===================== -->
+    <section id="s2" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">2</div>
+        <div>
+          <p class="sec-eyebrow">REQUEST &amp; RESPONSE</p>
+          <h2 class="sec">요청 · 응답</h2>
+        </div>
+      </div>
+
+      <h3>엔드포인트 시그니처</h3>
+      <div class="fn-card">
+        <div class="fn-sig"><span class="fn">getProduct</span>(<span class="pa">productId: Long</span>) <span class="rt">→ ProductDetailResponse</span><span class="pure">GET · 읽기 전용</span></div>
+        <div class="tbl-wrap"><table><tbody>
+          <tr><td>경로</td><td>GET /api/v1/products/{productId}</td></tr>
+          <tr><td>입력</td><td>productId — @PathVariable Long</td></tr>
+          <tr><td>반환</td><td>ProductDetailResponse (ApiResponse 로 래핑되어 직렬화)</td></tr>
+          <tr><td>책임</td><td>ProductService.getDetail 호출 → ProductDetailInfo 를 응답 DTO 로 매핑</td></tr>
+        </tbody></table></div>
+      </div>
+
+      <h3>경로 변수</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>이름</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>productId</td><td>Long</td><td>조회할 상품의 식별자. 활성(ACTIVE) 상품만 매칭된다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>응답 — ProductDetailResponse</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>Long</td><td>상품 식별자</td></tr>
+            <tr><td>brandId</td><td>Long</td><td>상품이 속한 브랜드 식별자</td></tr>
+            <tr><td>brandName</td><td>String</td><td>브랜드명 — BrandRepository 별도 조회로 결합</td></tr>
+            <tr><td>name</td><td>String</td><td>상품 이름 (ProductName.value)</td></tr>
+            <tr><td>price</td><td>Long</td><td>가격 (Money.amount)</td></tr>
+            <tr><td>likeCount</td><td>Long</td><td>좋아요 수</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>응답 예시</h3>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">200 OK · ApiResponse&lt;ProductDetailResponse&gt;</span>
+        </div>
+<pre>{
+  <span class="st">"meta"</span>: { <span class="st">"result"</span>: <span class="st">"SUCCESS"</span>, <span class="st">"errorCode"</span>: <span class="kw">null</span>, <span class="st">"message"</span>: <span class="kw">null</span> },
+  <span class="st">"data"</span>: {
+    <span class="st">"id"</span>: <span class="ty">12</span>,
+    <span class="st">"brandId"</span>: <span class="ty">3</span>,
+    <span class="st">"brandName"</span>: <span class="st">"루퍼스"</span>,
+    <span class="st">"name"</span>: <span class="st">"베이직 티셔츠"</span>,
+    <span class="st">"price"</span>: <span class="ty">19000</span>,
+    <span class="st">"likeCount"</span>: <span class="ty">42</span>
+  }
+}</pre>
+      </div>
+      <p>컨트롤러는 <span class="term">ProductDetailResponse</span> 를 그대로 반환하고, 공통 web 인프라의 <span class="term">ResponseBodyAdvice</span> 가 <span class="term">ApiResponse</span> 로 감싸 직렬화합니다. 컨트롤러가 <span class="term">ApiResponse</span> 를 직접 만들지 않습니다.</p>
+    </section>
+
+    <!-- ===================== S3 시퀀스 다이어그램 ===================== -->
+    <section id="s3" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">3</div>
+        <div>
+          <p class="sec-eyebrow">SEQUENCE</p>
+          <h2 class="sec">시퀀스 다이어그램</h2>
+        </div>
+      </div>
+      <p class="lead">요청이 레이어를 통과하며 상품 조회 → 브랜드명 결합 → 응답으로 이어지는 흐름입니다.</p>
+
+      <figure class="fig-wide">
+        <div class="fig-box" data-fig="SEQUENCE">
+          <svg viewBox="0 0 1120 600" role="img" aria-label="상품 상세 조회 시퀀스: 클라이언트가 ProductController.getProduct 를 호출하면 ProductService.getDetail 이 ProductRepository 로 활성 상품을 조회하고 BrandRepository 로 브랜드명을 결합한 뒤 응답한다. 상품 또는 브랜드가 없으면 404 를 반환한다.">
+            <defs>
+              <marker id="pdArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+              <marker id="pdArrowBack" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+
+            <!-- 라이프라인 헤더 박스 5개 -->
+            <!-- Client -->
+            <rect x="24" y="20" width="150" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="99" y="50" text-anchor="middle" fill="#4E5968">Client</text>
+            <!-- ProductController -->
+            <rect x="244" y="20" width="190" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="339" y="44" text-anchor="middle" fill="#1B64DA">ProductController</text>
+            <text class="svg-s" x="339" y="60" text-anchor="middle" fill="#3182F6">getProduct</text>
+            <!-- ProductService -->
+            <rect x="500" y="20" width="190" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="595" y="44" text-anchor="middle" fill="#1B64DA">ProductService</text>
+            <text class="svg-s" x="595" y="60" text-anchor="middle" fill="#3182F6">getDetail · readOnly</text>
+            <!-- Repositories -->
+            <rect x="756" y="20" width="190" height="50" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="851" y="44" text-anchor="middle" fill="#1B64DA">Product/Brand</text>
+            <text class="svg-s" x="851" y="60" text-anchor="middle" fill="#3182F6">Repository</text>
+            <!-- DB -->
+            <rect x="1010" y="20" width="86" height="50" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="1053" y="50" text-anchor="middle" fill="#4E5968">DB</text>
+
+            <!-- 세로 라이프라인 -->
+            <line x1="99" y1="70" x2="99" y2="560" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <line x1="339" y1="70" x2="339" y2="560" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <line x1="595" y1="70" x2="595" y2="560" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <line x1="851" y1="70" x2="851" y2="560" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <line x1="1053" y1="70" x2="1053" y2="560" stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 4"/>
+
+            <!-- 1: Client → Controller -->
+            <text class="svg-l" x="100" y="104" fill="#0A8F5B">1 GET /products/{productId}</text>
+            <line x1="99" y1="112" x2="335" y2="112" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+
+            <!-- 2: Controller → Service -->
+            <text class="svg-l" x="345" y="142" fill="#0A8F5B">2 getDetail(productId)</text>
+            <line x1="339" y1="150" x2="591" y2="150" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+
+            <!-- 3: Service → Repo: findActiveById(product) -->
+            <text class="svg-l" x="600" y="180" fill="#0A8F5B">3 findActiveById(productId)</text>
+            <line x1="595" y1="188" x2="847" y2="188" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+            <line x1="851" y1="206" x2="1049" y2="206" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+            <text class="svg-l" x="855" y="200" fill="#0A8F5B">SELECT product (ACTIVE)</text>
+
+            <!-- 4: 상품 없음 → 404 (분기) -->
+            <text class="svg-l" x="600" y="240" fill="#C9303C">4 상품 없음 → 404 PRODUCT_NOT_FOUND</text>
+            <line x1="591" y1="248" x2="103" y2="248" stroke="#F04452" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#pdArrowBack)"/>
+
+            <!-- 5: Service → Repo: findActiveById(brand) -->
+            <text class="svg-l" x="600" y="288" fill="#0A8F5B">5 findActiveById(brandId)</text>
+            <line x1="595" y1="296" x2="847" y2="296" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+            <line x1="851" y1="314" x2="1049" y2="314" stroke="#15C47E" stroke-width="2" marker-end="url(#pdArrow)"/>
+            <text class="svg-l" x="855" y="308" fill="#0A8F5B">SELECT brand (ACTIVE)</text>
+
+            <!-- 6: 브랜드 없음 → 404 (분기) -->
+            <text class="svg-l" x="600" y="348" fill="#C9303C">6 브랜드 없음 → 404 BRAND_NOT_FOUND</text>
+            <line x1="591" y1="356" x2="103" y2="356" stroke="#F04452" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#pdArrowBack)"/>
+
+            <!-- 7: 결합 -->
+            <text class="svg-l" x="600" y="396" fill="#1B64DA">7 ProductDetailInfo.of(product, brandName)</text>
+            <line x1="600" y1="404" x2="600" y2="430" stroke="#3182F6" stroke-width="2" marker-end="url(#pdArrow)"/>
+
+            <!-- 8: Service → Controller 반환 -->
+            <text class="svg-l" x="345" y="460" fill="#1B64DA">8 ProductDetailInfo</text>
+            <line x1="591" y1="468" x2="343" y2="468" stroke="#3182F6" stroke-width="2" marker-end="url(#pdArrow)"/>
+
+            <!-- 9: Controller → Client 응답 -->
+            <text class="svg-l" x="100" y="500" fill="#1B64DA">9 200 OK · ApiResponse&lt;ProductDetailResponse&gt;</text>
+            <line x1="335" y1="508" x2="103" y2="508" stroke="#3182F6" stroke-width="2" marker-end="url(#pdArrow)"/>
+          </svg>
+        </div>
+        <figcaption><b>그림 1.</b> 상품 상세 조회 흐름. 초록 = 정상 호출, 파랑 = 결합·응답, 빨강 점선 = <b>404 분기</b>(상품 또는 브랜드 미존재). 상품·브랜드는 각각 독립 SELECT 로 조회된다.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===================== S4 비즈니스 로직 ===================== -->
+    <section id="s4" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">4</div>
+        <div>
+          <p class="sec-eyebrow">BUSINESS LOGIC</p>
+          <h2 class="sec">비즈니스 로직</h2>
+        </div>
+      </div>
+      <p class="lead"><span class="term">ProductService.getDetail(id)</span> 한 메서드에 조회·검증·결합이 모두 담겨 있습니다.</p>
+
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">ProductService.kt</span>
+        </div>
+<pre><span class="kw">@Transactional</span>(readOnly = <span class="kw">true</span>)
+<span class="kw">fun</span> <span class="fn">getDetail</span>(id: <span class="ty">Long</span>): <span class="ty">ProductDetailInfo</span> {
+    <span class="kw">val</span> product = productRepository.<span class="fn">findActiveById</span>(id)
+        ?: <span class="kw">throw</span> <span class="fn">NotFoundException</span>(ProductErrorCode.PRODUCT_NOT_FOUND)
+    <span class="kw">val</span> brand = brandRepository.<span class="fn">findActiveById</span>(product.brandId)
+        ?: <span class="kw">throw</span> <span class="fn">NotFoundException</span>(BrandErrorCode.BRAND_NOT_FOUND)
+    <span class="kw">return</span> ProductDetailInfo.<span class="fn">of</span>(product, brand.name.value)
+}</pre>
+      </div>
+
+      <h3>단계별 로직</h3>
+
+      <div class="note"><span class="tag">STEP 1 · 상품 조회</span><strong>findActiveById(id)</strong> 로 활성 상품을 단건 조회합니다. 결과가 <strong>null 이면 NotFoundException(PRODUCT_NOT_FOUND)</strong> 를 던져 <strong>404</strong> 로 매핑됩니다.</div>
+
+      <div class="note"><span class="tag">STEP 2 · soft-delete 처리</span>조회 메서드 이름이 <strong>findActive</strong>ById 인 데서 드러나듯, <strong>DELETED 상태 상품은 조회 대상에서 제외</strong>됩니다. <span class="term">ProductStatus</span> 는 <span class="term">ACTIVE</span> / <span class="term">DELETED</span> 두 상태이며, soft delete 판단의 단일 출처는 <strong>deletedAt 이 아니라 status</strong> 입니다. 따라서 soft-delete 된 상품은 미존재와 동일하게 <strong>404</strong> 로 떨어집니다.</div>
+
+      <div class="note"><span class="tag">STEP 3 · brandName 결합</span>상품의 <span class="term">brandId</span> 로 <strong>BrandRepository.findActiveById</strong> 를 다시 호출해 브랜드를 조회합니다. FK JOIN 이 아니라 <strong>별도 단건 조회</strong>로 가져와 <span class="term">brand.name.value</span> 를 <span class="term">ProductDetailInfo.of</span> 에 전달해 결합합니다. 브랜드가 없거나 비활성이면 <strong>NotFoundException(BRAND_NOT_FOUND)</strong> → <strong>404</strong>.</div>
+
+      <div class="note"><span class="tag">STEP 4 · 트랜잭션 경계</span>메서드 전체가 <strong>@Transactional(readOnly = true)</strong> 로 묶여 있습니다. 쓰기 없는 조회 흐름이므로 읽기 전용 트랜잭션으로 dirty checking·flush 비용을 줄이고 의도를 명시합니다.</div>
+
+      <details class="tg">
+        <summary><span class="tw">심화</span>왜 JOIN 이 아니라 별도 조회인가<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+        <div class="tg-body">
+          <p><span class="term">Product</span> 엔티티는 <span class="term">brandId: Long</span> 만 들고 있고 <span class="term">@ManyToOne</span> 연관을 갖지 않습니다. 브랜드는 별도 bounded context 이므로 엔티티 연관 대신 식별자(brandId)만 참조하고, 상세 응답에 브랜드명이 필요할 때 <strong>BrandRepository 로 명시적으로 조회</strong>합니다.</p>
+          <p>두 조회 모두 <strong>활성 상태</strong>를 강제(findActiveById)하므로, 상품은 살아 있지만 브랜드가 삭제된 dangling 상태도 <strong>404 BRAND_NOT_FOUND</strong> 로 일관되게 차단됩니다. 단건 상세 조회라 단일 상품에 대한 추가 SELECT 1회뿐이며 N+1 문제는 발생하지 않습니다(목록 조회와 다른 경로).</p>
+        </div>
+      </details>
+
+      <div class="note warn"><span class="tag">주의</span>상품이 존재해도 <strong>그 상품의 브랜드가 삭제(비활성)</strong>되었다면 응답은 200 이 아니라 <strong>404 BRAND_NOT_FOUND</strong> 입니다. 상세 응답은 brandName 을 필수 필드로 요구하므로, 브랜드명을 채울 수 없는 경우 상품을 노출하지 않습니다.</div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서<br>
+    Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

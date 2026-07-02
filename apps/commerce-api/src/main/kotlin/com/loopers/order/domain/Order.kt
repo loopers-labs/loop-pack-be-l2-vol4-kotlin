@@ -22,7 +22,11 @@ class Order private constructor(
     userId: Long,
     orderedAt: LocalDateTime,
     couponId: Long?,
+    orderKey: String,
 ) : BaseEntity() {
+    @Column(name = "order_key", nullable = false, unique = true, updatable = false)
+    val orderKey: String = orderKey
+
     @Column(name = "user_id", nullable = false, updatable = false)
     val userId: Long = userId
 
@@ -101,7 +105,7 @@ class Order private constructor(
             if (snapshots.isEmpty()) {
                 throw BadRequestException(OrderErrorCode.EMPTY_ORDER_ITEMS)
             }
-            val order = Order(userId, LocalDateTime.now(), couponId)
+            val order = Order(userId, LocalDateTime.now(), couponId, OrderKeyGenerator.generate())
             snapshots.forEach { order.addItem(it) }
             order.applyDiscount(discountAmount)
             return order

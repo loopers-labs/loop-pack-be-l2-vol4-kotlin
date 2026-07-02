@@ -4,14 +4,11 @@ import com.loopers.domain.like.application.service.LikeService
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaEntity
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaId
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
-import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
+import com.loopers.support.outbox.OutboxRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import java.util.concurrent.CountDownLatch
@@ -24,7 +21,7 @@ class ProductLikeCountConcurrencyIntegrationTest
     constructor(
         private val likeService: LikeService,
         private val likeJpaRepository: LikeJpaRepository,
-        private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
+        private val outboxRepository: OutboxRepository,
         private val databaseCleanUp: DatabaseCleanUp,
     ) {
         @AfterEach
@@ -40,29 +37,27 @@ class ProductLikeCountConcurrencyIntegrationTest
         }
 
         @Test
-        fun `집계_행이_없으면_좋아요_추가를_롤백한다`() {
-            val ex = assertThrows<CoreException> {
-                likeService.like(userId = 1L, productId = 상품_ID)
-            }
+        fun `집계_행이_없어도_좋아요와_delta_1_이벤트를_저장한다`() {
+            likeService.like(userId = 1L, productId = 상품_ID)
 
-            assertThat(ex.errorType).isEqualTo(ErrorType.INTERNAL_ERROR)
-            assertThat(likeJpaRepository.count()).isZero()
+            assertThat(likeJpaRepository.count()).isEqualTo(1L)
+            assertThat(likeService.countByProductId(상품_ID)).isZero()
+            assertThat(countLikeCountEvents(delta = 1)).isEqualTo(1)
         }
 
         @Test
-        fun `집계_행이_없으면_좋아요_취소를_롤백한다`() {
+        fun `집계_행이_없어도_좋아요_취소와_delta_마이너스_1_이벤트를_저장한다`() {
             likeJpaRepository.saveAndFlush(LikeJpaEntity(LikeJpaId(userId = 1L, productId = 상품_ID)))
 
-            val ex = assertThrows<CoreException> {
-                likeService.unlike(userId = 1L, productId = 상품_ID)
-            }
+            likeService.unlike(userId = 1L, productId = 상품_ID)
 
-            assertThat(ex.errorType).isEqualTo(ErrorType.INTERNAL_ERROR)
-            assertThat(likeJpaRepository.count()).isEqualTo(1L)
+            assertThat(likeJpaRepository.count()).isZero()
+            assertThat(likeService.countByProductId(상품_ID)).isZero()
+            assertThat(countLikeCountEvents(delta = -1)).isEqualTo(1)
         }
 
         @Test
-        fun `동일_상품에_N명이_동시에_좋아요하면_카운트와_레코드가_N으로_일치한다`() {
+        fun `동일_상품에_N명이_동시에_좋아요하면_delta_1_이벤트와_좋아요_레코드가_N으로_일치한다`() {
             likeService.initializeCount(상품_ID)
             val 사용자_수 = 50
 
@@ -70,12 +65,13 @@ class ProductLikeCountConcurrencyIntegrationTest
                 likeService.like(userId = (userId + 1).toLong(), productId = 상품_ID)
             }
 
-            assertThat(likeService.countByProductId(상품_ID)).isEqualTo(사용자_수.toLong())
             assertThat(likeJpaRepository.count()).isEqualTo(사용자_수.toLong())
+            assertThat(likeService.countByProductId(상품_ID)).isZero()
+            assertThat(countLikeCountEvents(delta = 1)).isEqualTo(사용자_수)
         }
 
         @Test
-        fun `같은_사용자가_같은_상품을_동시에_연타해도_카운트는_1이다`() {
+        fun `같은_사용자가_같은_상품을_동시에_연타해도_delta_1_이벤트는_1개다`() {
             likeService.initializeCount(상품_ID)
             val 요청_수 = 50
 
@@ -83,12 +79,13 @@ class ProductLikeCountConcurrencyIntegrationTest
                 likeService.like(userId = 1L, productId = 상품_ID)
             }
 
-            assertThat(likeService.countByProductId(상품_ID)).isEqualTo(1L)
             assertThat(likeJpaRepository.count()).isEqualTo(1L)
+            assertThat(likeService.countByProductId(상품_ID)).isZero()
+            assertThat(countLikeCountEvents(delta = 1)).isEqualTo(1)
         }
 
         @Test
-        fun `좋아요와_취소가_혼재해도_카운트는_레코드_수와_일치한다`() {
+        fun `좋아요와_취소가_혼재해도_실제_전이만_좋아요_수_이벤트를_저장한다`() {
             likeService.initializeCount(상품_ID)
             val 사용자_수 = 40
             (1..사용자_수).forEach { userId ->
@@ -107,11 +104,13 @@ class ProductLikeCountConcurrencyIntegrationTest
 
             val expected = (사용자_수 / 2).toLong()
             assertThat(likeJpaRepository.count()).isEqualTo(expected)
-            assertThat(likeService.countByProductId(상품_ID)).isEqualTo(expected)
+            assertThat(likeService.countByProductId(상품_ID)).isZero()
+            assertThat(countLikeCountEvents(delta = 1)).isEqualTo(사용자_수)
+            assertThat(countLikeCountEvents(delta = -1)).isEqualTo(사용자_수 / 2)
         }
 
         @Test
-        fun `좋아요_취소를_연타해도_카운트는_음수가_되지_않는다`() {
+        fun `좋아요_취소를_연타해도_delta_마이너스_1_이벤트는_1개다`() {
             likeService.initializeCount(상품_ID)
             likeService.like(userId = 1L, productId = 상품_ID)
             val 요청_수 = 50
@@ -122,7 +121,17 @@ class ProductLikeCountConcurrencyIntegrationTest
 
             assertThat(likeService.countByProductId(상품_ID)).isZero()
             assertThat(likeJpaRepository.count()).isZero()
+            assertThat(countLikeCountEvents(delta = 1)).isEqualTo(1)
+            assertThat(countLikeCountEvents(delta = -1)).isEqualTo(1)
         }
+
+        private fun countLikeCountEvents(delta: Int): Int =
+            outboxRepository.findPendingByType(LIKE_COUNT_CHANGED_V1)
+                .count { event ->
+                    event.aggregateType == PRODUCT_AGGREGATE &&
+                        event.aggregateId == 상품_ID &&
+                        event.payload.contains(""""delta":$delta""")
+                }
 
         private fun 동시_실행(
             count: Int,
@@ -149,5 +158,7 @@ class ProductLikeCountConcurrencyIntegrationTest
 
         companion object {
             private const val 상품_ID = 10L
+            private const val LIKE_COUNT_CHANGED_V1 = "LIKE_COUNT_CHANGED_V1"
+            private const val PRODUCT_AGGREGATE = "PRODUCT"
         }
     }

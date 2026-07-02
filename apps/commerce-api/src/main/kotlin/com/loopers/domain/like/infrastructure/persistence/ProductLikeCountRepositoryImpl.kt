@@ -30,6 +30,19 @@ class ProductLikeCountRepositoryImpl(
         productLikeCountJpaRepository.findCountsByProductIds(productIds)
             .associate { it.getProductId() to it.getLikeCount() }
 
+    override fun rebuildFromLikes() {
+        productLikeCountJpaRepository.rebuildFromLikes()
+    }
+
+    override fun countProductRows(): Long =
+        productLikeCountJpaRepository.countProductRows()
+
+    override fun countLikeRows(): Long =
+        productLikeCountJpaRepository.countLikeRows()
+
+    override fun countProjectionRows(): Long =
+        productLikeCountJpaRepository.count()
+
     private fun ensureUpdated(updatedRows: Int) {
         if (updatedRows != 1) {
             throw CoreException(ErrorType.INTERNAL_ERROR, "상품 좋아요 수 집계 행을 갱신할 수 없습니다.")

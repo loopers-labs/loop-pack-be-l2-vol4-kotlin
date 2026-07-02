@@ -2,6 +2,8 @@ package com.loopers.domain.like.integration
 
 import com.loopers.domain.like.application.service.LikeService
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
+import com.loopers.support.outbox.OutboxEventModel
+import com.loopers.support.outbox.OutboxRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -18,6 +20,7 @@ class LikeServiceIntegrationTest
     constructor(
         private val likeService: LikeService,
         private val likeJpaRepository: LikeJpaRepository,
+        private val outboxRepository: OutboxRepository,
         private val databaseCleanUp: DatabaseCleanUp,
     ) {
         @AfterEach
@@ -33,7 +36,8 @@ class LikeServiceIntegrationTest
             likeService.like(userId = 1L, productId = 10L)
 
             assertThat(likeJpaRepository.count()).isEqualTo(1)
-            assertThat(likeService.countByProductId(10L)).isEqualTo(1)
+            assertThat(likeService.countByProductId(10L)).isZero()
+            assertLikeCountEvents(delta = 1, expectedCount = 1)
         }
 
         @Test
@@ -45,11 +49,12 @@ class LikeServiceIntegrationTest
             }
 
             assertThat(likeJpaRepository.count()).isEqualTo(1)
-            assertThat(likeService.countByProductId(10L)).isEqualTo(1)
+            assertThat(likeService.countByProductId(10L)).isZero()
+            assertLikeCountEvents(delta = 1, expectedCount = 1)
         }
 
         @Test
-        fun `여러_사용자가_동시에_같은_상품을_좋아요하면_카운트가_요청수와_일치한다`() {
+        fun `여러_사용자가_동시에_같은_상품을_좋아요하면_요청수만큼_좋아요_수_이벤트를_저장한다`() {
             likeService.initializeCount(productId = 10L)
             val userIds = List(10) { index -> index + 1L }
 
@@ -58,7 +63,8 @@ class LikeServiceIntegrationTest
             }
 
             assertThat(likeJpaRepository.count()).isEqualTo(10)
-            assertThat(likeService.countByProductId(10L)).isEqualTo(10)
+            assertThat(likeService.countByProductId(10L)).isZero()
+            assertLikeCountEvents(delta = 1, expectedCount = 10)
         }
 
         @Test
@@ -70,10 +76,12 @@ class LikeServiceIntegrationTest
 
             assertThat(likeJpaRepository.count()).isZero()
             assertThat(likeService.countByProductId(10L)).isZero()
+            assertLikeCountEvents(delta = 1, expectedCount = 1)
+            assertLikeCountEvents(delta = -1, expectedCount = 1)
         }
 
         @Test
-        fun `상품별_좋아요_수를_집계한다`() {
+        fun `상품별_좋아요_수는_projection_테이블을_조회한다`() {
             likeService.initializeCount(productId = 10L)
             likeService.initializeCount(productId = 20L)
             likeService.like(userId = 1L, productId = 10L)
@@ -82,8 +90,28 @@ class LikeServiceIntegrationTest
 
             val counts = likeService.countByProductIds(setOf(10L, 20L))
 
-            assertThat(counts).containsEntry(10L, 2L)
-            assertThat(counts).containsEntry(20L, 1L)
+            assertThat(counts).containsEntry(10L, 0L)
+            assertThat(counts).containsEntry(20L, 0L)
+            assertLikeCountEvents(delta = 1, expectedCount = 3)
+        }
+
+        private fun assertLikeCountEvents(
+            delta: Int,
+            expectedCount: Int,
+        ) {
+            val events = outboxRepository.findPendingByType(LIKE_COUNT_CHANGED_V1)
+                .filter { it.payload.contains(""""delta":$delta""") }
+
+            assertThat(events).hasSize(expectedCount)
+            events.forEach(::assertLikeCountEventShape)
+        }
+
+        private fun assertLikeCountEventShape(event: OutboxEventModel) {
+            assertThat(event.type).isEqualTo(LIKE_COUNT_CHANGED_V1)
+            assertThat(event.aggregateType).isEqualTo(PRODUCT_AGGREGATE)
+            assertThat(event.payload).contains(""""productId":${event.aggregateId}""")
+            assertThat(event.payload).contains(""""userId":""")
+            assertThat(event.eventId).isNotNull()
         }
 
         private fun <T> executeConcurrently(targets: List<T>, action: (T) -> Unit) {
@@ -106,5 +134,10 @@ class LikeServiceIntegrationTest
             } finally {
                 executor.shutdownNow()
             }
+        }
+
+        companion object {
+            private const val LIKE_COUNT_CHANGED_V1 = "LIKE_COUNT_CHANGED_V1"
+            private const val PRODUCT_AGGREGATE = "PRODUCT"
         }
     }

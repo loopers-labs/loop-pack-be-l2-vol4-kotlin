@@ -17,6 +17,26 @@ interface ProductLikeCountJpaRepository : JpaRepository<ProductLikeCountJpaEntit
         @Param("productIds") productIds: Set<Long>,
     ): List<ProductLikeCountRow>
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        value = """
+            insert into product_like_counts (product_id, like_count)
+            select p.id, count(l.product_id)
+            from products p
+            left join likes l on l.product_id = p.id
+            group by p.id
+            on duplicate key update like_count = values(like_count)
+        """,
+        nativeQuery = true,
+    )
+    fun rebuildFromLikes(): Int
+
+    @Query(value = "select count(*) from products", nativeQuery = true)
+    fun countProductRows(): Long
+
+    @Query(value = "select count(*) from likes", nativeQuery = true)
+    fun countLikeRows(): Long
+
     @Modifying(clearAutomatically = true)
     @Query(
         value = """

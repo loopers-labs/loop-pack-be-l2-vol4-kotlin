@@ -2,7 +2,6 @@ package com.loopers.domain.product.integration
 
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
-import com.loopers.domain.like.application.service.LikeService
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaEntity
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaId
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
@@ -29,7 +28,6 @@ class ProductServiceIntegrationTest
     constructor(
         private val brandService: BrandService,
         private val productService: ProductService,
-        private val likeService: LikeService,
         private val likeJpaRepository: LikeJpaRepository,
         private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
         private val productJpaRepository: ProductJpaRepository,
@@ -117,20 +115,18 @@ class ProductServiceIntegrationTest
         }
 
         @Test
-        fun `상품_목록은_좋아요_많은순으로_조회할_수_있다`() {
+        fun `상품_목록은_projection_좋아요_많은순으로_조회할_수_있다`() {
             val brand = brandService.register(브랜드_등록_커맨드())
             val low = productService.register(상품_등록_커맨드(brandId = brand.id, name = "낮은 상품", price = 1_000))
             val high = productService.register(상품_등록_커맨드(brandId = brand.id, name = "높은 상품", price = 2_000))
             val middle = productService.register(상품_등록_커맨드(brandId = brand.id, name = "중간 상품", price = 3_000))
-            likeService.initializeCount(low.id)
-            likeService.initializeCount(high.id)
-            likeService.initializeCount(middle.id)
-            likeService.like(userId = 1L, productId = low.id)
-            likeService.like(userId = 1L, productId = high.id)
-            likeService.like(userId = 2L, productId = high.id)
-            likeService.like(userId = 3L, productId = high.id)
-            likeService.like(userId = 1L, productId = middle.id)
-            likeService.like(userId = 2L, productId = middle.id)
+            productLikeCountJpaRepository.saveAllAndFlush(
+                listOf(
+                    ProductLikeCountJpaEntity(productId = low.id, likeCount = 1L),
+                    ProductLikeCountJpaEntity(productId = high.id, likeCount = 3L),
+                    ProductLikeCountJpaEntity(productId = middle.id, likeCount = 2L),
+                ),
+            )
 
             val products = productService.findProducts(
                 ProductSearchCommand.of(brandId = brand.id, sort = "likes_desc", page = 0, size = 2),

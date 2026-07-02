@@ -16,6 +16,7 @@ Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 �
 - 도메인 간 협력은 Facade에서 조합되고, Service끼리 직접 의존하지 않는가?
 - 여러 도메인 상태를 함께 바꾸는 유스케이스가 하나의 트랜잭션 경계 안에서 처리되는가?
 - 좋아요 멱등성, 재고 부족 전체 거부, 쿠폰 중복 사용 방지, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
+- 좋아요 수는 `likes` 변경 이벤트에서 파생되는 eventually consistent projection이며, 쿠폰 발급·사용의 권위 상태는 기존 동기 트랜잭션에 남아 있는가?
 
 ## 표기 규칙
 
@@ -236,6 +237,12 @@ sequenceDiagram
     participant ProductService
     participant LikeService
     participant LikeRepository
+    participant OutboxRepository
+    participant Relay as OutboxRelay
+    participant Kafka as Kafka commerce.like-count-events.v1
+    participant Consumer as LikeCountEventConsumer
+    participant ProcessedEvents as processed_kafka_events
+    participant Projection as product_like_counts
     participant Advice as ApiControllerAdvice
 
     Customer->>CustomerAPI: 좋아요 상태 변경 요청
@@ -254,12 +261,31 @@ sequenceDiagram
         else 등록 요청이고 미좋아요 상태
             LikeService->>LikeRepository: 좋아요 저장
             LikeRepository-->>LikeService: 저장 완료
+            LikeService->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, productId key, delta=+1)
         else 취소 요청
             LikeService->>LikeRepository: 좋아요 삭제
             LikeRepository-->>LikeService: 삭제 완료 또는 부재 (멱등)
+            alt 삭제된 행 있음
+                LikeService->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, productId key, delta=-1)
+            else 삭제된 행 없음
+                Note over LikeService: no-op DELETE — 이벤트 없음
+            end
         end
+        Note over LikeService: TX commit — likes가 상태 source of truth, outbox row만 함께 저장
         LikeFacade-->>CustomerAPI: 최종 좋아요 상태
         CustomerAPI-->>Customer: 200 성공 또는 204 응답 본문 없음
+    end
+
+    Relay->>OutboxRepository: 발행 대기 이벤트 조회
+    Relay->>Kafka: productId key로 LIKE_COUNT_CHANGED_V1 발행
+    Kafka-->>Consumer: LIKE_COUNT_CHANGED_V1(eventId, productId, userId, delta)
+    Consumer->>ProcessedEvents: consumer_group + eventId 처리 기록
+    alt 이미 처리된 eventId
+        Consumer-->>Kafka: ack (중복 no-op)
+    else 신규 eventId
+        Consumer->>Projection: delta를 product_like_counts projection에 반영
+        Note over Consumer,Projection: DB TX commit 후 ack. projection lag는 허용하며 replay/backfill로 복구
+        Consumer-->>Kafka: ack
     end
 
     Customer->>CustomerAPI: 내 좋아요 목록 조회
@@ -288,6 +314,9 @@ sequenceDiagram
 
 - 좋아요 목록은 user에서 likes 컬렉션을 양방향으로 열지 않고 `LikeRepository.findByUserId` 명시 쿼리로 조회한다.
 - 좋아요 이력이 아니라 현재 상태만 필요하므로 취소는 hard delete를 기본으로 둔다.
+- 좋아요 수는 `likes`의 직접 권위 상태가 아니라 `LIKE_COUNT_CHANGED_V1`을 Kafka consumer가 반영한 eventually consistent projection이다. 실제 상태 전이가 없는 반복 `POST`/`DELETE`는 이벤트를 만들지 않는다.
+- Kafka key는 `productId`, 이벤트 식별자는 UUID `eventId`, 증감량은 `delta=+1/-1`이다. consumer는 `processed_kafka_events`로 eventId를 dedupe하고 `product_like_counts`에 중복 delta를 적용하지 않는다.
+- consumer lag나 장애 후 재처리 때문에 상품 목록·상세의 좋아요 수는 짧게 늦을 수 있다. 필요 시 Kafka replay 또는 `likes` 기준 backfill/rebuild로 projection을 복구한다.
 - 본인 외 자원 접근은 자원 존재 여부를 노출하지 않기 위해 `404 자원 없음`으로 응답한다.
 
 ## 6. User-E2 재고 부족 거부

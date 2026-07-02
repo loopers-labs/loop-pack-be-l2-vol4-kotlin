@@ -122,12 +122,14 @@
 #### 좋아요
 사용자가 특정 상품에 관심을 표시한 상태다. 좋아요는 사용자와 상품 사이의 관계로 표현되며, 사용자는 자신이 좋아요 한 상품 목록을 조회할 수 있다.
 자신의 식별자이자 인증 정보인 계정이 있는 사용자가 로그인 후 특정 상품에 대하여 '좋아요 누르기'를 수행할 수 있으며, 한 사용자가 한 상품에 대하여 한 번만 수행할 수 있다.
+`likes` 레코드는 사용자-상품 좋아요 상태의 진실 원천(source of truth)이다. 상품별 좋아요 수는 `product_like_counts`에 저장하지만, 이 값은 `likes` 변경 이벤트를 Kafka consumer가 반영하는 eventually consistent projection이다.
 
 ##### 값과 규칙
 
 - 사용자: 좋아요를 등록하거나 취소하는 주체다.
 - 상품: 좋아요의 대상이다.
 - 좋아요 목록: 로그인한 사용자가 좋아요 한 상품들의 목록이다.
+- 좋아요 수: 상품 목록·상세 조회와 `likes_desc` 정렬에 사용하는 읽기 모델이다. 쓰기 직후에는 projection lag 때문에 `likes`의 최신 상태보다 늦게 보일 수 있으며, 정확한 사용자별 좋아요 상태 판단은 `likes`를 기준으로 한다.
 
 ##### 행위 정의
 
@@ -576,6 +578,16 @@
 > [!IMPORTANT]
 > `GET /api/v1/users/{userId}/likes`의 path `userId`는 **인증된 사용자 식별자와 반드시 일치**해야 한다. 불일치 시 자원 존재 여부를 노출하지 않도록 `404`로 응답한다 (§3.1, §3.2 `User-E1`, §4 HTTP 응답 코드 정책 참조).
 
+#### 좋아요 수 projection 이벤트
+
+- `likes`는 사용자-상품 좋아요 상태의 source of truth이고, `product_like_counts`는 `LIKE_COUNT_CHANGED_V1` 이벤트를 Kafka consumer가 반영하는 eventually consistent projection이다.
+- 좋아요 등록이 실제 상태 전이를 만들면(`likes` INSERT 영향 행 수 `1`) `delta = +1` 이벤트를 남긴다. 이미 좋아요 상태인 반복 `POST`처럼 영향 행 수가 `0`인 no-op 요청은 이벤트를 남기지 않는다.
+- 좋아요 취소가 실제 상태 전이를 만들면(`likes` DELETE 영향 행 수 `1`) `delta = -1` 이벤트를 남긴다. 이미 미좋아요 상태인 반복 `DELETE`처럼 영향 행 수가 `0`인 no-op 요청은 이벤트를 남기지 않는다.
+- Kafka topic은 `commerce.like-count-events.v1`, 이벤트 타입은 `LIKE_COUNT_CHANGED_V1`, Kafka key는 `productId`다. 동일 상품의 증감 이벤트는 같은 key로 보내 상품 단위 순서를 최대한 보존한다.
+- 이벤트는 UUID `eventId`를 가진다. consumer는 `processed_kafka_events`에 `(consumer_group, eventId)` 처리 기록을 저장하고, 같은 이벤트가 재전달되면 `product_like_counts`에 `delta`를 다시 적용하지 않는다.
+- `product_like_counts`는 조회 성능을 위한 projection이므로 짧은 projection lag를 허용한다. consumer 중단, 재처리, 장애 복구 시에는 Kafka replay와 `likes` 기준 backfill/rebuild로 projection을 다시 맞춘다.
+- 쿠폰 발급·사용의 권위 상태는 이 좋아요 수 이벤트 흐름으로 옮기지 않는다. 쿠폰은 기존처럼 발급/주문 트랜잭션 안에서 동기 검증·상태 변경을 유지한다.
+
 ---
 
 ### 5.5 주문 (Orders)
@@ -666,7 +678,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 | 유스케이스 | 동시성 위험 | 선택한 락/제약 | 근거 |
 | :--- | :--- | :--- | :--- |
 | 좋아요 등록/취소 | 중복·연타·동시 요청 | DB 복합 PK + 조건부 INSERT/DELETE (행 락 없음) | 멱등 연산이라 락 불필요. 멱등성은 `(user_id, product_id)` PK가 보장 |
-| 좋아요 수 갱신 | 동시 증감으로 카운트 어긋남 | `product_like_counts` 행 원자 UPDATE (`like_count = like_count ± 1`) | 단일 컬럼 증감. 증감량은 좋아요 INSERT/DELETE 영향 행 수(0/1)로 결정, 취소는 `like_count > 0` 가드로 음수 방지 |
+| 좋아요 수 projection | Kafka 재전달·consumer 장애·짧은 조회 지연 | `likes` source of truth + `LIKE_COUNT_CHANGED_V1` + `processed_kafka_events` dedupe | 실제 INSERT/DELETE 영향 행 수가 1일 때만 `delta=+1/-1` 이벤트를 남기고, `productId` key로 발행한다. consumer는 UUID `eventId` 처리 이력을 저장한 뒤 `product_like_counts` projection을 갱신한다. projection lag는 허용하며 replay/backfill로 복구한다 |
 | 쿠폰 발급 | 동일 사용자·템플릿 중복 발급 | `UNIQUE(user_id, coupon_template_id)` | 1인 1발급 멱등. 위반은 `409 Conflict` |
 | 쿠폰 사용 | 동일 쿠폰 동시 주문으로 중복 사용 | 낙관적 락(`version`) + 상태 검증(`AVAILABLE`/`used_at IS NULL`) | 경합 주체가 소유자 본인으로 한정돼 충돌 확률이 낮아 비관적 락 대비 응답이 빠르고 재처리가 단순. `version`은 lost update를, 상태 검증은 재사용을 막으며 둘이 함께 작동해야 "단 1회 사용"이 보장됨. 충돌 시 주문 실패로 응답 |
 | 재고 차감 | 동시 주문으로 초과 차감·음수 재고 | 비관적 락(`PESSIMISTIC_WRITE`) + 상품 ID 정렬 잠금 | 다중 상품 행을 read-modify-write로 차감하므로 경합이 잦고 정렬 잠금으로 교착을 방지. 차감은 잔여 재고 검증 후 수행 |
@@ -763,5 +775,5 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 > * **분산 시스템 데이터 일관성 (Consistency)**: 여러 서비스 간 트랜잭션 롤백 및 보상 트랜잭션 기법 연구
 > * **외부 IO와 트랜잭션 경계**: 외부 결제 호출은 분산 환경 여부와 무관하게 DB 트랜잭션 밖에서 수행해야 한다. 이를 `TX1 → 외부 호출 → TX2` 로 분리하면 *외부 호출 직후 프로세스 종료* 같은 경계 실패 시 주문 `PAYMENT_PENDING`, 결제 `REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 미결 회복 프로세스는 결제 상태를 확인한 뒤 주문 실패 전이, 재고 복구, 쿠폰 복구, 주문-쿠폰 연결 해제를 멱등하게 수행해야 한다. 외부 시스템 웹훅 수신, outbox 패턴 같은 회복 전략은 결제수단과 연동 방식이 구체화될 때 도입한다.
 > * **조회 성능 최적화 (Slow Query Optimization)**: 상품 목록 필터링 및 대량의 주문 목록 조회 쿼리에 대한 최적의 인덱스 설계와 튜닝
-> * **좋아요 수 조회 최적화**: 좋아요 수를 매번 `COUNT`로 계산하는 방식이 병목이 되면 캐시 컬럼, 집계 테이블, Redis 카운터를 검토한다.
+> * **좋아요 수 projection 운영**: `product_like_counts`는 `LIKE_COUNT_CHANGED_V1` Kafka consumer가 갱신하는 projection이므로 consumer lag, replay, `processed_kafka_events` dedupe, `likes` 기준 backfill/rebuild 절차를 함께 관리한다.
 > * **동시 대량 주문 처리**: 핫스팟 상품에 대한 선착순 주문 및 트래픽 폭주 대응 방안

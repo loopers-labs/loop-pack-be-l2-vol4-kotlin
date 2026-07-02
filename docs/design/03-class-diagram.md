@@ -60,7 +60,7 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 | Admin | `AdminModel`, `AdminOperationLogModel` | `Ldap`, `AdminName`, `TargetType`, `OperationType` | 관리자 LDAP 유일성, 로그 대상은 브랜드/상품 변경 작업으로 제한 | 관리자 식별, 변경 작업 기록 |
 | Brand | `BrandModel` | `BrandName` | 브랜드명 유효성, 삭제된 브랜드는 상품 등록 기준이 될 수 없음 | 등록, 이름 변경, soft delete |
 | Product | `ProductModel`, `StockModel` | `ProductName`, `Money`, `Quantity`, `StockQuantity` | 상품은 존재하는 브랜드에 속함, 가격은 음수 불가, 재고는 음수 불가, 삭제된 상품은 주문 불가 | 상품 정보 변경, 삭제, 재고 초기화/차감 |
-| Like | `LikeModel`, `ProductLikeCountModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 레코드와 정합을 이루는 집계 캐시 | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 좋아요 수 집계 갱신/조회 |
+| Like | `LikeModel`, `ProductLikeCountModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 `LIKE_COUNT_CHANGED_V1` 기반 eventually consistent projection | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 좋아요 수 projection 조회/재구성 |
 | Coupon | `CouponTemplateModel`, `IssuedCouponModel` | `CouponName`, `DiscountPolicy`, `IssuedCouponStatus`, `Money` | 한 사용자-쿠폰 템플릿 조합은 한 번만 발급됨, 발급 쿠폰은 사용 가능 상태에서 한 번만 사용 가능, 만료 쿠폰은 사용 불가 | 쿠폰 템플릿 생성/수정/삭제, 쿠폰 발급, 할인 계산, 쿠폰 사용/복구 |
 | Order | `OrderModel`, `OrderItemModel` | `Money`, `Quantity`, `OrderStatus` | 주문 항목 1개 이상, 수량 양수, 주문 시점 상품명/단가/할인 스냅샷 불변, 생성 상태는 `PAYMENT_PENDING`, 전이는 `PAYMENT_PENDING -> ORDERED/PAYMENT_FAILED`만 허용 | 주문 생성, 금액 계산, 쿠폰 할인 반영, 결제 결과 전이, 본인 주문 검증 |
 | Payment | `PaymentModel` | `PaymentMethod`, `PaymentStatus`, `Money` | 후속 결제 연동 설계에서 주문에 1:1로 속함, 결제 금액은 주문 결제 금액과 일치, 상태 전이는 요청 후 승인/실패 | 결제 요청 기록, 승인 기록, 실패 기록 |
@@ -520,18 +520,52 @@ classDiagram
         Long likeCount
     }
 
-    class ProductLikeCountRepository {
+    class LikeCountOutboxPort {
         <<port>>
-        increment(productId) Int
-        decrement(productId) Int
+        appendLikeCountChanged(eventId, productId, userId, delta) void
+    }
+
+    class LikeCountChangedEvent {
+        <<event>>
+        UUID eventId
+        Long productId
+        Long userId
+        Int delta
+        String eventType = LIKE_COUNT_CHANGED_V1
+    }
+
+    class ProductLikeCountRepository {
+        <<projection_port>>
+        initializeCount(productId) void
         countByProductId(productId) Long
         countByProductIds(productIds) Map
+        rebuildFromLikes(productId) void
+        applyDelta(productId, delta) void
+    }
+
+    class LikeCountEventConsumer {
+        <<streamer_consumer>>
+        consume(record) void
+    }
+
+    class LikeCountProjectionService {
+        <<projection_service>>
+        project(event) void
+    }
+
+    class ProcessedKafkaEventRepository {
+        <<dedupe_port>>
+        insertProcessed(eventId, consumerGroup) Boolean
     }
 
     LikeFacade ..> ProductService
     LikeFacade ..> LikeService
     LikeService ..> LikeRepository
-    LikeService ..> ProductLikeCountRepository
+    LikeService ..> LikeCountOutboxPort
+    LikeCountOutboxPort ..> LikeCountChangedEvent
+    LikeCountEventConsumer ..> LikeCountProjectionService
+    LikeCountProjectionService ..> ProductLikeCountRepository
+    LikeCountProjectionService ..> ProcessedKafkaEventRepository
     LikeRepository <|.. LikeRepositoryImpl
     LikeRepositoryImpl ..> LikeJpaEntity
     LikeJpaEntity ..> LikeModel
@@ -549,7 +583,9 @@ classDiagram
 - 좋아요는 이력보다 현재 상태가 중요하므로 취소 시 hard delete를 기본으로 한다.
 - 같은 `LikeKey`는 하나만 존재할 수 있다. 멱등 처리는 `LikeService`가 repository 존재 여부를 기준으로 조합하고, DB 복합 PK가 최종 중복을 막는다.
 - `LikeModel`은 `UserModel`이나 `ProductModel` 객체를 직접 들고 있지 않는다. 다른 애그리거트와는 식별자로만 연결한다.
-- `ProductLikeCountModel`은 상품별 좋아요 수 집계 애그리거트로 `likes` 레코드의 비정규화 캐시다. `LikeService`는 좋아요 등록/취소와 같은 트랜잭션에서 `ProductLikeCountRepository.increment/decrement`로 `likeCount`를 원자 갱신한다. 증감 수행 여부는 `likes` INSERT/DELETE의 영향 행 수(0/1)로 결정해 동시·반복 요청에도 카운트가 어긋나지 않으며, 감소는 `likeCount > 0` 가드로 음수를 방지한다. 상품 조회(`ProductFacade`)는 이 집계를 읽어 매 요청 `COUNT`를 피한다.
+- `LikeService`는 `likes` INSERT/DELETE가 실제 상태 전이를 만들 때만 `LikeCountOutboxPort`에 `LIKE_COUNT_CHANGED_V1` outbox event를 저장한다. 이벤트는 UUID `eventId`, `productId`, `userId`, `delta=+1/-1`을 포함하고, Kafka key는 `productId`, topic은 `commerce.like-count-events.v1`이다. 이미 좋아요가 있거나 이미 취소된 멱등 no-op 요청은 이벤트를 만들지 않는다.
+- `ProductLikeCountModel`은 `likes` 레코드에서 파생되는 eventually consistent projection이다. `LikeService`가 직접 변경하지 않으며, `LikeCountEventConsumer`가 Kafka record를 받은 뒤 `processed_kafka_events`에 `eventId`를 먼저 기록해 중복 처리를 막고 `ProductLikeCountRepository.applyDelta`로 projection을 반영한다.
+- `ProductLikeCountRepository`는 projection 조회, 상품 생성 시 초기화, 장애 복구용 backfill/rebuild 책임을 갖는다. projection lag가 있을 수 있으므로 상품 조회(`ProductFacade`)의 `likeCount`는 짧은 지연을 허용하며, 장기 불일치는 `likes` 기준 재구성으로 보정한다.
 
 해석:
 

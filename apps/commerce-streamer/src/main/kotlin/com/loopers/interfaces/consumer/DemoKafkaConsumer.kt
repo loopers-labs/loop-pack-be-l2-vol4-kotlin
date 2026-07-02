@@ -16,7 +16,6 @@ class DemoKafkaConsumer {
         messages: List<ConsumerRecord<Any, Any>>,
         acknowledgment: Acknowledgment,
     ) {
-        println(messages)
         acknowledgment.acknowledge() // manual ack
     }
 }

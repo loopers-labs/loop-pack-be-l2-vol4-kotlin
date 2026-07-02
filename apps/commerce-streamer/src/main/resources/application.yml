@@ -14,7 +14,7 @@ spring:
   main:
     web-application-type: servlet
   application:
-    name: commerce-api
+    name: commerce-streamer
   profiles:
     active: local
   config:
@@ -28,6 +28,10 @@ spring:
 demo-kafka:
   test:
     topic-name: demo.internal.topic-v1
+
+commerce:
+  events:
+    catalog-topic: catalog-events
 
 ---
 spring:

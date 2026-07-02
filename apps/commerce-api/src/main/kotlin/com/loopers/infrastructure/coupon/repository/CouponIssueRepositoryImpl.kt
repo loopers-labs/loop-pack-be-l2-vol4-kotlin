@@ -61,4 +61,12 @@ class CouponIssueRepositoryImpl(
     override fun existsByCouponId(couponId: Long): Boolean {
         return couponIssueJpaRepository.existsByCouponId(couponId)
     }
+
+    override fun existsByCouponIdAndMemberId(couponId: Long, memberId: Long): Boolean {
+        return couponIssueJpaRepository.existsByCouponIdAndMemberId(couponId = couponId, memberId = memberId)
+    }
+
+    override fun countByCouponId(couponId: Long): Long {
+        return couponIssueJpaRepository.countByCouponId(couponId)
+    }
 }

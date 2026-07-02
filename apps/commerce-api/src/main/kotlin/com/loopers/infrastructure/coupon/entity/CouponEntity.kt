@@ -34,6 +34,9 @@ class CouponEntity(
 
     @Column(name = "issue_limit")
     var issueLimit: Long? = null,
+
+    @Column(name = "issued_count", nullable = false)
+    var issuedCount: Long = 0L,
 ) : BaseEntity() {
     fun update(coupon: Coupon) {
         name = coupon.name
@@ -43,5 +46,6 @@ class CouponEntity(
         issueLimit = coupon.issueLimit
         expiredAt = coupon.expiredAt
         isDeleted = coupon.isDeleted
+        issuedCount = coupon.issuedCount
     }
 }

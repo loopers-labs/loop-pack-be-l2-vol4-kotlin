@@ -19,4 +19,8 @@ interface CouponIssueJpaRepository : JpaRepository<CouponIssueEntity, Long> {
     fun findAllByCouponId(couponId: Long, pageable: Pageable): Page<CouponIssueEntity>
 
     fun existsByCouponId(couponId: Long): Boolean
+
+    fun existsByCouponIdAndMemberId(couponId: Long, memberId: Long): Boolean
+
+    fun countByCouponId(couponId: Long): Long
 }

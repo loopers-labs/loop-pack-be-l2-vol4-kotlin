@@ -39,6 +39,7 @@ class CouponServiceTest {
                 { assertThat(result.discountValue).isEqualTo(command.discountValue) },
                 { assertThat(result.minOrderAmount).isEqualTo(command.minOrderAmount) },
                 { assertThat(result.issueLimit).isEqualTo(command.issueLimit) },
+                { assertThat(result.issuedCount).isZero() },
                 { assertThat(couponRepository.coupons).hasSize(1) },
             )
         }
@@ -70,6 +71,10 @@ class CouponServiceTest {
             return coupons.find { it.id == couponId }
         }
 
+        override fun findByIdForUpdate(couponId: Long): Coupon? {
+            return findById(couponId)
+        }
+
         override fun findDisplayable(page: Int, size: Int): Page<Coupon> {
             val pageRequest = PageRequest.of(page, size)
             return PageImpl(
@@ -90,6 +95,7 @@ class CouponServiceTest {
                     expiredAt = coupon.expiredAt,
                     isDeleted = coupon.isDeleted,
                     issueLimit = coupon.issueLimit,
+                    issuedCount = coupon.issuedCount,
                 )
             } else {
                 coupon
@@ -138,6 +144,14 @@ class CouponServiceTest {
 
         override fun existsByCouponId(couponId: Long): Boolean {
             return false
+        }
+
+        override fun existsByCouponIdAndMemberId(couponId: Long, memberId: Long): Boolean {
+            return false
+        }
+
+        override fun countByCouponId(couponId: Long): Long {
+            return 0L
         }
     }
 

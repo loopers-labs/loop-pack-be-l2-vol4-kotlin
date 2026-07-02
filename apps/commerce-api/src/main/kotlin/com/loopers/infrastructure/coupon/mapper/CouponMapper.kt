@@ -14,6 +14,7 @@ object CouponMapper {
             expiredAt = coupon.expiredAt,
             isDeleted = coupon.isDeleted,
             issueLimit = coupon.issueLimit,
+            issuedCount = coupon.issuedCount,
         )
     }
 
@@ -26,6 +27,7 @@ object CouponMapper {
             expiredAt = coupon.expiredAt,
             isDeleted = coupon.isDeleted,
             issueLimit = coupon.issueLimit,
+            issuedCount = coupon.issuedCount,
         )
     }
 }

@@ -21,6 +21,11 @@ class CouponRepositoryImpl(
             ?.let(CouponMapper::toDomain)
     }
 
+    override fun findByIdForUpdate(couponId: Long): Coupon? {
+        return couponJpaRepository.findByIdForUpdate(couponId)
+            ?.let(CouponMapper::toDomain)
+    }
+
     override fun findDisplayable(page: Int, size: Int): Page<Coupon> {
         val pageable = PageRequest.of(
             page,

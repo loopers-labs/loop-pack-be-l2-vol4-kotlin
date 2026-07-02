@@ -1,12 +1,12 @@
 package com.loopers.domain.payment.integration
 
+import com.loopers.domain.payment.application.result.PaymentTransitionResult
 import com.loopers.domain.payment.application.service.PaymentService
-import com.loopers.domain.payment.application.service.PaymentTransitionResult
 import com.loopers.domain.payment.exception.InvalidPaymentException
-import com.loopers.domain.payment.infrastructure.persistence.OutboxEventJpaRepository
 import com.loopers.domain.payment.model.PaymentModel
 import com.loopers.domain.payment.model.PaymentStatus
 import com.loopers.domain.payment.port.PaymentRepository
+import com.loopers.support.outbox.persistence.OutboxEventJpaRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach

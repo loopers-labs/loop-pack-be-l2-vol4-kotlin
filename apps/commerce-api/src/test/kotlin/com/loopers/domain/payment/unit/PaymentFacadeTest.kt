@@ -4,8 +4,7 @@ import com.loopers.domain.order.support.OrderSteps.Companion.주문_도메인_�
 import com.loopers.domain.payment.application.PaymentFacade
 import com.loopers.domain.payment.application.PaymentResultHandler
 import com.loopers.domain.payment.application.service.PaymentService
-import com.loopers.domain.payment.model.OutboxEventStatus
-import com.loopers.domain.payment.model.OutboxEventType
+import com.loopers.domain.payment.constant.PaymentOutboxEventType
 import com.loopers.domain.payment.port.PaymentCompensationPort
 import com.loopers.domain.payment.port.PaymentGatewayPort
 import com.loopers.domain.payment.port.PaymentGatewayRequest
@@ -19,6 +18,7 @@ import com.loopers.domain.payment.support.PaymentSteps.Companion.결제_콜백_�
 import com.loopers.domain.payment.support.PaymentSteps.Companion.결제_요청_커맨드
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.support.outbox.OutboxEventStatus
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
@@ -80,7 +80,7 @@ class PaymentFacadeTest {
         val payment = fixture.paymentRepository.findByOrderIdOrNull(10L)
         assertThat(ex.errorType).isEqualTo(ErrorType.BAD_GATEWAY)
         assertThat(payment?.status?.name).isEqualTo("UNKNOWN")
-        assertThat(fixture.outboxRepository.events.first().type).isEqualTo(OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED)
+        assertThat(fixture.outboxRepository.events.first().type).isEqualTo(PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name)
     }
 
     @Test
@@ -168,8 +168,8 @@ class PaymentFacadeTest {
         assertThat(result.recovered).isEqualTo(1)
         verify(exactly = 1) { fixture.orderPort.markOrdered(10L) }
         val syncEvent = fixture.outboxRepository.events
-            .first { it.type == OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED }
-        assertThat(syncEvent.status).isEqualTo(OutboxEventStatus.PROCESSED)
+            .first { it.type == PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name }
+        assertThat(syncEvent.status).isEqualTo(OutboxEventStatus.PUBLISHED)
     }
 
     @Test
@@ -189,7 +189,7 @@ class PaymentFacadeTest {
         assertThat(payment?.status?.name).isEqualTo("UNKNOWN")
         assertThat(result.recovered).isZero()
         val syncEvent = fixture.outboxRepository.events
-            .first { it.type == OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED }
+            .first { it.type == PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name }
         assertThat(syncEvent.status).isEqualTo(OutboxEventStatus.PENDING)
     }
 

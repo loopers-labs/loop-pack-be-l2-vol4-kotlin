@@ -1,26 +1,24 @@
 package com.loopers.domain.payment.application.service
 
-import com.loopers.domain.payment.model.OutboxEventModel
-import com.loopers.domain.payment.model.OutboxEventType
+import com.loopers.domain.payment.application.result.PaymentTransitionResult
+import com.loopers.domain.payment.constant.PaymentOutboxAggregate
+import com.loopers.domain.payment.constant.PaymentOutboxEventType
 import com.loopers.domain.payment.model.PaymentModel
-import com.loopers.domain.payment.port.OutboxRepository
 import com.loopers.domain.payment.port.PaymentRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.support.outbox.OutboxEventModel
+import com.loopers.support.outbox.OutboxRepository
+import java.time.ZonedDateTime
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
-data class PaymentTransitionResult(
-    val payment: PaymentModel,
-    val changed: Boolean,
-)
-
 @Component
-class PaymentService(
-    private val paymentRepository: PaymentRepository,
-    private val outboxRepository: OutboxRepository,
-) {
+class PaymentService(private val paymentRepository: PaymentRepository, private val outboxRepository: OutboxRepository) {
+    private val log = LoggerFactory.getLogger(PaymentService::class.java)
+
     @Transactional
     fun request(orderId: Long): PaymentModel =
         paymentRepository.findByOrderIdOrNull(orderId)
@@ -37,7 +35,8 @@ class PaymentService(
         val payment = paymentRepository.save(getByOrderId(orderId).markUnknown(reason))
         outboxRepository.save(
             OutboxEventModel(
-                type = OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED,
+                type = PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name,
+                aggregateType = PaymentOutboxAggregate.TYPE,
                 aggregateId = payment.id,
                 payload = """{"paymentId":${payment.id},"orderId":${payment.orderId}}""",
             ),
@@ -52,7 +51,7 @@ class PaymentService(
         val changed = payment.status != transitioned.status
         val saved = paymentRepository.save(transitioned)
         if (changed) {
-            savePaymentResultEvent(saved, OutboxEventType.PAYMENT_APPROVED)
+            savePaymentResultEvent(saved, PaymentOutboxEventType.PAYMENT_APPROVED.name)
         }
         return PaymentTransitionResult(saved, changed)
     }
@@ -64,7 +63,7 @@ class PaymentService(
         val changed = payment.status != transitioned.status
         val saved = paymentRepository.save(transitioned)
         if (changed) {
-            savePaymentResultEvent(saved, OutboxEventType.PAYMENT_FAILED)
+            savePaymentResultEvent(saved, PaymentOutboxEventType.PAYMENT_FAILED.name)
         }
         return PaymentTransitionResult(saved, changed)
     }
@@ -79,20 +78,20 @@ class PaymentService(
 
     @Transactional(readOnly = true)
     fun findPendingSyncEvents(): List<OutboxEventModel> =
-        outboxRepository.findPendingByType(OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED)
+        outboxRepository.findPendingByType(PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name)
 
     @Transactional
-    fun markEventProcessed(eventId: Long) {
-        outboxRepository.markProcessed(eventId)
+    fun markEventProcessed(eventId: UUID) {
+        outboxRepository.markPublished(eventId, ZonedDateTime.now())
     }
 
     @Transactional
     fun consumeResultEvents(): Int {
-        val events = outboxRepository.findPendingByType(OutboxEventType.PAYMENT_APPROVED) +
-            outboxRepository.findPendingByType(OutboxEventType.PAYMENT_FAILED)
+        val events = outboxRepository.findPendingByType(PaymentOutboxEventType.PAYMENT_APPROVED.name) +
+            outboxRepository.findPendingByType(PaymentOutboxEventType.PAYMENT_FAILED.name)
         events.forEach { event ->
             log.info("결제 결과 이벤트 소비: type={}, aggregateId={}, payload={}", event.type, event.aggregateId, event.payload)
-            outboxRepository.markProcessed(event.id)
+            outboxRepository.markPublished(event.eventId, ZonedDateTime.now())
         }
         return events.size
     }
@@ -107,17 +106,14 @@ class PaymentService(
     private fun getByTransactionKeyForUpdate(transactionKey: String): PaymentModel =
         paymentRepository.findByExternalTransactionKeyForUpdateOrNull(transactionKey) ?: throw CoreException(ErrorType.NOT_FOUND)
 
-    private fun savePaymentResultEvent(payment: PaymentModel, type: OutboxEventType) {
+    private fun savePaymentResultEvent(payment: PaymentModel, type: String) {
         outboxRepository.save(
             OutboxEventModel(
                 type = type,
+                aggregateType = PaymentOutboxAggregate.TYPE,
                 aggregateId = payment.id,
                 payload = """{"paymentId":${payment.id},"orderId":${payment.orderId},"status":"${payment.status}"}""",
             ),
         )
-    }
-
-    companion object {
-        private val log = LoggerFactory.getLogger(PaymentService::class.java)
     }
 }

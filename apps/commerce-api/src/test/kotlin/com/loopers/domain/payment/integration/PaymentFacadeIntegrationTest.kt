@@ -2,7 +2,6 @@ package com.loopers.domain.payment.integration
 
 import com.loopers.domain.order.support.OrderSteps.Companion.주문_도메인_생성
 import com.loopers.domain.payment.application.PaymentFacade
-import com.loopers.domain.payment.infrastructure.persistence.OutboxEventJpaRepository
 import com.loopers.domain.payment.model.PaymentStatus
 import com.loopers.domain.payment.port.PaymentCompensationPort
 import com.loopers.domain.payment.port.PaymentGatewayPort
@@ -11,6 +10,7 @@ import com.loopers.domain.payment.port.PaymentGatewayStatus
 import com.loopers.domain.payment.port.PaymentOrderPort
 import com.loopers.domain.payment.port.PaymentRepository
 import com.loopers.domain.payment.support.PaymentSteps.Companion.결제_요청_커맨드
+import com.loopers.support.outbox.persistence.OutboxEventJpaRepository
 import com.loopers.utils.DatabaseCleanUp
 import com.ninjasquad.springmockk.MockkBean
 import io.mockk.every

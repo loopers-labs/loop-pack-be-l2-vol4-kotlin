@@ -68,6 +68,11 @@ class OrderModel(
         status = OrderStatus.FAILED
     }
 
+    fun cancel() {
+        if (status != OrderStatus.PENDING) throw CoreException(ErrorType.CONFLICT, "취소할 수 없는 주문 상태입니다.")
+        status = OrderStatus.CANCELLED
+    }
+
     fun isPending(): Boolean {
         return status == OrderStatus.PENDING
     }

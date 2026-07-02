@@ -79,6 +79,33 @@ class UserCouponModelTest {
         assertThat(userCoupon.currentStatus(coupon = coupon, now = now)).isEqualTo(UserCouponStatus.EXPIRED)
     }
 
+    @DisplayName("사용된 쿠폰을 원복하면 다시 사용 가능 상태가 된다.")
+    @Test
+    fun revert_resetsToAvailable_whenUsed() {
+        val now = ZonedDateTime.now()
+        val coupon = coupon(expiredAt = now.plusDays(1))
+        val userCoupon = UserCouponModel(userId = 1L, couponId = coupon.id)
+        userCoupon.use(coupon = coupon, now = now)
+
+        userCoupon.revert()
+
+        assertAll(
+            { assertThat(userCoupon.status).isEqualTo(UserCouponStatus.AVAILABLE) },
+            { assertThat(userCoupon.usedAt).isNull() },
+        )
+    }
+
+    @DisplayName("이미 사용 가능한 쿠폰을 원복해도 예외 없이 멱등하다.")
+    @Test
+    fun revert_isNoOp_whenAlreadyAvailable() {
+        val coupon = coupon(expiredAt = ZonedDateTime.now().plusDays(1))
+        val userCoupon = UserCouponModel(userId = 1L, couponId = coupon.id)
+
+        userCoupon.revert()
+
+        assertThat(userCoupon.status).isEqualTo(UserCouponStatus.AVAILABLE)
+    }
+
     private fun coupon(expiredAt: ZonedDateTime) = CouponModel(
         name = "테스트 쿠폰",
         type = CouponType.FIXED,

@@ -59,6 +59,15 @@ class UserCouponModel(
         }
     }
 
+    // 결제 실패 보상: 사용된 쿠폰을 다시 사용 가능 상태로 되돌린다.
+    // ponytail: AVAILABLE 재호출은 no-op (보상 중복 안전).
+    fun revert() {
+        if (status == UserCouponStatus.USED) {
+            status = UserCouponStatus.AVAILABLE
+            usedAt = null
+        }
+    }
+
     fun use(coupon: CouponModel, now: ZonedDateTime) {
         if (coupon.id != couponId) throw CoreException(ErrorType.BAD_REQUEST, "쿠폰 정보가 일치하지 않습니다.")
         when (currentStatus(coupon = coupon, now = now)) {

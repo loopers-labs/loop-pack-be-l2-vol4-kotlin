@@ -24,6 +24,7 @@ import java.util.HashMap
 class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
+        const val SINGLE_LISTENER = "SINGLE_LISTENER"
         const val OUTBOX_KAFKA_TEMPLATE = "OUTBOX_KAFKA_TEMPLATE"
 
         private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
@@ -70,6 +71,18 @@ class KafkaConfig {
     @Bean
     fun jsonMessageConverter(objectMapper: ObjectMapper): ByteArrayJsonMessageConverter {
         return ByteArrayJsonMessageConverter(objectMapper)
+    }
+
+    @Bean(SINGLE_LISTENER)
+    fun singleRecordListenerContainerFactory(
+        kafkaProperties: KafkaProperties,
+    ): ConcurrentKafkaListenerContainerFactory<*, *> {
+        val consumerConfig = HashMap(kafkaProperties.buildConsumerProperties())
+        return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
+            consumerFactory = DefaultKafkaConsumerFactory(consumerConfig)
+            containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
+            isBatchListener = false
+        }
     }
 
     @Bean(BATCH_LISTENER)

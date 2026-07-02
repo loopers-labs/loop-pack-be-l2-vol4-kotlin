@@ -42,4 +42,18 @@ class KafkaTopicConfig {
             .partitions(3)
             .replicas(1)
             .build()
+
+    @Bean
+    fun userActionEventsTopic(): NewTopic =
+        TopicBuilder.name(KafkaTopics.USER_ACTION_EVENTS)
+            .partitions(3)
+            .replicas(1)
+            .build()
+
+    @Bean
+    fun userActionEventsDltTopic(): NewTopic =
+        TopicBuilder.name(KafkaTopics.USER_ACTION_EVENTS_DLT)
+            .partitions(3)
+            .replicas(1)
+            .build()
 }

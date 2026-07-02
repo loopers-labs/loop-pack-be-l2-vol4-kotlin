@@ -12,7 +12,7 @@ interface ProductMetricRepository : JpaRepository<ProductMetricsModel, Long> {
     VALUES (:productId, GREATEST(:delta, 0), :version)
     ON DUPLICATE KEY UPDATE
         like_count = GREATEST(0, like_count + :delta),
-        version = :version
+        version = GREATEST(version, :version)
     """, nativeQuery = true)
     fun upsertLikeCount(productId: Long, delta: Int, version: Long): Int
 
@@ -23,7 +23,7 @@ interface ProductMetricRepository : JpaRepository<ProductMetricsModel, Long> {
     VALUES (:productId, GREATEST(:delta, 0), :version)
     ON DUPLICATE KEY UPDATE
         sales_count = GREATEST(0, sales_count + :delta),
-        version = :version
+        version = GREATEST(version, :version)
     """,
         nativeQuery = true,
     )
@@ -36,7 +36,7 @@ interface ProductMetricRepository : JpaRepository<ProductMetricsModel, Long> {
     VALUES (:productId, GREATEST(:delta, 0), :version)
     ON DUPLICATE KEY UPDATE
         view_count = GREATEST(0, view_count + :delta),
-        version = :version
+        version = GREATEST(version, :version)
     """,
         nativeQuery = true,
     )

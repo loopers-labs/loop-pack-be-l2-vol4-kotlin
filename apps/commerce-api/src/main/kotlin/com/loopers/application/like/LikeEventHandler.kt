@@ -2,6 +2,8 @@ package com.loopers.application.like
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.config.kafka.KafkaTopics
+import com.loopers.domain.event.UserActionLogPayload
+import com.loopers.domain.event.UserActionType
 import com.loopers.domain.like.LikeEvent
 import com.loopers.domain.like.LikeService
 import com.loopers.domain.outbox.OutboxModel
@@ -27,6 +29,27 @@ class LikeEventHandler(
                 eventType = "LikeChanged",
                 topic = KafkaTopics.CATALOG_EVENTS,
                 payload = objectMapper.writeValueAsString(event),
+            ),
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    fun toActionLog(event: LikeEvent.Changed) {
+        val actionType = if (event.type == LikeEvent.LikeChangeType.LIKED) UserActionType.LIKED else UserActionType.UNLIKED
+        outboxRepository.save(
+            OutboxModel.of(
+                aggregateId = event.userId.toString(),
+                eventType = "UserActionLogged",
+                topic = KafkaTopics.USER_ACTION_EVENTS,
+                payload = objectMapper.writeValueAsString(
+                    UserActionLogPayload(
+                        eventId = event.eventId,
+                        userId = event.userId,
+                        actionType = actionType,
+                        targetId = event.productId,
+                        occurredAt = event.occurredAt,
+                    ),
+                ),
             ),
         )
     }

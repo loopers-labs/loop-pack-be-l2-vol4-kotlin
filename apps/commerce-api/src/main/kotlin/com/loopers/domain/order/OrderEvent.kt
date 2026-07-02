@@ -6,6 +6,7 @@ object OrderEvent {
     data class Confirmed(
         val eventId: String,
         val orderId: Long,
+        val userId: Long,
         val items: List<Item>,
         val occurredAt: ZonedDateTime,
     )

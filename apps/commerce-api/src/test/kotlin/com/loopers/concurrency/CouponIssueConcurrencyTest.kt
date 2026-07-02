@@ -4,6 +4,7 @@ import com.loopers.application.coupon.CouponIssueRequestPayload
 import com.loopers.config.kafka.KafkaTopics
 import com.loopers.domain.coupon.CouponIssueRequestModel
 import com.loopers.domain.coupon.CouponIssueRequestRepository
+import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.UserCouponService
 import com.loopers.fixture.CouponModelFixture
@@ -80,6 +81,10 @@ class CouponIssueConcurrencyTest @Autowired constructor(
         // then
         await().atMost(Duration.ofSeconds(30)).untilAsserted {
             assertThat(userCouponService.countIssuedByCouponId(coupon.id)).isEqualTo(100)
+
+            val statuses = requests.map { (reqId, _) -> couponIssueRequestRepository.findByRequestId(reqId)!!.status }
+            assertThat(statuses.count { it == CouponIssueStatus.SUCCESS }).isEqualTo(100)
+            assertThat(statuses.count { it == CouponIssueStatus.SOLD_OUT }).isEqualTo(5)
         }
     }
 }

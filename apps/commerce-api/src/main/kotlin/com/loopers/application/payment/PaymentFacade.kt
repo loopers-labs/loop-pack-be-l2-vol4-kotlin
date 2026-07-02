@@ -5,6 +5,7 @@ import com.loopers.domain.order.OrderService
 import com.loopers.domain.order.restoreStockOnCancel
 import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentCommand
+import com.loopers.domain.payment.PaymentEvent
 import com.loopers.domain.payment.PaymentModel
 import com.loopers.domain.payment.PaymentPort
 import com.loopers.domain.payment.PaymentService
@@ -61,13 +62,20 @@ class PaymentFacade(
                 OrderEvent.Confirmed(
                     eventId = UUID.randomUUID().toString(),
                     orderId = orderId,
+                    userId = order.userId,
                     items = order.items.map { OrderEvent.Item(it.productId, it.quantity) },
                     occurredAt = ZonedDateTime.now(),
                 ),
             )
+            eventPublisher.publishEvent(
+                PaymentEvent.Confirmed(eventId = UUID.randomUUID().toString(), orderId = orderId, occurredAt = ZonedDateTime.now()),
+            )
         } else {
             val stocks = stockService.findWithLockByProductIdIn(order.items.map { it.productId })
             restoreStockOnCancel(order, stocks)
+            eventPublisher.publishEvent(
+                PaymentEvent.Failed(eventId = UUID.randomUUID().toString(), orderId = orderId, reason = reason, occurredAt = ZonedDateTime.now()),
+            )
         }
     }
 
@@ -79,5 +87,8 @@ class PaymentFacade(
         val order = orderService.getOrder(orderId)
         val stocks = stockService.findWithLockByProductIdIn(order.items.map { it.productId })
         restoreStockOnCancel(order, stocks)
+        eventPublisher.publishEvent(
+            PaymentEvent.Failed(eventId = UUID.randomUUID().toString(), orderId = orderId, reason = reason, occurredAt = ZonedDateTime.now()),
+        )
     }
 }

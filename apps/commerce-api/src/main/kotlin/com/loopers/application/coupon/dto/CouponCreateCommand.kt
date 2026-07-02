@@ -9,4 +9,5 @@ data class CouponCreateCommand(
     val discountValue: Long,
     val minOrderAmount: Long?,
     val expiredAt: ZonedDateTime,
+    val issueLimit: Long? = null,
 )

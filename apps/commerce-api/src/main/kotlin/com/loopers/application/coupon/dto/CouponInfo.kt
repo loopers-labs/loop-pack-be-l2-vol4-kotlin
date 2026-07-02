@@ -10,6 +10,7 @@ data class CouponInfo(
     val type: DiscountType,
     val value: Long,
     val minOrderAmount: Long?,
+    val issueLimit: Long?,
     val expiredAt: ZonedDateTime,
 ) {
     companion object {
@@ -20,6 +21,7 @@ data class CouponInfo(
                 coupon.type,
                 coupon.discountValue,
                 coupon.minOrderAmount,
+                coupon.issueLimit,
                 coupon.expiredAt,
             )
         }

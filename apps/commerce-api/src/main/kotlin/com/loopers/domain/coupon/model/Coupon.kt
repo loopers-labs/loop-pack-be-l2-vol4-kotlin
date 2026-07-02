@@ -11,6 +11,7 @@ class Coupon(
     minOrderAmount: Long?,
     expiredAt: ZonedDateTime,
     isDeleted: Boolean = false,
+    issueLimit: Long? = null,
 ) {
     var name: String = name
         private set
@@ -24,6 +25,9 @@ class Coupon(
     var minOrderAmount: Long? = minOrderAmount
         private set
 
+    var issueLimit: Long? = issueLimit
+        private set
+
     var expiredAt: ZonedDateTime = expiredAt
         private set
 
@@ -35,12 +39,14 @@ class Coupon(
         type: DiscountType,
         discountValue: Long,
         minOrderAmount: Long?,
+        issueLimit: Long?,
         expiredAt: ZonedDateTime,
     ) {
         this.name = name
         this.type = type
         this.discountValue = discountValue
         this.minOrderAmount = minOrderAmount
+        this.issueLimit = issueLimit
         this.expiredAt = expiredAt
     }
 

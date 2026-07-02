@@ -85,6 +85,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 
@@ -93,6 +94,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         ).let(couponRepository::save)
     }
@@ -114,6 +116,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 
@@ -122,6 +125,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 

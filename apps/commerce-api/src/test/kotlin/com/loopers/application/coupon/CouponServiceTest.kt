@@ -38,6 +38,7 @@ class CouponServiceTest {
                 { assertThat(result.type).isEqualTo(command.type) },
                 { assertThat(result.discountValue).isEqualTo(command.discountValue) },
                 { assertThat(result.minOrderAmount).isEqualTo(command.minOrderAmount) },
+                { assertThat(result.issueLimit).isEqualTo(command.issueLimit) },
                 { assertThat(couponRepository.coupons).hasSize(1) },
             )
         }
@@ -88,6 +89,7 @@ class CouponServiceTest {
                     minOrderAmount = coupon.minOrderAmount,
                     expiredAt = coupon.expiredAt,
                     isDeleted = coupon.isDeleted,
+                    issueLimit = coupon.issueLimit,
                 )
             } else {
                 coupon

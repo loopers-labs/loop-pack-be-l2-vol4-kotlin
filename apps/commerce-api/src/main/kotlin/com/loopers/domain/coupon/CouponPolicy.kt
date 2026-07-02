@@ -11,6 +11,7 @@ object CouponPolicy {
         type: DiscountType,
         discountValue: Long,
         minOrderAmount: Long?,
+        issueLimit: Long? = null,
         expiredAt: ZonedDateTime,
     ) {
         if (name.isBlank()) {
@@ -18,6 +19,9 @@ object CouponPolicy {
         }
         if (minOrderAmount != null && minOrderAmount < 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "MinimumOrderAmount cannot be less than zero.")
+        }
+        if (issueLimit != null && issueLimit <= 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Coupon issue limit must be positive.")
         }
         if (!expiredAt.isAfter(ZonedDateTime.now())) {
             throw CoreException(ErrorType.BAD_REQUEST, "Coupon expiration time must be in the future.")

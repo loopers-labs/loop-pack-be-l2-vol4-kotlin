@@ -11,7 +11,13 @@ data class OrderEventMessage(
     val memberId: Long,
     val paymentId: Long?,
     val amount: Long,
+    val items: List<OrderEventItemMessage> = emptyList(),
     val occurredAt: ZonedDateTime,
+)
+
+data class OrderEventItemMessage(
+    val productId: Long,
+    val quantity: Long,
 )
 
 enum class OrderEventType {

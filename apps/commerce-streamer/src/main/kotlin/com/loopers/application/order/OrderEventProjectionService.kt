@@ -2,6 +2,8 @@ package com.loopers.application.order
 
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
+import com.loopers.domain.product.ProductStatProjection
+import com.loopers.domain.product.ProductStatProjectionRepository
 import com.loopers.domain.useraction.UserActionLog
 import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 class OrderEventProjectionService(
     private val eventHandledRepository: EventHandledRepository,
+    private val productStatProjectionRepository: ProductStatProjectionRepository,
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
@@ -21,6 +24,7 @@ class OrderEventProjectionService(
             return
         }
 
+        updateProductStat(message)
         userActionLogRepository.save(
             UserActionLog(
                 eventId = message.eventId,
@@ -37,6 +41,26 @@ class OrderEventProjectionService(
                 eventType = message.eventType.name,
             ),
         )
+    }
+
+    private fun updateProductStat(message: OrderEventMessage) {
+        if (message.eventType != OrderEventType.PAYMENT_SUCCEEDED) {
+            return
+        }
+
+        message.items.forEach { item ->
+            val current = productStatProjectionRepository.findByProductIdForUpdate(item.productId)
+            val productStat = current ?: ProductStatProjection(
+                productId = item.productId,
+                brandId = 0L,
+                likeCount = 0L,
+                salesCount = 0L,
+                latestEventVersion = 0L,
+            )
+
+            productStat.salesCount += item.quantity
+            productStatProjectionRepository.save(productStat)
+        }
     }
 
     private fun OrderEventType.toUserActionType(): UserActionType {

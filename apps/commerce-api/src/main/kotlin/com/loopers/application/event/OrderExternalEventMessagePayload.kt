@@ -2,6 +2,7 @@ package com.loopers.application.event
 
 import com.loopers.domain.order.event.OrderEvent
 import com.loopers.domain.payment.event.PaymentEvent
+import com.loopers.event.OrderEventItemMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import java.time.ZonedDateTime
@@ -43,6 +44,12 @@ object OrderExternalEventMessagePayload {
             orderNumber = event.orderNumber,
             memberId = event.memberId,
             amount = event.amount,
+            items = event.items.map { item ->
+                OrderEventItemMessage(
+                    productId = item.productId,
+                    quantity = item.quantity,
+                )
+            },
             occurredAt = event.occurredAt,
         )
     }
@@ -68,6 +75,7 @@ object OrderExternalEventMessagePayload {
         orderNumber: String,
         memberId: Long,
         amount: Long,
+        items: List<OrderEventItemMessage> = emptyList(),
         occurredAt: ZonedDateTime,
     ): OrderEventMessage {
         return OrderEventMessage(
@@ -79,6 +87,7 @@ object OrderExternalEventMessagePayload {
             memberId = memberId,
             paymentId = paymentId,
             amount = amount,
+            items = items,
             occurredAt = occurredAt,
         )
     }

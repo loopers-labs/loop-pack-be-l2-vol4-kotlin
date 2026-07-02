@@ -25,6 +25,9 @@ class ProductStatProjectionEntity(
     @Column(name = "like_count", nullable = false)
     var likeCount: Long,
 
+    @Column(name = "sales_count", nullable = false)
+    var salesCount: Long,
+
     @Column(name = "latest_event_version", nullable = false)
     var latestEventVersion: Long = 0L,
 ) : BaseEntity() {
@@ -32,6 +35,7 @@ class ProductStatProjectionEntity(
         productId = domain.productId
         brandId = domain.brandId
         likeCount = domain.likeCount
+        salesCount = domain.salesCount
         latestEventVersion = domain.latestEventVersion
     }
 
@@ -41,6 +45,7 @@ class ProductStatProjectionEntity(
             productId = productId,
             brandId = brandId,
             likeCount = likeCount,
+            salesCount = salesCount,
             latestEventVersion = latestEventVersion,
         )
     }

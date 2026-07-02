@@ -30,10 +30,14 @@ class ProductStatEntity(
 
     @Column(nullable = false)
     var likeCount: Long,
+
+    @Column(nullable = false)
+    var salesCount: Long = 0L,
 ) : BaseEntity() {
     fun update(domain: ProductStat) {
         productId = domain.productId
         brandId = domain.brandId
         likeCount = domain.likeCount
+        salesCount = domain.salesCount
     }
 }

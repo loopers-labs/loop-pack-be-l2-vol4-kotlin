@@ -2,9 +2,12 @@ package com.loopers.application.order
 
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
+import com.loopers.domain.product.ProductStatProjection
+import com.loopers.domain.product.ProductStatProjectionRepository
 import com.loopers.domain.useraction.UserActionLog
 import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
+import com.loopers.event.OrderEventItemMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import org.assertj.core.api.Assertions.assertThat
@@ -37,19 +40,47 @@ class OrderEventProjectionServiceTest {
     @Test
     fun skipsAlreadyHandledEvent() {
         val fixture = Fixture()
-        val message = createMessage(eventId = "event-1", eventType = OrderEventType.PAYMENT_SUCCEEDED)
+        val message = createMessage(
+            eventId = "event-1",
+            eventType = OrderEventType.PAYMENT_SUCCEEDED,
+            items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L)),
+        )
 
         fixture.service.project(message)
         fixture.service.project(message)
 
         assertThat(fixture.userActionLogRepository.logs).hasSize(1)
+        assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L)
+    }
+
+    @DisplayName("결제 성공 이벤트를 상품 판매량에 누적한다")
+    @Test
+    fun increasesSalesCountForPaymentSucceededEvent() {
+        val fixture = Fixture()
+        val message = createMessage(
+            eventId = "event-1",
+            eventType = OrderEventType.PAYMENT_SUCCEEDED,
+            items = listOf(
+                OrderEventItemMessage(productId = 10L, quantity = 2L),
+                OrderEventItemMessage(productId = 20L, quantity = 3L),
+            ),
+        )
+
+        fixture.service.project(message)
+
+        assertAll(
+            { assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L) },
+            { assertThat(fixture.productStatRepository.findByProductIdForUpdate(20L)?.salesCount).isEqualTo(3L) },
+        )
     }
 
     private class Fixture {
         val eventHandledRepository = FakeEventHandledRepository()
+        val productStatRepository = FakeProductStatProjectionRepository()
         val userActionLogRepository = FakeUserActionLogRepository()
         val service = OrderEventProjectionService(
             eventHandledRepository = eventHandledRepository,
+            productStatProjectionRepository = productStatRepository,
             userActionLogRepository = userActionLogRepository,
         )
     }
@@ -76,9 +107,23 @@ class OrderEventProjectionServiceTest {
         }
     }
 
+    private class FakeProductStatProjectionRepository : ProductStatProjectionRepository {
+        private val productStats = mutableMapOf<Long, ProductStatProjection>()
+
+        override fun findByProductIdForUpdate(productId: Long): ProductStatProjection? {
+            return productStats[productId]
+        }
+
+        override fun save(productStatProjection: ProductStatProjection): ProductStatProjection {
+            productStats[productStatProjection.productId] = productStatProjection
+            return productStatProjection
+        }
+    }
+
     private fun createMessage(
         eventId: String,
         eventType: OrderEventType,
+        items: List<OrderEventItemMessage> = emptyList(),
     ): OrderEventMessage {
         return OrderEventMessage(
             eventId = eventId,
@@ -89,6 +134,7 @@ class OrderEventProjectionServiceTest {
             memberId = 1L,
             paymentId = 30L,
             amount = 10_000L,
+            items = items,
             occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
         )
     }

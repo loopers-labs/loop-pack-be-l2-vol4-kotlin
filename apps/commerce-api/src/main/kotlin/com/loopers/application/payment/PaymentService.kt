@@ -176,7 +176,7 @@ class PaymentService(
         payment.fail("Payment gateway has no transaction for this order.")
 
         val savedPayment = paymentRepository.save(payment)
-        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment)
+        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
 
         return PaymentInfo.from(savedPayment, order.status)
     }
@@ -194,7 +194,7 @@ class PaymentService(
                 if (payment.status == PaymentStatus.SYNC_REQUIRED) {
                     payment.markPending(transactionKey = transactionKey, reason = reason)
                     val savedPayment = paymentRepository.save(payment)
-                    publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment)
+                    publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
                     return PaymentInfo.from(savedPayment, order.status)
                 }
 
@@ -221,19 +221,19 @@ class PaymentService(
         }
 
         val savedPayment = paymentRepository.save(payment)
-        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment)
+        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
 
         return PaymentInfo.from(savedPayment, order.status)
     }
 
-    private fun publishPaymentStatusChangedEvent(previousStatus: PaymentStatus, payment: Payment) {
+    private fun publishPaymentStatusChangedEvent(previousStatus: PaymentStatus, payment: Payment, order: Order) {
         if (previousStatus == payment.status) {
             return
         }
 
         when (payment.status) {
             PaymentStatus.PENDING -> paymentEventPublisher.publish(PaymentEvent.Requested.from(payment))
-            PaymentStatus.SUCCESS -> paymentEventPublisher.publish(PaymentEvent.Succeeded.from(payment))
+            PaymentStatus.SUCCESS -> paymentEventPublisher.publish(PaymentEvent.Succeeded.from(payment = payment, order = order))
             PaymentStatus.FAILED -> paymentEventPublisher.publish(PaymentEvent.Failed.from(payment))
             PaymentStatus.SYNC_REQUIRED -> Unit
         }

@@ -1,9 +1,11 @@
 package com.loopers.interfaces.consumer
 
 import com.loopers.domain.useraction.UserActionType
+import com.loopers.event.OrderEventItemMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import com.loopers.infrastructure.event.repository.EventHandledJpaRepository
+import com.loopers.infrastructure.product.repository.ProductStatProjectionJpaRepository
 import com.loopers.infrastructure.useraction.repository.UserActionLogJpaRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.utils.DatabaseCleanUp
@@ -49,6 +51,7 @@ class OrderEventConsumerIntegrationTest
         private val databaseCleanUp: DatabaseCleanUp,
         private val userActionLogJpaRepository: UserActionLogJpaRepository,
         private val eventHandledJpaRepository: EventHandledJpaRepository,
+        private val productStatProjectionJpaRepository: ProductStatProjectionJpaRepository,
     ) {
         @BeforeEach
         fun setUp() {
@@ -69,12 +72,14 @@ class OrderEventConsumerIntegrationTest
             eventually {
                 val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
                 val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
+                val productStat = productStatProjectionJpaRepository.findByProductId(10L)
 
                 assertAll(
                     { assertThat(userActionLog?.eventId).isEqualTo(message.eventId) },
                     { assertThat(userActionLog?.actionType).isEqualTo(UserActionType.PAYMENT_SUCCEEDED) },
                     { assertThat(userActionLog?.aggregateId).isEqualTo(message.orderId) },
                     { assertThat(userActionLog?.productId).isNull() },
+                    { assertThat(productStat?.salesCount).isEqualTo(2L) },
                     { assertThat(eventHandled?.eventId).isEqualTo(message.eventId) },
                 )
             }
@@ -91,6 +96,7 @@ class OrderEventConsumerIntegrationTest
                 memberId = 1L,
                 paymentId = orderId + 1,
                 amount = 10_000L,
+                items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L)),
                 occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
             )
         }

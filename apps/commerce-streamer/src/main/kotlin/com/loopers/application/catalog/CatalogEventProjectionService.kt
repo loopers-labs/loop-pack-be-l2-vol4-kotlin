@@ -45,6 +45,7 @@ class CatalogEventProjectionService(
             productId = message.productId,
             brandId = message.brandId ?: 0L,
             likeCount = 0L,
+            salesCount = 0L,
             latestEventVersion = 0L,
         )
 

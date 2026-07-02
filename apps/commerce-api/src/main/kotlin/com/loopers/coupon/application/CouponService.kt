@@ -36,9 +36,38 @@ class CouponService(
             minOrderAmount = Money(couponCreateCommand.minOrderAmount),
             expiredAt = couponCreateCommand.expiredAt,
             createdBy = couponCreateCommand.requestAccountId,
+            totalQuantity = couponCreateCommand.totalQuantity,
         )
 
         couponRepository.save(coupon)
+    }
+
+    @Transactional
+    fun issue(couponId: Long, userId: Long): CouponIssueInfo {
+        // 쿠폰 row 배타 락으로 발급 경로 직렬화 — 이후 수량 검증·증가가 lost update 없이 순차 처리된다
+        val coupon = couponRepository.findByIdForUpdate(couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        coupon.issue(LocalDateTime.now())
+        // 중복 발급이면 예외로 전체 롤백 → 위에서 증가한 수량도 원복되어 중복 요청이 수량을 소모하지 않는다
+        if (userCouponRepository.existsByUserIdAndCouponId(userId, couponId)) {
+            throw ConflictException(CouponErrorCode.ALREADY_ISSUED)
+        }
+
+        val userCoupon = userCouponRepository.save(
+            UserCoupon(
+                userId = userId,
+                couponId = couponId,
+                grantedType = UserCouponGrantedType.FIRST_COME,
+                grantedBy = UserCoupon.SYSTEM_GRANTED,
+            ),
+        )
+
+        return CouponIssueInfo(
+            userCouponId = userCoupon.id,
+            couponId = coupon.id,
+            couponName = coupon.name,
+            expiredAt = coupon.expiredAt,
+        )
     }
 
     @Transactional
@@ -96,4 +125,12 @@ data class CouponCreateCommand(
     val value: Long,
     val minOrderAmount: Long,
     val requestAccountId: Long,
+    val totalQuantity: Long? = null,
+)
+
+data class CouponIssueInfo(
+    val userCouponId: Long,
+    val couponId: Long,
+    val couponName: String,
+    val expiredAt: LocalDateTime,
 )

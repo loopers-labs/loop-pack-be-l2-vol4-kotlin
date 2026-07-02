@@ -2,6 +2,7 @@ package com.loopers.coupon.interfaces
 
 import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
 import com.loopers.coupon.application.CouponCreateCommand
+import com.loopers.coupon.application.CouponIssueInfo
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
 import java.time.LocalDateTime
@@ -28,6 +29,32 @@ class CouponController(
         @RequestBody couponGrantRequest: CouponGrantRequest,
         @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
     ) = couponService.grant(couponId, couponGrantRequest.userId, requestAccountId)
+
+    @PostMapping("/api/v1/coupons/issue")
+    fun issueCoupon(
+        @RequestBody couponIssueRequest: CouponIssueRequest,
+        @RequestAttribute(ACCOUNT_ID) userId: Long,
+    ): CouponIssueResponse = CouponIssueResponse.from(couponService.issue(couponIssueRequest.couponId, userId))
+}
+
+data class CouponIssueRequest(
+    val couponId: Long,
+)
+
+data class CouponIssueResponse(
+    val userCouponId: Long,
+    val couponId: Long,
+    val couponName: String,
+    val expiredAt: LocalDateTime,
+) {
+    companion object {
+        fun from(couponIssueInfo: CouponIssueInfo): CouponIssueResponse = CouponIssueResponse(
+            userCouponId = couponIssueInfo.userCouponId,
+            couponId = couponIssueInfo.couponId,
+            couponName = couponIssueInfo.couponName,
+            expiredAt = couponIssueInfo.expiredAt,
+        )
+    }
 }
 
 data class CouponGrantRequest(
@@ -40,6 +67,8 @@ data class CouponCreateRequest(
     val couponType: CouponType,
     val value: Long,
     val minOrderAmount: Long,
+    // 선착순 발급 한도. 생략(null) 시 관리자 지급 전용 쿠폰
+    val totalQuantity: Long? = null,
 ) {
     fun toCommand(requestAccountId: Long): CouponCreateCommand = CouponCreateCommand(
         couponName = this.couponName,
@@ -48,5 +77,6 @@ data class CouponCreateRequest(
         value = this.value,
         minOrderAmount = this.minOrderAmount,
         requestAccountId = requestAccountId,
+        totalQuantity = this.totalQuantity,
     )
 }

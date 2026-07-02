@@ -1,10 +1,14 @@
 package com.loopers.application.like
 
+import com.loopers.application.outbox.OutboxFactory
+import com.loopers.application.outbox.OutboxSavedEvent
+import com.loopers.application.outbox.OutboxWriter
 import com.loopers.domain.brand.BrandService
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
 import com.loopers.domain.like.LikeService
 import com.loopers.domain.like.LikedProductSummary
+import com.loopers.domain.outbox.ProductMetricType
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.user.UserService
 import com.loopers.interfaces.api.like.LikeApplicationServicePort
@@ -21,19 +25,25 @@ class LikeApplicationServiceAdapter(
     private val userService: UserService,
     private val brandService: BrandService,
     private val eventPublisher: ApplicationEventPublisher,
+    private val outboxWriter: OutboxWriter,
+    private val outboxFactory: OutboxFactory,
 ) : LikeApplicationServicePort {
     @Transactional
     override fun like(userId: Long, productId: Long) {
         productService.getById(productId)
         likeService.register(userId, productId)
+        val outbox = outboxWriter.save(outboxFactory.createProductMetricOutbox(productId, ProductMetricType.LIKE, 1L))
         eventPublisher.publishEvent(LikeEvent(userId = userId, productId = productId, action = LikeEvent.LikeAction.LIKED))
+        eventPublisher.publishEvent(OutboxSavedEvent(outbox))
     }
 
     @Transactional
     override fun unlike(userId: Long, productId: Long) {
         productService.getById(productId)
         likeService.cancel(userId, productId)
+        val outbox = outboxWriter.save(outboxFactory.createProductMetricOutbox(productId, ProductMetricType.LIKE, -1L))
         eventPublisher.publishEvent(LikeEvent(userId = userId, productId = productId, action = LikeEvent.LikeAction.UNLIKED))
+        eventPublisher.publishEvent(OutboxSavedEvent(outbox))
     }
 
     @Transactional(readOnly = true)

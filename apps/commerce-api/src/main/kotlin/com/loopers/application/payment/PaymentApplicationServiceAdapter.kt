@@ -1,8 +1,12 @@
 package com.loopers.application.payment
 
 import com.loopers.application.order.OrderCancellation
+import com.loopers.application.outbox.OutboxFactory
+import com.loopers.application.outbox.OutboxSavedEvent
+import com.loopers.application.outbox.OutboxWriter
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.order.OrderStatus
+import com.loopers.domain.outbox.ProductMetricType
 import com.loopers.domain.payment.Payment
 import com.loopers.domain.payment.PaymentGatewayPort
 import com.loopers.domain.payment.PaymentGatewayRequest
@@ -23,6 +27,8 @@ class PaymentApplicationServiceAdapter(
     private val paymentInitiation: PaymentInitiation,
     private val orderCancellation: OrderCancellation,
     private val eventPublisher: ApplicationEventPublisher,
+    private val outboxWriter: OutboxWriter,
+    private val outboxFactory: OutboxFactory,
 ) : PaymentApplicationServicePort {
 
     override fun pay(command: PayCommand): PaymentResult {
@@ -82,6 +88,12 @@ class PaymentApplicationServiceAdapter(
                 val approvedPayment = paymentService.save(payment.approve())
                 val order = orderService.getById(payment.orderId)
                 orderService.save(order.updateStatus(OrderStatus.PAYMENT_COMPLETED))
+                order.items.productIds().forEach { productId ->
+                    val outbox = outboxWriter.save(
+                        outboxFactory.createProductMetricOutbox(productId, ProductMetricType.SALES, 1L),
+                    )
+                    eventPublisher.publishEvent(OutboxSavedEvent(outbox))
+                }
                 eventPublisher.publishEvent(
                     PaymentCompletedEvent(
                         paymentId = approvedPayment.id,

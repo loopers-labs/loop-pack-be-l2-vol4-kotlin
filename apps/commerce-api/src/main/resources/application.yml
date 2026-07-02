@@ -30,12 +30,8 @@ commerce:
     catalog-topic: catalog-events
   outbox:
     relay:
-      enabled: false
       fixed-delay-millis: 1000
       batch-size: 100
-  like:
-    local-stat-listener:
-      enabled: false
 
 springdoc:
   use-fqn: true

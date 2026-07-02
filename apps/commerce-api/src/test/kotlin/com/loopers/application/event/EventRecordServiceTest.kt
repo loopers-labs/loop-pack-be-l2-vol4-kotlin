@@ -13,13 +13,13 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import java.time.ZonedDateTime
 
-class EventOutboxServiceTest {
+class EventRecordServiceTest {
     @DisplayName("좋아요 이벤트를 catalog outbox record 로 저장한다")
     @Test
     fun recordsLikedEvent() {
         val repository = RecordingEventOutboxRepository()
         val objectMapper = jacksonObjectMapper().findAndRegisterModules()
-        val service = EventOutboxService(
+        val service = EventRecordService(
             eventOutboxRepository = repository,
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
@@ -57,6 +57,10 @@ class EventOutboxServiceTest {
         override fun save(eventOutbox: EventOutbox): EventOutbox {
             events.add(eventOutbox)
             return eventOutbox
+        }
+
+        override fun findByEventId(eventId: String): EventOutbox? {
+            return events.find { it.eventId == eventId }
         }
 
         override fun findPending(limit: Int): List<EventOutbox> {

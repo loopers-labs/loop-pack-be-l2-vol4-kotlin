@@ -5,5 +5,7 @@ import com.loopers.domain.event.model.EventOutbox
 interface EventOutboxRepository {
     fun save(eventOutbox: EventOutbox): EventOutbox
 
+    fun findByEventId(eventId: String): EventOutbox?
+
     fun findPending(limit: Int): List<EventOutbox>
 }

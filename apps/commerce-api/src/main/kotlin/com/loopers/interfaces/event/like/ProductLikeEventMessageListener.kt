@@ -1,31 +1,27 @@
 package com.loopers.interfaces.event.like
 
-import com.loopers.application.productstat.ProductStatService
+import com.loopers.application.event.ProductLikeExternalEventMessagePayload
+import com.loopers.application.event.ProductLikeExternalEventSendService
+import com.loopers.config.event.ApplicationEventAsyncConfig.Companion.EVENT_ASYNC_TASK_EXECUTOR
 import com.loopers.domain.like.event.ProductLikeEvent
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 
 @Component
-@ConditionalOnProperty(
-    prefix = "commerce.like.local-stat-listener",
-    name = ["enabled"],
-    havingValue = "true",
-)
-class ProductLikeEventListener(
-    private val productStatService: ProductStatService,
+class ProductLikeEventMessageListener(
+    private val sendService: ProductLikeExternalEventSendService,
 ) {
-    @Async
+    @Async(EVENT_ASYNC_TASK_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: ProductLikeEvent.Like) {
-        productStatService.increaseLikeCount(productId = event.productId, brandId = event.brandId)
+        sendService.send(ProductLikeExternalEventMessagePayload.from(event))
     }
 
-    @Async
+    @Async(EVENT_ASYNC_TASK_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun handle(event: ProductLikeEvent.Unlike) {
-        productStatService.decreaseLikeCount(productId = event.productId, brandId = event.brandId)
+        sendService.send(ProductLikeExternalEventMessagePayload.from(event))
     }
 }

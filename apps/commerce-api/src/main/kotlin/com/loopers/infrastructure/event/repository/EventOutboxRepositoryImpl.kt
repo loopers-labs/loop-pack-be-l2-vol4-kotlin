@@ -27,6 +27,11 @@ class EventOutboxRepositoryImpl(
             .let(EventOutboxMapper::toDomain)
     }
 
+    override fun findByEventId(eventId: String): EventOutbox? {
+        return eventOutboxJpaRepository.findByEventId(eventId)
+            ?.let(EventOutboxMapper::toDomain)
+    }
+
     override fun findPending(limit: Int): List<EventOutbox> {
         if (limit <= 0) {
             return emptyList()

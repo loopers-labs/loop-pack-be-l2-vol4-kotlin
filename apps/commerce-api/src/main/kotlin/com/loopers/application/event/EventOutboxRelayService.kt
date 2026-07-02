@@ -1,14 +1,17 @@
 package com.loopers.application.event
 
-import com.loopers.domain.event.ExternalEventPublisher
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.domain.event.repository.EventOutboxRepository
+import com.loopers.domain.like.event.ProductLikeExternalEventPublisher
+import com.loopers.event.CatalogEventMessage
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 @Component
 class EventOutboxRelayService(
     private val eventOutboxRepository: EventOutboxRepository,
-    private val externalEventPublisher: ExternalEventPublisher,
+    private val publisher: ProductLikeExternalEventPublisher,
+    private val objectMapper: ObjectMapper,
 ) {
     @Transactional
     fun relayPending(limit: Int): Int {
@@ -16,7 +19,12 @@ class EventOutboxRelayService(
 
         pendingEvents.forEach { eventOutbox ->
             runCatching {
-                externalEventPublisher.publish(eventOutbox)
+                val message = objectMapper.readValue(eventOutbox.payload, CatalogEventMessage::class.java)
+                publisher.publish(
+                    topic = eventOutbox.topic,
+                    partitionKey = eventOutbox.partitionKey,
+                    message = message,
+                )
                 eventOutboxRepository.save(eventOutbox.published())
             }.onFailure {
                 eventOutboxRepository.save(eventOutbox.failed())

@@ -5,6 +5,8 @@ import java.time.LocalDateTime
 interface UserCouponRepository {
     fun save(userCoupon: UserCoupon): UserCoupon
 
+    fun saveIssued(userCoupon: UserCoupon): UserCoupon
+
     fun findById(id: Long): UserCoupon?
 
     /**

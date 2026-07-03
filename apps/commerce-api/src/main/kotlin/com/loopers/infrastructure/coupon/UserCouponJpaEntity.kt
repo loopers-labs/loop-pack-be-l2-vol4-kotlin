@@ -6,6 +6,7 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import java.time.LocalDateTime
 
 @Entity
@@ -13,6 +14,9 @@ import java.time.LocalDateTime
     name = "user_coupons",
     indexes = [
         Index(name = "idx_user_coupons_user_id_coupon_id", columnList = "user_id, coupon_id"),
+    ],
+    uniqueConstraints = [
+        UniqueConstraint(name = "uk_user_coupons_user_coupon", columnNames = ["user_id", "coupon_id"]),
     ],
 )
 class UserCouponJpaEntity(

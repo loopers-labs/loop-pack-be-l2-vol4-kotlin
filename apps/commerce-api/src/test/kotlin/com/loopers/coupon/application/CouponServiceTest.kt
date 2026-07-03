@@ -172,7 +172,7 @@ class CouponServiceTest {
         whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(null)
 
         val result = assertThrows<NotFoundException> {
-            service.issue(COUPON_ID, USER_ID)
+            service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
         }
 
         assertAll(
@@ -188,7 +188,7 @@ class CouponServiceTest {
         whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(true)
 
         val result = assertThrows<ConflictException> {
-            service.issue(COUPON_ID, USER_ID)
+            service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
         }
 
         assertAll(
@@ -205,7 +205,7 @@ class CouponServiceTest {
         whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(false)
         whenever(userCouponRepository.save(any())).thenAnswer { it.arguments[0] as UserCoupon }
 
-        val info = service.issue(COUPON_ID, USER_ID)
+        val info = service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
 
         val captor = argumentCaptor<UserCoupon>()
         verify(userCouponRepository).save(captor.capture())

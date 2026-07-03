@@ -2,6 +2,7 @@ package com.loopers.coupon.interfaces
 
 import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
 import com.loopers.coupon.application.CouponCreateCommand
+import com.loopers.coupon.application.CouponIssueCommand
 import com.loopers.coupon.application.CouponIssueInfo
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
@@ -13,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class CouponController(
-    val couponService: CouponService,
-) {
+class CouponController(val couponService: CouponService) {
 
     @PostMapping("/api-admin/v1/coupons")
     fun createCoupon(
@@ -34,12 +33,15 @@ class CouponController(
     fun issueCoupon(
         @RequestBody couponIssueRequest: CouponIssueRequest,
         @RequestAttribute(ACCOUNT_ID) userId: Long,
-    ): CouponIssueResponse = CouponIssueResponse.from(couponService.issue(couponIssueRequest.couponId, userId))
+    ): CouponIssueResponse = CouponIssueResponse.from(couponService.issue(couponIssueRequest.toCommand(userId)))
 }
 
-data class CouponIssueRequest(
-    val couponId: Long,
-)
+data class CouponIssueRequest(val couponId: Long) {
+    fun toCommand(userId: Long): CouponIssueCommand = CouponIssueCommand(
+        couponId = this.couponId,
+        userId = userId,
+    )
+}
 
 data class CouponIssueResponse(
     val userCouponId: Long,
@@ -57,9 +59,7 @@ data class CouponIssueResponse(
     }
 }
 
-data class CouponGrantRequest(
-    val userId: Long,
-)
+data class CouponGrantRequest(val userId: Long)
 
 data class CouponCreateRequest(
     val couponName: String,

@@ -39,7 +39,7 @@ class CouponIssueConcurrencyIntegrationTest @Autowired constructor(
     fun savesUserCouponAndIncreasesIssuedQuantity_whenIssued() {
         val coupon = firstComeCoupon(totalQuantity = 10)
 
-        val info = couponService.issue(coupon.id, userId = 1L)
+        val info = couponService.issue(CouponIssueCommand(coupon.id, userId = 1L))
 
         val userCoupon = userCouponJpaRepository.findByUserIdAndCouponId(1L, coupon.id)!!
         assertAll(
@@ -53,10 +53,10 @@ class CouponIssueConcurrencyIntegrationTest @Autowired constructor(
     @Test
     fun rejectsSecondIssue_whenSameUserIssuesTwice() {
         val coupon = firstComeCoupon(totalQuantity = 10)
-        couponService.issue(coupon.id, userId = 1L)
+        couponService.issue(CouponIssueCommand(coupon.id, userId = 1L))
 
         val result = assertThrows<ConflictException> {
-            couponService.issue(coupon.id, userId = 1L)
+            couponService.issue(CouponIssueCommand(coupon.id, userId = 1L))
         }
 
         assertAll(
@@ -70,10 +70,10 @@ class CouponIssueConcurrencyIntegrationTest @Autowired constructor(
     @Test
     fun rejectsIssue_whenCouponSoldOut() {
         val coupon = firstComeCoupon(totalQuantity = 1)
-        couponService.issue(coupon.id, userId = 1L)
+        couponService.issue(CouponIssueCommand(coupon.id, userId = 1L))
 
         val result = assertThrows<ConflictException> {
-            couponService.issue(coupon.id, userId = 2L)
+            couponService.issue(CouponIssueCommand(coupon.id, userId = 2L))
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.SOLD_OUT)
@@ -85,7 +85,7 @@ class CouponIssueConcurrencyIntegrationTest @Autowired constructor(
         val coupon = firstComeCoupon(totalQuantity = 100)
 
         val failures = runConcurrently(threadCount = 300) { index ->
-            couponService.issue(coupon.id, userId = (index + 1).toLong())
+            couponService.issue(CouponIssueCommand(coupon.id, userId = (index + 1).toLong()))
         }
 
         assertAll(
@@ -107,7 +107,7 @@ class CouponIssueConcurrencyIntegrationTest @Autowired constructor(
         val coupon = firstComeCoupon(totalQuantity = 100)
 
         val failures = runConcurrently(threadCount = 10) {
-            couponService.issue(coupon.id, userId = 1L)
+            couponService.issue(CouponIssueCommand(coupon.id, userId = 1L))
         }
 
         assertAll(

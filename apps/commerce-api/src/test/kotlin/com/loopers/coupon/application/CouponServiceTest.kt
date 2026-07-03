@@ -8,12 +8,17 @@ import com.loopers.account.domain.vo.Email
 import com.loopers.account.infrastructure.AccountRepository
 import com.loopers.coupon.domain.Coupon
 import com.loopers.coupon.domain.CouponErrorCode
+import com.loopers.coupon.domain.CouponIssueResultRepository
+import com.loopers.coupon.domain.CouponIssueResultStatus
 import com.loopers.coupon.domain.CouponRepository
 import com.loopers.coupon.domain.CouponType
 import com.loopers.coupon.domain.UserCoupon
 import com.loopers.coupon.domain.UserCouponGrantedType
 import com.loopers.coupon.domain.UserCouponRepository
 import com.loopers.coupon.domain.UserCouponStatus
+import com.loopers.coupon.infrastructure.messaging.CouponIssueRequestEvent
+import com.loopers.coupon.infrastructure.messaging.CouponIssueRequestKafkaPublisher
+import com.loopers.coupon.infrastructure.redis.CouponIssueGatekeeper
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.ConflictException
@@ -36,11 +41,63 @@ class CouponServiceTest {
     private val couponRepository: CouponRepository = mock()
     private val userCouponRepository: UserCouponRepository = mock()
     private val accountRepository: AccountRepository = mock()
+    private val couponIssueResultRepository: CouponIssueResultRepository = mock()
+    private val couponIssueGatekeeper: CouponIssueGatekeeper = mock()
+    private val couponIssueRequestPublisher: CouponIssueRequestKafkaPublisher = mock()
     private val service = CouponService(
         couponRepository = couponRepository,
         userCouponRepository = userCouponRepository,
         accountRepository = accountRepository,
+        couponIssueResultRepository = couponIssueResultRepository,
+        couponIssueGatekeeper = couponIssueGatekeeper,
+        couponIssueRequestPublisher = couponIssueRequestPublisher,
     )
+
+    @DisplayName("발급 접수 요청이 게이트를 통과하면 이벤트를 발행하고 PENDING 상태의 requestId를 돌려준다.")
+    @Test
+    fun publishesEventAndReturnsRequestId_whenGatePasses() {
+        val info = service.requestIssue(CouponIssueCommand(COUPON_ID, USER_ID))
+
+        val captor = argumentCaptor<CouponIssueRequestEvent>()
+        verify(couponIssueRequestPublisher).publish(captor.capture())
+        assertAll(
+            { assertThat(info.requestId).isNotBlank() },
+            { assertThat(info.status).isEqualTo(CouponIssueResultStatus.PENDING) },
+            { assertThat(captor.firstValue.requestId).isEqualTo(info.requestId) },
+            { assertThat(captor.firstValue.couponId).isEqualTo(COUPON_ID) },
+            { assertThat(captor.firstValue.userId).isEqualTo(USER_ID) },
+        )
+    }
+
+    @DisplayName("게이트가 거절하면 예외가 전파되고 이벤트를 발행하지 않는다.")
+    @Test
+    fun doesNotPublish_whenGateRejects() {
+        whenever(couponIssueGatekeeper.tryPass(COUPON_ID, USER_ID))
+            .thenThrow(ConflictException(CouponErrorCode.SOLD_OUT))
+
+        val result = assertThrows<ConflictException> {
+            service.requestIssue(CouponIssueCommand(COUPON_ID, USER_ID))
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.SOLD_OUT) },
+            { verify(couponIssueRequestPublisher, never()).publish(any()) },
+        )
+    }
+
+    @DisplayName("발급 결과가 아직 없으면 PENDING으로 조회된다.")
+    @Test
+    fun returnsPending_whenIssueResultNotFound() {
+        whenever(couponIssueResultRepository.findById("unknown-request")).thenReturn(null)
+
+        val info = service.getIssueResult("unknown-request")
+
+        assertAll(
+            { assertThat(info.requestId).isEqualTo("unknown-request") },
+            { assertThat(info.status).isEqualTo(CouponIssueResultStatus.PENDING) },
+            { assertThat(info.decidedAt).isNull() },
+        )
+    }
 
     @DisplayName("만료일이 현재보다 과거이면 BAD_REQUEST 예외가 발생하고 저장하지 않는다.")
     @Test

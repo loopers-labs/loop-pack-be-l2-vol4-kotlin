@@ -13,15 +13,18 @@ import org.springframework.transaction.annotation.Transactional
 class DatabaseCleanup(
     private val em: EntityManager,
 ) : InitializingBean {
-    private lateinit var tableNames: List<String>
+    private lateinit var tables: List<TableInfo>
 
     override fun afterPropertiesSet() {
-        tableNames = em.metamodel.entities
+        tables = em.metamodel.entities
             .filter { it.javaType.isAnnotationPresent(Entity::class.java) }
             .map { entityType ->
                 val tableAnnotation = entityType.javaType.getAnnotation(Table::class.java)
-                tableAnnotation?.name?.takeIf(String::isNotBlank)
+                val tableName = tableAnnotation?.name?.takeIf(String::isNotBlank)
                     ?: entityType.name.toSnakeCase()
+                // String PK(예: coupon_issue_result.request_id)는 auto-increment 컬럼이 없어 리셋 대상에서 제외
+                val idJavaType = entityType.idType.javaType.kotlin.javaObjectType
+                TableInfo(tableName, hasNumericId = Number::class.java.isAssignableFrom(idJavaType))
             }
     }
 
@@ -29,12 +32,16 @@ class DatabaseCleanup(
     fun execute() {
         em.flush()
         em.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate()
-        tableNames.forEach { tableName ->
+        tables.forEach { (tableName, hasNumericId) ->
             em.createNativeQuery("TRUNCATE TABLE $tableName").executeUpdate()
-            em.createNativeQuery("ALTER TABLE $tableName AUTO_INCREMENT = 1").executeUpdate()
+            if (hasNumericId) {
+                em.createNativeQuery("ALTER TABLE $tableName AUTO_INCREMENT = 1").executeUpdate()
+            }
         }
         em.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
     }
+
+    private data class TableInfo(val tableName: String, val hasNumericId: Boolean)
 
     private fun String.toSnakeCase(): String =
         replace(CAMEL_CASE_BOUNDARY, "$1_$2").lowercase()

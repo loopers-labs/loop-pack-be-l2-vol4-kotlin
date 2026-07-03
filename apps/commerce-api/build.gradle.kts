@@ -31,4 +31,5 @@ dependencies {
     kapt("com.querydsl:querydsl-apt::jakarta")
 
     testRuntimeOnly("com.h2database:h2")
+    testImplementation(testFixtures(project(":modules:redis")))
 }

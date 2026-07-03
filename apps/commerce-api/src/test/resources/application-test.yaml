@@ -20,3 +20,7 @@ spring:
 outbox:
   relay:
     enabled: false
+
+coupon:
+  issue-consumer:
+    auto-startup: false

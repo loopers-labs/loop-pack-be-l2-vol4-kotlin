@@ -30,4 +30,8 @@ class InMemoryCouponRepository : CouponRepository {
     override fun findAllByIdIn(ids: List<Long>): List<CouponModel> {
         return ids.mapNotNull { store[it] }
     }
+
+    override fun claimIssueSlot(couponId: Long): Boolean {
+        return store[couponId]?.takeIf { it.deletedAt == null }?.claimIssueSlot() ?: false
+    }
 }

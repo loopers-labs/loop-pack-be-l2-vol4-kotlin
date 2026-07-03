@@ -20,6 +20,8 @@ class CouponModel(
     discountValue: BigDecimal,
     minOrderAmount: BigDecimal?,
     expiredAt: ZonedDateTime,
+    totalQuantity: Int? = null,
+    issuedCount: Int = 0,
 ) : BaseEntity() {
     @Column(nullable = false, length = 200)
     var name: String = name
@@ -42,6 +44,14 @@ class CouponModel(
     var expiredAt: ZonedDateTime = expiredAt
         protected set
 
+    @Column(name = "total_quantity")
+    var totalQuantity: Int? = totalQuantity
+        protected set
+
+    @Column(name = "issued_count", nullable = false)
+    var issuedCount: Int = issuedCount
+        protected set
+
     init {
         validate(name = name, type = type, discountValue = discountValue, minOrderAmount = minOrderAmount)
     }
@@ -60,6 +70,16 @@ class CouponModel(
 
     fun isExpired(now: ZonedDateTime): Boolean {
         return expiredAt.isBefore(now)
+    }
+
+    /**
+     * 선착순 슬롯을 확보한다. (비-DB 경로용 — 실제 동시성 하에서는 CouponRepository.claimIssueSlot의 원자적 UPDATE를 사용한다.)
+     */
+    fun claimIssueSlot(): Boolean {
+        val total = totalQuantity
+        if (total != null && issuedCount >= total) return false
+        issuedCount += 1
+        return true
     }
 
     fun update(

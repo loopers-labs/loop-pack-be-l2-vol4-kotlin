@@ -1,6 +1,9 @@
 package com.loopers.application.payment
 
 import com.loopers.domain.coupon.IssuedCouponService
+import com.loopers.domain.event.OrderCancelledEvent
+import com.loopers.domain.event.OrderCompletedEvent
+import com.loopers.domain.event.OrderItemSnapshot
 import com.loopers.domain.order.OrderModel
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.order.OrderStatus
@@ -16,6 +19,7 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -27,6 +31,7 @@ class PaymentFacade(
     private val productService: ProductService,
     private val issuedCouponService: IssuedCouponService,
     private val productCacheManager: ProductCacheManager,
+    private val eventPublisher: ApplicationEventPublisher,
     @Value("\${pg.callback-url}") private val callbackUrl: String,
 ) {
 
@@ -75,11 +80,32 @@ class PaymentFacade(
             "SUCCESS" -> {
                 payment.markSuccess(transactionKey)
                 order.markPaid()
+                eventPublisher.publishEvent(
+                    OrderCompletedEvent(
+                        orderId = order.id,
+                        userId = order.userId,
+                        items = order.orderItems.map {
+                            OrderItemSnapshot(
+                                productId = it.productId,
+                                productName = it.productName,
+                                quantity = it.quantity,
+                                price = it.productPrice,
+                            )
+                        },
+                    ),
+                )
             }
             "FAILED" -> {
                 payment.markFailed(transactionKey, reason)
                 order.markCancelled()
                 compensateOrder(order)
+                eventPublisher.publishEvent(
+                    OrderCancelledEvent(
+                        orderId = order.id,
+                        userId = order.userId,
+                        reason = reason,
+                    ),
+                )
             }
             else -> log.warn("알 수 없는 PG 상태: {} (transactionKey={})", status, transactionKey)
         }
@@ -117,11 +143,32 @@ class PaymentFacade(
             "SUCCESS" -> {
                 freshPayment.markSuccess(pgDetail.transactionKey)
                 freshOrder.markPaid()
+                eventPublisher.publishEvent(
+                    OrderCompletedEvent(
+                        orderId = freshOrder.id,
+                        userId = freshOrder.userId,
+                        items = freshOrder.orderItems.map {
+                            OrderItemSnapshot(
+                                productId = it.productId,
+                                productName = it.productName,
+                                quantity = it.quantity,
+                                price = it.productPrice,
+                            )
+                        },
+                    ),
+                )
             }
             "FAILED" -> {
                 freshPayment.markFailed(pgDetail.transactionKey, pgDetail.reason)
                 freshOrder.markCancelled()
                 compensateOrder(freshOrder)
+                eventPublisher.publishEvent(
+                    OrderCancelledEvent(
+                        orderId = freshOrder.id,
+                        userId = freshOrder.userId,
+                        reason = pgDetail.reason,
+                    ),
+                )
             }
         }
         return PaymentInfo.from(freshPayment)

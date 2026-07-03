@@ -1,8 +1,10 @@
 package com.loopers.application.like
 
+import com.loopers.domain.event.ProductLikedEvent
+import com.loopers.domain.event.ProductUnlikedEvent
 import com.loopers.domain.like.LikeService
 import com.loopers.domain.product.ProductService
-import com.loopers.infrastructure.product.ProductCacheManager
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
@@ -12,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 class LikeFacade(
     private val likeService: LikeService,
     private val productService: ProductService,
-    private val productCacheManager: ProductCacheManager,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional
@@ -20,8 +22,7 @@ class LikeFacade(
         productService.getProduct(productId)
         val created = likeService.like(userId, productId)
         if (created) {
-            productService.incrementLikeCount(productId)
-            productCacheManager.evictDetail(productId)
+            eventPublisher.publishEvent(ProductLikedEvent(userId = userId, productId = productId))
         }
     }
 
@@ -29,8 +30,7 @@ class LikeFacade(
     fun unlike(userId: Long, productId: Long) {
         val deleted = likeService.unlike(userId, productId)
         if (deleted) {
-            productService.decrementLikeCount(productId)
-            productCacheManager.evictDetail(productId)
+            eventPublisher.publishEvent(ProductUnlikedEvent(userId = userId, productId = productId))
         }
     }
 

@@ -18,8 +18,6 @@ class CouponKafkaListenerConfig {
         const val COUPON_ISSUE_LISTENER = "COUPON_ISSUE_LISTENER"
     }
 
-    // 쿠폰 발급 확정은 "단일 컨슈머 순차 + 건별 트랜잭션"이 요건이라
-    // 배치 팩토리(BATCH_LISTENER, concurrency 3)가 아닌 record·concurrency 1 팩토리를 사용한다.
     @Bean(COUPON_ISSUE_LISTENER)
     fun couponIssueListenerContainerFactory(
         kafkaProperties: KafkaProperties,

@@ -22,7 +22,6 @@ class DatabaseCleanup(
                 val tableAnnotation = entityType.javaType.getAnnotation(Table::class.java)
                 val tableName = tableAnnotation?.name?.takeIf(String::isNotBlank)
                     ?: entityType.name.toSnakeCase()
-                // String PK(예: coupon_issue_result.request_id)는 auto-increment 컬럼이 없어 리셋 대상에서 제외
                 val idJavaType = entityType.idType.javaType.kotlin.javaObjectType
                 TableInfo(tableName, hasNumericId = Number::class.java.isAssignableFrom(idJavaType))
             }

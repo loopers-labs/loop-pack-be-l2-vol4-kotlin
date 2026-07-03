@@ -27,8 +27,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.test.context.ActiveProfiles
 
-// Kafka 브로커 없이 컨슈머 빈을 직접 호출해 멱등 게이트·확정 트랜잭션을 검증한다.
-// 브로커 왕복(직렬화·파티션 순서)은 로컬 docker E2E와 부하 실험(EXP-03)이 담당.
 @SpringBootTest
 @ActiveProfiles("test")
 class CouponIssueConsumerIntegrationTest @Autowired constructor(

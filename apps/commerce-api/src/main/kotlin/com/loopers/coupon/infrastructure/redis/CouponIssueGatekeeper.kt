@@ -13,11 +13,6 @@ import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 
-/**
- * 선착순 발급 접수 게이트. stock/users 키는 read 캐시가 아니라 접수 장부 —
- * DB(진실 원천)와 주기 동기화하지 않고, 유실 시 DB 잔여 수량으로 lazy 재구성한다.
- * Redis 장애·미초기화 시 fail-open(통과): 오버발급은 컨슈머의 DB 조건부 UPDATE + uk가 차단한다.
- */
 @Component
 class CouponIssueGatekeeper(
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER) private val redisTemplate: RedisTemplate<String, String>,

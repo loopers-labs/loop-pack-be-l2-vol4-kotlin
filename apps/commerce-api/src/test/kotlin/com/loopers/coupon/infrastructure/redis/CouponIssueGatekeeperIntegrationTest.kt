@@ -57,7 +57,6 @@ class CouponIssueGatekeeperIntegrationTest @Autowired constructor(
 
         assertAll(
             { assertThat(result.errorCode).isEqualTo(CouponErrorCode.ALREADY_ISSUED) },
-            // 중복 거절이 재고를 깎지 않았다면 남은 1장은 다른 사용자가 통과할 수 있다
             { assertThatCode { couponIssueGatekeeper.tryPass(1L, 2L) }.doesNotThrowAnyException() },
         )
     }

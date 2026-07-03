@@ -42,7 +42,7 @@
   - [x] EC2 `m5.xlarge`(4 vCPU/16 GiB, ap-northeast-2a) 기동 + SG를 내 공인 IP `/32`로 제한 + 컨테이너 `127.0.0.1` bind → 공인 노출 0 (홈서버 ufw 우회·공유기 이사·DHCP 문제 원천 소멸)
   - [x] EC2에서 git clone→빌드(x86_64 네이티브) → `core` 스택 기동 → 시드 → 스모크
   - [x] 토폴로지: EC2 = SUT + k6 co-located (하네스 천장 스모크 ≥4000/s = 포화점 ×16 확인 → co-located 유효). 관측 스택은 필요 시 SUT 밖으로(원칙 유지). m5는 고정 성능이라 절대 수치 확정 가능
-- [ ] **17. Phase 1 — DB-only 3변형 부하 비교** — A 비관(FOR UPDATE) **✅ 완료(EXP-01, ~250 req/s·정합성 완벽·병목=단일행 락 직렬화, CPU 아님)** / B 조건부 원자 UPDATE / C 낙관(@Version)+재시도. 공통 최종 방어 `uk_user_coupon`. 종료: DB-only 구조적 상한 확정
+- [ ] **17. Phase 1 — DB-only 3변형 부하 비교** — A 비관(FOR UPDATE) **✅ 완료(EXP-01, ~250 req/s·정합성 완벽·병목=단일행 락 직렬화, CPU 아님)** / B 조건부 원자 UPDATE **✅ 완료(EXP-02, S2 무릎 실측 ~550~590/s·500 폭풍 94%↓·정합성 완벽, 병목 락 대기→CPU로 이동, 스파이크 decision 꼬리는 동급 — 동기 설계 한계 재확인)** / C 낙관(@Version)+재시도. 공통 최종 방어 `uk_user_coupon`. 종료: DB-only 구조적 상한 확정
 - [ ] **18. Phase 2 — 병목 진단 + 튜닝** — 진단 사다리(Tomcat→Hikari→row lock→DB CPU→앱). 가상 스레드 on/off 비교(pinning 관찰). Hikari 10→20→30 × Tomcat 200→400, MySQL CPU 80% 가드레일. 종료: 튜닝 상한 + 병목의 이름 확정
 - [ ] **19. Phase 3 — Redis 선검증** — Lua로 수량+userId 원자 판정 → 통과분만 DB 동기 발급(DB=진실 원천). 부하 중 redis kill 정합성 검증. 종료: 개선 폭 + 새 병목 명명
 - [ ] **20. Phase 4 — Kafka 지연 발급 (과제 MUST 합격선)**

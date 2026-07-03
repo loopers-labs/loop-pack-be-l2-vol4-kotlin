@@ -83,7 +83,7 @@
 - 공통 최종 방어: `uk_user_coupon` unique (userId 중복)
 
 - [x] 변형 A 구현 + 정합성 green + S1/S2 측정 — `EXP-01-db-only-pessimistic.md`. 천장 ~250 req/s, 정합성 완벽(과발급·중복 0), 병목 = 단일 행 락 직렬화 + 커넥션 점유(CPU 아님: api 0.79 / mysql 0.27 코어). 스파이크 → 500 1.38%(Hikari 3s 타임아웃), 점증 → p95 3.35s·500 0%
-- [ ] 변형 B 구현 + 정합성 green + S1/S2 측정
+- [x] 변형 B 구현 + 정합성 green + S1/S2 측정 — `EXP-02-db-only-conditional-update.md` (코드: `exp/week07-coupon-variant-b`). S1 500 폭풍 1.38%→0.08%(뿌리는 잔존), S2 무릎 타임라인 실측 ~550~590/s·p95 3.35→2.19s. 병목이 락 대기(CPU 유휴)→CPU 소모형으로 이동, co-located k6 경합 조짐(load 13/4코어). 스파이크 decision 꼬리는 동급(max 10.2s) → 동기 설계 한계 재확인
 - [ ] 변형 C 구현 + 정합성 green + S1/S2 측정
 - [ ] 변형별 EXP 기록 작성
 

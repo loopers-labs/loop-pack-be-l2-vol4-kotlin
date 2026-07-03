@@ -64,6 +64,12 @@ services:
       # p4 미기동(core/p3) 시에도 무해: producer/admin 은 lazy 라 접속 시도 없음(발급 API 호출 전까지).
       - --spring.kafka.bootstrap-servers=kafka:9092
       - --spring.kafka.admin.properties.bootstrap.servers=kafka:9092
+      # redis.yml 의 local 프로파일 문서가 localhost:6379/6380 을 하드코딩해 위 REDIS_* env 를 덮어씀
+      # (EXP-03 RUN-1 실측: 게이트 상시 fail-open). 명령행 인자는 프로파일 문서보다 우선 → 컨테이너 호스트로 강제.
+      - --datasource.redis.master.host=redis-master
+      - --datasource.redis.master.port=6379
+      - --datasource.redis.replicas[0].host=redis-readonly
+      - --datasource.redis.replicas[0].port=6379
     ports:
       - "127.0.0.1:8080:8080"   # API
       - "127.0.0.1:8081:8081"   # actuator (management.server.port)

@@ -16,4 +16,6 @@ COPY --from=build /workspace/apps/commerce-api/build/libs/*.jar app.jar
 ENV JAVA_OPTS=""
 # 8080 = API, 8081 = actuator(management.server.port)
 EXPOSE 8080 8081
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+# sh -c 의 "$@" 로 compose 의 command 오버라이드 인자(--spring.profiles.active 등)를 java 로 전달한다.
+# "$@" 없이 스크립트만 두면 뒤따르는 인자가 위치 파라미터로 흘러 무시된다. exec 로 PID 1 교체 → 시그널 전파.
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar \"$@\"", "--"]

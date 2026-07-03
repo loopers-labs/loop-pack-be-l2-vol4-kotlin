@@ -38,7 +38,7 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      # dev 프로파일이 redis.yml 베이스의 placeholder 를 상속 → 값이 있어야 부팅.
+      # local 프로파일도 redis.yml 베이스의 placeholder 를 상속 → 값이 있어야 부팅.
       # core/p1/p2 에선 redis 컨테이너가 없지만 Lettuce lazy + redis health off 라 접속 시도 없음.
       REDIS_MASTER_HOST: redis-master
       REDIS_MASTER_PORT: "6379"
@@ -46,7 +46,12 @@ services:
       REDIS_REPLICA_1_PORT: "6379"
       JAVA_OPTS: "-Xms1g -Xmx1g"
     command:
-      - --spring.profiles.active=dev
+      # local 프로파일 = plain-console 로깅(Slack 무의존). dev/qa/prd 는 slack-appender +
+      # properties/slack-log-*.xml 를 include 해 웹훅 프로퍼티가 없으면 logback init 이 깨진다.
+      # 부하 SUT 는 stdout 로그면 충분하므로 local 이 정답. datasource 는 아래 인자로 컨테이너 mysql 로 덮어쓴다.
+      - --spring.profiles.active=local
+      # 컨테이너 안엔 docker 데몬이 없다 → spring-boot-docker-compose 자동 기동 비활성(로컬 bootRun 과 동일).
+      - --spring.docker.compose.enabled=false
       - --datasource.mysql-jpa.main.jdbc-url=jdbc:mysql://mysql:3306/loopers?rewriteBatchedStatements=true
       - --datasource.mysql-jpa.main.username=application
       - --datasource.mysql-jpa.main.password=application

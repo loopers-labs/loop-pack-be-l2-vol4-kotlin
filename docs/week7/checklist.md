@@ -35,7 +35,7 @@
   - [x] `Coupon`에 `total_quantity`/`issued_quantity` 추가 + `UserCouponGrantedType.FIRST_COME` 추가 — PR [#6](https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/6)
   - [x] `POST /api/v1/coupons/issue` (동기, Phase 1용) — 매진 시 `ConflictException(SOLD_OUT)`, 비관적 락(inventory 선례) — PR #6
   - [x] `runConcurrently` 정합성 테스트: 한도 100 + 동시 300(Hikari 풀 10 기준 조정, 근거 PLAN.md) → 정확히 100건·중복 0 — PR #6
-  - [x] commerce-api Dockerfile(멀티스테이지 jdk→jre) + `load-test/sut-compose.yml`(profile core/p3/p4, 전 포트 127.0.0.1 바인딩) + 시드 `load-test/coupon-perf-seed.sql`(유저 1만 cpuser00001~, 쿠폰 90001=한도100 스파이크 / 90002=한도10만 지속) — `docker compose config` + 프로파일 분리 검증 완료
+  - [x] commerce-api Dockerfile(멀티스테이지 jdk→jre) + `load-test/sut-compose.yml`(profile core/p3/p4, 전 포트 127.0.0.1 바인딩) + 시드 `load-test/coupon-perf-seed.sql`(유저 1만 cpuser00001~, 쿠폰 90001=한도100 스파이크 / 90002=한도10만 지속) — **런타임 dry-run 검증 완료**(부팅→시드→스모크→S1/S2). 부팅 실패 2건(ENTRYPOINT 인자 유실 / dev 프로파일 logback 크래시) 수정, S1 발급 정확히 100·중복 0 — 근거 `experiments/WRITING-LOG.md` 결정 10-보강
   - [x] k6 시나리오 2종: `coupon-issue-spike.js` S1(1000/s×10s=1만, distinct 유저) / `coupon-issue-step.js` S2(ramping 100→200→400→800/s) + 보너스 `harness-ceiling-smoke.js`(경로 천장 검사) — node --check 통과
   - [x] actuator + micrometer-registry-prometheus 의존성 — `:supports:monitoring` 경유로 이미 commerce-api runtimeClasspath 에 존재(actuator 3.4.4 + micrometer-registry-prometheus 1.14.5), management.server.port=8081, http.server.requests 히스토그램 on. 신규 작업 불필요, 검증만
 - [ ] **16. Phase 0-a — 홈서버 (서버 켠 뒤, 물리 작업 포함)**

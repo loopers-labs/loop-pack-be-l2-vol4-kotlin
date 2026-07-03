@@ -17,6 +17,10 @@ until curl -sf http://127.0.0.1:8081/actuator/health/liveness >/dev/null; do sle
 echo "SUT ready"
 ```
 
+> **mysql 최초 init 레이스 (첫 `up` 한정)**: mysql:8.0 은 빈 데이터 디렉터리 첫 기동 때 임시 서버로 초기화 후 **재시작**한다. `depends_on: healthy` 가 이 재시작 갭까지는 못 막아, api 가 첫 부팅에서 `Communications link failure` 로 죽을 수 있다. 그 경우 mysql 은 이미 정상이므로 api 만 다시 올리면 된다: `docker compose -f load-test/sut-compose.yml up -d commerce-api`. (dry-run 2026-07-03 관찰)
+>
+> **로컬 맥 dry-run 시 포트 충돌**: 이 레포의 dev 인프라(`docker/`)나 로컬 bootRun 이 이미 3306/8080/8081 을 물고 있으면, 커밋 안 하는 오버라이드로 호스트 포트만 비켜 띄운다 — `load-test/sut-compose.override.local.yml` 에 `ports: !override` 로 mysql→3307, api→18080/18081 지정 후 `-f sut-compose.yml -f sut-compose.override.local.yml` 로 실행하고 k6 는 `BASE_URL=http://127.0.0.1:18080`, `SMOKE_URL=http://127.0.0.1:18081/...` 로 접속. 홈서버(격리 SUT)는 포트가 비어 있어 오버라이드 불필요.
+
 ## 2. 시드 적재 (⚠️ api 재시작할 때마다 재실행 — ddl-auto=create가 스키마를 리셋)
 
 로컬 mysql 클라이언트가 없으면 컨테이너 경유:

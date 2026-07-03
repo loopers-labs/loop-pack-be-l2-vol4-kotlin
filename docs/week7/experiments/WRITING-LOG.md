@@ -105,9 +105,19 @@ PR: https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/6 (2026-07-03 
 
 - **무의존 no-op 경로 = actuator liveness**: 하네스 천장 스모크는 서버 비용이 0에 가까워야 "하네스가 낼 수 있는 최대"만 측정된다. `/actuator/health`(전체)는 redis/db health 를 건드려 서버 로직이 섞이므로 제외, `/actuator/health/liveness`(probes.enabled=true, 외부 의존 0)를 씀. `/actuator`는 인증 필터 `shouldNotFilter` 대상이라 무인증 접근 가능 → 인증세도 안 섞임. **왜**: 천장 측정에 서버 코드가 끼면 "하네스 병목 판별" 자체가 오염된다.
 - **시드 유저 1만 (한도 100의 100배)**: 유저가 적으면 재요청이 ALREADY_ISSUED 로만 떨어져 SOLD_OUT 경합을 못 만든다. distinct 유저 1만이라야 ① userId 중복 0 불변식 ② SOLD_OUT 경합을 **동시에** 실측한다. **왜**: 두 불변식은 유저 다양성이 있어야만 관측된다.
-- **컨테이너화 = dev 프로파일 + 명령행 override (modules yml 무수정)**: jpa.yml·redis.yml 은 `modules` 소유(수정 금지 관례). 새 profile 을 modules 에 못 넣으니, dev 를 베이스로 잡고 datasource·ddl-auto 를 **명령행 args**(최고 우선순위)로 갈아끼웠다. **왜 app-{profile}.yml 이 아니라 명령행인가**: `spring.config.import`(jpa.yml)와 profile 파일 간 precedence 가 미묘해 추측이 필요한데, 명령행 args 는 항상 최우선이라 모호성이 0. 부하 셋업에서 "확실히 이긴다"가 영리함보다 낫다.
+- **컨테이너화 = local 프로파일 + 명령행 override (modules yml 무수정)**: jpa.yml·redis.yml 은 `modules` 소유(수정 금지 관례). 새 profile 을 modules 에 못 넣으니, 기존 profile 을 베이스로 잡고 datasource·ddl-auto 를 **명령행 args**(최고 우선순위)로 갈아끼웠다. **왜 app-{profile}.yml 이 아니라 명령행인가**: `spring.config.import`(jpa.yml)와 profile 파일 간 precedence 가 미묘해 추측이 필요한데, 명령행 args 는 항상 최우선이라 모호성이 0. 부하 셋업에서 "확실히 이긴다"가 영리함보다 낫다. **왜 dev 가 아니라 local 인가**(dry-run 에서 정정 — 아래 보강): dev/qa/prd 는 logback 이 `slack-appender` + `properties/slack-log-*.xml` 을 include 해 Slack 웹훅 프로퍼티가 없으면 부팅이 깨진다. local 은 plain-console 로깅(외부 의존 0)이라 부하 SUT stdout 로그에 정확히 맞다.
 - **ddl-auto=create → 재시작마다 재시드 (수용)**: 스키마 재현성(매 런 clean state)을 얻는 대신 api 재시작 시 시드 재적재가 필요. 부하 실험은 매번 깨끗한 시작이 이득이라 트레이드오프 수용, 문서에 명시.
 - 글 포인트: **부하 하네스 설계 = "무엇을 상수로 고정하는가"의 연속 결정** — no-op 경로(서버 로직 배제), 유저 다양성(불변식 관측 가능), override 방식(precedence 모호성 배제), 스키마 리셋(재현성). 각각 측정을 오염시킬 변수를 하나씩 상수로 눌렀다.
+
+### 결정 10-보강 — 로컬 dry-run 실검증: 문서상 "설정 완료"와 "실제로 뜨는가"는 다르다
+
+> 2026-07-03. 홈서버 본 측정 전에 맥에서 core 스택을 실제로 부팅→시드→스모크→S1/S2 로 끝까지 돌려 artifact 를 검증. **`docker compose config` 통과·`node --check` 통과는 "구문이 맞다"까지만 보증했고, 런타임에서 두 개의 실패를 잡았다.** 부하 실험은 코드가 아니라 셋업이 먼저 무너진다는 예시.
+
+- **버그 1 — Dockerfile ENTRYPOINT 가 compose command 인자를 통째로 버림**: `ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]` 형태는 뒤따르는 인자(`--spring.profiles.active=…` 등)가 `sh -c` 스크립트의 위치 파라미터($1,$2…)로 들어가 **java 에 전달되지 않는다**. 그 결과 profile·datasource override 가 전부 무시되고 기본값으로 떠서 컨테이너 안에서 `localhost:3306` 에 붙으려다 connection refused. 수정: `ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar app.jar \"$@\"","--"]` — `"$@"` 로 인자를 java 로 넘기고 `exec` 로 PID 1 교체(시그널 전파). **왜 놓쳤나**: `$JAVA_OPTS` 확장 때문에 shell form 이 필요했는데, shell form + 인자전달은 `"$@"` 를 명시해야만 동작한다는 걸 config 검증으론 알 수 없다.
+- **버그 2 — dev 프로파일 logback 크래시**: 위 인자전달을 고치자 이번엔 profile 이 실제로 dev 로 적용되면서 logback 이 `slack-log-dev.xml` 의 `<property>` 를 못 채워 `environmentPrepared` 단계에서 죽음. → 프로파일을 local 로 교체(결정 10 본문 반영). **왜**: dev 는 배포 환경용(Slack 알림)이고, 격리된 부하 SUT 는 plain-console 로 충분하다. 프로파일 선택이 "환경 시맨틱"이지 "아무거나 되는 값"이 아니었다.
+- **검증 결과(불변식 전부 충족)**: S1(한도 100, 1000/s×10s) → 발급 **정확히 100** · distinct 유저 100 · 유저당 최대 1건(userId 중복 0) · unexpected 0%. S2(한도 10만, USER_POOL 1만 재활용) → 발급 10000(= 유저 전원 1회) + 재요청은 ALREADY_ISSUED 로 거절 · 중복 0. 하네스 천장 스모크(liveness) → ~4000 rps 에서 p99 2.2ms·실패 0 → 하네스는 병목 아님(S1 1000/s 대비 충분한 여유).
+- **관찰(Phase 1 예고)**: S1 은 단일 hot row(한도 100) 경합으로 결정 지연 avg 362ms·p95 1.04s 까지 오르고 k6 가 arrival rate 를 못 채워 395 iteration 을 drop — 비관적 락의 직렬화가 지연으로 드러남. S2 는 hot row 경합이 없어(한도 10만) avg 4ms 로 평탄. **이 대비가 곧 Phase 1 "DB-only 구조적 상한" 서사의 씨앗.**
+- 글 포인트: **"설정했다"와 "실제로 뜬다" 사이의 간극** — 부하 실험 신뢰도는 SUT 가 의도한 구성으로 정확히 떠 있느냐에서 시작한다. dry-run 없이 홈서버에서 바로 돌렸다면 두 버그를 측정 오염(또는 전량 실패)으로 뒤늦게 만났을 것.
 
 ## 다음 기록 예정
 

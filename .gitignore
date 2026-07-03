@@ -41,3 +41,5 @@ out/
 
 ### load test 결과물 (생성물) ###
 load-test/results/
+### 로컬 dry-run 전용 compose 오버라이드 (머신별 포트 회피 — 커밋 안 함) ###
+load-test/sut-compose.override.local.yml

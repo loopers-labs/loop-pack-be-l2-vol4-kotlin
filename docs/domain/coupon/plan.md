@@ -273,10 +273,61 @@ Testcontainers 통합 테스트 (`modules:jpa` testFixtures 재사용).
 
 ---
 
+## 10. Phase 10 — 선착순 도메인 (`domain.coupon`) — v0.4 추가
+
+> UC-10·UC-11(선착순 한정 수량 발급) 의 순수 도메인. 발급 요청(`IssueRequest`) 의 상태 전이와 쿠폰 템플릿의 발급 한도/소진 규칙. 스프링/JPA 없이 순수 Kotlin.
+
+#### `IssueRequest` — 발급 요청 상태 전이 (→ `IssueRequestTest`)
+- [x] 발급 요청을 생성하면 접수됨(REQUESTED) 상태와 요청 식별자를 가진다
+- [x] 접수됨 요청을 발급됨(ISSUED) 으로 확정하면 발급된 쿠폰 식별자를 가진다
+- [x] 접수됨 요청을 거절(REJECTED) 로 확정하면 거절 사유(SOLD_OUT / ALREADY_ISSUED) 를 가진다
+- [x] 이미 확정(발급됨/거절됨) 된 요청을 다시 확정해도 결과가 바뀌지 않는다 (결과는 한 번만 확정)
+
+#### `Coupon` — 발급 한도 / 선착순 판정 (→ `CouponTest`)
+- [x] 무제한(한도 없음) 템플릿을 선착순 발급 대상으로 확인하면 거부된다 (`ensureFirstCome`)
+- [x] 선착순(한도 있음) 템플릿을 즉시 발급 대상으로 확인하면 거부된다 (`ensureNotFirstCome`)
+- [x] 발급 수가 한도 미만이면 발급 수를 1 늘릴 수 있다
+- [x] 발급 수가 한도에 도달하면 추가 발급은 품절(SOLD_OUT) 로 거부된다 (한도 초과 불가)
+
+## 11. Phase 11 — 선착순 접수 / 결과 조회 (`application.coupon` + `interfaces.api.coupon`) — v0.4 추가
+
+> 접수(즉시 202) 와 결과 조회(폴링) 는 commerce-api 책임. 형식 무효는 접수에서 거부, 한도·중복은 여기서 실패로 응답하지 않고 처리 결과(Phase 12) 로 확정된다.
+
+#### 접수 — `CouponFacade` + `CouponV1Controller` (POST /api/v1/coupons/issue)
+- [x] 유효한 선착순 요청을 접수하면 접수됨(REQUESTED) 요청 레코드가 생기고 요청 식별자를 응답한다
+- [x] 존재하지 않거나 삭제된 템플릿으로 접수하면 COUPON_NOT_FOUND 로 거부된다
+- [x] 발급 한도가 없는 일반 템플릿으로 접수하면 COUPON_NOT_APPLICABLE 로 거부된다
+- [x] 발급 가능 구간 밖에서 접수하면 COUPON_NOT_APPLICABLE 로 거부된다
+- [x] 인증 없이 접수하면 UNAUTHORIZED 로 거부된다 (E2E)
+- [x] POST /api/v1/coupons/issue 가 202 와 요청 식별자를 반환한다 (E2E)
+
+#### 결과 조회 — `CouponFacade` + `CouponV1Controller` (GET /api/v1/coupons/issue/{requestId})
+- [x] 요청 식별자로 조회하면 현재 상태(REQUESTED / ISSUED / REJECTED) 를 응답한다
+- [x] 발급됨 결과는 발급된 쿠폰 식별자를 함께 반환한다
+- [x] 거절됨 결과는 거절 사유(SOLD_OUT / ALREADY_ISSUED) 를 함께 반환한다
+- [x] 본인 소유가 아니거나 존재하지 않는 요청 식별자로 조회하면 ISSUE_REQUEST_NOT_FOUND 로 거부된다 (facade + E2E 404)
+- [x] 인증 없이 결과를 조회하면 UNAUTHORIZED 로 거부된다 (@RequireAuth, 접수 401 과 동일 메커니즘)
+- [x] GET /api/v1/coupons/issue/{requestId} 가 200 과 상태를 반환한다 (E2E)
+
+## 12. Phase 12 — 선착순 처리 & 동시성 (`commerce-streamer`) — v0.4 추가
+
+> 접수된 요청을 소비해 선착순 수량 제한으로 발급/거절하고 결과를 확정한다. week7 plan [Step 3-B·3-C](../../../.docs/week7/plan.md) 와 같은 범위 — 동시성 제어·멱등 지점은 그쪽 검증과 연결된다.
+
+- [x] 접수된 요청을 처리하면 한도 내에서 발급되어 요청이 ISSUED 로 확정되고 발급 쿠폰 1매가 생긴다
+- [x] 한도가 소진된 뒤 처리된 요청은 SOLD_OUT 으로 거절 확정된다
+- [x] 같은 회원의 중복 요청은 한 번만 발급되고 나머지는 ALREADY_ISSUED 로 거절 확정된다 (1인 1매)
+- [x] 같은 요청이 두 번 처리돼도 발급은 한 번만 반영된다 (멱등 — 접수 레코드 상태로 판정)
+- [x] 대량 동시 요청에도 발급 성공 수가 한도를 초과하지 않는다 (동시성 테스트는 130요청·한도100 규모, 원자 조건부 UPDATE 로 보장 — 규모 무관)
+- [x] 동시 요청 하에서도 같은 회원의 중복 발급이 발생하지 않는다 (`user_coupons` UNIQUE)
+
+---
+
 ## 진행 로그
 
 - 2026-06-09: requirements / api-spec / ERD(coupons·user_coupons) 작성, plan 초안 수립. 발급 1인 1매·사용 최대 1회·만료 파생 결정.
 - 2026-06-09: **전 Phase 구현 완료**. Phase 1 도메인(DiscountType·Discount VO·CouponName VO·Coupon·UserCoupon·UserCouponStatus·CouponErrorType, 도메인 테스트 그린) → Phase 2 포트(CouponRepository·UserCouponRepository) → Phase 3 CouponFacade(UC-1~9, mock 단위 테스트) → Phase 4 인프라(CouponEntity·UserCouponEntity·JpaRepository·RepositoryImpl, Testcontainers 통합 테스트 — `@SQLRestriction` 대신 명시적 deleted 필터, UNIQUE(user_id,coupon_id) 1인 1매 검증) → Phase 6 회원 API(CouponV1Controller·발급/내 목록 E2E) → Phase 7 관리자 API(CouponV1AdminController·템플릿 CRUD·발급 내역 E2E + 인증 401 회귀). 상태/할인종류 와이어 값은 enum 이름(대문자) 직렬화. commerce-api 전체 테스트 + ktlintCheck 그린.
 - 2026-06-10: **Phase 9 — 주문 적용 통합 완료(v0.2)**. `OrderFacade.placeOrder` 가 같은 트랜잭션에서 `CouponFacade.applyCoupon` 호출 → 주문 1건당 1장, 성공 시 즉시 `USED`, 실패 시 주문·재고·쿠폰 소진 전부 롤백. `Order` 에 `discountAmount`/`applyCoupon` + `originalAmount`/순 `totalAmount`, `OrderEntity.discount_amount` 컬럼, `OrderResult` 노출 추가. OrderTest·OrderFacadeTest 갱신(기존 "입력 슬롯만" 테스트 교체) + `OrderCouponIntegrationTest`(@SpringBootTest) 원자성 검증. requirements v0.2·api-spec·ERD 동기화. 전체 테스트 + ktlintCheck 그린.
 - 2026-06-10: **검증 워크플로우(5차원 적대적 리뷰) 후속 보강**. 확인 결함 반영 — 동시 이중 소진(HIGH)을 사용 경로 비관적 락 + N-스레드 동시성 통합 테스트로 차단, 만료/최소금액/미존재/재사용 롤백 통합 테스트 추가, 정률 오버플로(LOW) 안전화, `AdminOrderResult` 할인 노출, OrderFacadeTest errorType 파라미터화·멱등 미소진 검증, requirements §5/§6 ↔ TBD 모순 제거(락 구현 반영). 전체 테스트 + ktlintCheck 그린. 기존 order 도메인 부채(PAID vs PAYMENT_PENDING, total_price 스냅샷, getMyOrders MIN/MAX) 는 별도 분리.
+- 2026-07-03: **선착순 발급 구현 완료(Phase 10~12)**. 도메인(IssueRequest 상태전이·Coupon 발급 한도/채널 가드) → commerce-api 접수/조회(POST 202 `/coupons/issue`·GET `/coupons/issue/{requestId}`, outbox→coupon-issue-requests 발행, facade+E2E) → commerce-streamer 처리(CouponIssueRequestConsumer→FirstComeIssueFacade, 원자 조건부 UPDATE 로 한도 소진·`user_coupons` UNIQUE 로 1인 1매, 요청 상태로 멱등). 행위+동시성(130요청/한도100) 통합 테스트 green, 두 앱 전체 회귀 green. 자율 구현 — 검토 필요 사항 별도 정리.
+- 2026-07-02: **선착순 발급 케이스 도출(v0.4)**. `/test-cases` 로 UC-10·UC-11 을 Phase 10(선착순 도메인 — IssueRequest 상태 전이·발급 한도) · Phase 11(접수/결과 조회 — application+E2E) · Phase 12(streamer 처리·동시성) 로 분해. Phase 12 는 week7 plan Step 3-B·3-C 와 연결. 미착수.
 - 2026-06-11: **시간 모델 재설계(v0.3)**. 템플릿 단일 `expiredAt` → 발급 가능 구간(`issueStartAt`/`issueEndAt`)·사용 가능 구간(`useStartAt`/`useEndAt`) 4시각으로 분리. 발급 시 사용 가능 구간을 발급 쿠폰(`usableFrom`/`expiredAt`) 으로 **스냅샷** — 사용 가능 판정·`EXPIRED` 파생이 발급 쿠폰 자신만으로 완결(템플릿 변경·삭제 무관). `ensureIssuable` 은 발급 구간 판정, `UserCoupon.use` 가 단일 사용 + 사용 가능 기간을 함께 캡슐화(Tell-Don't-Ask), `viewStatus(at)` 는 coupon 인자 제거. 엔티티 컬럼(`coupons` 4개·`user_coupons` `usable_from`/`expired_at`)·커맨드·결과·DTO·`OrderFacade` 사용 블록·도메인/통합/E2E 테스트 일괄 반영. requirements v0.3·api-spec·ERD 동기화. 전체 테스트 + ktlintCheck 그린. (이전 초안의 `Discount` VO 표기는 v0.2 `DiscountPolicy` sealed 모델로 이미 대체됨 — §0 결정사항 참고.)

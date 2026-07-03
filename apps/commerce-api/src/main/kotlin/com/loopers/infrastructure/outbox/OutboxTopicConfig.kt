@@ -19,6 +19,10 @@ class OutboxTopicConfig {
     fun catalogEventsTopic(): NewTopic =
         TopicBuilder.name(OutboxRelay.CATALOG_EVENTS).partitions(PARTITIONS).replicas(REPLICAS).build()
 
+    @Bean
+    fun couponIssueRequestsTopic(): NewTopic =
+        TopicBuilder.name(OutboxRelay.COUPON_ISSUE_REQUESTS).partitions(PARTITIONS).replicas(REPLICAS).build()
+
     companion object {
         private const val PARTITIONS = 3
         private const val REPLICAS = 1

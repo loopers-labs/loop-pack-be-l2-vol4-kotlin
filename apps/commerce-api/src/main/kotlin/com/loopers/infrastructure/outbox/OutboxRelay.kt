@@ -48,11 +48,13 @@ class OutboxRelay(
     private fun topicOf(aggregateType: String): String = when (aggregateType) {
         "ORDER" -> ORDER_EVENTS
         "PRODUCT" -> CATALOG_EVENTS
+        "COUPON_ISSUE_REQUEST" -> COUPON_ISSUE_REQUESTS
         else -> error("unknown aggregateType for outbox routing: $aggregateType")
     }
 
     companion object {
         const val ORDER_EVENTS = "order-events"
         const val CATALOG_EVENTS = "catalog-events"
+        const val COUPON_ISSUE_REQUESTS = "coupon-issue-requests"
     }
 }

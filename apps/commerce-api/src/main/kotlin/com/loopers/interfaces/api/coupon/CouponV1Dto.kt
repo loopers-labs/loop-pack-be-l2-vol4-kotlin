@@ -4,14 +4,58 @@ import com.loopers.application.coupon.command.RegisterCouponCommand
 import com.loopers.application.coupon.command.UpdateCouponCommand
 import com.loopers.application.coupon.result.AdminCouponResult
 import com.loopers.application.coupon.result.CouponIssueResult
+import com.loopers.application.coupon.result.FirstComeIssueRequestResult
+import com.loopers.application.coupon.result.FirstComeIssueResult
 import com.loopers.application.coupon.result.IssuedCouponResult
 import com.loopers.application.coupon.result.MyCouponResult
 import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.IssueRequestStatus
+import com.loopers.domain.coupon.RejectReason
 import com.loopers.domain.coupon.UserCouponStatus
 import com.loopers.support.page.PageResult
 import java.time.LocalDateTime
 
 class CouponV1Dto {
+    data class FirstComeIssueRequest(
+        val couponId: Long,
+    )
+
+    data class FirstComeIssueResponse(
+        val requestId: String,
+        val couponId: Long,
+        val status: IssueRequestStatus,
+        val requestedAt: LocalDateTime,
+    ) {
+        companion object {
+            fun from(result: FirstComeIssueRequestResult): FirstComeIssueResponse = FirstComeIssueResponse(
+                requestId = result.requestId,
+                couponId = result.couponId,
+                status = result.status,
+                requestedAt = result.requestedAt,
+            )
+        }
+    }
+
+    data class FirstComeIssueResultResponse(
+        val requestId: String,
+        val couponId: Long,
+        val status: IssueRequestStatus,
+        val rejectReason: RejectReason?,
+        val userCouponId: Long?,
+        val processedAt: LocalDateTime?,
+    ) {
+        companion object {
+            fun from(result: FirstComeIssueResult): FirstComeIssueResultResponse = FirstComeIssueResultResponse(
+                requestId = result.requestId,
+                couponId = result.couponId,
+                status = result.status,
+                rejectReason = result.rejectReason,
+                userCouponId = result.issuedUserCouponId,
+                processedAt = result.processedAt,
+            )
+        }
+    }
+
     data class RegisterCouponRequest(
         val name: String,
         val type: String,

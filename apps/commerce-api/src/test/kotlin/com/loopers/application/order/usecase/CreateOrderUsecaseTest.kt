@@ -7,6 +7,7 @@ import com.loopers.domain.coupon.CouponModel
 import com.loopers.domain.coupon.CouponType
 import com.loopers.domain.coupon.UserCouponModel
 import com.loopers.domain.coupon.UserCouponStatus
+import com.loopers.domain.order.OrderCreatedEvent
 import com.loopers.domain.order.OrderModel
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.product.ProductModel
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -127,6 +129,25 @@ class CreateOrderUsecaseTest {
             // assert
             assertThat(exception.errorType).isEqualTo(ErrorType.CONFLICT)
         }
+
+        @DisplayName("주문을 저장한 뒤 OrderCreatedEvent 를 발행한다.")
+        @Test
+        fun publishesOrderCreatedEvent() {
+            // arrange
+            val fixture = Fixture()
+
+            // act
+            val order = fixture.createOrderUsecase.execute(fixture.command())
+
+            // assert
+            assertThat(fixture.eventPublisher.events).containsExactly(
+                OrderCreatedEvent(
+                    orderId = order.id,
+                    userId = order.userId,
+                    items = order.items.map { OrderCreatedEvent.Item(productId = it.productId, quantity = it.quantity) },
+                ),
+            )
+        }
     }
 
     private class Fixture {
@@ -136,6 +157,7 @@ class CreateOrderUsecaseTest {
         val userCouponRepository = InMemoryUserCouponRepository()
         val stockRepository = InMemoryProductStockRepository()
         val orderRepository = InMemoryOrderRepository()
+        val eventPublisher = RecordingEventPublisher()
         val userId = 1L
         private val userService = UserService(userRepository)
         val createOrderUsecase = CreateOrderUsecase(
@@ -145,6 +167,7 @@ class CreateOrderUsecaseTest {
             couponRepository = couponRepository,
             userCouponRepository = userCouponRepository,
             orderRepository = orderRepository,
+            eventPublisher = eventPublisher,
         )
 
         init {
@@ -291,6 +314,14 @@ class CreateOrderUsecaseTest {
 
         override fun findAllByProductIdIn(productIds: List<Long>): List<ProductStockModel> {
             return productIds.mapNotNull { stocks[it] }
+        }
+    }
+
+    private class RecordingEventPublisher : ApplicationEventPublisher {
+        val events = mutableListOf<Any>()
+
+        override fun publishEvent(event: Any) {
+            events.add(event)
         }
     }
 }

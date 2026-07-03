@@ -120,7 +120,9 @@ class KafkaConfig {
         val errorHandler = DefaultErrorHandler(
             recoverer,
             FixedBackOff(DLT_RETRY_INTERVAL_MS, DLT_RETRY_COUNT),
-        )
+        ).apply {
+            addNotRetryableExceptions(IllegalArgumentException::class.java)
+        }
 
         return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
             consumerFactory = DefaultKafkaConsumerFactory(consumerConfig)

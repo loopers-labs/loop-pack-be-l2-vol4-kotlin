@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     // add-ons
+    implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
     implementation(project(":modules:kafka"))
@@ -18,7 +19,5 @@ dependencies {
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 
-    // test-fixtures
-    testImplementation(testFixtures(project(":modules:jpa")))
-    testImplementation(testFixtures(project(":modules:redis")))
+    testRuntimeOnly("com.h2database:h2")
 }

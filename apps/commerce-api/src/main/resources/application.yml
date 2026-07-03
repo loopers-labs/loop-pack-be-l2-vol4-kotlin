@@ -66,6 +66,11 @@ spring:
     activate:
       on-profile: local, test
 
+outbox:
+  relay:
+    scheduler:
+      enabled: false # 테스트/로컬에서는 스케줄러가 자동 발행 레이스를 만들지 않도록 끈다. relayOnce()는 직접 호출.
+
 ---
 spring:
   config:

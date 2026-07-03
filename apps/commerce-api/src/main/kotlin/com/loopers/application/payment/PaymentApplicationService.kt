@@ -15,11 +15,6 @@ class PaymentApplicationService(
     private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
-    fun createPayment(payment: Payment): Payment {
-        return paymentRepository.save(payment)
-    }
-
-    @Transactional
     fun createPaymentAndPublishRequest(
         payment: Payment,
         callbackUrl: String,

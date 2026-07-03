@@ -6,10 +6,17 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.time.ZonedDateTime
 
 interface OrderJpaRepository : JpaRepository<OrderJpaEntity, Long> {
     @EntityGraph(attributePaths = ["_items"])
     fun findWithItemsByIdAndDeletedAtIsNull(id: Long): OrderJpaEntity?
+
+    @EntityGraph(attributePaths = ["_items"])
+    fun findByStatusAndCreatedAtBeforeAndDeletedAtIsNull(
+        status: OrderStatus,
+        createdAt: ZonedDateTime,
+    ): List<OrderJpaEntity>
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(

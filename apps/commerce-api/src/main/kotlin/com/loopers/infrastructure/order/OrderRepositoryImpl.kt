@@ -4,6 +4,7 @@ import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.order.OrderStatus
 import org.springframework.stereotype.Component
+import java.time.ZonedDateTime
 
 @Component
 class OrderRepositoryImpl(
@@ -21,6 +22,13 @@ class OrderRepositoryImpl(
     override fun find(id: Long): Order? {
         return orderJpaRepository.findWithItemsByIdAndDeletedAtIsNull(id)
             ?.toDomain()
+    }
+
+    override fun findPendingPaymentOlderThan(threshold: ZonedDateTime): List<Order> {
+        return orderJpaRepository.findByStatusAndCreatedAtBeforeAndDeletedAtIsNull(
+            status = OrderStatus.PENDING_PAYMENT,
+            createdAt = threshold,
+        ).map { it.toDomain() }
     }
 
     override fun markPaidIfPending(id: Long): Boolean {

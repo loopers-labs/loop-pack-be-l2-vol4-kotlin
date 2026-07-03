@@ -3,6 +3,7 @@ package com.loopers.application.event
 import com.loopers.domain.event.ExternalEventPublisher
 import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.event.CatalogEventMessage
+import com.loopers.event.CouponIssueRequestMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -18,6 +19,8 @@ class ExternalEventSendService(
     private val catalogTopic: String,
     @Value("\${commerce.events.order-topic:order-events}")
     private val orderTopic: String,
+    @Value("\${commerce.events.coupon-issue-request-topic:coupon-issue-requests}")
+    private val couponIssueRequestTopic: String,
 ) {
     @Transactional
     fun send(message: CatalogEventMessage) {
@@ -34,6 +37,16 @@ class ExternalEventSendService(
         send(
             topic = orderTopic,
             partitionKey = message.orderId.toString(),
+            eventId = message.eventId,
+            message = message,
+        )
+    }
+
+    @Transactional
+    fun send(message: CouponIssueRequestMessage) {
+        send(
+            topic = couponIssueRequestTopic,
+            partitionKey = message.couponId.toString(),
             eventId = message.eventId,
             message = message,
         )

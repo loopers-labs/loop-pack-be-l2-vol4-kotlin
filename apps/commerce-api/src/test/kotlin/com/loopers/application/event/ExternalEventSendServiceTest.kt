@@ -6,6 +6,7 @@ import com.loopers.domain.event.model.EventOutboxStatus
 import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
+import com.loopers.event.CouponIssueRequestMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import org.assertj.core.api.Assertions.assertThat
@@ -47,6 +48,23 @@ class ExternalEventSendServiceTest {
         assertThat(outbox?.publishedAt).isNotNull()
     }
 
+    @DisplayName("coupon Kafka 발행에 성공하면 outbox record 를 발행 완료로 변경한다")
+    @Test
+    fun marksCouponIssueRequestOutboxPublished_whenKafkaSendSucceeds() {
+        val message = createCouponIssueRequestMessage()
+        val publisher = RecordingExternalEventPublisher()
+        val repository = FakeEventOutboxRepository(createCouponIssueRequestOutbox(message))
+        val service = createService(publisher = publisher, repository = repository)
+
+        service.send(message)
+
+        assertThat(publisher.publishedMessages)
+            .containsExactly(PublishedMessage("coupon-issue-requests", "30", message))
+        val outbox = repository.findByEventId("coupon-event-1")
+        assertThat(outbox?.status).isEqualTo(EventOutboxStatus.PUBLISHED)
+        assertThat(outbox?.publishedAt).isNotNull()
+    }
+
     @DisplayName("Kafka 발행에 실패하면 outbox record 는 미발행 상태로 남긴다")
     @Test
     fun keepsOutboxPending_whenKafkaSendFails() {
@@ -75,6 +93,7 @@ class ExternalEventSendServiceTest {
             eventOutboxRepository = repository,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
     }
 
@@ -105,6 +124,16 @@ class ExternalEventSendServiceTest {
         )
     }
 
+    private fun createCouponIssueRequestMessage(): CouponIssueRequestMessage {
+        return CouponIssueRequestMessage(
+            eventId = "coupon-event-1",
+            requestId = "request-1",
+            couponId = 30L,
+            memberId = 1L,
+            requestedAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
+        )
+    }
+
     private fun createCatalogOutbox(message: CatalogEventMessage): EventOutbox {
         return EventOutbox(
             id = 1L,
@@ -123,6 +152,17 @@ class ExternalEventSendServiceTest {
             topic = "order-events",
             partitionKey = message.orderId.toString(),
             eventType = message.eventType.name,
+            payload = "{}",
+        )
+    }
+
+    private fun createCouponIssueRequestOutbox(message: CouponIssueRequestMessage): EventOutbox {
+        return EventOutbox(
+            id = 1L,
+            eventId = message.eventId,
+            topic = "coupon-issue-requests",
+            partitionKey = message.couponId.toString(),
+            eventType = "COUPON_ISSUE_REQUESTED",
             payload = "{}",
         )
     }

@@ -7,6 +7,7 @@ import com.loopers.domain.event.model.EventOutboxStatus
 import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
+import com.loopers.event.CouponIssueRequestMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import org.assertj.core.api.Assertions.assertThat
@@ -30,6 +31,7 @@ class EventOutboxRelayServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
 
         val relayedCount = service.relayPending(limit = 100)
@@ -62,6 +64,7 @@ class EventOutboxRelayServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
 
         val relayedCount = service.relayPending(limit = 100)
@@ -81,6 +84,38 @@ class EventOutboxRelayServiceTest {
         )
     }
 
+    @DisplayName("미발행 coupon outbox record 를 Kafka 로 발행하고 발행 완료로 변경한다")
+    @Test
+    fun publishesPendingCouponIssueRequestOutboxAndMarksPublished() {
+        val message = createCouponIssueRequestMessage("event-3")
+        val repository = FakeEventOutboxRepository(createCouponIssueRequestOutbox(message))
+        val publisher = RecordingExternalEventPublisher()
+        val service = EventOutboxRelayService(
+            eventOutboxRepository = repository,
+            publisher = publisher,
+            objectMapper = objectMapper,
+            catalogTopic = "catalog-events",
+            orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
+        )
+
+        val relayedCount = service.relayPending(limit = 100)
+
+        val outbox = repository.findByEventId("event-3")
+        val publishedMessage = publisher.publishedMessages.single()
+        val publishedPayload = publishedMessage.message as CouponIssueRequestMessage
+        assertAll(
+            { assertThat(relayedCount).isEqualTo(1) },
+            { assertThat(publishedMessage.topic).isEqualTo("coupon-issue-requests") },
+            { assertThat(publishedMessage.partitionKey).isEqualTo("30") },
+            { assertThat(publishedPayload.eventId).isEqualTo(message.eventId) },
+            { assertThat(publishedPayload.requestId).isEqualTo(message.requestId) },
+            { assertThat(publishedPayload.couponId).isEqualTo(message.couponId) },
+            { assertThat(outbox?.status).isEqualTo(EventOutboxStatus.PUBLISHED) },
+            { assertThat(outbox?.publishedAt).isNotNull() },
+        )
+    }
+
     @DisplayName("Kafka 발행에 실패하면 미발행 상태로 두고 재시도 횟수를 증가시킨다")
     @Test
     fun keepsPendingAndIncrementsRetryCount_whenPublishFails() {
@@ -92,6 +127,7 @@ class EventOutboxRelayServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
 
         val relayedCount = service.relayPending(limit = 100)
@@ -127,6 +163,17 @@ class EventOutboxRelayServiceTest {
         )
     }
 
+    private fun createCouponIssueRequestOutbox(message: CouponIssueRequestMessage): EventOutbox {
+        return EventOutbox(
+            id = 1L,
+            eventId = message.eventId,
+            topic = "coupon-issue-requests",
+            partitionKey = message.couponId.toString(),
+            eventType = "COUPON_ISSUE_REQUESTED",
+            payload = objectMapper.writeValueAsString(message),
+        )
+    }
+
     private fun createMessage(eventId: String): CatalogEventMessage {
         return CatalogEventMessage(
             eventId = eventId,
@@ -151,6 +198,16 @@ class EventOutboxRelayServiceTest {
             paymentId = 30L,
             amount = 10_000L,
             occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
+        )
+    }
+
+    private fun createCouponIssueRequestMessage(eventId: String): CouponIssueRequestMessage {
+        return CouponIssueRequestMessage(
+            eventId = eventId,
+            requestId = "request-1",
+            couponId = 30L,
+            memberId = 1L,
+            requestedAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
         )
     }
 

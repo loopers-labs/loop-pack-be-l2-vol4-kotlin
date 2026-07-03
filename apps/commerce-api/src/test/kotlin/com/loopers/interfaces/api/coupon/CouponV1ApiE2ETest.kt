@@ -11,6 +11,7 @@ import com.loopers.infrastructure.coupon.entity.CouponIssueRequestEntity
 import com.loopers.infrastructure.coupon.repository.CouponIssueRequestJpaRepository
 import com.loopers.infrastructure.coupon.repository.CouponIssueJpaRepository
 import com.loopers.infrastructure.coupon.repository.CouponJpaRepository
+import com.loopers.infrastructure.event.repository.EventOutboxJpaRepository
 import com.loopers.infrastructure.member.entity.MemberEntity
 import com.loopers.infrastructure.member.repository.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
@@ -55,6 +56,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
     private val couponJpaRepository: CouponJpaRepository,
     private val couponIssueJpaRepository: CouponIssueJpaRepository,
     private val couponIssueRequestJpaRepository: CouponIssueRequestJpaRepository,
+    private val eventOutboxJpaRepository: EventOutboxJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @BeforeEach
@@ -92,6 +94,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
 
             val issues = couponIssueJpaRepository.findAll()
             val requests = couponIssueRequestJpaRepository.findAll()
+            val outbox = eventOutboxJpaRepository.findByEventId(response.body?.data?.requestId.orEmpty())
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
@@ -101,6 +104,9 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 { assertThat(issues).isEmpty() },
                 { assertThat(requests).hasSize(1) },
                 { assertThat(requests.single().requestId).isEqualTo(response.body?.data?.requestId) },
+                { assertThat(outbox?.topic).isEqualTo(COUPON_ISSUE_REQUEST_TOPIC) },
+                { assertThat(outbox?.partitionKey).isEqualTo(coupon.id.toString()) },
+                { assertThat(outbox?.eventType).isEqualTo("COUPON_ISSUE_REQUESTED") },
             )
         }
 

@@ -2,6 +2,7 @@ package com.loopers.application.event
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.loopers.domain.coupon.event.CouponIssueRequestEvent
 import com.loopers.domain.event.model.EventOutbox
 import com.loopers.domain.event.repository.EventOutboxRepository
 import com.loopers.domain.like.event.ProductLikeEvent
@@ -10,6 +11,7 @@ import com.loopers.domain.payment.event.PaymentEvent
 import com.loopers.domain.product.event.ProductEvent
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
+import com.loopers.event.CouponIssueRequestMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import org.assertj.core.api.Assertions.assertThat
@@ -29,6 +31,7 @@ class EventRecordServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
         val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
 
@@ -67,6 +70,7 @@ class EventRecordServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
         val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
 
@@ -105,6 +109,7 @@ class EventRecordServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
         val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
 
@@ -141,6 +146,7 @@ class EventRecordServiceTest {
             objectMapper = objectMapper,
             catalogTopic = "catalog-events",
             orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
         )
         val occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
 
@@ -169,6 +175,44 @@ class EventRecordServiceTest {
             { assertThat(payload.paymentId).isEqualTo(30L) },
             { assertThat(payload.items.single().productId).isEqualTo(10L) },
             { assertThat(payload.items.single().quantity).isEqualTo(2L) },
+        )
+    }
+
+    @DisplayName("쿠폰 발급 요청 이벤트를 coupon outbox record 로 저장한다")
+    @Test
+    fun recordsCouponIssueRequestedEvent() {
+        val repository = RecordingEventOutboxRepository()
+        val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+        val service = EventRecordService(
+            eventOutboxRepository = repository,
+            objectMapper = objectMapper,
+            catalogTopic = "catalog-events",
+            orderTopic = "order-events",
+            couponIssueRequestTopic = "coupon-issue-requests",
+        )
+        val requestedAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00")
+
+        service.record(
+            CouponIssueRequestEvent.Requested(
+                requestId = "request-1",
+                couponId = 10L,
+                memberId = 1L,
+                eventId = "event-5",
+                requestedAt = requestedAt,
+            ),
+        )
+
+        val outbox = repository.events.single()
+        val payload = objectMapper.readValue<CouponIssueRequestMessage>(outbox.payload)
+        assertAll(
+            { assertThat(outbox.eventId).isEqualTo("event-5") },
+            { assertThat(outbox.topic).isEqualTo("coupon-issue-requests") },
+            { assertThat(outbox.partitionKey).isEqualTo("10") },
+            { assertThat(outbox.eventType).isEqualTo("COUPON_ISSUE_REQUESTED") },
+            { assertThat(payload.requestId).isEqualTo("request-1") },
+            { assertThat(payload.couponId).isEqualTo(10L) },
+            { assertThat(payload.memberId).isEqualTo(1L) },
+            { assertThat(payload.requestedAt.toInstant()).isEqualTo(requestedAt.toInstant()) },
         )
     }
 

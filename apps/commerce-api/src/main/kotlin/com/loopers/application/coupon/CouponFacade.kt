@@ -6,10 +6,11 @@ import com.loopers.application.coupon.dto.CouponIssueInfo
 import com.loopers.application.coupon.dto.CouponIssueRequestInfo
 import com.loopers.application.coupon.dto.CouponUpdateCommand
 import com.loopers.application.user.UserService
+import com.loopers.domain.coupon.event.CouponIssueRequestEvent
 import com.loopers.domain.coupon.event.CouponIssueRequestPublisher
-import com.loopers.event.CouponIssueRequestMessage
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class CouponFacade(
@@ -33,6 +34,7 @@ class CouponFacade(
             .map(CouponIssueInfo::from)
     }
 
+    @Transactional
     fun issueCoupon(
         loginId: String,
         rawPassword: String,
@@ -40,15 +42,7 @@ class CouponFacade(
     ): CouponIssueRequestInfo {
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
         val request = couponIssueRequestService.createRequested(memberId = user.id, couponId = couponId)
-        couponIssueRequestPublisher.publish(
-            CouponIssueRequestMessage(
-                eventId = request.requestId,
-                requestId = request.requestId,
-                couponId = request.couponId,
-                memberId = request.memberId,
-                requestedAt = request.requestedAt,
-            ),
-        )
+        couponIssueRequestPublisher.publish(CouponIssueRequestEvent.Requested.from(request))
 
         return CouponIssueRequestInfo.from(request)
     }

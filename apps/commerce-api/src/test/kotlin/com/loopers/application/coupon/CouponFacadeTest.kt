@@ -2,10 +2,16 @@ package com.loopers.application.coupon
 
 import com.loopers.application.coupon.command.RegisterCouponCommand
 import com.loopers.application.coupon.command.UpdateCouponCommand
+import com.loopers.application.support.event.DomainEventPublisher
 import com.loopers.domain.coupon.CouponErrorType
 import com.loopers.domain.coupon.CouponFixture
+import com.loopers.domain.coupon.CouponIssueRequestedEvent
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.DiscountType
+import com.loopers.domain.coupon.IssueRequest
+import com.loopers.domain.coupon.IssueRequestRepository
+import com.loopers.domain.coupon.IssueRequestStatus
+import com.loopers.domain.coupon.RejectReason
 import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepository
 import com.loopers.domain.coupon.UserCouponStatus
@@ -26,7 +32,9 @@ import java.time.LocalDateTime
 class CouponFacadeTest {
     private val couponRepository: CouponRepository = mockk()
     private val userCouponRepository: UserCouponRepository = mockk()
-    private val couponFacade = CouponFacade(couponRepository, userCouponRepository)
+    private val issueRequestRepository: IssueRequestRepository = mockk()
+    private val eventPublisher: DomainEventPublisher = mockk(relaxed = true)
+    private val couponFacade = CouponFacade(couponRepository, userCouponRepository, issueRequestRepository, eventPublisher)
 
     private fun pageOf(content: List<UserCoupon>, total: Long = content.size.toLong()) =
         PageResult(content = content, page = 0, size = 20, totalElements = total, totalPages = 1)
@@ -84,6 +92,131 @@ class CouponFacadeTest {
             val ex = assertThrows<CoreException> { couponFacade.issueCoupon(1L, 7L) }
             assertThat(ex.errorType).isEqualTo(CouponErrorType.ALREADY_ISSUED_COUPON)
             verify(exactly = 0) { userCouponRepository.save(any()) }
+        }
+
+        @Test
+        @DisplayName("선착순 전용(발급 한도 보유) 템플릿을 즉시 발급하면 COUPON_NOT_APPLICABLE")
+        fun rejectsFirstComeTemplate() {
+            val coupon = CouponFixture.coupon(id = 7L, issueLimit = 100)
+            every { couponRepository.findById(7L) } returns coupon
+
+            val ex = assertThrows<CoreException> { couponFacade.issueCoupon(1L, 7L) }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.COUPON_NOT_APPLICABLE)
+            verify(exactly = 0) { userCouponRepository.save(any()) }
+        }
+    }
+
+    @Nested
+    @DisplayName("requestFirstComeIssue / getIssueResult — UC-10·11")
+    inner class FirstCome {
+        @Test
+        @DisplayName("유효한 선착순 요청을 접수하면 REQUESTED 레코드가 저장되고 요청 식별자와 함께 이벤트가 발행된다")
+        fun accepts() {
+            val coupon = CouponFixture.coupon(id = 7L, issueLimit = 100)
+            every { couponRepository.findById(7L) } returns coupon
+            every { issueRequestRepository.save(any()) } answers { firstArg() }
+
+            val result = couponFacade.requestFirstComeIssue(userId = 1L, couponId = 7L)
+
+            assertThat(result.status).isEqualTo(IssueRequestStatus.REQUESTED)
+            assertThat(result.requestId).isNotBlank()
+            assertThat(result.couponId).isEqualTo(7L)
+            verify { issueRequestRepository.save(any()) }
+            verify { eventPublisher.publish(any<CouponIssueRequestedEvent>()) }
+        }
+
+        @Test
+        @DisplayName("템플릿이 없으면 COUPON_NOT_FOUND (접수 없음)")
+        fun notFound() {
+            every { couponRepository.findById(99L) } returns null
+
+            val ex = assertThrows<CoreException> { couponFacade.requestFirstComeIssue(1L, 99L) }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.COUPON_NOT_FOUND)
+            verify(exactly = 0) { issueRequestRepository.save(any()) }
+        }
+
+        @Test
+        @DisplayName("발급 한도가 없는 일반 템플릿이면 COUPON_NOT_APPLICABLE (접수 없음)")
+        fun rejectsUnlimited() {
+            val coupon = CouponFixture.coupon(id = 7L, issueLimit = null)
+            every { couponRepository.findById(7L) } returns coupon
+
+            val ex = assertThrows<CoreException> { couponFacade.requestFirstComeIssue(1L, 7L) }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.COUPON_NOT_APPLICABLE)
+            verify(exactly = 0) { issueRequestRepository.save(any()) }
+        }
+
+        @Test
+        @DisplayName("발급 가능 구간 밖이면 COUPON_NOT_APPLICABLE (접수 없음)")
+        fun rejectsOutOfWindow() {
+            val coupon = CouponFixture.coupon(
+                id = 7L,
+                issueLimit = 100,
+                issueStartAt = LocalDateTime.now().minusDays(10),
+                issueEndAt = LocalDateTime.now().minusDays(1),
+            )
+            every { couponRepository.findById(7L) } returns coupon
+
+            val ex = assertThrows<CoreException> { couponFacade.requestFirstComeIssue(1L, 7L) }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.COUPON_NOT_APPLICABLE)
+            verify(exactly = 0) { issueRequestRepository.save(any()) }
+        }
+
+        @Test
+        @DisplayName("getIssueResult: 본인 요청이면 현재 상태를 반환한다")
+        fun ownResult() {
+            val request = IssueRequest.request(userId = 1L, couponId = 7L)
+            every { issueRequestRepository.findByRequestId(request.requestId) } returns request
+
+            val result = couponFacade.getIssueResult(userId = 1L, requestId = request.requestId)
+
+            assertThat(result.requestId).isEqualTo(request.requestId)
+            assertThat(result.status).isEqualTo(IssueRequestStatus.REQUESTED)
+        }
+
+        @Test
+        @DisplayName("getIssueResult: 발급됨 결과는 발급된 쿠폰 식별자를 함께 반환한다")
+        fun issuedResult() {
+            val request = IssueRequest.request(userId = 1L, couponId = 7L)
+                .also { it.confirmIssued(userCouponId = 501L, at = LocalDateTime.now()) }
+            every { issueRequestRepository.findByRequestId(request.requestId) } returns request
+
+            val result = couponFacade.getIssueResult(userId = 1L, requestId = request.requestId)
+
+            assertThat(result.status).isEqualTo(IssueRequestStatus.ISSUED)
+            assertThat(result.issuedUserCouponId).isEqualTo(501L)
+        }
+
+        @Test
+        @DisplayName("getIssueResult: 거절됨 결과는 거절 사유를 함께 반환한다")
+        fun rejectedResult() {
+            val request = IssueRequest.request(userId = 1L, couponId = 7L)
+                .also { it.reject(reason = RejectReason.SOLD_OUT, at = LocalDateTime.now()) }
+            every { issueRequestRepository.findByRequestId(request.requestId) } returns request
+
+            val result = couponFacade.getIssueResult(userId = 1L, requestId = request.requestId)
+
+            assertThat(result.status).isEqualTo(IssueRequestStatus.REJECTED)
+            assertThat(result.rejectReason).isEqualTo(RejectReason.SOLD_OUT)
+        }
+
+        @Test
+        @DisplayName("getIssueResult: 타인 소유 요청이면 ISSUE_REQUEST_NOT_FOUND")
+        fun otherUserRequest() {
+            val request = IssueRequest.request(userId = 2L, couponId = 7L)
+            every { issueRequestRepository.findByRequestId(request.requestId) } returns request
+
+            val ex = assertThrows<CoreException> { couponFacade.getIssueResult(1L, request.requestId) }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.ISSUE_REQUEST_NOT_FOUND)
+        }
+
+        @Test
+        @DisplayName("getIssueResult: 미존재 요청이면 ISSUE_REQUEST_NOT_FOUND")
+        fun missingRequest() {
+            every { issueRequestRepository.findByRequestId("missing") } returns null
+
+            val ex = assertThrows<CoreException> { couponFacade.getIssueResult(1L, "missing") }
+            assertThat(ex.errorType).isEqualTo(CouponErrorType.ISSUE_REQUEST_NOT_FOUND)
         }
     }
 

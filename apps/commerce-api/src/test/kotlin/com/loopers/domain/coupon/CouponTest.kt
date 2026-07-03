@@ -18,6 +18,7 @@ class CouponTest {
         issueEndAt: LocalDateTime = now.plusDays(30),
         useStartAt: LocalDateTime = now,
         useEndAt: LocalDateTime = now.plusDays(60),
+        issueLimit: Long? = null,
     ): Coupon = Coupon.create(
         name = "신규가입 10% 할인",
         discountType = DiscountType.RATE,
@@ -28,7 +29,70 @@ class CouponTest {
         useStartAt = useStartAt,
         useEndAt = useEndAt,
         now = now,
+        issueLimit = issueLimit,
     )
+
+    @DisplayName("선착순(발급 한도) 을 다룰 때, ")
+    @Nested
+    inner class FirstCome {
+        @DisplayName("무제한 템플릿을 선착순 발급 대상으로 확인하면 거부된다.")
+        @Test
+        fun ensureFirstComeRejectsUnlimited() {
+            val coupon = create(issueLimit = null)
+
+            val exception = assertThrows<CoreException> { coupon.ensureFirstCome() }
+
+            assertThat(exception.errorType).isEqualTo(CouponErrorType.COUPON_NOT_APPLICABLE)
+        }
+
+        @DisplayName("선착순 템플릿은 선착순 발급 대상 확인을 통과한다.")
+        @Test
+        fun ensureFirstComePassesLimited() {
+            val coupon = create(issueLimit = 100)
+
+            assertThatCode { coupon.ensureFirstCome() }.doesNotThrowAnyException()
+        }
+
+        @DisplayName("선착순 템플릿을 즉시 발급 대상으로 확인하면 거부된다.")
+        @Test
+        fun ensureNotFirstComeRejectsLimited() {
+            val coupon = create(issueLimit = 100)
+
+            val exception = assertThrows<CoreException> { coupon.ensureNotFirstCome() }
+
+            assertThat(exception.errorType).isEqualTo(CouponErrorType.COUPON_NOT_APPLICABLE)
+        }
+
+        @DisplayName("무제한 템플릿은 즉시 발급 대상 확인을 통과한다.")
+        @Test
+        fun ensureNotFirstComePassesUnlimited() {
+            val coupon = create(issueLimit = null)
+
+            assertThatCode { coupon.ensureNotFirstCome() }.doesNotThrowAnyException()
+        }
+
+        @DisplayName("발급 수가 한도 미만이면 발급 수를 1 늘린다.")
+        @Test
+        fun issueIncrementsBelowLimit() {
+            val coupon = create(issueLimit = 2)
+
+            coupon.issue()
+
+            assertThat(coupon.issuedCount).isEqualTo(1L)
+        }
+
+        @DisplayName("발급 수가 한도에 도달하면 추가 발급은 품절로 거부되고 발급 수는 그대로다.")
+        @Test
+        fun issueRejectedWhenSoldOut() {
+            val coupon = create(issueLimit = 1)
+            coupon.issue()
+
+            val exception = assertThrows<CoreException> { coupon.issue() }
+
+            assertThat(exception.errorType).isEqualTo(CouponErrorType.COUPON_SOLD_OUT)
+            assertThat(coupon.issuedCount).isEqualTo(1L)
+        }
+    }
 
     @DisplayName("Coupon 을 생성할 때, ")
     @Nested

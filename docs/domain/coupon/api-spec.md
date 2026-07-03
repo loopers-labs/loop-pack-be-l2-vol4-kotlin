@@ -49,6 +49,8 @@
 | Method | Path | 채널 | 인증 | 설명 |
 |---|---|---|---|---|
 | `POST`   | `/api/v1/coupons/{couponId}/issue`            | 회원   | 필수 | 쿠폰 발급 요청 (UC-1) |
+| `POST`   | `/api/v1/coupons/issue`                       | 회원   | 필수 | 선착순 쿠폰 발급 요청 접수 (UC-10) |
+| `GET`    | `/api/v1/coupons/issue/{requestId}`           | 회원   | 필수 | 선착순 발급 요청 결과 조회 (UC-11) |
 | `GET`    | `/api/v1/users/me/coupons`                    | 회원   | 필수 | 내 쿠폰 목록 조회 (UC-2) |
 | `GET`    | `/api-admin/v1/coupons`                       | 관리자 | 필수 | 쿠폰 템플릿 목록 조회 (UC-3) |
 | `GET`    | `/api-admin/v1/coupons/{couponId}`            | 관리자 | 필수 | 쿠폰 템플릿 상세 조회 (UC-4) |
@@ -116,6 +118,7 @@
 | HTTP | errorCode | 케이스 |
 |---|---|---|
 | `400` | `COUPON_NOT_APPLICABLE` | 발급 가능 기간이 아님 (발급 시작 전 또는 종료 후) |
+| `400` | `COUPON_NOT_APPLICABLE` | 선착순 전용(발급 한도 보유) 템플릿 — 즉시 발급 경로로 발급 불가 (UC-10 으로 요청) |
 | `401` | `UNAUTHORIZED` | 회원 인증 실패 (헤더 누락/계정 없음/비번 불일치) |
 | `404` | `COUPON_NOT_FOUND` | 템플릿이 존재하지 않거나 삭제 마크됨 |
 | `409` | `ALREADY_ISSUED_COUPON` | 같은 템플릿을 이미 발급받음 (1인 1매) |
@@ -544,6 +547,131 @@
 
 ---
 
+## 9. (회원) 선착순 쿠폰 발급 요청 접수
+
+> 발급 한도가 있는 선착순 템플릿의 발급을 **즉시 접수**하고 요청 식별자를 돌려준다. 접수는 발급 확정이 아니다 — 한도 소진·중복(1인 1매) 은 여기서 실패로 응답하지 않고 뒤이은 처리 결과(§10) 로 확정된다. 형식적으로 유효한 요청이면 항상 `202 Accepted` 로 접수된다.
+
+### Request
+- `POST /api/v1/coupons/issue`
+- **인증**: 회원 인증 필수 (`§0.1`)
+- **Content-Type**: `application/json`
+
+**Request Body**
+```jsonc
+{
+  "couponId": 7
+}
+```
+
+| 필드 | 타입 | 필수 | 규칙 |
+|---|---|---|---|
+| `couponId` | Long | O | 발급받을 선착순 쿠폰 **템플릿** 식별자 (발급 한도를 가진 템플릿) |
+
+### Response
+- `202 Accepted`
+
+**Response Body**
+```jsonc
+{
+  "meta": { "result": "SUCCESS", "errorCode": null, "message": null },
+  "data": {
+    "requestId":   "b3f1c2a4-5e6d-47a8-9b0c-1d2e3f4a5b6c",
+    "couponId":    7,
+    "status":      "REQUESTED",
+    "requestedAt": "2026-07-02T12:00:00"
+  }
+}
+```
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `data.requestId` | String | 발급 요청 식별자. 결과 조회(§10) 의 키 |
+| `data.couponId` | Long | 요청한 템플릿 식별자 |
+| `data.status` | String | 접수 직후 항상 `REQUESTED` |
+| `data.requestedAt` | DateTime | 접수 시각 |
+
+### 실패 응답
+
+> 실패 응답 JSON 본문 형태는 템플릿 `§0.3` 을 참조한다.
+> 한도 소진(`SOLD_OUT`)·중복 발급(`ALREADY_ISSUED`) 은 접수 실패가 아니라 결과(§10) 로 확정되므로 본 표에 없다.
+
+| HTTP | errorCode | 케이스 |
+|---|---|---|
+| `400` | `COUPON_NOT_APPLICABLE` | 발급 한도가 없는 일반 템플릿(선착순 대상 아님) — 즉시 발급(UC-1) 으로 요청 |
+| `400` | `COUPON_NOT_APPLICABLE` | 발급 가능 기간이 아님 (발급 시작 전 또는 종료 후) |
+| `401` | `UNAUTHORIZED` | 회원 인증 실패 (헤더 누락/계정 없음/비번 불일치) |
+| `404` | `COUPON_NOT_FOUND` | 템플릿이 존재하지 않거나 삭제 마크됨 |
+
+---
+
+## 10. (회원) 선착순 발급 요청 결과 조회
+
+> 접수한 발급 요청의 처리 결과를 요청 식별자로 조회한다(폴링). 아직 처리 전이면 `REQUESTED` 를 그대로 돌려주고, 처리되면 `ISSUED`(발급 쿠폰 정보 포함) 또는 `REJECTED`(사유 포함) 로 한 번 확정된다.
+
+### Request
+- `GET /api/v1/coupons/issue/{requestId}`
+- **인증**: 회원 인증 필수 (`§0.1`)
+- **Content-Type**: — (요청 바디 없음)
+
+| 경로 변수 | 타입 | 필수 | 규칙 |
+|---|---|---|---|
+| `requestId` | String | O | §9 접수 시 받은 발급 요청 식별자 |
+
+**Request Body**: 없음
+
+### Response
+- `200 OK`
+
+**Response Body** (발급됨)
+```jsonc
+{
+  "meta": { "result": "SUCCESS", "errorCode": null, "message": null },
+  "data": {
+    "requestId":    "b3f1c2a4-5e6d-47a8-9b0c-1d2e3f4a5b6c",
+    "couponId":     7,
+    "status":       "ISSUED",
+    "rejectReason": null,
+    "userCouponId": 501,
+    "processedAt":  "2026-07-02T12:00:01"
+  }
+}
+```
+
+**Response Body** (거절됨 — 품절/이미 발급)
+```jsonc
+{
+  "meta": { "result": "SUCCESS", "errorCode": null, "message": null },
+  "data": {
+    "requestId":    "b3f1c2a4-5e6d-47a8-9b0c-1d2e3f4a5b6c",
+    "couponId":     7,
+    "status":       "REJECTED",
+    "rejectReason": "SOLD_OUT",
+    "userCouponId": null,
+    "processedAt":  "2026-07-02T12:00:01"
+  }
+}
+```
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `data.requestId` | String | 발급 요청 식별자 |
+| `data.couponId` | Long | 요청한 템플릿 식별자 |
+| `data.status` | String | `REQUESTED`(처리 전) / `ISSUED`(발급됨) / `REJECTED`(거절됨) |
+| `data.rejectReason` | String? | `REJECTED` 일 때만 — `SOLD_OUT`(한도 소진) / `ALREADY_ISSUED`(1인 1매 중복). 그 외 `null` |
+| `data.userCouponId` | Long? | `ISSUED` 일 때만 발급된 쿠폰(인스턴스) 식별자. 그 외 `null` |
+| `data.processedAt` | DateTime? | 결과 확정 시각. `REQUESTED` 면 `null` |
+
+### 실패 응답
+
+> 실패 응답 JSON 본문 형태는 템플릿 `§0.3` 을 참조한다.
+
+| HTTP | errorCode | 케이스 |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | 회원 인증 실패 |
+| `404` | `ISSUE_REQUEST_NOT_FOUND` | 요청 식별자가 존재하지 않거나 본인 소유가 아님 (존재 여부 비노출) |
+
+---
+
 ## 부록 — 응답 ErrorType 정리
 
 | code | HTTP | 발생 지점 |
@@ -553,8 +681,11 @@
 | `UNAUTHORIZED` | 401 | 회원/관리자 인증 실패 |
 | `COUPON_NOT_FOUND` | 404 | 템플릿 조회·발급·수정·삭제 — 미존재 또는 삭제 마크 |
 | `USER_COUPON_NOT_FOUND` | 404 | 쿠폰 사용(UC-9) — 발급 쿠폰 미존재 또는 소유자 불일치 |
+| `ISSUE_REQUEST_NOT_FOUND` | 404 | 선착순 발급 요청 결과 조회(UC-11) — 요청 미존재 또는 소유자 불일치 |
 | `ALREADY_ISSUED_COUPON` | 409 | 발급 — 같은 템플릿 1인 1매 위반 |
 | `ALREADY_USED_COUPON` | 409 | 쿠폰 사용(UC-9) — 이미 사용된 쿠폰 재사용 |
+
+> 선착순 발급 요청의 **거절 사유** `SOLD_OUT`(한도 소진) · `ALREADY_ISSUED`(1인 1매 중복) 은 HTTP 에러가 아니라 요청 결과(§10 `data.rejectReason`) 다 — 접수(§9) 는 `202` 로 성공하고, 거절은 결과 조회에서 확인된다.
 
 ---
 

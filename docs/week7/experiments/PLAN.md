@@ -84,10 +84,11 @@
 
 - [x] 변형 A 구현 + 정합성 green + S1/S2 측정 — `EXP-01-db-only-pessimistic.md`. 천장 ~250 req/s, 정합성 완벽(과발급·중복 0), 병목 = 단일 행 락 직렬화 + 커넥션 점유(CPU 아님: api 0.79 / mysql 0.27 코어). 스파이크 → 500 1.38%(Hikari 3s 타임아웃), 점증 → p95 3.35s·500 0%
 - [x] 변형 B 구현 + 정합성 green + S1/S2 측정 — `EXP-02-db-only-conditional-update.md` (코드: `exp/week07-coupon-variant-b`). S1 500 폭풍 1.38%→0.08%(뿌리는 잔존), S2 무릎 타임라인 실측 ~550~590/s·p95 3.35→2.19s. 병목이 락 대기(CPU 유휴)→CPU 소모형으로 이동, co-located k6 경합 조짐(load 13/4코어). 스파이크 decision 꼬리는 동급(max 10.2s) → 동기 설계 한계 재확인
-- [ ] 변형 C 구현 + 정합성 green + S1/S2 측정
-- [ ] 변형별 EXP 기록 작성
+- [~] 변형 C — **스킵 (사용자 결정 2026-07-03, 시간 제약)**. 반례 확보용이라 Phase 1 결론(DB-only 상한 = B 수치)에 불요, 예상 결과(@Version 극단 경합 재시도 폭풍)도 자명 — WRITING-LOG 결정 14
+- [x] 변형별 EXP 기록 작성 — EXP-01(A) / EXP-02(B), C 스킵
 
 **종료 기준**: 변형별 한계 RPS·p99·락 지표 확보, "DB-only 구조적 상한" 숫자 확정
+→ **충족(2026-07-03)**: DB-only 상한 = 변형 B 기준 **S2 무릎 ~550~590 req/s**(co-located 포함 하한 추정) · 스파이크 실효 ~210/s(대기 피드백 지배, 변형 무관). C는 스킵(위). EC2 인스턴스 terminate + SG 삭제 완료(teardown 규율)
 
 ## 6. Phase 2 — 병목 진단 + 가상 스레드 + 풀 튜닝
 

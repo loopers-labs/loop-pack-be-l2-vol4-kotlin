@@ -1,0 +1,13 @@
+# 컨텍스트 전송·빌드 캐시 무효화 최소화. .git 제외 시 getGitHash()→"init" 폴백(문제 없음).
+.git
+.gradle
+build
+**/build
+**/.gradle
+**/.kotlin
+.idea
+*.iml
+.vscode
+load-test/results
+docs
+HELP.md

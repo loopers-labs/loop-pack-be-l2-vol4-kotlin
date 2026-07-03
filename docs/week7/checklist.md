@@ -35,12 +35,12 @@
   - [x] `Coupon`에 `total_quantity`/`issued_quantity` 추가 + `UserCouponGrantedType.FIRST_COME` 추가 — PR [#6](https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/6)
   - [x] `POST /api/v1/coupons/issue` (동기, Phase 1용) — 매진 시 `ConflictException(SOLD_OUT)`, 비관적 락(inventory 선례) — PR #6
   - [x] `runConcurrently` 정합성 테스트: 한도 100 + 동시 300(Hikari 풀 10 기준 조정, 근거 PLAN.md) → 정확히 100건·중복 0 — PR #6
-  - [ ] commerce-api Dockerfile + compose(profile: core/p3/p4) + 시드(유저 1만+, 쿠폰 2종: 한도 100 스파이크용 / 한도 십만 지속 경합용)
-  - [ ] k6 시나리오 2종: S1 스파이크(10초 내 1만 요청) / S2 계단(100→200→400→800/s 각 3~5분)
-  - [ ] actuator + micrometer-registry-prometheus 의존성
+  - [x] commerce-api Dockerfile(멀티스테이지 jdk→jre) + `load-test/sut-compose.yml`(profile core/p3/p4, 전 포트 127.0.0.1 바인딩) + 시드 `load-test/coupon-perf-seed.sql`(유저 1만 cpuser00001~, 쿠폰 90001=한도100 스파이크 / 90002=한도10만 지속) — `docker compose config` + 프로파일 분리 검증 완료
+  - [x] k6 시나리오 2종: `coupon-issue-spike.js` S1(1000/s×10s=1만, distinct 유저) / `coupon-issue-step.js` S2(ramping 100→200→400→800/s) + 보너스 `harness-ceiling-smoke.js`(경로 천장 검사) — node --check 통과
+  - [x] actuator + micrometer-registry-prometheus 의존성 — `:supports:monitoring` 경유로 이미 commerce-api runtimeClasspath 에 존재(actuator 3.4.4 + micrometer-registry-prometheus 1.14.5), management.server.port=8081, http.server.requests 히스토그램 on. 신규 작업 불필요, 검증만
 - [ ] **16. Phase 0-a — 홈서버 (서버 켠 뒤, 물리 작업 포함)**
   - [ ] 네트워크 실태 검증: 현재 IP / ufw status / docker publish 포트 / 외부 포트스캔 (지난 k6가 통했던 경로 확인)
-  - [ ] 공유기 뒤 이사 + 내부 IP 고정 → 서버 스펙 기록(nproc, free)
+  - [ ] 공유기 뒤 이사 + 내부 IP 고정 → 서버 스펙 기록(nproc, free) — 0-b·셋업·스모크 블로커 아님(SSH 터널 우회), 단 **P1 본 측정 전 선행 조건**(터널은 k6 측정 경로에 두지 않음 — PLAN.md §3 보강)
   - [ ] 토폴로지 기동: 홈서버 = SUT + exporter만 / 맥 = k6 + Prometheus(LAN scrape 5초) + Grafana
 - [ ] **17. Phase 1 — DB-only 3변형 부하 비교** — A 비관(FOR UPDATE) / B 조건부 원자 UPDATE / C 낙관(@Version)+재시도. 공통 최종 방어 `uk_user_coupon`. 종료: DB-only 구조적 상한 확정
 - [ ] **18. Phase 2 — 병목 진단 + 튜닝** — 진단 사다리(Tomcat→Hikari→row lock→DB CPU→앱). 가상 스레드 on/off 비교(pinning 관찰). Hikari 10→20→30 × Tomcat 200→400, MySQL CPU 80% 가드레일. 종료: 튜닝 상한 + 병목의 이름 확정

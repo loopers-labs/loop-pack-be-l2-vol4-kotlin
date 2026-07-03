@@ -54,6 +54,9 @@
     - ④ 외부 포트스캔: 미실행
     - **여전히 공인 IP 직결 + DHCP** → 이 상태로 컨테이너를 publish하면 ufw 우회 위험이 그대로 살아있음(위 "참고 사실" 그대로)
   - **결정 (2026-07-03)**: 공유기 이사를 실험 착수의 블로킹 조건으로 두지 않는다. 대신 **컨테이너 포트를 publish 하지 않거나 `127.0.0.1`에만 bind**하고, 맥에서 `ssh -L <port>:localhost:<port> won@<현재IP>` 터널로 k6/Prometheus가 필요한 포트에만 접근한다 — 공인 IP에 포트가 하나도 열리지 않아 위 위험이 사라짐. 공유기 뒤 이사 + 내부 IP 고정은 별도 후속 작업으로 계속 추적(YAGNI 아님 — 장기적으로 필요하지만 지금 실험의 블로커는 아님)
+  - **보강 (2026-07-03, 터널의 적용 범위)**: SSH 터널은 **셋업·시드·스모크·Prometheus scrape까지만** 쓴다. **k6 본 측정 경로에는 두지 않는다** — `ssh -L`은 모든 포워딩을 단일 SSH TCP 연결 위 채널로 다중화하므로 ① 패킷 손실 1건이 전 채널을 막고(head-of-line blocking) 포화 근처에서 터널 큐잉이 p99에 섞이며 ② 터널이 병목이 되면 변형 A/B/C가 같은 천장에 부딪혀 "상대 비교" 원칙(§1) 자체가 깨진다. 따라서 **공유기 뒤 이사 + 내부 IP 고정을 "P1 본 측정 착수 전" 선행 조건으로 승격** (0-b·셋업·스모크의 블로커는 여전히 아님). 이사가 계속 지연되면 fallback: no-op에 가까운 엔드포인트(actuator health)로 터널 자체의 천장(RPS·p99)을 선측정해 SUT 관측 상한의 3배 이상 여유가 확인될 때만 터널 경유 본 측정을 허용하고, 기록에 "터널 경유" 조건을 명시한다. (참고: sshd 암복호화 CPU는 1,000rps × 소형 페이로드 기준 1~2% 이하로 경미 — 진단 사다리 ④⑤ 판정 시 참고만)
+  - **같은 LAN 여부 검증**: 현 토폴로지(서버 공인 IP 직결 + 맥은 공유기 아래)는 §"부하 실험은 집에서만"의 같은-LAN 전제와 다를 수 있음. 맥에서 `ping <서버IP>` RTT <1ms면 같은 L2 세그먼트, 수 ms대면 ISP 왕복 — 스모크 시 확인해 기록
+  - **오늘 전제 (2026-07-03, "단일 박스 용량 측정" 프레이밍)**: 목적 = 이 한 박스가 얼마나 견디나 + 변형 간 상대 비교. 같은 요청을 동일 조건으로 재므로 경로가 끼어도 결론 유효 → **router 이사는 오늘 하드 게이트에서 강등**(절대치를 발표용으로 못박을 때만 필요). 남는 가드 하나: **하네스(터널/k6-on-box)가 먼저 터지면 측정 대상이 서버→하네스로 바뀜**(천장 ≠ 상수 세금). 그래서 경로 선택은 **60초 하네스 천장 스모크**로만 판정: ① `ping` RTT ② no-op 엔드포인트로 하네스 최대 RPS 측정 ③ 하네스 최대 ≥ SUT 포화점 ×3이면 그대로 진행, 못 넘으면 경로 교체. 오늘 런 기록엔 `경로: 터널/localhost` 태그. 상세 근거 = WRITING-LOG 결정 9·9-보강
 - 부하 실험은 **집(맥·서버 같은 LAN)에서만** 수행. WAN 너머 측정치는 기록에서 분리
 - 관측 스택 셋업은 홈서버 문서 `~/Coding/homeserver/observability-practice.html` 의 **Stage 0~3 절차 재사용** (percentiles-histogram, RED+HikariCP 대시보드, PromQL 완비)
 
@@ -62,7 +65,8 @@
 ### 0-a 홈서버 (서버 켠 뒤, 사용자 물리 작업 포함)
 
 - [ ] 네트워크 실태 검증 (3장의 4항목: `hostname -I` / `ufw status verbose` / `docker ps` publish 포트 / 외부 포트스캔) — 2026-07-03 원격 SSH로 ①③ 완료, ② active/enabled만 확인(세부 rule set은 sudo 비번 필요해 미확인), ④ 미실행. 서버 직접 접속 시 `sudo ufw status verbose` + 외부 포트스캔 이어서
-- [ ] 공유기 뒤 이사 + 내부 IP 고정 — 2026-07-03 기준 여전히 미완료(공인 IP `222.107.95.24`, DHCP 동적). 실험 착수의 블로커는 아님(§3 "결정" 참고 — SSH 터널로 우회), 별도 후속 작업으로 추적
+- [ ] 공유기 뒤 이사 + 내부 IP 고정 — 2026-07-03 기준 여전히 미완료(공인 IP `222.107.95.24`, DHCP 동적). 0-b·셋업·스모크의 블로커는 아니나(§3 "결정" — SSH 터널로 우회) **P1 본 측정 착수 전 선행 조건**(§3 "보강" — 터널은 측정 경로에 두지 않음)
+- [ ] 맥→서버 `ping` RTT 확인 (같은 L2 세그먼트 여부 판정 — §3 "같은 LAN 여부 검증")
 - [ ] 서버 스펙 기록 (`nproc`, `free -h`, 디스크) — 실험 조건으로 문서화
 
 ### 0-b 코드·스크립트 (서버 불필요, 즉시 가능)
@@ -71,9 +75,9 @@
 - [x] Coupon에 `total_quantity`/`issued_quantity` 추가, `UserCouponGrantedType.FIRST_COME` 추가
 - [x] `POST /api/v1/coupons/issue` (동기, Phase 1용), 매진 시 `ConflictException(SOLD_OUT)` — 비관적 락(`findByIdForUpdate`), inventory 선례
 - [x] `runConcurrently` 정합성 테스트 — 동시 1,000 → **300으로 조정** (테스트 Hikari 풀 10이라 그 이상은 커넥션 대기열만 검증 + 10초 타임아웃 flaky 위험. 1만 스파이크는 Phase 1 k6가 담당). 결과: 한도 100 → 정확히 100건·초과 전부 SOLD_OUT·동일 userId 1건
-- [ ] commerce-api Dockerfile + compose(profile 구조) + 시드 스크립트: 유저 1만+, 쿠폰 2종(한도 100 스파이크용 / 한도 십만 지속 경합용)
-- [ ] k6 시나리오 2종: S1 스파이크(10초 내 1만 요청 — 오픈런), S2 계단(arrival rate 100→200→400→800/s 각 3~5분 — 한계 탐색)
-- [ ] actuator + micrometer-registry-prometheus 의존성
+- [x] `apps/commerce-api/Dockerfile`(멀티스테이지, 컨텍스트=루트) + `load-test/sut-compose.yml`(profile core/p3/p4, 전 포트 127.0.0.1) + `load-test/coupon-perf-seed.sql`(유저 1만 cpuser00001~, BCrypt cost4, 쿠폰 90001=한도100 / 90002=한도10만). `docker compose config`·프로파일 분리 검증 완료. dev 프로파일 + 명령행 override 로 datasource 를 mysql 서비스로 지정(modules yml 무수정), ddl-auto=create → api 재시작마다 재시드 필요(문서화)
+- [x] k6 2종: `load-test/k6/coupon-issue-spike.js` S1(constant-arrival 1000/s×10s, iterationInTest→distinct 유저), `load-test/k6/coupon-issue-step.js` S2(ramping-arrival 100→200→400→800/s, 유저 1만 순환). 200/409 정상·그 외만 실패 집계. + `harness-ceiling-smoke.js`(경로 천장 검사, actuator liveness). node --check 통과
+- [x] actuator + micrometer-registry-prometheus — `:supports:monitoring` 경유로 이미 존재(actuator 3.4.4 + prometheus 1.14.5, mgmt 8081, http.server.requests 히스토그램 on). 신규 작업 없음, 검증만
 
 ## 5. Phase 1 — DB-only 3변형 비교
 

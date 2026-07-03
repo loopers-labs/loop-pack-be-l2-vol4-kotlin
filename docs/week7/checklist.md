@@ -38,11 +38,11 @@
   - [x] commerce-api Dockerfile(멀티스테이지 jdk→jre) + `load-test/sut-compose.yml`(profile core/p3/p4, 전 포트 127.0.0.1 바인딩) + 시드 `load-test/coupon-perf-seed.sql`(유저 1만 cpuser00001~, 쿠폰 90001=한도100 스파이크 / 90002=한도10만 지속) — **런타임 dry-run 검증 완료**(부팅→시드→스모크→S1/S2). 부팅 실패 2건(ENTRYPOINT 인자 유실 / dev 프로파일 logback 크래시) 수정, S1 발급 정확히 100·중복 0 — 근거 `experiments/WRITING-LOG.md` 결정 10-보강
   - [x] k6 시나리오 2종: `coupon-issue-spike.js` S1(1000/s×10s=1만, distinct 유저) / `coupon-issue-step.js` S2(ramping 100→200→400→800/s) + 보너스 `harness-ceiling-smoke.js`(경로 천장 검사) — node --check 통과
   - [x] actuator + micrometer-registry-prometheus 의존성 — `:supports:monitoring` 경유로 이미 commerce-api runtimeClasspath 에 존재(actuator 3.4.4 + micrometer-registry-prometheus 1.14.5), management.server.port=8081, http.server.requests 히스토그램 on. 신규 작업 불필요, 검증만
-- [ ] **16. Phase 0-a — 홈서버 (서버 켠 뒤, 물리 작업 포함)**
-  - [ ] 네트워크 실태 검증: 현재 IP / ufw status / docker publish 포트 / 외부 포트스캔 (지난 k6가 통했던 경로 확인)
-  - [ ] 공유기 뒤 이사 + 내부 IP 고정 → 서버 스펙 기록(nproc, free) — 0-b·셋업·스모크 블로커 아님(SSH 터널 우회), 단 **P1 본 측정 전 선행 조건**(터널은 k6 측정 경로에 두지 않음 — PLAN.md §3 보강)
-  - [ ] 토폴로지 기동: 홈서버 = SUT + exporter만 / 맥 = k6 + Prometheus(LAN scrape 5초) + Grafana
-- [ ] **17. Phase 1 — DB-only 3변형 부하 비교** — A 비관(FOR UPDATE) / B 조건부 원자 UPDATE / C 낙관(@Version)+재시도. 공통 최종 방어 `uk_user_coupon`. 종료: DB-only 구조적 상한 확정
+- [x] **16. Phase 0-a — EC2 SUT 기동 (홈서버 검토 → EC2 확정, WRITING-LOG 결정 11)**
+  - [x] EC2 `m5.xlarge`(4 vCPU/16 GiB, ap-northeast-2a) 기동 + SG를 내 공인 IP `/32`로 제한 + 컨테이너 `127.0.0.1` bind → 공인 노출 0 (홈서버 ufw 우회·공유기 이사·DHCP 문제 원천 소멸)
+  - [x] EC2에서 git clone→빌드(x86_64 네이티브) → `core` 스택 기동 → 시드 → 스모크
+  - [x] 토폴로지: EC2 = SUT + k6 co-located (하네스 천장 스모크 ≥4000/s = 포화점 ×16 확인 → co-located 유효). 관측 스택은 필요 시 SUT 밖으로(원칙 유지). m5는 고정 성능이라 절대 수치 확정 가능
+- [ ] **17. Phase 1 — DB-only 3변형 부하 비교** — A 비관(FOR UPDATE) **✅ 완료(EXP-01, ~250 req/s·정합성 완벽·병목=단일행 락 직렬화, CPU 아님)** / B 조건부 원자 UPDATE / C 낙관(@Version)+재시도. 공통 최종 방어 `uk_user_coupon`. 종료: DB-only 구조적 상한 확정
 - [ ] **18. Phase 2 — 병목 진단 + 튜닝** — 진단 사다리(Tomcat→Hikari→row lock→DB CPU→앱). 가상 스레드 on/off 비교(pinning 관찰). Hikari 10→20→30 × Tomcat 200→400, MySQL CPU 80% 가드레일. 종료: 튜닝 상한 + 병목의 이름 확정
 - [ ] **19. Phase 3 — Redis 선검증** — Lua로 수량+userId 원자 판정 → 통과분만 DB 동기 발급(DB=진실 원천). 부하 중 redis kill 정합성 검증. 종료: 개선 폭 + 새 병목 명명
 - [ ] **20. Phase 4 — Kafka 지연 발급 (과제 MUST 합격선)**

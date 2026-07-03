@@ -14,7 +14,7 @@
   - 검증: 기존 `runConcurrently` 유틸(`support/ConcurrencyTesting.kt`) — 한도 100 + 동시 1,000 요청 → 정확히 100건·중복 0
 - **NFR**: 당장의 처리량 + 최종적 일관성 우선. 발급 확정은 늦어도 OK, 단 **10초 이내**
 - **최종적 일관성의 경계**: 사용자가 잠시 PENDING을 보는 것·조회가 잠시 낡은 것은 허용. 그러나 "발급 확정 응답한 건이 증발"(lost write)은 불허 — **확정의 내구성은 타협 불가**
-- 단일 미니PC 몰빵 구성이므로 절대값이 아니라 **변형 간 상대 비교와 병목 위치**만 결론으로 채택
+- **EC2 `m5.xlarge` 고정 성능 단일 박스**(§3): 1차 결론은 **변형 간 상대 비교와 병목 위치**. 단 고정 성능이라 절대 수치(N RPS 상한)도 발표용으로 확정 가능 — 미니PC의 "잠정치" 제약은 없음(결정 11)
 - **거절 경로도 측정 대상**: 100장은 수 초 내 소진 → 실부하의 대부분은 매진 거절 경로
 
 ## 2. 측정 체계 (최종 합의)
@@ -35,39 +35,32 @@
 - Prometheus scrape 5초 (스파이크 10초짜리가 15초 간격엔 안 보임)
 - 런 중 맥 `caffeinate`
 
-## 3. 인프라 토폴로지
+## 3. 인프라 토폴로지 (AWS EC2 기반)
+
+> 전환 근거(홈서버 검토 → EC2 확정) = WRITING-LOG 결정 11. 아래는 확정된 EC2 토폴로지.
 
 | 위치 | 역할 |
 |---|---|
-| 홈서버 (피스큐브 미니PC, Ubuntu Server 26.04, 전부 Docker) | **SUT만**: commerce-api, MySQL, Redis(P3~), Kafka+commerce-streamer(P4~) + exporter 4종(node-exporter, cAdvisor, mysqld-exporter, redis-exporter) |
-| 맥 | k6 부하 + Prometheus(LAN 원격 scrape) + Grafana (docker compose). 관측 스택을 SUT 밖으로 빼서 측정 오염 제거 |
+| AWS EC2 (m5.xlarge, 4 vCPU / 16 GiB, Ubuntu 24.04, ap-northeast-2a, 전부 Docker) | **SUT**: commerce-api, MySQL, Redis(P3~), Kafka+commerce-streamer(P4~) + exporter(필요 시 node-exporter·cAdvisor·mysqld/redis-exporter). 전 포트 `127.0.0.1` bind |
+| 같은 EC2 (co-located) | k6 부하 생성 — `127.0.0.1:8080` 직접 호출 (인터넷 왕복 지연을 decision_ms에서 제거) |
 
 - **compose profile 단계 기동**: `core`(commerce-api+MySQL) / `p3`(Redis) / `p4`(Kafka·streamer) — 안 쓰는 스택이 앞 Phase 결과를 오염시키는 것 차단
-- **이미지 빌드**: 홈서버에서 git pull 후 빌드로 통일 (맥 arm64 vs 서버 x86_64 크로스 빌드 함정 회피)
-- **네트워크 전제조건**: 공유기 뒤 이사 + 내부 IP 고정 (exporter 포트를 LAN에만 노출하기 위해 필수). **미완료 — 아직 공인 IP 직결**
-  - 서버 켜면 검증할 것: ① `hostname -I` 현재 IP ② `sudo ufw status verbose` ③ `docker ps` publish 포트 ④ 외부 포트스캔
-  - 참고 사실: SSH 키는 22번 포트만 보호하며, Docker publish 포트는 iptables 직접 규칙으로 ufw를 우회함 — 지난번 k6가 외부에서 통했던 유력 원인
-  - **2026-07-03 검증 결과** (원격 SSH, `won@222.107.95.24` — enp1s0, DHCP 동적이라 재부팅마다 재확인 필요):
-    - ① 현재 IP `222.107.95.24` (`172.17.0.1`은 Docker 기본 브리지 게이트웨이, 컨테이너 미기동으로 DOWN — 무관)
-    - ② `ufw`: `systemctl is-active/is-enabled` 기준 **active+enabled** 확인. 세부 rule set(`ufw status verbose`)은 일반 계정 sudo 비번 필요해 원격 비대화형으로는 미확인
-    - ③ `docker ps -a`: 실행 중 컨테이너 0개(과거 컨테이너 1개 2주 전 Exited) → publish된 포트 없음. `ss -tlnp` 기준 리스닝 포트도 22(SSH)·로컬 DNS뿐
-    - ④ 외부 포트스캔: 미실행
-    - **여전히 공인 IP 직결 + DHCP** → 이 상태로 컨테이너를 publish하면 ufw 우회 위험이 그대로 살아있음(위 "참고 사실" 그대로)
-  - **결정 (2026-07-03)**: 공유기 이사를 실험 착수의 블로킹 조건으로 두지 않는다. 대신 **컨테이너 포트를 publish 하지 않거나 `127.0.0.1`에만 bind**하고, 맥에서 `ssh -L <port>:localhost:<port> won@<현재IP>` 터널로 k6/Prometheus가 필요한 포트에만 접근한다 — 공인 IP에 포트가 하나도 열리지 않아 위 위험이 사라짐. 공유기 뒤 이사 + 내부 IP 고정은 별도 후속 작업으로 계속 추적(YAGNI 아님 — 장기적으로 필요하지만 지금 실험의 블로커는 아님)
-  - **보강 (2026-07-03, 터널의 적용 범위)**: SSH 터널은 **셋업·시드·스모크·Prometheus scrape까지만** 쓴다. **k6 본 측정 경로에는 두지 않는다** — `ssh -L`은 모든 포워딩을 단일 SSH TCP 연결 위 채널로 다중화하므로 ① 패킷 손실 1건이 전 채널을 막고(head-of-line blocking) 포화 근처에서 터널 큐잉이 p99에 섞이며 ② 터널이 병목이 되면 변형 A/B/C가 같은 천장에 부딪혀 "상대 비교" 원칙(§1) 자체가 깨진다. 따라서 **공유기 뒤 이사 + 내부 IP 고정을 "P1 본 측정 착수 전" 선행 조건으로 승격** (0-b·셋업·스모크의 블로커는 여전히 아님). 이사가 계속 지연되면 fallback: no-op에 가까운 엔드포인트(actuator health)로 터널 자체의 천장(RPS·p99)을 선측정해 SUT 관측 상한의 3배 이상 여유가 확인될 때만 터널 경유 본 측정을 허용하고, 기록에 "터널 경유" 조건을 명시한다. (참고: sshd 암복호화 CPU는 1,000rps × 소형 페이로드 기준 1~2% 이하로 경미 — 진단 사다리 ④⑤ 판정 시 참고만)
-  - **같은 LAN 여부 검증**: 현 토폴로지(서버 공인 IP 직결 + 맥은 공유기 아래)는 §"부하 실험은 집에서만"의 같은-LAN 전제와 다를 수 있음. 맥에서 `ping <서버IP>` RTT <1ms면 같은 L2 세그먼트, 수 ms대면 ISP 왕복 — 스모크 시 확인해 기록
-  - **오늘 전제 (2026-07-03, "단일 박스 용량 측정" 프레이밍)**: 목적 = 이 한 박스가 얼마나 견디나 + 변형 간 상대 비교. 같은 요청을 동일 조건으로 재므로 경로가 끼어도 결론 유효 → **router 이사는 오늘 하드 게이트에서 강등**(절대치를 발표용으로 못박을 때만 필요). 남는 가드 하나: **하네스(터널/k6-on-box)가 먼저 터지면 측정 대상이 서버→하네스로 바뀜**(천장 ≠ 상수 세금). 그래서 경로 선택은 **60초 하네스 천장 스모크**로만 판정: ① `ping` RTT ② no-op 엔드포인트로 하네스 최대 RPS 측정 ③ 하네스 최대 ≥ SUT 포화점 ×3이면 그대로 진행, 못 넘으면 경로 교체. 오늘 런 기록엔 `경로: 터널/localhost` 태그. 상세 근거 = WRITING-LOG 결정 9·9-보강
-- 부하 실험은 **집(맥·서버 같은 LAN)에서만** 수행. WAN 너머 측정치는 기록에서 분리
-- 관측 스택 셋업은 홈서버 문서 `~/Coding/homeserver/observability-practice.html` 의 **Stage 0~3 절차 재사용** (percentiles-histogram, RED+HikariCP 대시보드, PromQL 완비)
+- **이미지 빌드**: EC2에서 git clone 후 빌드 (x86_64 네이티브 — 맥 arm64 크로스빌드 함정 회피)
+- **접근 제어**: 보안 그룹(SG)이 22/8080/8081을 **내 공인 IP `/32`에만** 허용 + 컨테이너 `127.0.0.1` bind → 공인 노출 0. 홈서버의 ufw 우회·공유기 이사·DHCP 변동 문제가 **원천 소멸**(EC2로 간 핵심 이유 중 하나).
+- **k6 = SUT와 co-located (load-bearing 결정)**: 이 실험 게이트가 time_to_decision(초 단위)이라 맥→서울 EC2 인터넷 왕복이 decision_ms를 오염시킨다. co-located면 왕복 제거. co-located의 유일 리스크(부하생성 CPU가 SUT와 경합)는 아래 하네스 천장 스모크로 판정.
+- **하네스 천장 스모크 게이트 (유지, load-bearing)**: 본 측정 전 no-op 엔드포인트(actuator liveness)에 도착률을 램핑해 하네스 최대 RPS·p99를 잰다. **하네스 최대 ≥ SUT 포화점 ×3**이면 하네스는 병목이 아님(그대로 진행) — 못 넘으면 부하생성기를 별도 노드(같은 AZ, SUT private IP 직결)로 분리한다. 천장은 상수가 아니라 벽 → 하네스가 먼저 터지면 측정 대상이 서버→하네스로 바뀐다. **EXP-01 실측: 천장 ≥4000/s = 포화점(~250/s)의 16배 → co-located 유효 확정.**
+- **관측 스택은 SUT 밖으로 (유지)**: 측정 오염 제거 원칙. 필요 시 Prometheus/Grafana를 별도 컨테이너/노드로. 관측 셋업 절차는 홈서버 문서 `~/Coding/homeserver/observability-practice.html` **Stage 0~3 재사용**(percentiles-histogram, RED+HikariCP 대시보드, PromQL 완비).
+- **재현성 = 절대 수치 확정 가능**: m5.xlarge는 고정 성능(버스트 아님)이라 서멀 스로틀·DHCP 변동성이 없다 → "DB-only 구조적 상한 = N RPS" 같은 **절대 수치를 발표용으로 못박아도 됨**(홈서버 미니PC의 "오늘은 잠정치" 제약이 사라짐 — 결정 9의 잠정치 프레이밍은 홈서버-터널 전제에 묶인 것으로, EC2에선 해제). 인스턴스는 측정 후 terminate, 스펙은 각 EXP §1로 고정.
 
 ## 4. Phase 0 — 기반 구축
 
-### 0-a 홈서버 (서버 켠 뒤, 사용자 물리 작업 포함)
+### 0-a EC2 SUT 기동 (홈서버 검토 → EC2 확정, §3 · 결정 11)
 
-- [ ] 네트워크 실태 검증 (3장의 4항목: `hostname -I` / `ufw status verbose` / `docker ps` publish 포트 / 외부 포트스캔) — 2026-07-03 원격 SSH로 ①③ 완료, ② active/enabled만 확인(세부 rule set은 sudo 비번 필요해 미확인), ④ 미실행. 서버 직접 접속 시 `sudo ufw status verbose` + 외부 포트스캔 이어서
-- [ ] 공유기 뒤 이사 + 내부 IP 고정 — 2026-07-03 기준 여전히 미완료(공인 IP `222.107.95.24`, DHCP 동적). 0-b·셋업·스모크의 블로커는 아니나(§3 "결정" — SSH 터널로 우회) **P1 본 측정 착수 전 선행 조건**(§3 "보강" — 터널은 측정 경로에 두지 않음)
-- [ ] 맥→서버 `ping` RTT 확인 (같은 L2 세그먼트 여부 판정 — §3 "같은 LAN 여부 검증")
-- [ ] 서버 스펙 기록 (`nproc`, `free -h`, 디스크) — 실험 조건으로 문서화
+- [x] EC2 `m5.xlarge` 기동(ap-northeast-2a) + 보안 그룹으로 22/8080/8081을 내 공인 IP `/32`에만 허용 → 공인 노출 0 (홈서버 ufw 우회·공유기 이사·DHCP 문제가 EC2로 소멸)
+- [x] 컨테이너 전 포트 `127.0.0.1` bind + k6 co-located(§3) → 인터넷 왕복 지연을 decision_ms에서 제거
+- [x] 하네스 천장 스모크(actuator liveness 램핑) — 천장 ≥4000/s = SUT 포화점(~250)의 16배 → co-located 유효 확정
+- [x] 서버 스펙 기록 — m5.xlarge = 4 vCPU / 15 GiB(free 기준), Ubuntu 24.04. 각 EXP §1에 조건으로 고정
+- **teardown 규율**: 측정 종료 시 인스턴스 terminate + SG 삭제(공유 계정, 유료·격리 리소스)
 
 ### 0-b 코드·스크립트 (서버 불필요, 즉시 가능)
 

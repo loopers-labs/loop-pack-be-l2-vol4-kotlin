@@ -37,7 +37,7 @@ class OutboxRelay(
                 )
                 sentIds += event.id
             } catch (e: CallNotPermittedException) {
-                logger.debug("카프카 서킷 OPEN — 발행 보류, 다음 폴링에서 재시도 (id={})", event.id)
+                logger.warn("카프카 서킷 OPEN — 발행 보류, 다음 폴링에서 재시도 (id={})", event.id)
                 break
             } catch (e: Exception) {
                 logger.warn(

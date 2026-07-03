@@ -73,8 +73,11 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
+        # 브로커성 예외만 서킷 실패로 집계 — 데이터성 예외로 서킷이 열려 정상 이벤트 발행까지 막지 않도록
         record-exceptions:
-          - java.lang.Exception
+          - org.apache.kafka.common.KafkaException
+          - java.util.concurrent.ExecutionException
+          - java.util.concurrent.TimeoutException
         ignore-exceptions: []
     instances:
       pg-a:

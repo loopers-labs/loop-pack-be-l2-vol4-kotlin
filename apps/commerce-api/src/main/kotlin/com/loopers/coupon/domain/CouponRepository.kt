@@ -5,5 +5,5 @@ interface CouponRepository {
 
     fun findById(id: Long): Coupon?
 
-    fun findByIdForUpdate(id: Long): Coupon?
+    fun incrementIssuedQuantityIfAvailable(id: Long): Int
 }

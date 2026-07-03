@@ -3,7 +3,6 @@ package com.loopers.coupon.domain
 import com.loopers.domain.BaseEntity
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
-import com.loopers.support.error.ConflictException
 import jakarta.persistence.AttributeOverride
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
@@ -51,19 +50,13 @@ class Coupon(
 
     fun isExpired(now: LocalDateTime): Boolean = this.expiredAt < now
 
-    fun isSoldOut(): Boolean = totalQuantity != null && issuedQuantity >= totalQuantity
-
-    fun issue(now: LocalDateTime) {
+    fun validateIssuable(now: LocalDateTime) {
         if (totalQuantity == null) {
             throw BadRequestException(CouponErrorCode.NOT_ISSUABLE)
         }
         if (isExpired(now)) {
             throw BadRequestException(CouponErrorCode.EXPIRED)
         }
-        if (isSoldOut()) {
-            throw ConflictException(CouponErrorCode.SOLD_OUT)
-        }
-        issuedQuantity++
     }
 
     fun validateUsable(orderAmount: Long, now: LocalDateTime) {

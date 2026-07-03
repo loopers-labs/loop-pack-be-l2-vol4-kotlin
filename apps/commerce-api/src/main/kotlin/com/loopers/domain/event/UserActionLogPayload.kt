@@ -10,4 +10,4 @@ data class UserActionLogPayload(
     val occurredAt: ZonedDateTime,
 )
 
-enum class UserActionType { LIKED, UNLIKED, ORDERED }
+enum class UserActionType { VIEWED, LIKED, UNLIKED, ORDERED }

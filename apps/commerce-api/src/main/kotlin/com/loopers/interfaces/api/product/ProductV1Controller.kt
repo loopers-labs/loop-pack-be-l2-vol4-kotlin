@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -30,8 +31,11 @@ class ProductV1Controller(
     }
 
     @GetMapping("/{productId}")
-    override fun getProduct(@PathVariable productId: Long): ApiResponse<ProductV1Dto.ProductResponse> {
-        val info = productFacade.getProduct(productId)
+    override fun getProduct(
+        @PathVariable productId: Long,
+        @RequestHeader(value = "X-Loopers-LoginId", required = false) loginId: String?,
+    ): ApiResponse<ProductV1Dto.ProductResponse> {
+        val info = productFacade.getProduct(productId, loginId)
         val response = ProductV1Dto.ProductResponse.from(info)
         return ApiResponse.success(response)
     }

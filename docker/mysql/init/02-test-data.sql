@@ -47,10 +47,10 @@ INSERT INTO cart_items (id, created_at, updated_at, deleted_at, cart_id, product
     (2, @now, @now, NULL, 1, 3, 2),
     (3, @now, @now, NULL, 2, 2, 1);
 
-INSERT INTO coupons (id, created_at, updated_at, deleted_at, name, type, `value`, min_order_amount, expired_at) VALUES
-    (1, @now, @now, NULL, '5000 KRW off over 50000', 'FIXED', 5000, 50000, '2027-12-31 23:59:59.000000'),
-    (2, @now, @now, NULL, '10 percent off', 'RATE', 10, 30000, '2027-12-31 23:59:59.000000'),
-    (3, @now, @now, NULL, 'Expired local coupon', 'FIXED', 3000, NULL, '2025-12-31 23:59:59.000000');
+INSERT INTO coupons (id, created_at, updated_at, deleted_at, name, type, `value`, min_order_amount, expired_at, issue_type) VALUES
+    (1, @now, @now, NULL, '5000 KRW off over 50000', 'FIXED', 5000, 50000, '2027-12-31 23:59:59.000000', 'YEAR_ROUND'),
+    (2, @now, @now, NULL, '10 percent off', 'RATE', 10, 30000, '2027-12-31 23:59:59.000000', 'YEAR_ROUND'),
+    (3, @now, @now, NULL, 'Expired local coupon', 'FIXED', 3000, NULL, '2025-12-31 23:59:59.000000', 'YEAR_ROUND');
 
 INSERT INTO issued_coupons (id, created_at, updated_at, deleted_at, user_id, coupon_id, status) VALUES
     (1, @now, @now, NULL, 1, 1, 'AVAILABLE'),

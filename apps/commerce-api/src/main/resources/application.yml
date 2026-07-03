@@ -21,8 +21,13 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
+
+event-coupon:
+  kafka:
+    topic-name: commerce.coupon-publish-requested.v1
 
 springdoc:
   use-fqn: true
@@ -33,12 +38,26 @@ springdoc:
 pg-simulator:
   base-url: http://localhost:8082
   callback-url: http://localhost:8080/api/v1/payments/callback
+  timeout: 10s
+  retry:
+    max-retries: 3
+    wait-duration: 100ms
+    randomization-factor: 0.5
+  circuit-breaker:
+    failure-rate-threshold: 10
+    sliding-window-size: 50
+    minimum-number-of-calls: 10
+    wait-duration-in-open-state: 10s
+    permitted-number-of-calls-in-half-open-state: 2
 
 ---
 spring:
   config:
     activate:
       on-profile: local, test
+  kafka:
+    listener:
+      auto-startup: false
 
 ---
 spring:

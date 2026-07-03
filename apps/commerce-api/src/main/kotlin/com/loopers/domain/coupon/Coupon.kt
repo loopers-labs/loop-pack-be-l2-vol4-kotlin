@@ -4,15 +4,23 @@ import com.loopers.domain.BaseEntity
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
+import jakarta.persistence.DiscriminatorColumn
+import jakarta.persistence.DiscriminatorType
+import jakarta.persistence.DiscriminatorValue
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Inheritance
+import jakarta.persistence.InheritanceType
 import jakarta.persistence.Table
 import java.time.LocalDateTime
 
 @Entity
 @Table(name = "coupons")
-class Coupon(
+@Inheritance(strategy = InheritanceType.JOINED)
+@DiscriminatorColumn(name = "issue_type", discriminatorType = DiscriminatorType.STRING, length = 40)
+@DiscriminatorValue("YEAR_ROUND")
+open class Coupon(
     @Column(name = "name", nullable = false, length = 100)
     var name: String,
 
@@ -36,6 +44,8 @@ class Coupon(
     override fun guard() {
         validate()
     }
+
+    open fun getIssueType(): CouponIssueType = CouponIssueType.YEAR_ROUND
 
     fun change(
         name: String,

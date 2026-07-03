@@ -14,6 +14,7 @@ import javax.sql.DataSource
         "datasource.mysql-jpa.main.jdbc-url=jdbc:h2:mem:loopers-local-test;MODE=MySQL;DATABASE_TO_UPPER=false;NON_KEYWORDS=USER,VALUE;DB_CLOSE_DELAY=-1",
         "datasource.mysql-jpa.main.username=sa",
         "datasource.mysql-jpa.main.password=",
+        "spring.jpa.hibernate.ddl-auto=create",
     ],
 )
 class LocalInMemoryInfrastructureContextTest @Autowired constructor(

@@ -46,6 +46,11 @@ out/
 .DS_STORE
 .DS_STORE?
 
+### Temporary files ###
+*.swp
+*.swo
+/kls_database.db
+
 ### Local Docker seed data ###
 /docker/mysql/generated/*.csv
 !/docker/mysql/generated/.gitkeep

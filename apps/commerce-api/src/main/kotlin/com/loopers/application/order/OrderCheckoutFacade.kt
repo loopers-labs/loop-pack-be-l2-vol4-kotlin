@@ -7,6 +7,7 @@ import com.loopers.application.payment.PaymentGateway as PaymentGatewayPort
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderCommand
 import com.loopers.domain.order.OrderStatus
+import com.loopers.domain.payment.PaymentStatus
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
@@ -74,6 +75,9 @@ class OrderCheckoutFacade(
         }
 
         val payment = paymentApplicationService.getByOrderId(order.id)
+        if (payment.status == PaymentStatus.READY && payment.pgTransactionId != null) {
+            return orderApplicationService.getDetail(order.id)
+        }
         val pgResult = paymentGateway.approve(
             PaymentCommand.Approve(
                 userId = command.userId,
@@ -85,6 +89,10 @@ class OrderCheckoutFacade(
             ),
         )
         if (!pgResult.success || pgResult.pgTransactionId == null) {
+            val reconciled = reconcileProviderTransaction(command, order, payment, pgResult)
+            if (reconciled != null) {
+                return reconciled
+            }
             paymentApplicationService.recordApproveFailed(
                 orderId = order.id,
                 pgStatus = pgResult.pgStatus,
@@ -100,6 +108,75 @@ class OrderCheckoutFacade(
             pgTransactionId = pgResult.pgTransactionId,
         )
         return orderApplicationService.getDetail(order.id)
+    }
+
+    private fun reconcileProviderTransaction(
+        command: OrderCommand.Pay,
+        order: Order,
+        payment: com.loopers.application.payment.PaymentInfo,
+        failedResult: PaymentGatewayPort.PgResult,
+    ): OrderInfo.Detail? {
+        val transaction = paymentGateway.findByOrder(
+            PaymentCommand.FindByOrder(
+                userId = command.userId,
+                orderId = order.id,
+            ),
+        ).firstOrNull { it.amount == payment.requestedAmount }
+            ?: return null
+
+        paymentApplicationService.recordApproveRequested(
+            orderId = order.id,
+            paymentKey = transaction.transactionKey,
+            pgTransactionId = transaction.transactionKey,
+        )
+
+        return when (transaction.status) {
+            "PENDING" -> orderApplicationService.getDetail(order.id)
+            "SUCCESS" -> completeReconciledSuccess(order.id, transaction)
+            "FAILED" -> {
+                paymentApplicationService.recordVerifyFailed(
+                    orderId = order.id,
+                    pgStatus = transaction.status,
+                    failureReason = transaction.failureReason ?: "PG 결제에 실패했습니다.",
+                    rawResponseSummary = transaction.rawResponseSummary,
+                )
+                throw CoreException(ErrorType.BAD_REQUEST, transaction.failureReason ?: "결제 승인 요청에 실패했습니다.")
+            }
+            else -> {
+                paymentApplicationService.recordApproveFailed(
+                    orderId = order.id,
+                    pgStatus = failedResult.pgStatus,
+                    failureReason = failedResult.failureReason ?: "PG 승인 요청에 실패했습니다.",
+                    rawResponseSummary = failedResult.rawResponseSummary,
+                )
+                null
+            }
+        }
+    }
+
+    private fun completeReconciledSuccess(
+        orderId: Long,
+        transaction: PaymentGatewayPort.PgTransaction,
+    ): OrderInfo.Detail {
+        val payment = paymentApplicationService.recordVerifySucceeded(
+            orderId = orderId,
+            pgTransactionId = transaction.transactionKey,
+            approvedAmount = transaction.amount,
+            pgStatus = transaction.status,
+            rawResponseSummary = transaction.rawResponseSummary,
+        )
+        if (payment.status != PaymentStatus.APPROVED) {
+            throw CoreException(ErrorType.BAD_REQUEST, "결제 금액이 주문 금액과 일치하지 않습니다.")
+        }
+        return runCatching {
+            paymentCompletionApplicationService.completePaymentPending(orderId)
+        }.getOrElse { throwable ->
+            paymentCompletionApplicationService.markCompletionFailed(
+                orderId,
+                throwable.message ?: throwable.javaClass.simpleName,
+            )
+            throw throwable
+        }
     }
 
     fun cancel(command: OrderCommand.Cancel): OrderInfo.Detail {

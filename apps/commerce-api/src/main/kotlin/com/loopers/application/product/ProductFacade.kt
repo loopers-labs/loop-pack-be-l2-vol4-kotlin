@@ -5,8 +5,10 @@ import com.loopers.domain.brand.BrandService
 import com.loopers.domain.product.ProductModel
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductSort
+import com.loopers.domain.product.ProductViewedEvent
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -17,14 +19,15 @@ class ProductFacade(
     private val productService: ProductService,
     private val brandService: BrandService,
     private val productCacheStore: ProductCacheStore,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     fun getProductDetail(productId: Long): ProductInfo {
-        productCacheStore.getProductDetail(productId)?.let { return it }
-
-        val product = productService.getOnSaleById(productId)
-        val brand = brandService.getById(product.brandId)
-        val productInfo = ProductInfo.from(product, brand)
-        productCacheStore.setProductDetail(productId, productInfo)
+        val productInfo = productCacheStore.getProductDetail(productId) ?: run {
+            val product = productService.getOnSaleById(productId)
+            val brand = brandService.getById(product.brandId)
+            ProductInfo.from(product, brand).also { productCacheStore.setProductDetail(productId, it) }
+        }
+        eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
         return productInfo
     }
 

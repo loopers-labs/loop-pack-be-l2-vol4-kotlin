@@ -9,12 +9,14 @@ import com.loopers.domain.product.ProductStatus
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 class LikeFacadeCacheTest @Autowired constructor(
@@ -48,8 +50,10 @@ class LikeFacadeCacheTest @Autowired constructor(
         // act
         likeFacade.like("user0", rawPassword, product.id)
 
-        // assert
-        assertThat(productCacheStore.getProductDetail(product.id)).isNull()
+        // assert: 캐시 무효화는 커밋 후 비동기로 수행된다
+        await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+            assertThat(productCacheStore.getProductDetail(product.id)).isNull()
+        }
     }
 
     @DisplayName("좋아요를 취소하면, 해당 상품의 상세 캐시가 무효화된다.")
@@ -66,7 +70,9 @@ class LikeFacadeCacheTest @Autowired constructor(
         // act
         likeFacade.unlike("user0", rawPassword, product.id)
 
-        // assert
-        assertThat(productCacheStore.getProductDetail(product.id)).isNull()
+        // assert: 캐시 무효화는 커밋 후 비동기로 수행된다
+        await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+            assertThat(productCacheStore.getProductDetail(product.id)).isNull()
+        }
     }
 }

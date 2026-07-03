@@ -114,4 +114,26 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
             { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
         )
     }
+
+    @DisplayName("productId 없는 payload 는 예외 없이 무시하고, 집계와 event_handled 모두 기록하지 않는다.")
+    @Test
+    fun ignoresPayloadWithoutProductId() {
+        handle("e-1", "ProductLikedEvent", """{"other":1}""")
+
+        assertAll(
+            { assertThat(productMetricsJpaRepository.findAll()).isEmpty() },
+            { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
+        )
+    }
+
+    @DisplayName("items 없는 OrderCreatedEvent payload 는 예외 없이 무시하고, 집계와 event_handled 모두 기록하지 않는다.")
+    @Test
+    fun ignoresOrderPayloadWithoutItems() {
+        handle("e-1", "OrderCreatedEvent", """{"orderId":10}""")
+
+        assertAll(
+            { assertThat(productMetricsJpaRepository.findAll()).isEmpty() },
+            { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
+        )
+    }
 }

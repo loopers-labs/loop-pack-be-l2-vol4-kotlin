@@ -20,6 +20,7 @@ class CouponService(
         discountValue: Long,
         minOrderAmount: Long?,
         expiredAt: ZonedDateTime,
+        issuableQuantity: Long? = null,
     ): CouponModel {
         val coupon = CouponModel(
             name = name,
@@ -27,9 +28,12 @@ class CouponService(
             discountValue = discountValue,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            issuableQuantity = issuableQuantity,
         )
         return couponRepository.save(coupon)
     }
+
+    fun tryIssue(couponId: Long): Boolean = couponRepository.tryIssue(couponId)
 
     fun getById(id: Long): CouponModel {
         return couponRepository.findActiveById(id)

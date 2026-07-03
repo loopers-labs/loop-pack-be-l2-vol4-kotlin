@@ -18,6 +18,7 @@ class CouponModel(
     discountValue: Long,
     minOrderAmount: Long?,
     expiredAt: ZonedDateTime,
+    issuableQuantity: Long? = null,
 ) : BaseEntity() {
     @Column(name = "name", nullable = false)
     var name: String = name
@@ -40,13 +41,29 @@ class CouponModel(
     var expiredAt: ZonedDateTime = expiredAt
         protected set
 
+    /** 선착순 발급 한정 수량. null 이면 무제한. */
+    @Column(name = "issuable_quantity")
+    var issuableQuantity: Long? = issuableQuantity
+        protected set
+
+    /** 지금까지 발급된 수량. 발급은 원자적 UPDATE 로만 증가시킨다. */
+    @Column(name = "issued_quantity", nullable = false)
+    var issuedQuantity: Long = 0
+        protected set
+
     init {
         requireValidName(name)
         discountType.validateValue(discountValue)
         if (minOrderAmount != null && minOrderAmount < 0) {
             throw CoreException(ErrorType.BAD_REQUEST, "최소 주문 금액은 0 이상이어야 합니다.")
         }
+        if (issuableQuantity != null && issuableQuantity < 0) {
+            throw CoreException(ErrorType.BAD_REQUEST, "발급 수량은 0 이상이어야 합니다.")
+        }
     }
+
+    val remainingQuantity: Long?
+        get() = issuableQuantity?.let { it - issuedQuantity }
 
     fun calculateDiscount(orderAmount: Long): Long {
         minOrderAmount?.let {

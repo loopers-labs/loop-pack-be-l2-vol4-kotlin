@@ -41,6 +41,7 @@ import java.time.LocalDate
 @SpringBootTest
 class PaymentFacadeIntegrationTest @Autowired constructor(
     private val paymentFacade: PaymentFacade,
+    private val paymentRequestProcessor: PaymentRequestProcessor,
     private val orderFacade: OrderFacade,
     private val paymentRepository: PaymentRepository,
     private val orderRepository: OrderRepository,
@@ -62,7 +63,7 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
     @DisplayName("결제 요청 시, ")
     @Nested
     inner class RequestPayment {
-        @DisplayName("PENDING_PAYMENT 상태의 주문에 대해 PG에 결제를 요청하고 Payment를 저장한다.")
+        @DisplayName("PENDING_PAYMENT 상태의 주문에 대해 Payment를 REQUESTED로 저장한다.")
         @Test
         fun requestPayment_savesPayment_whenOrderIsPendingPayment() {
             // arrange
@@ -91,12 +92,13 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             // assert
             val savedPayment = paymentRepository.findByOrderId(order.id)!!
             assertAll(
-                { assertThat(result.status).isEqualTo(PaymentStatus.PENDING) },
-                { assertThat(result.transactionKey).isNotBlank() },
+                { assertThat(result.status).isEqualTo(PaymentStatus.REQUESTED) },
+                { assertThat(result.transactionKey).isNull() },
                 { assertThat(savedPayment.orderId).isEqualTo(order.id) },
                 { assertThat(savedPayment.cardType).isEqualTo("SAMSUNG") },
                 { assertThat(savedPayment.amount).isEqualTo(10_000L) },
-                { assertThat(savedPayment.status).isEqualTo(PaymentStatus.PENDING) },
+                { assertThat(savedPayment.status).isEqualTo(PaymentStatus.REQUESTED) },
+                { assertThat(fakePaymentGateway.lastCommand).isNull() },
             )
         }
 
@@ -163,7 +165,7 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
             assertThat(result.errorType).isEqualTo(ErrorType.NOT_FOUND)
         }
 
-        @DisplayName("PG 호출 중 Timeout이 발생하면 Payment가 REQUESTED 상태로 남는다.")
+        @DisplayName("PG 요청 처리 중 Timeout이 발생하면 Payment가 REQUESTED 상태로 남는다.")
         @Test
         fun requestPayment_leavesPaymentRequested_whenPgTimesOut() {
             // arrange
@@ -179,15 +181,20 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
                 ),
             )
 
+            val paymentInfo = paymentFacade.requestPayment(
+                RequestPaymentCommand(
+                    orderId = order.id,
+                    userId = user.id,
+                    cardType = "SAMSUNG",
+                    cardNo = "1234-5678-9012-3456",
+                ),
+            )
+
             // act
             assertThrows<ResourceAccessException> {
-                paymentFacade.requestPayment(
-                    RequestPaymentCommand(
-                        orderId = order.id,
-                        userId = user.id,
-                        cardType = "SAMSUNG",
-                        cardNo = "1234-5678-9012-3456",
-                    ),
+                paymentRequestProcessor.process(
+                    paymentId = paymentInfo.id,
+                    callbackUrl = "http://localhost:8080/api/v1/payments/callback",
                 )
             }
 
@@ -304,8 +311,13 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
                 cardNo = "1234-5678-9012-3456",
             ),
         )
+        paymentRequestProcessor.process(
+            paymentId = paymentInfo.id,
+            callbackUrl = "http://localhost:8080/api/v1/payments/callback",
+        )
+        val processedPayment = paymentRepository.findByOrderId(order.id)!!
 
-        return order to paymentInfo
+        return order to PaymentInfo.from(processedPayment)
     }
 
     private fun placeOrderAndRequestPaymentWithCoupon(): Pair<OrderInfo, PaymentInfo> {
@@ -335,8 +347,13 @@ class PaymentFacadeIntegrationTest @Autowired constructor(
                 cardNo = "1234-5678-9012-3456",
             ),
         )
+        paymentRequestProcessor.process(
+            paymentId = paymentInfo.id,
+            callbackUrl = "http://localhost:8080/api/v1/payments/callback",
+        )
+        val processedPayment = paymentRepository.findByOrderId(order.id)!!
 
-        return order to paymentInfo
+        return order to PaymentInfo.from(processedPayment)
     }
 
     private fun saveProductWithStock(

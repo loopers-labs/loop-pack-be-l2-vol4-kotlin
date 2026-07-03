@@ -12,6 +12,19 @@ class CouponTest {
     private val future = LocalDateTime.of(2026, 12, 31, 23, 59, 59)
 
     @Test
+    fun yearRoundCouponExposesYearRoundIssueType() {
+        val coupon = Coupon(
+            name = "상시 쿠폰",
+            type = CouponType.FIXED,
+            value = 1000,
+            minOrderAmount = null,
+            expiredAt = future,
+        )
+
+        assertThat(coupon.getIssueType()).isEqualTo(CouponIssueType.YEAR_ROUND)
+    }
+
+    @Test
     fun fixedCouponDiscountIsCappedAtOrderAmount() {
         val coupon = Coupon(
             name = "5000원 할인",

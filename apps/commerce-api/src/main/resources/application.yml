@@ -21,8 +21,14 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
+  kafka:
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
   cloud:
     openfeign:
       client:
@@ -78,6 +84,10 @@ spring:
   config:
     activate:
       on-profile: local
+  kafka:
+    admin:
+      properties:
+        "bootstrap.servers": localhost:19092
   docker:
     compose:
       file: docker/infra-compose.yml

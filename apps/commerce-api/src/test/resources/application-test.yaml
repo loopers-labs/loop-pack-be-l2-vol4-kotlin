@@ -12,3 +12,11 @@ spring:
   sql:
     init:
       mode: never
+  kafka:
+    producer:
+      properties:
+        max.block.ms: 500
+
+outbox:
+  relay:
+    enabled: false

@@ -5,12 +5,16 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 
 // Transactional Outbox: 비즈니스 write 와 같은 트랜잭션으로 INSERT 되어 at-least-once 발행을 보장한다.
-// SENT 전이는 폴링 릴레이(Kafka 단계)가 담당 — 발생 시각 = BaseEntity.createdAt.
+// SENT 전이는 폴링 릴레이가 담당 — 발생 시각 = BaseEntity.createdAt.
 @Entity
-@Table(name = "outbox_event")
+@Table(
+    name = "outbox_event",
+    indexes = [Index(name = "idx_outbox_event_status_id", columnList = "status, id")],
+)
 class OutboxEvent(
     aggregateType: String,
     aggregateId: Long,

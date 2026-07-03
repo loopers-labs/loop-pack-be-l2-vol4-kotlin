@@ -1,0 +1,15 @@
+package com.loopers.outbox.infrastructure
+
+import com.loopers.outbox.domain.EventMessagePublisher
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.stereotype.Component
+import java.util.concurrent.TimeUnit
+
+@Component
+class KafkaEventMessagePublisher(
+    private val kafkaTemplate: KafkaTemplate<Any, Any>,
+) : EventMessagePublisher {
+    override fun publish(topic: String, partitionKey: String, message: Any) {
+        kafkaTemplate.send(topic, partitionKey, message).get(10, TimeUnit.SECONDS)
+    }
+}

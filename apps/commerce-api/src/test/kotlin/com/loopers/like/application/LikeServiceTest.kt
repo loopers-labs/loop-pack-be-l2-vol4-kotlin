@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -41,9 +42,13 @@ class LikeServiceTest {
 
         likeService.like(10L, 1L)
 
+        // eventId(UUID)가 생성 시 랜덤 부여되므로 동등성 대신 captor 로 식별 필드만 비교
+        val captor = argumentCaptor<ProductLikedEvent>()
         assertAll(
             { verify(productLikeRepository).save(any()) },
-            { verify(eventPublisher).publishEvent(ProductLikedEvent(10L, 1L)) },
+            { verify(eventPublisher).publishEvent(captor.capture()) },
+            { assertThat(captor.firstValue.userId).isEqualTo(10L) },
+            { assertThat(captor.firstValue.productId).isEqualTo(1L) },
         )
     }
 
@@ -84,9 +89,12 @@ class LikeServiceTest {
 
         likeService.unlike(10L, 1L)
 
+        val captor = argumentCaptor<ProductUnlikedEvent>()
         assertAll(
             { verify(productLikeRepository).delete(productLike) },
-            { verify(eventPublisher).publishEvent(ProductUnlikedEvent(10L, 1L)) },
+            { verify(eventPublisher).publishEvent(captor.capture()) },
+            { assertThat(captor.firstValue.userId).isEqualTo(10L) },
+            { assertThat(captor.firstValue.productId).isEqualTo(1L) },
         )
     }
 

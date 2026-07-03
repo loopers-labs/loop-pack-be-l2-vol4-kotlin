@@ -2,7 +2,7 @@ datasource:
   mysql-jpa:
     main:
       driver-class-name: org.h2.Driver
-      jdbc-url: jdbc:h2:mem:commerce-api;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+      jdbc-url: jdbc:h2:mem:commerce-streamer;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
       username: sa
       password: ""
       maximum-pool-size: 10
@@ -12,11 +12,7 @@ spring:
   sql:
     init:
       mode: never
-  kafka:
-    producer:
-      properties:
-        max.block.ms: 500
 
-outbox:
-  relay:
-    enabled: false
+kafka:
+  listener:
+    auto-startup: false

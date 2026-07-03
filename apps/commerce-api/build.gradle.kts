@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
+    implementation(project(":modules:kafka"))
     implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))

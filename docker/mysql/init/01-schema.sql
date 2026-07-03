@@ -109,11 +109,31 @@ CREATE TABLE coupons (
     deleted_at DATETIME(6) NULL,
     updated_at DATETIME(6) NOT NULL,
     expired_at DATETIME(6) NOT NULL,
+    issue_type VARCHAR(40) NOT NULL,
     min_order_amount BIGINT NULL,
     name VARCHAR(100) NOT NULL,
     type VARCHAR(20) NOT NULL,
     `value` BIGINT NOT NULL,
     PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE events (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME(6) NOT NULL,
+    deleted_at DATETIME(6) NULL,
+    updated_at DATETIME(6) NOT NULL,
+    ends_at DATETIME(6) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    starts_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE event_coupons (
+    issued_quantity BIGINT NOT NULL,
+    total_quantity BIGINT NOT NULL,
+    coupon_id BIGINT NOT NULL,
+    event_id BIGINT NOT NULL,
+    PRIMARY KEY (coupon_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE issued_coupons (

@@ -2,6 +2,8 @@ package com.loopers.coupon.interfaces
 
 import com.loopers.account.infrastructure.security.AccountAuthenticationAttributes.ACCOUNT_ID
 import com.loopers.coupon.application.CouponCreateCommand
+import com.loopers.coupon.application.CouponIssueCommand
+import com.loopers.coupon.application.CouponIssueInfo
 import com.loopers.coupon.application.CouponService
 import com.loopers.coupon.domain.CouponType
 import java.time.LocalDateTime
@@ -12,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class CouponController(
-    val couponService: CouponService,
-) {
+class CouponController(val couponService: CouponService) {
 
     @PostMapping("/api-admin/v1/coupons")
     fun createCoupon(
@@ -28,11 +28,38 @@ class CouponController(
         @RequestBody couponGrantRequest: CouponGrantRequest,
         @RequestAttribute(ACCOUNT_ID) requestAccountId: Long,
     ) = couponService.grant(couponId, couponGrantRequest.userId, requestAccountId)
+
+    @PostMapping("/api/v1/coupons/issue")
+    fun issueCoupon(
+        @RequestBody couponIssueRequest: CouponIssueRequest,
+        @RequestAttribute(ACCOUNT_ID) userId: Long,
+    ): CouponIssueResponse = CouponIssueResponse.from(couponService.issue(couponIssueRequest.toCommand(userId)))
 }
 
-data class CouponGrantRequest(
-    val userId: Long,
-)
+data class CouponIssueRequest(val couponId: Long) {
+    fun toCommand(userId: Long): CouponIssueCommand = CouponIssueCommand(
+        couponId = this.couponId,
+        userId = userId,
+    )
+}
+
+data class CouponIssueResponse(
+    val userCouponId: Long,
+    val couponId: Long,
+    val couponName: String,
+    val expiredAt: LocalDateTime,
+) {
+    companion object {
+        fun from(couponIssueInfo: CouponIssueInfo): CouponIssueResponse = CouponIssueResponse(
+            userCouponId = couponIssueInfo.userCouponId,
+            couponId = couponIssueInfo.couponId,
+            couponName = couponIssueInfo.couponName,
+            expiredAt = couponIssueInfo.expiredAt,
+        )
+    }
+}
+
+data class CouponGrantRequest(val userId: Long)
 
 data class CouponCreateRequest(
     val couponName: String,
@@ -40,6 +67,7 @@ data class CouponCreateRequest(
     val couponType: CouponType,
     val value: Long,
     val minOrderAmount: Long,
+    val totalQuantity: Long? = null,
 ) {
     fun toCommand(requestAccountId: Long): CouponCreateCommand = CouponCreateCommand(
         couponName = this.couponName,
@@ -48,5 +76,6 @@ data class CouponCreateRequest(
         value = this.value,
         minOrderAmount = this.minOrderAmount,
         requestAccountId = requestAccountId,
+        totalQuantity = this.totalQuantity,
     )
 }

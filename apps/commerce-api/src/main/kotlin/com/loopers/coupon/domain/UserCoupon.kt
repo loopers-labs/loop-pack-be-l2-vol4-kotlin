@@ -73,4 +73,5 @@ enum class UserCouponStatus {
 enum class UserCouponGrantedType {
     ADMIN,
     SYSTEM,
+    FIRST_COME,
 }

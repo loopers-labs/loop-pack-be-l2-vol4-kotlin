@@ -166,6 +166,61 @@ class CouponServiceTest {
         )
     }
 
+    @DisplayName("존재하지 않는 쿠폰을 발급 요청하면 NOT_FOUND 예외가 발생하고 저장하지 않는다.")
+    @Test
+    fun throwsNotFound_whenCouponDoesNotExistForIssue() {
+        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(null)
+
+        val result = assertThrows<NotFoundException> {
+            service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.COUPON_NOT_FOUND) },
+            { verify(userCouponRepository, never()).save(any()) },
+        )
+    }
+
+    @DisplayName("이미 발급받은 사용자가 다시 발급 요청하면 CONFLICT(ALREADY_ISSUED) 예외가 발생하고 저장하지 않는다.")
+    @Test
+    fun throwsConflict_whenUserAlreadyIssued() {
+        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(coupon(totalQuantity = 100))
+        whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(true)
+
+        val result = assertThrows<ConflictException> {
+            service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.ALREADY_ISSUED) },
+            { verify(userCouponRepository, never()).save(any()) },
+        )
+    }
+
+    @DisplayName("유효한 발급 요청이면 락 조회 후 FIRST_COME 발급 UserCoupon을 저장하고 발급 정보를 돌려준다.")
+    @Test
+    fun savesFirstComeUserCoupon_whenIssueRequestIsValid() {
+        val coupon = coupon(totalQuantity = 100)
+        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(coupon)
+        whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(false)
+        whenever(userCouponRepository.save(any())).thenAnswer { it.arguments[0] as UserCoupon }
+
+        val info = service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
+
+        val captor = argumentCaptor<UserCoupon>()
+        verify(userCouponRepository).save(captor.capture())
+        val saved = captor.firstValue
+        assertAll(
+            { assertThat(saved.userId).isEqualTo(USER_ID) },
+            { assertThat(saved.grantedType).isEqualTo(UserCouponGrantedType.FIRST_COME) },
+            { assertThat(saved.grantedBy).isEqualTo(UserCoupon.SYSTEM_GRANTED) },
+            { assertThat(saved.status).isEqualTo(UserCouponStatus.AVAILABLE) },
+            { assertThat(coupon.issuedQuantity).isEqualTo(1) },
+            { assertThat(info.couponName).isEqualTo(coupon.name) },
+            { assertThat(info.expiredAt).isEqualTo(coupon.expiredAt) },
+        )
+    }
+
     @DisplayName("쿠폰을 사용하면 USED로 전이하고 할인 금액을 돌려준다.")
     @Test
     fun usesCoupon_andReturnsDiscountAmount() {
@@ -278,6 +333,7 @@ class CouponServiceTest {
         expiredAt: LocalDateTime = LocalDateTime.now().plusDays(1),
         value: Long = 1000,
         minOrderAmount: Money = Money(0),
+        totalQuantity: Long? = null,
     ): Coupon = Coupon(
         type = CouponType.FIXED,
         name = "테스트쿠폰",
@@ -285,6 +341,7 @@ class CouponServiceTest {
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
         createdBy = ADMIN_ID,
+        totalQuantity = totalQuantity,
     )
 
     private fun account(): Account = Account(

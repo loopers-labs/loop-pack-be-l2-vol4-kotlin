@@ -36,9 +36,36 @@ class CouponService(
             minOrderAmount = Money(couponCreateCommand.minOrderAmount),
             expiredAt = couponCreateCommand.expiredAt,
             createdBy = couponCreateCommand.requestAccountId,
+            totalQuantity = couponCreateCommand.totalQuantity,
         )
 
         couponRepository.save(coupon)
+    }
+
+    @Transactional
+    fun issue(couponIssueCommand: CouponIssueCommand): CouponIssueInfo {
+        val coupon = couponRepository.findByIdForUpdate(couponIssueCommand.couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        coupon.issue(LocalDateTime.now())
+        if (userCouponRepository.existsByUserIdAndCouponId(couponIssueCommand.userId, couponIssueCommand.couponId)) {
+            throw ConflictException(CouponErrorCode.ALREADY_ISSUED)
+        }
+
+        val userCoupon = userCouponRepository.save(
+            UserCoupon(
+                userId = couponIssueCommand.userId,
+                couponId = couponIssueCommand.couponId,
+                grantedType = UserCouponGrantedType.FIRST_COME,
+                grantedBy = UserCoupon.SYSTEM_GRANTED,
+            ),
+        )
+
+        return CouponIssueInfo(
+            userCouponId = userCoupon.id,
+            couponId = coupon.id,
+            couponName = coupon.name,
+            expiredAt = coupon.expiredAt,
+        )
     }
 
     @Transactional
@@ -96,4 +123,17 @@ data class CouponCreateCommand(
     val value: Long,
     val minOrderAmount: Long,
     val requestAccountId: Long,
+    val totalQuantity: Long? = null,
+)
+
+data class CouponIssueCommand(
+    val couponId: Long,
+    val userId: Long,
+)
+
+data class CouponIssueInfo(
+    val userCouponId: Long,
+    val couponId: Long,
+    val couponName: String,
+    val expiredAt: LocalDateTime,
 )

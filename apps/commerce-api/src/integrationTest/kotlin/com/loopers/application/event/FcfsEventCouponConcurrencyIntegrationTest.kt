@@ -2,6 +2,7 @@ package com.loopers.application.event
 
 import com.loopers.domain.coupon.CouponType
 import com.loopers.domain.coupon.EventCoupon
+import com.loopers.domain.coupon.EventCouponRepository
 import com.loopers.domain.event.Event
 import com.loopers.infrastructure.coupon.CouponPublishOutboxJpaRepository
 import com.loopers.infrastructure.coupon.EventCouponJpaRepository
@@ -16,12 +17,15 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.mockito.kotlin.any
+import org.mockito.kotlin.timeout
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import java.time.LocalDateTime
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CompletableFuture
@@ -39,6 +43,9 @@ class FcfsEventCouponConcurrencyIntegrationTest @Autowired constructor(
 ) {
     @MockitoBean
     lateinit var kafkaTemplate: KafkaTemplate<Any, Any>
+
+    @MockitoSpyBean
+    lateinit var eventCouponRepository: EventCouponRepository
 
     @BeforeEach
     fun setUpKafkaTemplate() {
@@ -72,6 +79,28 @@ class FcfsEventCouponConcurrencyIntegrationTest @Autowired constructor(
             { assertThat(requested.get()).isEqualTo(3) },
             { assertThat(reloaded.issuedQuantity).isEqualTo(3) },
             { assertThat(outboxJpaRepository.count()).isEqualTo(3) },
+        )
+    }
+
+    @Test
+    fun concurrentRequestsTriggerCouponQuantityDecrementWithinTimeout() {
+        val coupon = saveEventCoupon(totalQuantity = 3)
+        val requestCount = 12
+
+        runConcurrently(times = requestCount) { index ->
+            service.request(
+                userId = index + 1L,
+                couponId = coupon.id,
+                now = LocalDateTime.of(2026, 7, 3, 11, 0),
+            )
+        }
+
+        verify(eventCouponRepository, timeout(3_000).times(requestCount))
+            .reserveOneIfAvailable(coupon.id)
+        val reloaded = eventCouponJpaRepository.findById(coupon.id).orElseThrow()
+        assertAll(
+            { assertThat(reloaded.issuedQuantity).isEqualTo(3) },
+            { assertThat(reloaded.remainingQuantity).isEqualTo(0) },
         )
     }
 

@@ -18,6 +18,8 @@ enum class CouponErrorCode(
     NOT_ISSUABLE("선착순 발급 대상 쿠폰이 아닙니다."),
     SOLD_OUT("선착순 쿠폰이 모두 소진되었습니다."),
     ALREADY_ISSUED("이미 발급받은 쿠폰입니다."),
+    ALREADY_DECIDED("이미 확정된 발급 요청입니다."),
+    ISSUE_REQUEST_NOT_FOUND("존재하지 않는 발급 요청입니다."),
     ;
 
     override val code: String

@@ -148,6 +148,37 @@ CREATE TABLE issued_coupons (
     UNIQUE KEY uk_issued_coupons_user_coupon (user_id, coupon_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE coupon_publish_outboxes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME(6) NOT NULL,
+    deleted_at DATETIME(6) NULL,
+    updated_at DATETIME(6) NOT NULL,
+    coupon_id BIGINT NOT NULL,
+    event_id BIGINT NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    idempotency_key VARCHAR(36) NOT NULL,
+    payload TEXT NOT NULL,
+    published_at DATETIME(6) NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_coupon_publish_outboxes_idempotency_key (idempotency_key),
+    UNIQUE KEY uk_coupon_publish_outboxes_event_coupon_user (event_type, coupon_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE coupon_publish_inboxes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME(6) NOT NULL,
+    deleted_at DATETIME(6) NULL,
+    updated_at DATETIME(6) NOT NULL,
+    coupon_id BIGINT NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    idempotency_key VARCHAR(36) NOT NULL,
+    processed_at DATETIME(6) NOT NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_coupon_publish_inboxes_idempotency_key (idempotency_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE product_like_histories (
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME(6) NOT NULL,

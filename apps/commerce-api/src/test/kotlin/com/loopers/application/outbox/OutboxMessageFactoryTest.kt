@@ -23,7 +23,7 @@ class OutboxMessageFactoryTest {
         val node = om.readTree(draft.payload)
         assertThat(node["type"].asText()).isEqualTo("LIKE_ADDED")
         assertThat(node["productId"].asLong()).isEqualTo(10L)
-        assertThat(node["eventId"].asText()).isNotBlank()
+        assertThat(node["eventId"].asText()).isEqualTo(draft.eventId)
     }
 
     @DisplayName("좋아요 삭제 이벤트는 type=LIKE_REMOVED 로 매핑된다.")

@@ -13,11 +13,14 @@ class OutboxEventCaptureListener(
     private val factory: OutboxMessageFactory,
     private val outboxRepository: OutboxEventRepository,
 ) {
+    // BEFORE_COMMIT는 활성 쓰기 트랜잭션 안에서 발행돼야 동작한다.
+    // 트랜잭션 밖에서 이벤트를 발행하면 Spring이 리스너를 조용히 무시해 outbox 행이 생성되지 않는다.
+    // (현재 호출자인 LikeProductUsecase, SyncPaymentResultUsecase 는 모두 @Transactional.)
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     fun capture(event: Any) {
         val draft = factory.from(event) ?: return
         outboxRepository.save(
-            OutboxEvent(topic = draft.topic, partitionKey = draft.partitionKey, payload = draft.payload),
+            OutboxEvent(eventId = draft.eventId, topic = draft.topic, partitionKey = draft.partitionKey, payload = draft.payload),
         )
     }
 }

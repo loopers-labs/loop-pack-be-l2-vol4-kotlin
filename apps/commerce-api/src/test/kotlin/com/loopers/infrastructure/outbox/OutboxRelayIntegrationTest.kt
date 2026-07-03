@@ -34,7 +34,12 @@ class OutboxRelayIntegrationTest {
     fun relayPublishesAndMarksSent() {
         // arrange
         val saved = outboxRepository.save(
-            OutboxEvent(topic = KafkaTopics.CATALOG_EVENTS, partitionKey = "10", payload = "{\"type\":\"LIKE_ADDED\",\"productId\":10}"),
+            OutboxEvent(
+                eventId = UUID.randomUUID().toString(),
+                topic = KafkaTopics.CATALOG_EVENTS,
+                partitionKey = "10",
+                payload = "{\"type\":\"LIKE_ADDED\",\"productId\":10}",
+            ),
         )
         consumer(KafkaTopics.CATALOG_EVENTS).use { c ->
             // act

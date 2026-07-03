@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component
 import java.time.ZonedDateTime
 import java.util.UUID
 
-data class OutboxDraft(val topic: String, val partitionKey: String, val payload: String)
+data class OutboxDraft(val eventId: String, val topic: String, val partitionKey: String, val payload: String)
 
 @Component
 class OutboxMessageFactory(
@@ -24,21 +24,23 @@ class OutboxMessageFactory(
         }
 
     private fun catalog(type: String, productId: Long): OutboxDraft {
+        val eventId = UUID.randomUUID().toString()
         val payload = objectMapper.writeValueAsString(
             linkedMapOf(
-                "eventId" to UUID.randomUUID().toString(),
+                "eventId" to eventId,
                 "type" to type,
                 "productId" to productId,
                 "occurredAt" to ZonedDateTime.now().toString(),
             ),
         )
-        return OutboxDraft(KafkaTopics.CATALOG_EVENTS, productId.toString(), payload)
+        return OutboxDraft(eventId, KafkaTopics.CATALOG_EVENTS, productId.toString(), payload)
     }
 
     private fun order(event: PaymentSucceededEvent): OutboxDraft {
+        val eventId = UUID.randomUUID().toString()
         val payload = objectMapper.writeValueAsString(
             linkedMapOf(
-                "eventId" to UUID.randomUUID().toString(),
+                "eventId" to eventId,
                 "type" to "PAYMENT_SUCCEEDED",
                 "orderId" to event.orderId,
                 "userId" to event.userId,
@@ -46,6 +48,6 @@ class OutboxMessageFactory(
                 "occurredAt" to ZonedDateTime.now().toString(),
             ),
         )
-        return OutboxDraft(KafkaTopics.ORDER_EVENTS, event.orderId.toString(), payload)
+        return OutboxDraft(eventId, KafkaTopics.ORDER_EVENTS, event.orderId.toString(), payload)
     }
 }

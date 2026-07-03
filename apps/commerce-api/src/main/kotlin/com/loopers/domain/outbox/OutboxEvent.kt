@@ -5,23 +5,25 @@ import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.ZonedDateTime
-import java.util.UUID
 
 @Entity
 @Table(
     name = "outbox_events",
     uniqueConstraints = [UniqueConstraint(name = "uk_outbox_event_id", columnNames = ["event_id"])],
+    indexes = [Index(name = "idx_outbox_status_id", columnList = "status, id")],
 )
 class OutboxEvent(
+    eventId: String,
     topic: String,
     partitionKey: String,
     payload: String,
 ) : BaseEntity() {
     @Column(name = "event_id", nullable = false, updatable = false, length = 36)
-    var eventId: String = UUID.randomUUID().toString()
+    var eventId: String = eventId
         protected set
 
     @Column(name = "topic", nullable = false)

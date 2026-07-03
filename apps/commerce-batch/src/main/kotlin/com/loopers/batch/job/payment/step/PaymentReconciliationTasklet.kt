@@ -94,7 +94,12 @@ class PaymentReconciliationTasklet(
                     // CAS(PENDING 조건)가 실제로 1건 전이했을 때만 경보/카운트 — 그 사이 콜백이
                     // 먼저 종결(affected=0)했다면 false ALERT 와 reflected 과다 집계를 막는다.
                     val affected =
-                        paymentRepository.compareAndSetStatus(payment.id, PaymentStatus.FAILED, PaymentFailureReason.UNRESOLVED, now)
+                        paymentRepository.compareAndSetStatus(
+                            payment.id,
+                            PaymentStatus.FAILED,
+                            PaymentFailureReason.UNRESOLVED,
+                            now,
+                        )
                     if (affected == 1) {
                         log.warn(
                             "[ALERT] Payment {} (orderId={}) exceeded tMax and is UNRESOLVED — manual intervention required",

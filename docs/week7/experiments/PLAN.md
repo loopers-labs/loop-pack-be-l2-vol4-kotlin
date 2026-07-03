@@ -44,9 +44,16 @@
 
 - **compose profile 단계 기동**: `core`(commerce-api+MySQL) / `p3`(Redis) / `p4`(Kafka·streamer) — 안 쓰는 스택이 앞 Phase 결과를 오염시키는 것 차단
 - **이미지 빌드**: 홈서버에서 git pull 후 빌드로 통일 (맥 arm64 vs 서버 x86_64 크로스 빌드 함정 회피)
-- **네트워크 전제조건**: 공유기 뒤 이사 + 내부 IP 고정 (exporter 포트를 LAN에만 노출하기 위해 필수)
+- **네트워크 전제조건**: 공유기 뒤 이사 + 내부 IP 고정 (exporter 포트를 LAN에만 노출하기 위해 필수). **미완료 — 아직 공인 IP 직결**
   - 서버 켜면 검증할 것: ① `hostname -I` 현재 IP ② `sudo ufw status verbose` ③ `docker ps` publish 포트 ④ 외부 포트스캔
   - 참고 사실: SSH 키는 22번 포트만 보호하며, Docker publish 포트는 iptables 직접 규칙으로 ufw를 우회함 — 지난번 k6가 외부에서 통했던 유력 원인
+  - **2026-07-03 검증 결과** (원격 SSH, `won@222.107.95.24` — enp1s0, DHCP 동적이라 재부팅마다 재확인 필요):
+    - ① 현재 IP `222.107.95.24` (`172.17.0.1`은 Docker 기본 브리지 게이트웨이, 컨테이너 미기동으로 DOWN — 무관)
+    - ② `ufw`: `systemctl is-active/is-enabled` 기준 **active+enabled** 확인. 세부 rule set(`ufw status verbose`)은 일반 계정 sudo 비번 필요해 원격 비대화형으로는 미확인
+    - ③ `docker ps -a`: 실행 중 컨테이너 0개(과거 컨테이너 1개 2주 전 Exited) → publish된 포트 없음. `ss -tlnp` 기준 리스닝 포트도 22(SSH)·로컬 DNS뿐
+    - ④ 외부 포트스캔: 미실행
+    - **여전히 공인 IP 직결 + DHCP** → 이 상태로 컨테이너를 publish하면 ufw 우회 위험이 그대로 살아있음(위 "참고 사실" 그대로)
+  - **결정 (2026-07-03)**: 공유기 이사를 실험 착수의 블로킹 조건으로 두지 않는다. 대신 **컨테이너 포트를 publish 하지 않거나 `127.0.0.1`에만 bind**하고, 맥에서 `ssh -L <port>:localhost:<port> won@<현재IP>` 터널로 k6/Prometheus가 필요한 포트에만 접근한다 — 공인 IP에 포트가 하나도 열리지 않아 위 위험이 사라짐. 공유기 뒤 이사 + 내부 IP 고정은 별도 후속 작업으로 계속 추적(YAGNI 아님 — 장기적으로 필요하지만 지금 실험의 블로커는 아님)
 - 부하 실험은 **집(맥·서버 같은 LAN)에서만** 수행. WAN 너머 측정치는 기록에서 분리
 - 관측 스택 셋업은 홈서버 문서 `~/Coding/homeserver/observability-practice.html` 의 **Stage 0~3 절차 재사용** (percentiles-histogram, RED+HikariCP 대시보드, PromQL 완비)
 
@@ -54,16 +61,16 @@
 
 ### 0-a 홈서버 (서버 켠 뒤, 사용자 물리 작업 포함)
 
-- [ ] 네트워크 실태 검증 (3장의 4항목: `hostname -I` / `ufw status verbose` / `docker ps` publish 포트 / 외부 포트스캔)
-- [ ] 공유기 뒤 이사 + 내부 IP 고정
+- [ ] 네트워크 실태 검증 (3장의 4항목: `hostname -I` / `ufw status verbose` / `docker ps` publish 포트 / 외부 포트스캔) — 2026-07-03 원격 SSH로 ①③ 완료, ② active/enabled만 확인(세부 rule set은 sudo 비번 필요해 미확인), ④ 미실행. 서버 직접 접속 시 `sudo ufw status verbose` + 외부 포트스캔 이어서
+- [ ] 공유기 뒤 이사 + 내부 IP 고정 — 2026-07-03 기준 여전히 미완료(공인 IP `222.107.95.24`, DHCP 동적). 실험 착수의 블로커는 아님(§3 "결정" 참고 — SSH 터널로 우회), 별도 후속 작업으로 추적
 - [ ] 서버 스펙 기록 (`nproc`, `free -h`, 디스크) — 실험 조건으로 문서화
 
 ### 0-b 코드·스크립트 (서버 불필요, 즉시 가능)
 
-- [ ] 브랜치 `feature/week7-coupon-issue`
-- [ ] Coupon에 `total_quantity`/`issued_count` 추가, `UserCouponGrantedType.FIRST_COME` 추가
-- [ ] `POST /api/v1/coupons/issue` (동기, Phase 1용), 매진 시 `ConflictException(SOLD_OUT)`
-- [ ] `runConcurrently` 정합성 테스트
+- [x] 브랜치 `feature/week07-fcfs-coupon-issue` (워크트리 `loop-pack-week07-fcfs-coupon`, PR [#6](https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/6) → feature/week07-event-driven)
+- [x] Coupon에 `total_quantity`/`issued_quantity` 추가, `UserCouponGrantedType.FIRST_COME` 추가
+- [x] `POST /api/v1/coupons/issue` (동기, Phase 1용), 매진 시 `ConflictException(SOLD_OUT)` — 비관적 락(`findByIdForUpdate`), inventory 선례
+- [x] `runConcurrently` 정합성 테스트 — 동시 1,000 → **300으로 조정** (테스트 Hikari 풀 10이라 그 이상은 커넥션 대기열만 검증 + 10초 타임아웃 flaky 위험. 1만 스파이크는 Phase 1 k6가 담당). 결과: 한도 100 → 정확히 100건·초과 전부 SOLD_OUT·동일 userId 1건
 - [ ] commerce-api Dockerfile + compose(profile 구조) + 시드 스크립트: 유저 1만+, 쿠폰 2종(한도 100 스파이크용 / 한도 십만 지속 경합용)
 - [ ] k6 시나리오 2종: S1 스파이크(10초 내 1만 요청 — 오픈런), S2 계단(arrival rate 100→200→400→800/s 각 3~5분 — 한계 탐색)
 - [ ] actuator + micrometer-registry-prometheus 의존성
@@ -73,7 +80,7 @@
 | 변형 | 방식 | 가설 |
 |---|---|---|
 | A 비관적 락 | `SELECT ... FOR UPDATE` 후 차감 | 락 대기 직렬화, 커넥션 점유 최장 |
-| B 조건부 원자 UPDATE | `UPDATE ... SET issued_count=issued_count+1 WHERE issued_count < total_quantity` (affected rows 판정) | 락 구간 최소 — DB-only 중 최선 예상 |
+| B 조건부 원자 UPDATE | `UPDATE ... SET issued_quantity=issued_quantity+1 WHERE issued_quantity < total_quantity` (affected rows 판정) | 락 구간 최소 — DB-only 중 최선 예상 |
 | C 낙관적 락 + 제한 재시도 | `@Version` | 극단 경합에서 재시도 폭풍 — 반례용 |
 
 - 공통 최종 방어: `uk_user_coupon` unique (userId 중복)

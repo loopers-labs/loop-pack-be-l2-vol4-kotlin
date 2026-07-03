@@ -7,24 +7,24 @@
 
 ## Step 1 — ApplicationEvent 경계 분리
 
-- [ ] **1. Event vs Command 분류** — 도메인 동작을 명령/사실로 구분. 판단 기준 5문항(핵심 불변식? / 실패해도 본 tx 성공? / 외부 I/O? / 순서 의존? / 디커플 가치?)으로 분리·유지 근거 문서화
-- [ ] **2. 주문–결제 플로우 분리** — 부가 로직(유저 행동 로깅, 알림 등)을 ApplicationEvent 로 분리
-- [ ] **3. 좋아요–집계 eventual consistency** — ApplicationEvent 분리는 기존 구현 확인됨(`LikeEventHandler`·`ProductLikeCountEventHandler`: `@Async @TransactionalEventListener(AFTER_COMMIT)` + `REQUIRES_NEW`, `@EnableAsync` 적용됨). 이번 라운드는 이 위에 outbox 발행(#9) + streamer `event_handled` 멱등 집계(#11)로 확장하고, 분리/유지 근거를 #1·#5 문서화에 포함
-- [ ] **4. 유저 행동 로깅 이벤트** — 조회·클릭·좋아요·주문에 대한 서버 레벨 로깅을 이벤트로 발행
-- [ ] **5. 리스너 phase 선택 정당화** — 트랜잭션 결과와의 상관관계에 따라 phase 선택, 근거 답변 가능하게 (보존 질문)
+- [x] **1. Event vs Command 분류** — 판단 기준 5문항으로 분리·유지 근거 문서화 완료: `09-event-vs-command.md` (결제 보상 `cancelAndCompensate` 는 Command 유지 판정) — PR [#7](https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/7)
+- [x] **2. 주문–결제 플로우 분리** — `OrderCreatedEvent` 발행 + `UserActionLogEventHandler`(AFTER_COMMIT 비동기) 분리 — PR #7
+- [x] **3. 좋아요–집계 eventual consistency** — 기존 AFTER_COMMIT 리스너 위에 `ProductLikedEvent`/`ProductUnlikedEvent` outbox 승격(#9) + streamer 멱등 집계(#11) 완료 — PR #7
+- [x] **4. 유저 행동 로깅 이벤트** — 조회·좋아요·주문 → `user_action_log` (클릭은 수신 endpoint 부재로 보류) — PR #7
+- [x] **5. 리스너 phase 선택 정당화** — BEFORE_COMMIT(outbox, 본 tx 참여) vs AFTER_COMMIT(부가 처리, 유실 허용) 근거: `09-event-vs-command.md` — PR #7
 
 ## Step 2 — Kafka 파이프라인
 
-- [ ] **6. 전파 대상 선별** — Step 1 이벤트 중 시스템 간 전파가 필요한 것만 Kafka 로
-- [ ] **7. 토픽 설계** — `catalog-events`(key=productId, 상품·재고·좋아요) / `order-events`(key=orderId, 주문·결제) / 조회·클릭 등 유저 행동은 새 토픽 신설(예: `user-action-events`, key=productId) — 조회 수 집계는 원자적 증가 upsert
+- [x] **6. 전파 대상 선별** — `OutboxPublishable` 마커로 타입 표현: 주문·좋아요만 outbox 승격, 조회는 유실 허용 직접 발행 — PR #7
+- [x] **7. 토픽 설계** — `catalog-events`(key=productId) / `order-events`(key=orderId) / `user-action-events`(key=productId) 신설, 조회 수는 `ON DUPLICATE KEY UPDATE` 원자적 증가 upsert — PR #7
   - 순서 의존 분석(문서화): 정합성이 파티션 순서에 의존하는 집계 없음 — delta 집계(좋아요·판매량·조회 수)는 교환법칙 성립, 상태형 이벤트는 #12 version 가드가 방어, 쿠폰 선착순은 단일 파티션 순차 소비가 담당. key 지정은 비용 0 + 요구사항 합격 기준에 명시되어 유지
-- [ ] **8. Producer 설정** — commerce-api에 `modules:kafka` 의존성 추가 + 앱 `application.yml`에 `acks=all`·`enable.idempotence=true` 설정 (베이스 `modules/kafka/kafka.yml`은 수정 금지 — 앱 yaml 병합으로 주입)
-- [ ] **9. Transactional Outbox** — `outbox_event` 를 비즈니스와 같은 tx 로 INSERT + 폴링 릴레이(init→sent)로 at-least-once 발행 보장. eventId 는 이벤트 생성 시 UUID
-- [ ] **10. Consumer = commerce-streamer 앱** — manual ack(`AckMode.MANUAL`): 처리 성공 후에만 offset commit. 베이스 설정 `auto.offset.reset=latest` 주의(신규 그룹은 기동 전 발행분을 건너뜀) — 검증 시 컨슈머 먼저 기동 or earliest 검토
-- [ ] **11. 멱등 처리** — `event_handled(event_id PK)` INSERT, 중복이면 skip. 비즈니스 write 와 같은 로컬 tx
-- [ ] **12. 최신성 가드** — `version`/`updated_at` 비교로 늦게 온 옛 이벤트가 최신 집계를 덮어쓰지 않게
-- [ ] **13. 집계 upsert** — 좋아요 수·판매량·조회 수를 `product_metrics` 에 upsert (event_handled 와 같은 tx)
-- [ ] **14. 보존 질문** — "왜 event_handled 와 유저 행동 로그 테이블을 분리하는가" 설계 근거로 답변
+- [x] **8. Producer 설정** — `modules:kafka` 의존성 + 앱 yaml `acks=all`·`enable.idempotence=true` 주입(베이스 수정 없음) — PR #7
+- [x] **9. Transactional Outbox** — BEFORE_COMMIT 적재 + `OutboxRelay`(fixedDelay 1s, `(status,id)` 인덱스, LIMIT 100, 실패 시 중단·재시도, SENT 3일 purge) — 실 브로커 e2e 로 INIT→SENT 검증 — PR #7
+- [x] **10. Consumer = commerce-streamer 앱** — 3토픽 배치 리스너 + manual ack(처리 성공 후 offset commit). latest 주의사항 준수(검증 시 컨슈머 기동 후 발행) — PR #7
+- [x] **11. 멱등 처리** — `event_handled(event_id PK)` + 집계 같은 로컬 tx. e2e 로 중복 eventId 재전달 → 카운트 불변 확인 — PR #7
+- [x] **12. 최신성 가드** — 이번 이벤트는 전부 delta 증감(교환법칙 성립)이라 **생략 판정**, 상태형 이벤트 도입 시 추가 — 근거 PR #7
+- [x] **13. 집계 upsert** — 좋아요 수·판매량·조회 수 → `product_metrics` 원자적 증가 upsert (event_handled 와 같은 tx) — PR #7
+- [x] **14. 보존 질문** — event_handled(컨슈머 멱등 키, 소비 측 소유) vs user_action_log(분석·감사 원본, 발행 측 소유)는 목적·수명·소유가 달라 분리 — `09-event-vs-command.md`·PR #7
 
 ## Step 3 — Kafka 기반 선착순 쿠폰 발급 (실험 기반 진화)
 
@@ -32,9 +32,9 @@
 > 정합성 불변식(전 단계 하드 제약): 발급 ≤ 한도(100) · userId 중복 0 · 거절도 결과 조회 가능. 확정 게이트: time_to_decision ≤ 10초.
 
 - [ ] **15. Phase 0-b — 뼈대·실험 준비 (서버 불필요, 즉시 가능)**
-  - [ ] `Coupon`에 `total_quantity`/`issued_count` 추가 + `UserCouponGrantedType.FIRST_COME` 추가
-  - [ ] `POST /api/v1/coupons/issue` (동기, Phase 1용) — 매진 시 `ConflictException(SOLD_OUT)`
-  - [ ] `runConcurrently` 정합성 테스트: 한도 100 + 동시 1,000 → 정확히 100건·중복 0
+  - [x] `Coupon`에 `total_quantity`/`issued_quantity` 추가 + `UserCouponGrantedType.FIRST_COME` 추가 — PR [#6](https://github.com/shoeone96/loop-pack-be-l2-vol4-kotlin/pull/6)
+  - [x] `POST /api/v1/coupons/issue` (동기, Phase 1용) — 매진 시 `ConflictException(SOLD_OUT)`, 비관적 락(inventory 선례) — PR #6
+  - [x] `runConcurrently` 정합성 테스트: 한도 100 + 동시 300(Hikari 풀 10 기준 조정, 근거 PLAN.md) → 정확히 100건·중복 0 — PR #6
   - [ ] commerce-api Dockerfile + compose(profile: core/p3/p4) + 시드(유저 1만+, 쿠폰 2종: 한도 100 스파이크용 / 한도 십만 지속 경합용)
   - [ ] k6 시나리오 2종: S1 스파이크(10초 내 1만 요청) / S2 계단(100→200→400→800/s 각 3~5분)
   - [ ] actuator + micrometer-registry-prometheus 의존성

@@ -579,6 +579,8 @@
 
     <div class="note"><span class="tag">무엇이 그대로고 무엇이 바뀌나</span><strong>그대로:</strong> 도메인은 <span class="term">publishEvent(ProductLikedEvent)</span> 발행, 리스너가 받는 구조. <strong>바뀜:</strong> 리스너 내부가 <em>직접 metric 갱신</em> → <em>Kafka 발행</em>으로, metric 갱신 책임은 <strong>별도 앱 commerce-streamer</strong>(consumer)로 이동. STEP 5에서 outbox INSERT가 <strong>비즈니스 tx</strong>에 들어가고 발행은 릴레이가 맡으면 유실까지 막힌다.</div>
 
+    <div class="note"><span class="tag">릴레이 부하 가드 (STEP 5)</span>폴링 릴레이는 <span class="term">fixedDelay</span>(이전 실행 완료 기준이라 중첩 실행 없음) + <span class="term">(status, id) 인덱스</span> + <span class="term">LIMIT</span> 배치 + sent 행 정리로 운영한다. 이 구성이면 스케줄러 부하는 사실상 0(스레드가 다음 실행까지 잠듦), DB 부하는 인스턴스당 <strong>~1 QPS 인덱스드 SELECT</strong>로 무시 수준이다. 산수·근거·실제 위험 3가지(인덱스 누락 풀스캔 / sent 방치 비대 / 다중 인스턴스 × 짧은 주기)는 <a href="05-transactional-outbox-pattern.html#s4"><strong>05 문서 §4</strong></a> 참조. S2 부하 테스트에서 <strong>릴레이 on/off로 DB CPU·API p99를 비교 측정</strong>해 자체 검증한다.</div>
+
     <h3>이벤트별 처리 (유저 반응 → 집계)</h3>
     <div class="tbl-wrap">
       <table>
@@ -602,6 +604,7 @@
       <li><span class="box"></span><b>Outbox</b> 테이블 + 릴레이(폴링) + <span class="term">event_handled</span> 멱등 컨슈머 <span class="tag">S5</span></li>
       <li><span class="box"></span><b>product_metrics</b> upsert (event_handled와 같은 tx) → 수동 ack <span class="tag">S5</span></li>
       <li><span class="box"></span><b>최신성 가드</b> — <span class="term">version/updated_at</span> 비교로 늦게 온 옛 이벤트가 최신 집계를 덮어쓰지 않게 <span class="tag">S5</span></li>
+      <li><span class="box"></span><b>릴레이 부하 측정</b> — 릴레이 on/off 두 조건에서 DB CPU·API p99 비교 (공개 정량 자료 없음 → 자체 근거화, 05 §4) <span class="tag">S5</span></li>
     </ul>
 
     <div class="note warn"><span class="tag">구현 순서 주의</span>컨슈머에서 <strong>event_handled INSERT + product_metrics upsert를 같은 로컬 트랜잭션으로</strong> 묶고, 그 커밋 <strong>이후</strong>에 offset commit(수동 ack). 이 순서라야 "처리는 됐는데 dedup 기록이 빠지는" 틈이 없다. 수동 ack는 컨테이너 <span class="term">AckMode.MANUAL</span> 설정이 전제이고, <span class="term">event_handled</span>는 무한히 쌓이므로 보존 기간 경과분을 purge 배치로 정리한다.</div>

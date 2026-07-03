@@ -471,6 +471,19 @@
       <li><span class="box"></span><b>서버 켜면 즉시 검증 4종</b> — ① 현재 IP 확인 ② <span class="term">ufw status</span> ③ Docker publish 포트 목록 ④ 외부에서 포트스캔 <span class="tag">보안</span></li>
       <li><span class="box"></span><b>부하 실험은 집(같은 LAN)에서만</b> 수행합니다 — 외부망 경유는 측정도 보안도 오염시킵니다. <span class="tag">규칙</span></li>
     </ul>
+
+    <div class="note">
+      <span class="tag">2026-07-03 검증 결과</span> 원격 SSH(<span class="term">won@222.107.95.24</span>, <span class="term">enp1s0</span>, DHCP 동적 — 재부팅마다 재확인 필요)로 확인:
+      ① 현재 IP <span class="term">222.107.95.24</span>(<span class="term">172.17.0.1</span>은 Docker 기본 브리지 게이트웨이, 컨테이너 미기동으로 무관)
+      ② <span class="term">ufw</span> active+enabled 확인(세부 rule set은 sudo 비번 필요해 원격 비대화형으로 미확인)
+      ③ <span class="term">docker ps -a</span> 실행 중 컨테이너 0개 → publish 포트 없음, <span class="term">ss -tlnp</span> 기준 22(SSH)·로컬 DNS만 리스닝
+      ④ 외부 포트스캔은 미실행.
+      <b>여전히 공인 IP 직결 + DHCP</b> — 공유기 이사는 아직 완료되지 않음.
+    </div>
+
+    <div class="note warn">
+      <span class="tag">결정 (2026-07-03)</span> 공유기 이사를 실험 착수의 블로킹 조건으로 두지 않습니다. 대신 컨테이너 포트를 <b>publish 하지 않거나 <span class="term">127.0.0.1</span>에만 bind</b>하고, 맥에서 <span class="term">ssh -L &lt;port&gt;:localhost:&lt;port&gt; won@&lt;현재IP&gt;</span> 터널로 k6/Prometheus가 필요한 포트에만 접근합니다 — 공인 IP에 포트가 하나도 열리지 않아 위험이 사라집니다. 공유기 뒤 이사 + 내부 IP 고정은 별도 후속 작업으로 계속 추적합니다.
+    </div>
   </section>
 
   <!-- ===================== S4 ===================== -->
@@ -484,8 +497,8 @@
 
     <h3>0-a — 홈서버 준비</h3>
     <ul class="checklist">
-      <li><span class="box"></span><b>네트워크 검증</b> — §3의 검증 4종 수행 <span class="tag">0-a</span></li>
-      <li><span class="box"></span><b>공유기 뒤 이사 + 내부 IP 고정</b> <span class="tag">0-a</span></li>
+      <li><span class="box"></span><b>네트워크 검증</b> — §3의 검증 4종 수행 <span class="tag">0-a</span> — 2026-07-03 ①③ 완료, ②는 active/enabled만(세부 rule set은 서버 직접 접속 시 확인), ④ 외부 포트스캔 남음</li>
+      <li><span class="box"></span><b>공유기 뒤 이사 + 내부 IP 고정</b> <span class="tag">0-a</span> — 2026-07-03 기준 미완료(공인 IP 직결 그대로). §3 결정에 따라 블로커 아님, SSH 터널로 우회하며 후속 작업으로 추적</li>
       <li><span class="box"></span><b>스펙 기록</b> — <span class="term">nproc</span>, <span class="term">free</span> 결과를 실험 기록의 고정 조건으로 남깁니다. <span class="tag">0-a</span></li>
     </ul>
 

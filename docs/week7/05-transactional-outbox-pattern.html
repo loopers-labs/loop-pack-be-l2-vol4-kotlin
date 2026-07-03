@@ -410,6 +410,18 @@
     </div>
 
     <div class="note"><span class="tag">빅테크 실제</span>우아한형제들은 outbox의 릴레이로 <strong>Debezium CDC(binlog 테일링)</strong>를 쓴다 — 처리량을 위해 outbox 테이블을 토픽별로 분리하고 커넥터도 나눈다.<a href="#r7" class="cite">[7]</a> "프로덕션 outbox의 발행은 릴레이가 책임진다"의 실증.</div>
+
+    <h3>부하는 어디에 걸리나 — 스케줄러 vs 폴링 쿼리</h3>
+    <p>"outbox 조회 + 스케줄링이 각각 부하가 되지 않을까"는 두 축으로 갈라 보면 실체가 다르다. 스케줄러 쪽은 사실상 0이고, DB 쪽은 산수로 무시 수준 — 진짜 위험은 아래 설계 실수 3가지다.</p>
+
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">앱</span> 스케줄러 부하 — 사실상 0</h4><p><span class="term">@Scheduled</span>는 스케줄러 스레드가 다음 실행 시각까지 잠들어 있다 깨어나는 구조라 트리거 오버헤드는 마이크로초 수준. <span class="term">fixedDelay</span>는 <em>이전 실행 완료 시점</em>부터 딜레이를 재므로 중첩 실행이 없다.<a href="#r11" class="cite">[11]</a> Tomcat 요청 스레드풀과도 별개 — 접점은 커넥션 풀 공유(초당 수 ms 점유)뿐. 단 기본 스케줄러는 <strong>스레드 1개</strong><a href="#r11" class="cite">[11]</a>: relay가 오래 걸리면 다른 스케줄 태스크가 밀린다(부하가 아니라 경합 문제). 스케줄 태스크가 늘면 relay 전용 TaskScheduler를 분리한다 — 지금은 relay 하나뿐이라 불필요.</p></div>
+      <div class="col o"><h4><span class="mk">DB</span> 폴링 쿼리 부하 — 무시 수준</h4><p><span class="term">fixedDelay 1초</span> + <span class="term">(status, id) 인덱스</span> + <span class="term">LIMIT 100</span> = 인스턴스당 <strong>~1 QPS의 인덱스드 SELECT</strong> — MySQL 처리 능력 대비 소수점 이하 점유. outbox가 비어 있는 대부분의 시간엔 인덱스에서 0건 반환으로 끝나 비용 ≈ 0.</p></div>
+    </div>
+
+    <div class="note"><span class="tag">부하 팩트체크 (2026-07 서치)</span>폴링 부하의 <strong>정량 벤치마크는 공식 문서·빅테크 블로그 어디에도 공개된 것이 없다.</strong> 패턴 원전도 부하를 정성적으로만 기술하고<a href="#r9" class="cite">[9]</a>, Debezium 창시자 Gunnar Morling도 "폴링 시도마다 DB에 부하 스파이크를 만들 수 있고, 저지연과 과도한 폴링 사이에 본질적 긴장이 있다"고 쓰면서 outbox 테이블 오버헤드에 대해서는 <strong>"실증적으로 입증된 문제라기보다 이론적 우려"</strong>라고 평가한다.<a href="#r10" class="cite">[10]</a></div>
+
+    <div class="note key"><span class="tag">실제 위험 3가지 + 자체 검증</span>부하가 진짜 생기는 경로는 ① status 인덱스 없는 풀스캔(매초 반복) ② SENT 행 방치로 테이블 비대 → 폴링 쿼리 점진 저하 ③ 다중 인스턴스 × 과도하게 짧은 주기 — 셋뿐이고 전부 설계로 회피 가능. 공개된 정량 자료가 없으므로 Round 7 load-test에서 <strong>릴레이 on/off로 DB CPU·API p99를 직접 측정</strong>해 기록하면 그 자체가 근거 자료가 된다.</div>
   </section>
 
   <!-- ===================== 5 ===================== -->
@@ -590,6 +602,9 @@ executor.<span class="fn">setAwaitTerminationSeconds</span>(<span class="ty">10<
     <a class="ref primary" id="r6" href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html" target="_blank" rel="noopener"><span class="n">6</span><span class="b"><b>Debezium — Outbox Event Router</b> — CDC 릴레이를 SMT 설정으로 네이티브 지원.<span class="src">https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html</span><span class="pr p1">1차 출처</span></span></a>
     <a class="ref" id="r7" href="https://techblog.woowahan.com/17386/" target="_blank" rel="noopener"><span class="n">7</span><span class="b"><b>우아한형제들 — 우리 팀은 카프카를 어떻게 사용하고 있을까</b> (김나은, 2024) — Debezium CDC 기반 outbox 실제 운영, outbox 테이블·커넥터 분리.<span class="src">https://techblog.woowahan.com/17386/</span><span class="pr bt">빅테크 공식</span></span></a>
     <a class="ref" id="r8" href="https://medium.com/@greg.shiny82/%ED%8A%B8%EB%9E%9C%EC%9E%AD%EC%85%94%EB%84%90-%EC%95%84%EC%9B%83%EB%B0%95%EC%8A%A4-%ED%8C%A8%ED%84%B4%EC%9D%98-%EC%8B%A4%EC%A0%9C-%EA%B5%AC%ED%98%84-%EC%82%AC%EB%A1%80-29cm-0f822fc23edb" target="_blank" rel="noopener"><span class="n">8</span><span class="b"><b>Greg Lee — 트랜잭셔널 아웃박스 패턴의 실제 구현 사례 (29CM)</b> — Spring 이벤트 + 폴링 릴레이 실무 사례. <em>개인 Medium 글로, 공식 인용이 아닌 참고용.</em><span class="src">https://medium.com/@greg.shiny82/트랜잭셔널-아웃박스-패턴의-실제-구현-사례-29cm</span><span class="pr et">참고용 · 개인 Medium</span></span></a>
+    <a class="ref primary" id="r9" href="https://microservices.io/patterns/data/polling-publisher.html" target="_blank" rel="noopener"><span class="n">9</span><span class="b"><b>microservices.io — Polling publisher</b> — 폴링 릴레이 패턴 원전. DB 부하·순서 보장 이슈를 정성적으로만 기술(정량 수치 없음).<span class="src">https://microservices.io/patterns/data/polling-publisher.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref" id="r10" href="https://www.morling.dev/blog/revisiting-the-outbox-pattern/" target="_blank" rel="noopener"><span class="n">10</span><span class="b"><b>Gunnar Morling — Revisiting the Outbox Pattern</b> (2024) — 폴링의 부하 스파이크·저지연 vs 폴링 빈도 트레이드오프, outbox 오버헤드는 "이론적 우려" 평가. <em>Debezium 창시자의 개인 블로그로, 공식 인용이 아닌 참고용.</em><span class="src">https://www.morling.dev/blog/revisiting-the-outbox-pattern/</span><span class="pr et">참고용 · 개인 블로그</span></span></a>
+    <a class="ref primary" id="r11" href="https://docs.spring.io/spring-framework/reference/integration/scheduling.html" target="_blank" rel="noopener"><span class="n">11</span><span class="b"><b>Spring Framework Reference — Task Execution and Scheduling</b> — 기본 스케줄러 스레드 1개, fixedDelay(이전 실행 완료 기준·중첩 없음) vs fixedRate 의미.<span class="src">https://docs.spring.io/spring-framework/reference/integration/scheduling.html</span><span class="pr p1">1차 출처</span></span></a>
   </section>
 
   </main>
@@ -597,7 +612,7 @@ executor.<span class="fn">setAwaitTerminationSeconds</span>(<span class="ty">10<
   <footer>
     <span class="gl">⁂</span>
     Transactional Outbox — 이벤트 발행 보장 패턴 · Round 7 학습 정리<br>
-    출처: Spring 공식 · AWS · microservices.io · Debezium · 우아한형제들 (URL 실제 확인) · 29CM 사례는 참고용
+    출처: Spring 공식 · AWS · microservices.io · Debezium · 우아한형제들 (URL 실제 확인) · 29CM 사례·Morling 글은 참고용
   </footer>
 
 </div>

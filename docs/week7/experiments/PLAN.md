@@ -89,7 +89,7 @@
 
 - 공통 최종 방어: `uk_user_coupon` unique (userId 중복)
 
-- [ ] 변형 A 구현 + 정합성 green + S1/S2 측정
+- [x] 변형 A 구현 + 정합성 green + S1/S2 측정 — `EXP-01-db-only-pessimistic.md`. 천장 ~250 req/s, 정합성 완벽(과발급·중복 0), 병목 = 단일 행 락 직렬화 + 커넥션 점유(CPU 아님: api 0.79 / mysql 0.27 코어). 스파이크 → 500 1.38%(Hikari 3s 타임아웃), 점증 → p95 3.35s·500 0%
 - [ ] 변형 B 구현 + 정합성 green + S1/S2 측정
 - [ ] 변형 C 구현 + 정합성 green + S1/S2 측정
 - [ ] 변형별 EXP 기록 작성

@@ -1,6 +1,7 @@
 package com.loopers.application.outbox
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.loopers.domain.coupon.CouponIssueRequestedEvent
 import com.loopers.domain.like.LikeCreatedEvent
 import com.loopers.domain.like.LikeDeletedEvent
 import com.loopers.domain.outbox.KafkaTopics
@@ -20,6 +21,7 @@ class OutboxMessageFactory(
             is LikeCreatedEvent -> catalog("LIKE_ADDED", event.productId)
             is LikeDeletedEvent -> catalog("LIKE_REMOVED", event.productId)
             is PaymentSucceededEvent -> order(event)
+            is CouponIssueRequestedEvent -> couponIssueRequested(event)
             else -> null
         }
 
@@ -49,5 +51,20 @@ class OutboxMessageFactory(
             ),
         )
         return OutboxDraft(eventId, KafkaTopics.ORDER_EVENTS, event.orderId.toString(), payload)
+    }
+
+    private fun couponIssueRequested(event: CouponIssueRequestedEvent): OutboxDraft {
+        val eventId = UUID.randomUUID().toString()
+        val payload = objectMapper.writeValueAsString(
+            linkedMapOf(
+                "eventId" to eventId,
+                "type" to "COUPON_ISSUE_REQUESTED",
+                "requestId" to event.requestId,
+                "userId" to event.userId,
+                "couponId" to event.couponId,
+                "occurredAt" to ZonedDateTime.now().toString(),
+            ),
+        )
+        return OutboxDraft(eventId, KafkaTopics.COUPON_ISSUE_REQUESTS, event.couponId.toString(), payload)
     }
 }

@@ -34,4 +34,15 @@ class CouponV1Dto {
             }
         }
     }
+
+    data class IssueRequestResponse(
+        val requestId: String,
+        val status: String,
+    )
+
+    data class IssueResultResponse(
+        val requestId: String,
+        val status: String,
+        val reason: String?,
+    )
 }

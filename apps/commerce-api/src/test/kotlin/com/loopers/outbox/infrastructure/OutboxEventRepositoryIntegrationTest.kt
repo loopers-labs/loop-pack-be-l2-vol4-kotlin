@@ -29,17 +29,18 @@ class OutboxEventRepositoryIntegrationTest @Autowired constructor(
     private fun saveEvent(aggregateId: Long): OutboxEvent =
         outboxEventRepository.save(OutboxEvent("ORDER", aggregateId, "OrderCreatedEvent", """{"eventId":"e-$aggregateId"}"""))
 
-    @DisplayName("findPending 은 INIT 상태만 id 오름차순으로 limit 개까지 반환한다.")
+    @DisplayName("findByStatus 는 해당 상태만 id 오름차순으로 limit 개까지 반환한다.")
     @Test
-    fun findsOnlyInitInIdOrderUpToLimit() {
+    fun findsOnlyGivenStatusInIdOrderUpToLimit() {
         val first = saveEvent(10L)
         val second = saveEvent(20L)
         val third = saveEvent(30L)
         outboxEventRepository.markSent(listOf(second.id))
 
         assertAll(
-            { assertThat(outboxEventRepository.findPending(10).map { it.id }).containsExactly(first.id, third.id) },
-            { assertThat(outboxEventRepository.findPending(1).map { it.id }).containsExactly(first.id) },
+            { assertThat(outboxEventRepository.findByStatus(OutboxStatus.INIT, 10).map { it.id }).containsExactly(first.id, third.id) },
+            { assertThat(outboxEventRepository.findByStatus(OutboxStatus.INIT, 1).map { it.id }).containsExactly(first.id) },
+            { assertThat(outboxEventRepository.findByStatus(OutboxStatus.SENT, 10).map { it.id }).containsExactly(second.id) },
         )
     }
 

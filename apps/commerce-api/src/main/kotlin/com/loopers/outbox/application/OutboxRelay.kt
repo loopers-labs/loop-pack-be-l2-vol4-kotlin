@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.outbox.domain.EventMessagePublisher
 import com.loopers.outbox.domain.EventTopics
 import com.loopers.outbox.domain.OutboxEventRepository
+import com.loopers.outbox.domain.OutboxStatus
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
@@ -21,7 +23,7 @@ class OutboxRelay(
 
     @Scheduled(fixedDelayString = "\${outbox.relay.fixed-delay:1000}")
     fun relay() {
-        val pending = outboxEventRepository.findPending(limit = 100)
+        val pending = outboxEventRepository.findByStatus(OutboxStatus.INIT, limit = 100)
         if (pending.isEmpty()) {
             return
         }
@@ -34,6 +36,9 @@ class OutboxRelay(
                     message = objectMapper.readTree(event.payload),
                 )
                 sentIds += event.id
+            } catch (e: CallNotPermittedException) {
+                logger.debug("카프카 서킷 OPEN — 발행 보류, 다음 폴링에서 재시도 (id={})", event.id)
+                break
             } catch (e: Exception) {
                 logger.warn(
                     "outbox 발행 실패 — 중단 후 재시도 대기 (id={}, eventType={}): {}",

@@ -5,9 +5,13 @@ import com.loopers.domain.BaseEntity
 import com.loopers.outbox.domain.EventMessagePublisher
 import com.loopers.outbox.domain.OutboxEvent
 import com.loopers.outbox.domain.OutboxEventRepository
+import com.loopers.outbox.domain.OutboxStatus
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException
+import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
@@ -30,12 +34,20 @@ class OutboxRelayTest {
         return event
     }
 
+    private fun givenPending(vararg events: OutboxEvent) {
+        whenever(outboxEventRepository.findByStatus(eq(OutboxStatus.INIT), any())).thenReturn(events.toList())
+    }
+
+    private fun callNotPermitted(): CallNotPermittedException {
+        val circuitBreaker = CircuitBreaker.ofDefaults("test-kafka-relay")
+        circuitBreaker.transitionToOpenState()
+        return CallNotPermittedException.createCallNotPermittedException(circuitBreaker)
+    }
+
     @DisplayName("INIT 이벤트를 id 순으로 발행하고, 성공분 전체를 SENT 마킹한다.")
     @Test
     fun publishesInIdOrderAndMarksAllSent() {
-        whenever(outboxEventRepository.findPending(any())).thenReturn(
-            listOf(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "PRODUCT", 20L)),
-        )
+        givenPending(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "PRODUCT", 20L))
 
         outboxRelay.relay()
 
@@ -48,7 +60,7 @@ class OutboxRelayTest {
     @DisplayName("ORDER aggregate 는 order-events 토픽에 key=aggregateId, payload JsonNode 로 발행한다.")
     @Test
     fun publishesOrderEventToOrderEventsTopic() {
-        whenever(outboxEventRepository.findPending(any())).thenReturn(listOf(outboxEvent(1L, "ORDER", 10L)))
+        givenPending(outboxEvent(1L, "ORDER", 10L))
 
         outboxRelay.relay()
 
@@ -58,7 +70,7 @@ class OutboxRelayTest {
     @DisplayName("PRODUCT aggregate 는 catalog-events 토픽에 key=aggregateId 로 발행한다.")
     @Test
     fun publishesProductEventToCatalogEventsTopic() {
-        whenever(outboxEventRepository.findPending(any())).thenReturn(listOf(outboxEvent(1L, "PRODUCT", 20L)))
+        givenPending(outboxEvent(1L, "PRODUCT", 20L))
 
         outboxRelay.relay()
 
@@ -68,9 +80,7 @@ class OutboxRelayTest {
     @DisplayName("발행이 실패하면 그 지점에서 중단하고, 성공분까지만 SENT 마킹한다 — 실패분 이후는 발행하지 않는다.")
     @Test
     fun marksOnlySucceededAsSent_whenPublishFailsMidway() {
-        whenever(outboxEventRepository.findPending(any())).thenReturn(
-            listOf(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "ORDER", 20L), outboxEvent(3L, "ORDER", 30L)),
-        )
+        givenPending(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "ORDER", 20L), outboxEvent(3L, "ORDER", 30L))
         doThrow(RuntimeException("broker down")).whenever(eventMessagePublisher).publish(any(), eq("20"), any())
 
         outboxRelay.relay()
@@ -85,7 +95,7 @@ class OutboxRelayTest {
     @DisplayName("대기 이벤트가 없으면 발행도 마킹도 하지 않는다.")
     @Test
     fun doesNothing_whenNoPendingEvents() {
-        whenever(outboxEventRepository.findPending(any())).thenReturn(emptyList())
+        givenPending()
 
         outboxRelay.relay()
 
@@ -93,5 +103,27 @@ class OutboxRelayTest {
             { verifyNoInteractions(eventMessagePublisher) },
             { verify(outboxEventRepository, never()).markSent(any()) },
         )
+    }
+
+    @DisplayName("서킷이 OPEN 이면(CallNotPermittedException) 그 폴링을 조용히 중단하고, markSent 도 예외 전파도 하지 않는다.")
+    @Test
+    fun stopsQuietly_whenCircuitOpen() {
+        givenPending(outboxEvent(1L, "ORDER", 10L))
+        doThrow(callNotPermitted()).whenever(eventMessagePublisher).publish(any(), any(), any())
+
+        assertDoesNotThrow { outboxRelay.relay() }
+
+        verify(outboxEventRepository, never()).markSent(any())
+    }
+
+    @DisplayName("서킷이 OPEN 이면 첫 이벤트에서 중단하고, 이후 이벤트에는 발행을 시도하지 않는다.")
+    @Test
+    fun doesNotAttemptRest_whenCircuitOpen() {
+        givenPending(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "ORDER", 20L))
+        doThrow(callNotPermitted()).whenever(eventMessagePublisher).publish(any(), eq("10"), any())
+
+        outboxRelay.relay()
+
+        verify(eventMessagePublisher, never()).publish(any(), eq("20"), any())
     }
 }

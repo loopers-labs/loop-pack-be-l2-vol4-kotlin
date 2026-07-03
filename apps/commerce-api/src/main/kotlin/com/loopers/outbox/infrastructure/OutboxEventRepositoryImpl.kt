@@ -15,8 +15,8 @@ class OutboxEventRepositoryImpl(
     override fun save(outboxEvent: OutboxEvent): OutboxEvent =
         outboxEventJpaRepository.save(outboxEvent)
 
-    override fun findPending(limit: Int): List<OutboxEvent> =
-        outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.INIT, PageRequest.of(0, limit))
+    override fun findByStatus(status: OutboxStatus, limit: Int): List<OutboxEvent> =
+        outboxEventJpaRepository.findByStatusOrderByIdAsc(status, PageRequest.of(0, limit))
 
     @Transactional
     override fun markSent(ids: List<Long>): Int =

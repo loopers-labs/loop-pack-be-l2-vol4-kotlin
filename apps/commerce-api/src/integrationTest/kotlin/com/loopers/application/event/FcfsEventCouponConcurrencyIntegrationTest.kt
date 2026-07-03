@@ -7,14 +7,24 @@ import com.loopers.infrastructure.coupon.CouponPublishOutboxJpaRepository
 import com.loopers.infrastructure.coupon.EventCouponJpaRepository
 import com.loopers.infrastructure.event.EventJpaRepository
 import com.loopers.utils.DatabaseCleanUp
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.TopicPartition
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.time.LocalDateTime
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -27,6 +37,15 @@ class FcfsEventCouponConcurrencyIntegrationTest @Autowired constructor(
     private val outboxJpaRepository: CouponPublishOutboxJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
+    @MockitoBean
+    lateinit var kafkaTemplate: KafkaTemplate<Any, Any>
+
+    @BeforeEach
+    fun setUpKafkaTemplate() {
+        whenever(kafkaTemplate.send(any<String>(), any(), any()))
+            .thenReturn(CompletableFuture.completedFuture(stubSendResult()))
+    }
+
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
@@ -105,4 +124,10 @@ class FcfsEventCouponConcurrencyIntegrationTest @Autowired constructor(
 
         assertThat(failures).isEmpty()
     }
+
+    private fun stubSendResult(): SendResult<Any, Any> =
+        SendResult(
+            ProducerRecord("test-topic", "test-key", "test-value"),
+            RecordMetadata(TopicPartition("test-topic", 0), 0, 0, 0, 0, 0),
+        )
 }

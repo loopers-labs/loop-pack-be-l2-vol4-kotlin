@@ -50,13 +50,25 @@ class FcfsEventCouponApplicationService(
         val event = getEvent(eventCoupon.eventId)
 
         if (!event.isActive(now)) {
-            return EventCouponInfo.Request.terminal(couponId = eventCoupon.id, eventId = event.id, status = EventCouponStatus.EVENT_ENDED)
+            return EventCouponInfo.Request.terminal(
+                couponId = eventCoupon.id,
+                eventId = event.id,
+                status = EventCouponStatus.EVENT_ENDED,
+            )
         }
         if (hasSuccessfulRequest(userId = userId, couponId = eventCoupon.id)) {
-            return EventCouponInfo.Request.terminal(couponId = eventCoupon.id, eventId = event.id, status = EventCouponStatus.ALREADY_REGISTERED)
+            return EventCouponInfo.Request.terminal(
+                couponId = eventCoupon.id,
+                eventId = event.id,
+                status = EventCouponStatus.ALREADY_REGISTERED,
+            )
         }
         if (!eventCouponRepository.reserveOneIfAvailable(eventCoupon.id)) {
-            return EventCouponInfo.Request.terminal(couponId = eventCoupon.id, eventId = event.id, status = EventCouponStatus.EVENT_ENDED)
+            return EventCouponInfo.Request.terminal(
+                couponId = eventCoupon.id,
+                eventId = event.id,
+                status = EventCouponStatus.EVENT_ENDED,
+            )
         }
 
         val idempotencyKey = uuidV7Generator.generate().toString()
@@ -89,7 +101,12 @@ class FcfsEventCouponApplicationService(
         outboxRepository.markPublished(outboxId = event.outboxId, publishedAt = ZonedDateTime.now())
     }
 
-    private fun resolveDisplayStatus(userId: Long, eventCoupon: EventCoupon, event: Event, now: LocalDateTime): EventCouponStatus =
+    private fun resolveDisplayStatus(
+        userId: Long,
+        eventCoupon: EventCoupon,
+        event: Event,
+        now: LocalDateTime,
+    ): EventCouponStatus =
         when {
             hasSuccessfulRequest(userId = userId, couponId = eventCoupon.id) -> EventCouponStatus.ALREADY_REGISTERED
             !event.isActive(now) || eventCoupon.isExhausted() -> EventCouponStatus.EVENT_ENDED

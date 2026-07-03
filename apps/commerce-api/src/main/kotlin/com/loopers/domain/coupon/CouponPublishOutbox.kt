@@ -17,7 +17,10 @@ import java.time.ZonedDateTime
     name = "coupon_publish_outboxes",
     uniqueConstraints = [
         UniqueConstraint(name = "uk_coupon_publish_outboxes_idempotency_key", columnNames = ["idempotency_key"]),
-        UniqueConstraint(name = "uk_coupon_publish_outboxes_event_coupon_user", columnNames = ["event_type", "coupon_id", "user_id"]),
+        UniqueConstraint(
+            name = "uk_coupon_publish_outboxes_event_coupon_user",
+            columnNames = ["event_type", "coupon_id", "user_id"],
+        ),
     ],
 )
 class CouponPublishOutbox(

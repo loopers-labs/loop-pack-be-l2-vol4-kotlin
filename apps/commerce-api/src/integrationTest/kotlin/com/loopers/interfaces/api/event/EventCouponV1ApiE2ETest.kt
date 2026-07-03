@@ -14,10 +14,16 @@ import com.loopers.infrastructure.event.EventJpaRepository
 import com.loopers.infrastructure.user.UserJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.TopicPartition
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
@@ -26,8 +32,12 @@ import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.concurrent.CompletableFuture
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["spring.kafka.listener.auto-startup=false"])
 class EventCouponV1ApiE2ETest @Autowired constructor(
@@ -39,6 +49,15 @@ class EventCouponV1ApiE2ETest @Autowired constructor(
     private val outboxJpaRepository: CouponPublishOutboxJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
+    @MockitoBean
+    lateinit var kafkaTemplate: KafkaTemplate<Any, Any>
+
+    @BeforeEach
+    fun setUpKafkaTemplate() {
+        whenever(kafkaTemplate.send(any<String>(), any(), any()))
+            .thenReturn(CompletableFuture.completedFuture(stubSendResult()))
+    }
+
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
@@ -165,4 +184,10 @@ class EventCouponV1ApiE2ETest @Autowired constructor(
         add("X-Loopers-LoginId", "loopers01")
         add("X-Loopers-LoginPw", "abcd1234")
     }
+
+    private fun stubSendResult(): SendResult<Any, Any> =
+        SendResult(
+            ProducerRecord("test-topic", "test-key", "test-value"),
+            RecordMetadata(TopicPartition("test-topic", 0), 0, 0, 0, 0, 0),
+        )
 }

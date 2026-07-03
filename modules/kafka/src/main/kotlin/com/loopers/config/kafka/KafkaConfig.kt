@@ -79,6 +79,7 @@ class KafkaConfig {
             containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
             setBatchMessageConverter(BatchMessagingMessageConverter(converter))
             setConcurrency(3)
+            setAutoStartup(kafkaProperties.listener.isAutoStartup)
             isBatchListener = true
         }
     }

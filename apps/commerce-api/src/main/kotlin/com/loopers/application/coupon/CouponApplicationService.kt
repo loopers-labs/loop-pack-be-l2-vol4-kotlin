@@ -2,6 +2,7 @@ package com.loopers.application.coupon
 
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponCommand
+import com.loopers.domain.coupon.CouponIssueType
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.IssuedCoupon
 import com.loopers.domain.coupon.IssuedCouponRepository
@@ -62,6 +63,9 @@ class CouponApplicationService(
     @Transactional
     fun issue(userId: Long, couponId: Long, now: LocalDateTime = LocalDateTime.now()): CouponInfo.Issued {
         val coupon = getCoupon(couponId)
+        if (coupon.getIssueType() != CouponIssueType.YEAR_ROUND) {
+            throw CoreException(ErrorType.CONFLICT, "이벤트 쿠폰은 일반 발급 API로 발급할 수 없습니다.")
+        }
         if (coupon.isExpired(now)) {
             throw CoreException(ErrorType.CONFLICT, "만료된 쿠폰은 발급할 수 없습니다.")
         }

@@ -2,8 +2,12 @@ package com.loopers.application.coupon
 
 import com.loopers.domain.coupon.CouponCommand
 import com.loopers.domain.coupon.CouponType
+import com.loopers.domain.coupon.EventCoupon
 import com.loopers.domain.coupon.IssuedCouponStatus
+import com.loopers.domain.event.Event
+import com.loopers.infrastructure.coupon.EventCouponJpaRepository
 import com.loopers.infrastructure.coupon.IssuedCouponJpaRepository
+import com.loopers.infrastructure.event.EventJpaRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.utils.DatabaseCleanUp
@@ -20,6 +24,8 @@ import java.time.LocalDateTime
 class CouponApplicationServiceIntegrationTest @Autowired constructor(
     private val couponApplicationService: CouponApplicationService,
     private val issuedCouponJpaRepository: IssuedCouponJpaRepository,
+    private val eventJpaRepository: EventJpaRepository,
+    private val eventCouponJpaRepository: EventCouponJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     private val future = LocalDateTime.of(2026, 12, 31, 23, 59, 59)
@@ -94,6 +100,34 @@ class CouponApplicationServiceIntegrationTest @Autowired constructor(
 
         val ex = assertThrows<CoreException> {
             couponApplicationService.issue(userId = 1L, couponId = coupon.couponId)
+        }
+
+        assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)
+    }
+
+    @Test
+    fun issueRejectsFirstComeFirstServedCoupon() {
+        val event = eventJpaRepository.save(
+            Event(
+                name = "Summer coupon event",
+                startsAt = LocalDateTime.of(2026, 7, 3, 10, 0),
+                endsAt = LocalDateTime.of(2026, 7, 3, 18, 0),
+            ),
+        )
+        val coupon = eventCouponJpaRepository.save(
+            EventCoupon(
+                name = "선착순 쿠폰",
+                type = CouponType.FIXED,
+                value = 1000,
+                minOrderAmount = null,
+                expiredAt = future,
+                eventId = event.id,
+                totalQuantity = 10,
+            ),
+        )
+
+        val ex = assertThrows<CoreException> {
+            couponApplicationService.issue(userId = 1L, couponId = coupon.id)
         }
 
         assertThat(ex.errorType).isEqualTo(ErrorType.CONFLICT)

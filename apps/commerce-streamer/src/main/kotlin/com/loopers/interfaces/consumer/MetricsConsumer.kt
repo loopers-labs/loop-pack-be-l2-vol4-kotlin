@@ -25,13 +25,24 @@ class MetricsConsumer(
         acknowledgment: Acknowledgment,
     ) {
         records.forEach { record ->
-            val json = String(record.value(), Charsets.UTF_8)
-            val command = mapper.toCommand(json)
-            if (command == null) {
-                log.warn("Unknown metric event skipped. topic={} payload={}", record.topic(), json)
-                return@forEach
+            runCatching {
+                val json = String(record.value(), Charsets.UTF_8)
+                val command = mapper.toCommand(json)
+                if (command != null) {
+                    service.applyOnce(command.eventId, command.deltas)
+                } else {
+                    log.warn("Unknown metric event skipped. topic={} payload={}", record.topic(), json)
+                }
+            }.onFailure {
+                log.error(
+                    "Failed to process metric record, skipping. topic={} partition={} offset={} payload={}",
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    String(record.value(), Charsets.UTF_8),
+                    it,
+                )
             }
-            service.applyOnce(command.eventId, command.deltas)
         }
         acknowledgment.acknowledge()
     }

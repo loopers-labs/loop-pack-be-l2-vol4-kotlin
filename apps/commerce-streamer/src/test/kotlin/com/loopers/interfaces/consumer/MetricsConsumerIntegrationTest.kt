@@ -46,6 +46,15 @@ class MetricsConsumerIntegrationTest {
         assertThat(metricRepository.findByProductId(20L)?.likeCount).isEqualTo(1L)
     }
 
+    @DisplayName("잘못된 형식의 레코드가 있어도 같은 배치의 정상 레코드는 처리된다(레코드 단위 격리).")
+    @Test
+    fun isolatesMalformedRecordFromValidRecordInSameBatch() {
+        publish("catalog-events", "30", "not-json")
+        publish("catalog-events", "31", """{"eventId":"c3","type":"LIKE_ADDED","productId":31}""")
+        val metric = awaitMetric(31L)
+        assertThat(metric?.likeCount).isEqualTo(1L)
+    }
+
     private fun awaitMetric(productId: Long) = run {
         var m = metricRepository.findByProductId(productId)
         var tries = 0

@@ -2,7 +2,6 @@ package com.loopers.coupon.domain
 
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
-import com.loopers.support.error.ConflictException
 import java.time.LocalDateTime
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
@@ -86,54 +85,38 @@ class CouponTest {
         }.doesNotThrowAnyException()
     }
 
-    @DisplayName("발급 수량이 설정되지 않은 쿠폰을 발급하면 BAD_REQUEST(NOT_ISSUABLE) 예외가 발생한다.")
+    @DisplayName("발급 수량이 설정되지 않은 쿠폰은 발급 검증에서 BAD_REQUEST(NOT_ISSUABLE) 예외가 발생한다.")
     @Test
-    fun throwsBadRequest_whenIssuingCouponWithoutTotalQuantity() {
+    fun throwsBadRequest_whenValidatingIssuableWithoutTotalQuantity() {
         val coupon = coupon(totalQuantity = null)
 
         val result = assertThrows<BadRequestException> {
-            coupon.issue(NOW)
+            coupon.validateIssuable(NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.NOT_ISSUABLE)
     }
 
-    @DisplayName("만료된 쿠폰을 발급하면 수량이 남아 있어도 BAD_REQUEST(EXPIRED) 예외가 발생한다.")
+    @DisplayName("만료된 쿠폰은 발급 검증에서 BAD_REQUEST(EXPIRED) 예외가 발생한다.")
     @Test
-    fun throwsBadRequest_whenIssuingExpiredCoupon() {
+    fun throwsBadRequest_whenValidatingIssuableExpiredCoupon() {
         val coupon = coupon(totalQuantity = 10, expiredAt = NOW.minusDays(1))
 
         val result = assertThrows<BadRequestException> {
-            coupon.issue(NOW)
+            coupon.validateIssuable(NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.EXPIRED)
     }
 
-    @DisplayName("발급하면 발급 수량이 1 증가하고, 한도에 도달하면 매진 상태가 된다.")
+    @DisplayName("발급 수량이 설정되고 만료되지 않았으면 발급 검증을 통과한다.")
     @Test
-    fun increasesIssuedQuantity_andReachesSoldOutAtLimit() {
-        val coupon = coupon(totalQuantity = 2)
+    fun passesIssuableValidation_whenTotalQuantitySetAndNotExpired() {
+        val coupon = coupon(totalQuantity = 10, expiredAt = NOW.plusDays(1))
 
-        coupon.issue(NOW)
-        coupon.issue(NOW)
-
-        assertThat(coupon.issuedQuantity).isEqualTo(2)
-        assertThat(coupon.isSoldOut()).isTrue()
-    }
-
-    @DisplayName("매진된 쿠폰을 발급하면 CONFLICT(SOLD_OUT) 예외가 발생하고 발급 수량은 변하지 않는다.")
-    @Test
-    fun throwsConflict_whenIssuingSoldOutCoupon() {
-        val coupon = coupon(totalQuantity = 1)
-        coupon.issue(NOW)
-
-        val result = assertThrows<ConflictException> {
-            coupon.issue(NOW)
-        }
-
-        assertThat(result.errorCode).isEqualTo(CouponErrorCode.SOLD_OUT)
-        assertThat(coupon.issuedQuantity).isEqualTo(1)
+        assertThatCode {
+            coupon.validateIssuable(NOW)
+        }.doesNotThrowAnyException()
     }
 
     private fun coupon(

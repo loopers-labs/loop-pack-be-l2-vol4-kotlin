@@ -169,7 +169,7 @@ class CouponServiceTest {
     @DisplayName("존재하지 않는 쿠폰을 발급 요청하면 NOT_FOUND 예외가 발생하고 저장하지 않는다.")
     @Test
     fun throwsNotFound_whenCouponDoesNotExistForIssue() {
-        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(null)
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(null)
 
         val result = assertThrows<NotFoundException> {
             service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
@@ -181,10 +181,10 @@ class CouponServiceTest {
         )
     }
 
-    @DisplayName("이미 발급받은 사용자가 다시 발급 요청하면 CONFLICT(ALREADY_ISSUED) 예외가 발생하고 저장하지 않는다.")
+    @DisplayName("이미 발급받은 사용자가 다시 발급 요청하면 CONFLICT(ALREADY_ISSUED) 예외가 발생하고 수량을 증가시키지 않는다.")
     @Test
     fun throwsConflict_whenUserAlreadyIssued() {
-        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(coupon(totalQuantity = 100))
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(totalQuantity = 100))
         whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(true)
 
         val result = assertThrows<ConflictException> {
@@ -193,16 +193,35 @@ class CouponServiceTest {
 
         assertAll(
             { assertThat(result.errorCode).isEqualTo(CouponErrorCode.ALREADY_ISSUED) },
+            { verify(couponRepository, never()).incrementIssuedQuantityIfAvailable(any()) },
             { verify(userCouponRepository, never()).save(any()) },
         )
     }
 
-    @DisplayName("유효한 발급 요청이면 락 조회 후 FIRST_COME 발급 UserCoupon을 저장하고 발급 정보를 돌려준다.")
+    @DisplayName("조건부 수량 증가가 0건이면 CONFLICT(SOLD_OUT) 예외가 발생하고 저장하지 않는다.")
+    @Test
+    fun throwsConflict_whenConditionalIncrementAffectsNoRow() {
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon(totalQuantity = 100))
+        whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(false)
+        whenever(couponRepository.incrementIssuedQuantityIfAvailable(COUPON_ID)).thenReturn(0)
+
+        val result = assertThrows<ConflictException> {
+            service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
+        }
+
+        assertAll(
+            { assertThat(result.errorCode).isEqualTo(CouponErrorCode.SOLD_OUT) },
+            { verify(userCouponRepository, never()).save(any()) },
+        )
+    }
+
+    @DisplayName("유효한 발급 요청이면 조건부 수량 증가 후 FIRST_COME 발급 UserCoupon을 저장하고 발급 정보를 돌려준다.")
     @Test
     fun savesFirstComeUserCoupon_whenIssueRequestIsValid() {
         val coupon = coupon(totalQuantity = 100)
-        whenever(couponRepository.findByIdForUpdate(COUPON_ID)).thenReturn(coupon)
+        whenever(couponRepository.findById(COUPON_ID)).thenReturn(coupon)
         whenever(userCouponRepository.existsByUserIdAndCouponId(USER_ID, COUPON_ID)).thenReturn(false)
+        whenever(couponRepository.incrementIssuedQuantityIfAvailable(COUPON_ID)).thenReturn(1)
         whenever(userCouponRepository.save(any())).thenAnswer { it.arguments[0] as UserCoupon }
 
         val info = service.issue(CouponIssueCommand(COUPON_ID, USER_ID))
@@ -215,7 +234,6 @@ class CouponServiceTest {
             { assertThat(saved.grantedType).isEqualTo(UserCouponGrantedType.FIRST_COME) },
             { assertThat(saved.grantedBy).isEqualTo(UserCoupon.SYSTEM_GRANTED) },
             { assertThat(saved.status).isEqualTo(UserCouponStatus.AVAILABLE) },
-            { assertThat(coupon.issuedQuantity).isEqualTo(1) },
             { assertThat(info.couponName).isEqualTo(coupon.name) },
             { assertThat(info.expiredAt).isEqualTo(coupon.expiredAt) },
         )

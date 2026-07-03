@@ -44,11 +44,14 @@ class CouponService(
 
     @Transactional
     fun issue(couponIssueCommand: CouponIssueCommand): CouponIssueInfo {
-        val coupon = couponRepository.findByIdForUpdate(couponIssueCommand.couponId)
+        val coupon = couponRepository.findById(couponIssueCommand.couponId)
             ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
-        coupon.issue(LocalDateTime.now())
+        coupon.validateIssuable(LocalDateTime.now())
         if (userCouponRepository.existsByUserIdAndCouponId(couponIssueCommand.userId, couponIssueCommand.couponId)) {
             throw ConflictException(CouponErrorCode.ALREADY_ISSUED)
+        }
+        if (couponRepository.incrementIssuedQuantityIfAvailable(couponIssueCommand.couponId) == 0) {
+            throw ConflictException(CouponErrorCode.SOLD_OUT)
         }
 
         val userCoupon = userCouponRepository.save(

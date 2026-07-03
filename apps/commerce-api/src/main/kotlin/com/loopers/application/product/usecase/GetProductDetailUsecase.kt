@@ -6,9 +6,11 @@ import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.ProductCatalogDomainService
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductStockRepository
+import com.loopers.domain.product.ProductViewedEvent
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,12 +20,14 @@ class GetProductDetailUsecase(
     private val brandRepository: BrandRepository,
     private val productStockRepository: ProductStockRepository,
     private val productCacheRepository: ProductCacheRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(GetProductDetailUsecase::class.java)
     private val productCatalogDomainService = ProductCatalogDomainService()
 
     @Transactional(readOnly = true)
     fun execute(productId: Long): ProductInfo {
+        eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
         runCatching { productCacheRepository.getDetail(productId) }
             .onFailure { log.warn("Failed to get product detail cache. productId={}", productId, it) }
             .getOrNull()

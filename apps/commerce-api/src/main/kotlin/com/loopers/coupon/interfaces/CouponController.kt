@@ -67,7 +67,6 @@ data class CouponCreateRequest(
     val couponType: CouponType,
     val value: Long,
     val minOrderAmount: Long,
-    // 선착순 발급 한도. 생략(null) 시 관리자 지급 전용 쿠폰
     val totalQuantity: Long? = null,
 ) {
     fun toCommand(requestAccountId: Long): CouponCreateCommand = CouponCreateCommand(

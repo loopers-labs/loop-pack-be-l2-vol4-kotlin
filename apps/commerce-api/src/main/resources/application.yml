@@ -21,8 +21,13 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
+
+event-coupon:
+  kafka:
+    topic-name: commerce.coupon-publish-requested.v1
 
 springdoc:
   use-fqn: true
@@ -50,6 +55,9 @@ spring:
   config:
     activate:
       on-profile: local, test
+  kafka:
+    listener:
+      auto-startup: false
 
 ---
 spring:

@@ -25,7 +25,7 @@ class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
 
-        private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
+        private const val MAX_POLLING_SIZE = 100
         private const val FETCH_MIN_BYTES = (1024 * 1024) // 1mb
         private const val FETCH_MAX_WAIT_MS = 5 * 1000 // broker waiting time = 5s
         private const val SESSION_TIMEOUT_MS = 60 * 1000 // session timeout = 1m

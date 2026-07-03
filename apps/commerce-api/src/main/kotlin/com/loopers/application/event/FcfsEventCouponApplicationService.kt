@@ -12,10 +12,17 @@ import com.loopers.domain.event.Event
 import com.loopers.domain.event.EventRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
 import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 @Component
 class FcfsEventCouponApplicationService(
@@ -26,6 +33,8 @@ class FcfsEventCouponApplicationService(
     private val uuidV7Generator: UuidV7Generator,
     private val objectMapper: ObjectMapper,
     private val applicationEventPublisher: ApplicationEventPublisher,
+    private val kafkaTemplate: KafkaTemplate<Any, Any>,
+    @Value("\${event-coupon.kafka.topic-name}") private val topicName: String,
 ) {
     @Transactional(readOnly = true)
     fun get(userId: Long, couponId: Long, now: LocalDateTime = LocalDateTime.now()): EventCouponInfo.Detail {
@@ -70,6 +79,14 @@ class FcfsEventCouponApplicationService(
         applicationEventPublisher.publishEvent(CouponPublishRequestedApplicationEvent(outboxId = outbox.id, message = message))
 
         return EventCouponInfo.Request.requested(couponId = eventCoupon.id, eventId = event.id, idempotencyKey = idempotencyKey)
+    }
+
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun publishAfterCommit(event: CouponPublishRequestedApplicationEvent) {
+        kafkaTemplate.send(topicName, event.message.idempotencyKey, event.message).get()
+        outboxRepository.markPublished(outboxId = event.outboxId, publishedAt = ZonedDateTime.now())
     }
 
     private fun resolveDisplayStatus(userId: Long, eventCoupon: EventCoupon, event: Event, now: LocalDateTime): EventCouponStatus =

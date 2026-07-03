@@ -1,15 +1,14 @@
-package com.loopers.interfaces.api.coupon
+package com.loopers.interfaces.api.event
 
-import com.loopers.domain.coupon.Coupon
+import com.loopers.application.event.EventCouponStatus
 import com.loopers.domain.coupon.CouponType
 import com.loopers.domain.coupon.EventCoupon
-import com.loopers.domain.coupon.IssuedCouponStatus
 import com.loopers.domain.event.Event
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.domain.user.RawPassword
 import com.loopers.domain.user.User
 import com.loopers.domain.user.UserRole
-import com.loopers.infrastructure.coupon.CouponJpaRepository
+import com.loopers.infrastructure.coupon.CouponPublishOutboxJpaRepository
 import com.loopers.infrastructure.coupon.EventCouponJpaRepository
 import com.loopers.infrastructure.event.EventJpaRepository
 import com.loopers.infrastructure.user.UserJpaRepository
@@ -30,14 +29,14 @@ import org.springframework.http.HttpStatus
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class CouponV1ApiE2ETest @Autowired constructor(
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["spring.kafka.listener.auto-startup=false"])
+class EventCouponV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userJpaRepository: UserJpaRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val couponJpaRepository: CouponJpaRepository,
     private val eventJpaRepository: EventJpaRepository,
     private val eventCouponJpaRepository: EventCouponJpaRepository,
+    private val outboxJpaRepository: CouponPublishOutboxJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -46,40 +45,13 @@ class CouponV1ApiE2ETest @Autowired constructor(
     }
 
     @Test
-    fun issueCouponReturnsIssuedCouponForAuthenticatedUser() {
+    fun getEventCouponReturnsAvailableStatusForAuthenticatedUser() {
         saveUser()
-        val coupon = saveCoupon()
-        val responseType = object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.IssuedCouponResponse>>() {}
+        val coupon = saveEventCoupon(totalQuantity = 3)
+        val responseType = object : ParameterizedTypeReference<ApiResponse<EventCouponV1Dto.DetailResponse>>() {}
 
         val response = testRestTemplate.exchange(
-            "/api/v1/coupons/${coupon.id}/issue",
-            HttpMethod.POST,
-            HttpEntity<Any>(authHeaders()),
-            responseType,
-        )
-
-        assertAll(
-            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-            { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
-            { assertThat(response.body?.data?.status).isEqualTo(IssuedCouponStatus.AVAILABLE) },
-        )
-    }
-
-    @Test
-    fun getMyCouponsReturnsIssuedCouponStatuses() {
-        saveUser()
-        val coupon = saveCoupon()
-        val issueResponseType = object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.IssuedCouponResponse>>() {}
-        testRestTemplate.exchange(
-            "/api/v1/coupons/${coupon.id}/issue",
-            HttpMethod.POST,
-            HttpEntity<Any>(authHeaders()),
-            issueResponseType,
-        )
-        val responseType = object : ParameterizedTypeReference<ApiResponse<List<CouponV1Dto.IssuedCouponResponse>>>() {}
-
-        val response = testRestTemplate.exchange(
-            "/api/v1/users/me/coupons",
+            "/api/v1/events/coupon/${coupon.id}",
             HttpMethod.GET,
             HttpEntity<Any>(authHeaders()),
             responseType,
@@ -87,18 +59,67 @@ class CouponV1ApiE2ETest @Autowired constructor(
 
         assertAll(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
-            { assertThat(response.body?.data).hasSize(1) },
-            { assertThat(response.body?.data?.single()?.name).isEqualTo("신규가입 10% 할인") },
+            { assertThat(response.body?.data?.couponId).isEqualTo(coupon.id) },
+            { assertThat(response.body?.data?.eventName).isEqualTo("Summer coupon event") },
+            { assertThat(response.body?.data?.status).isEqualTo(EventCouponStatus.AVAILABLE) },
         )
     }
 
     @Test
-    fun issueCouponRequiresAuthentication() {
-        val coupon = saveCoupon()
-        val responseType = object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.IssuedCouponResponse>>() {}
+    fun requestReturnsAcceptedAndOutboxWhenAvailable() {
+        saveUser()
+        val coupon = saveEventCoupon(totalQuantity = 3)
+        val responseType = object : ParameterizedTypeReference<ApiResponse<EventCouponV1Dto.RequestResponse>>() {}
 
         val response = testRestTemplate.exchange(
-            "/api/v1/coupons/${coupon.id}/issue",
+            "/api/v1/events/coupon/${coupon.id}",
+            HttpMethod.POST,
+            HttpEntity<Any>(authHeaders()),
+            responseType,
+        )
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.ACCEPTED) },
+            { assertThat(response.body?.data?.status).isEqualTo(EventCouponStatus.REQUESTED) },
+            { assertThat(response.body?.data?.idempotencyKey).isNotBlank() },
+            { assertThat(outboxJpaRepository.count()).isEqualTo(1) },
+        )
+    }
+
+    @Test
+    fun duplicateRequestReturnsOkAlreadyRegistered() {
+        saveUser()
+        val coupon = saveEventCoupon(totalQuantity = 3)
+        val responseType = object : ParameterizedTypeReference<ApiResponse<EventCouponV1Dto.RequestResponse>>() {}
+        testRestTemplate.exchange(
+            "/api/v1/events/coupon/${coupon.id}",
+            HttpMethod.POST,
+            HttpEntity<Any>(authHeaders()),
+            responseType,
+        )
+
+        val response = testRestTemplate.exchange(
+            "/api/v1/events/coupon/${coupon.id}",
+            HttpMethod.POST,
+            HttpEntity<Any>(authHeaders()),
+            responseType,
+        )
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.status).isEqualTo(EventCouponStatus.ALREADY_REGISTERED) },
+            { assertThat(response.body?.data?.idempotencyKey).isNull() },
+            { assertThat(outboxJpaRepository.count()).isEqualTo(1) },
+        )
+    }
+
+    @Test
+    fun requestRequiresAuthentication() {
+        val coupon = saveEventCoupon(totalQuantity = 3)
+        val responseType = object : ParameterizedTypeReference<ApiResponse<EventCouponV1Dto.RequestResponse>>() {}
+
+        val response = testRestTemplate.exchange(
+            "/api/v1/events/coupon/${coupon.id}",
             HttpMethod.POST,
             HttpEntity<Any>(HttpHeaders()),
             responseType,
@@ -107,9 +128,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
         assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
     }
 
-    @Test
-    fun issueCouponRejectsFirstComeFirstServedCoupon() {
-        saveUser()
+    private fun saveEventCoupon(totalQuantity: Long): EventCoupon {
         val event = eventJpaRepository.save(
             Event(
                 name = "Summer coupon event",
@@ -117,7 +136,7 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 endsAt = LocalDateTime.now().plusHours(1),
             ),
         )
-        val coupon = eventCouponJpaRepository.save(
+        return eventCouponJpaRepository.save(
             EventCoupon(
                 name = "선착순 쿠폰",
                 type = CouponType.FIXED,
@@ -125,31 +144,10 @@ class CouponV1ApiE2ETest @Autowired constructor(
                 minOrderAmount = null,
                 expiredAt = LocalDateTime.now().plusDays(30),
                 eventId = event.id,
-                totalQuantity = 10,
+                totalQuantity = totalQuantity,
             ),
         )
-        val responseType = object : ParameterizedTypeReference<ApiResponse<CouponV1Dto.IssuedCouponResponse>>() {}
-
-        val response = testRestTemplate.exchange(
-            "/api/v1/coupons/${coupon.id}/issue",
-            HttpMethod.POST,
-            HttpEntity<Any>(authHeaders()),
-            responseType,
-        )
-
-        assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
     }
-
-    private fun saveCoupon(): Coupon =
-        couponJpaRepository.save(
-            Coupon(
-                name = "신규가입 10% 할인",
-                type = CouponType.RATE,
-                value = 10,
-                minOrderAmount = 10000,
-                expiredAt = LocalDateTime.now().plusDays(30),
-            ),
-        )
 
     private fun saveUser(role: UserRole = UserRole.CONSUMER): User =
         userJpaRepository.save(

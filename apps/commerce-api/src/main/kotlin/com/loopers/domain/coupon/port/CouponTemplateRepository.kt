@@ -8,6 +8,8 @@ interface CouponTemplateRepository {
 
     fun findByIdOrNull(templateId: Long): CouponTemplateModel?
 
+    fun findByIdForUpdateOrNull(templateId: Long): CouponTemplateModel?
+
     fun findAllByIds(templateIds: Set<Long>): List<CouponTemplateModel>
 
     fun findAll(page: Int, size: Int): PageResult<CouponTemplateModel>

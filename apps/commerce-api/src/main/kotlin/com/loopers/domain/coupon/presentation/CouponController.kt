@@ -1,6 +1,7 @@
 package com.loopers.domain.coupon.presentation
 
 import com.loopers.domain.coupon.application.CouponFacade
+import com.loopers.domain.coupon.presentation.response.CouponIssueRequestResponse
 import com.loopers.domain.coupon.presentation.response.IssuedCouponResponse
 import com.loopers.domain.user.application.info.UserInfo
 import com.loopers.domain.user.presentation.auth.LoginUser
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1")
@@ -22,13 +24,22 @@ class CouponController(
     private val couponFacade: CouponFacade,
 ) : CouponApiSpec {
     @PostMapping("/coupons/{couponId}/issue")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     override fun issueCoupon(
         @Parameter(hidden = true) @LoginUser user: UserInfo,
         @PathVariable("couponId") couponTemplateId: Long,
-    ): ApiResponse<IssuedCouponResponse> =
-        couponFacade.issue(user.id, couponTemplateId)
-            .let { IssuedCouponResponse.from(it) }
+    ): ApiResponse<CouponIssueRequestResponse> =
+        couponFacade.requestIssue(user.id, couponTemplateId)
+            .let { CouponIssueRequestResponse.from(it) }
+            .let { ApiResponse.success(it) }
+
+    @GetMapping("/coupons/issue-requests/{requestId}")
+    override fun findIssueRequest(
+        @Parameter(hidden = true) @LoginUser user: UserInfo,
+        @PathVariable requestId: UUID,
+    ): ApiResponse<CouponIssueRequestResponse> =
+        couponFacade.findIssueRequest(user.id, requestId)
+            .let { CouponIssueRequestResponse.from(it) }
             .let { ApiResponse.success(it) }
 
     @GetMapping("/users/me/coupons")

@@ -15,6 +15,8 @@ data class CouponTemplateModel(
     val discountPolicy: DiscountPolicy,
     val minOrderAmount: Money,
     val expiredAt: LocalDateTime,
+    val totalQuantity: Long = Long.MAX_VALUE,
+    val issuedQuantity: Long = 0,
     val deletedAt: LocalDateTime? = null,
 ) {
     init {
@@ -29,6 +31,9 @@ data class CouponTemplateModel(
         }
         if (!now.isBefore(expiredAt)) {
             throw CouponNotIssuableException(CouponErrorMessages.COUPON_TEMPLATE_NOT_ISSUABLE_EXPIRED)
+        }
+        if (issuedQuantity >= totalQuantity) {
+            throw CouponNotIssuableException(CouponErrorMessages.COUPON_TEMPLATE_SOLD_OUT)
         }
     }
 
@@ -49,12 +54,19 @@ data class CouponTemplateModel(
         discountPolicy: DiscountPolicy,
         minOrderAmount: Money,
         expiredAt: LocalDateTime,
+        totalQuantity: Long = this.totalQuantity,
     ): CouponTemplateModel = copy(
         name = name,
         discountPolicy = discountPolicy,
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
+        totalQuantity = totalQuantity,
     )
+
+    fun increaseIssuedQuantity(now: LocalDateTime): CouponTemplateModel {
+        requireIssuable(now)
+        return copy(issuedQuantity = issuedQuantity + 1)
+    }
 
     fun delete(now: LocalDateTime): CouponTemplateModel {
         if (deletedAt != null) {

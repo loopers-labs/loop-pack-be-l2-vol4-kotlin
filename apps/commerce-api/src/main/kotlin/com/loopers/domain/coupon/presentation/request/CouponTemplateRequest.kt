@@ -18,6 +18,8 @@ data class CouponTemplateRequest(
     val minOrderAmount: Long = 0L,
     @field:Future
     val expiredAt: LocalDateTime,
+    @field:Positive
+    val totalQuantity: Long = Long.MAX_VALUE,
 ) {
     fun toCommand(): CouponTemplateCommand = CouponTemplateCommand(
         name = name,
@@ -25,5 +27,6 @@ data class CouponTemplateRequest(
         value = value,
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
+        totalQuantity = totalQuantity,
     )
 }

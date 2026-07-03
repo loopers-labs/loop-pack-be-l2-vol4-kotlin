@@ -52,15 +52,41 @@ class OutboxRepositoryIntegrationTest
 
         @Test
         fun `발행대상_이벤트를_claim하면_같은_행은_다시_claim되지_않는다`() {
-            outboxRepository.save(이벤트(type = PAYMENT_STATUS_SYNC_REQUESTED, aggregateId = 1L))
+            outboxRepository.save(이벤트(type = PAYMENT_APPROVED, aggregateId = 1L))
             val now = ZonedDateTime.now()
 
-            val firstClaim = outboxRepository.claimPublishable(PAYMENT_STATUS_SYNC_REQUESTED, now, limit = 10)
-            val secondClaim = outboxRepository.claimPublishable(PAYMENT_STATUS_SYNC_REQUESTED, now, limit = 10)
+            val firstClaim = outboxRepository.claimPublishable(
+                publishableTypes = setOf(PAYMENT_APPROVED),
+                now = now,
+                limit = 10,
+            )
+            val secondClaim = outboxRepository.claimPublishable(
+                publishableTypes = setOf(PAYMENT_APPROVED),
+                now = now,
+                limit = 10,
+            )
 
             assertThat(firstClaim).hasSize(1)
             assertThat(firstClaim.first().status).isEqualTo(OutboxEventStatus.PUBLISHING)
             assertThat(secondClaim).isEmpty()
+        }
+
+        @Test
+        fun `Kafka_relay는_지원하는_이벤트_type만_claim한다`() {
+            val syncRequest = outboxRepository.save(이벤트(type = PAYMENT_STATUS_SYNC_REQUESTED, aggregateId = 1L))
+            val approved = outboxRepository.save(이벤트(type = PAYMENT_APPROVED, aggregateId = 2L))
+
+            val claimed = outboxRepository.claimPublishable(
+                publishableTypes = setOf(PAYMENT_APPROVED),
+                now = ZonedDateTime.now(),
+                limit = 10,
+            )
+
+            assertThat(claimed.map { it.eventId }).containsExactly(approved.eventId)
+            assertThat(outboxRepository.findByEventIdOrNull(syncRequest.eventId)?.status)
+                .isEqualTo(OutboxEventStatus.PENDING)
+            assertThat(outboxRepository.findByEventIdOrNull(approved.eventId)?.status)
+                .isEqualTo(OutboxEventStatus.PUBLISHING)
         }
 
         @Test
@@ -88,10 +114,20 @@ class OutboxRepositoryIntegrationTest
             assertThat(failed?.retryCount).isEqualTo(1)
             assertThat(failed?.lastError).isEqualTo("broker timeout")
             assertThat(failed?.nextRetryAt).isEqualTo(nextRetryAt)
-            assertThat(outboxRepository.claimPublishable(PAYMENT_APPROVED, nextRetryAt.minusSeconds(1), limit = 10))
+            assertThat(
+                outboxRepository.claimPublishable(
+                    publishableTypes = setOf(PAYMENT_APPROVED),
+                    now = nextRetryAt.minusSeconds(1),
+                    limit = 10,
+                ),
+            )
                 .isEmpty()
 
-            val retryable = outboxRepository.claimPublishable(PAYMENT_APPROVED, nextRetryAt.plusSeconds(1), limit = 10)
+            val retryable = outboxRepository.claimPublishable(
+                publishableTypes = setOf(PAYMENT_APPROVED),
+                now = nextRetryAt.plusSeconds(1),
+                limit = 10,
+            )
 
             assertThat(retryable).hasSize(1)
             assertThat(retryable.first().status).isEqualTo(OutboxEventStatus.PUBLISHING)

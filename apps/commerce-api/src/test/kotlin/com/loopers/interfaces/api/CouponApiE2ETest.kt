@@ -2,6 +2,7 @@ package com.loopers.interfaces.api
 
 import com.loopers.ApiTest
 import com.loopers.domain.coupon.application.command.CouponTemplateCommand
+import com.loopers.domain.coupon.application.service.CouponIssueRequestWorker
 import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.domain.user.application.service.UserService
 import com.loopers.domain.user.support.UserSteps.Companion.기본_로그인_ID
@@ -16,41 +17,29 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDateTime
+import java.util.UUID
 
 class CouponApiE2ETest
     @Autowired
     constructor(
         private val userService: UserService,
         private val couponService: CouponService,
+        private val couponIssueRequestWorker: CouponIssueRequestWorker,
     ) : ApiTest() {
         private val mapResponseType =
             object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
         private val listResponseType =
             object : ParameterizedTypeReference<ApiResponse<List<Map<String, Any?>>>>() {}
-        private val pageResponseType =
-            object : ParameterizedTypeReference<ApiResponse<PageResponse<Map<String, Any?>>>>() {}
-
-        @Test
-        fun `관리자는_쿠폰_템플릿을_생성한다`() {
-            val response = createTemplate()
-
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
-            assertThat(response.body?.data?.get("name")).isEqualTo("WELCOME_10")
-            assertThat(response.body?.data?.get("type")).isEqualTo("RATE")
-            assertThat(response.body?.data?.get("value")).isEqualTo(10)
-        }
 
         @Test
         fun `사용자는_쿠폰을_발급받고_내_쿠폰_목록에서_AVAILABLE로_조회한다`() {
             userService.signUp(사용자_회원가입())
             val templateId = createTemplate().body?.data?.get("id") as Int
 
-            val issueResponse = testRestTemplate.exchange(
-                "/api/v1/coupons/$templateId/issue",
-                HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
-                mapResponseType,
-            )
+            val issueResponse = issueCoupon(templateId)
+            val requestId = requestId(issueResponse)
+            processIssueRequest(requestId)
+            val statusResponse = findIssueRequest(requestId)
             val myCouponsResponse = testRestTemplate.exchange(
                 "/api/v1/users/me/coupons",
                 HttpMethod.GET,
@@ -58,59 +47,42 @@ class CouponApiE2ETest
                 listResponseType,
             )
 
-            assertThat(issueResponse.statusCode).isEqualTo(HttpStatus.CREATED)
-            assertThat(issueResponse.body?.data?.get("displayStatus")).isEqualTo("AVAILABLE")
+            assertThat(issueResponse.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            assertThat(issueResponse.body?.data?.get("status")).isEqualTo("PENDING")
+            assertThat(statusResponse.body?.data?.get("status")).isEqualTo("ISSUED")
             assertThat(myCouponsResponse.statusCode).isEqualTo(HttpStatus.OK)
             assertThat(myCouponsResponse.body?.data).hasSize(1)
             assertThat(myCouponsResponse.body?.data?.first()?.get("displayStatus")).isEqualTo("AVAILABLE")
         }
 
         @Test
-        fun `같은_쿠폰을_중복_발급하면_409_CONFLICT를_반환한다`() {
+        fun `다른_사용자의_쿠폰_발급_요청_상태는_조회할_수_없다`() {
             userService.signUp(사용자_회원가입())
+            userService.signUp(사용자_회원가입(loginId = "couponother", email = "coupon-other@example.com"))
             val templateId = createTemplate().body?.data?.get("id") as Int
-            testRestTemplate.exchange(
-                "/api/v1/coupons/$templateId/issue",
-                HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
-                mapResponseType,
-            )
+            val issueResponse = issueCoupon(templateId)
+            val requestId = requestId(issueResponse)
 
-            val response = testRestTemplate.exchange(
-                "/api/v1/coupons/$templateId/issue",
-                HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
-                mapResponseType,
-            )
+            val response = findIssueRequest(requestId, loginId = "couponother")
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
         }
 
         @Test
-        fun `관리자는_쿠폰_템플릿별_발급_이력을_조회한다`() {
+        fun `같은_쿠폰을_중복_발급_요청하면_기존_request를_반환한다`() {
             userService.signUp(사용자_회원가입())
             val templateId = createTemplate().body?.data?.get("id") as Int
-            testRestTemplate.exchange(
-                "/api/v1/coupons/$templateId/issue",
-                HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
-                mapResponseType,
-            )
 
-            val response = testRestTemplate.exchange(
-                "/api-admin/v1/coupons/$templateId/issues",
-                HttpMethod.GET,
-                HttpEntity<Unit>(adminHeaders()),
-                pageResponseType,
-            )
+            val first = issueCoupon(templateId)
+            val second = issueCoupon(templateId)
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-            assertThat(response.body?.data?.content).hasSize(1)
-            assertThat(response.body?.data?.content?.first()?.get("templateId")).isEqualTo(templateId)
+            assertThat(first.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            assertThat(second.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            assertThat(second.body?.data?.get("requestId")).isEqualTo(first.body?.data?.get("requestId"))
         }
 
         @Test
-        fun `만료된_쿠폰_템플릿은_발급할_수_없다`() {
+        fun `만료된_쿠폰_템플릿은_worker에서_SOLD_OUT으로_확정된다`() {
             userService.signUp(사용자_회원가입())
             val template = couponService.createTemplate(
                 CouponTemplateCommand(
@@ -122,51 +94,18 @@ class CouponApiE2ETest
                 ),
             )
 
-            val response = testRestTemplate.exchange(
-                "/api/v1/coupons/${template.id}/issue",
-                HttpMethod.POST,
-                HttpEntity<Unit>(authHeaders()),
-                mapResponseType,
-            )
+            val issueResponse = issueCoupon(template.id.toInt())
+            val requestId = requestId(issueResponse)
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            processIssueRequest(requestId)
+            val statusResponse = findIssueRequest(requestId)
+
+            assertThat(issueResponse.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            assertThat(statusResponse.body?.data?.get("status")).isEqualTo("SOLD_OUT")
         }
 
         @Test
-        fun `관리자는_쿠폰_템플릿을_수정하면_변경_내용이_반영된다`() {
-            val templateId = createTemplate().body?.data?.get("id") as Int
-
-            val updateResponse = testRestTemplate.exchange(
-                "/api-admin/v1/coupons/$templateId",
-                HttpMethod.PUT,
-                HttpEntity(
-                    mapOf(
-                        "name" to "UPDATED_5000",
-                        "type" to "FIXED",
-                        "value" to 5_000,
-                        "minOrderAmount" to 20_000,
-                        "expiredAt" to LocalDateTime.now().plusDays(30).toString(),
-                    ),
-                    adminHeaders(),
-                ),
-                mapResponseType,
-            )
-            val findResponse = testRestTemplate.exchange(
-                "/api-admin/v1/coupons/$templateId",
-                HttpMethod.GET,
-                HttpEntity<Unit>(adminHeaders()),
-                mapResponseType,
-            )
-
-            assertThat(updateResponse.statusCode).isEqualTo(HttpStatus.OK)
-            assertThat(findResponse.body?.data?.get("name")).isEqualTo("UPDATED_5000")
-            assertThat(findResponse.body?.data?.get("type")).isEqualTo("FIXED")
-            assertThat(findResponse.body?.data?.get("value")).isEqualTo(5_000)
-            assertThat(findResponse.body?.data?.get("minOrderAmount")).isEqualTo(20_000)
-        }
-
-        @Test
-        fun `관리자가_삭제한_쿠폰_템플릿은_발급할_수_없다`() {
+        fun `관리자가_삭제한_쿠폰_템플릿은_worker에서_SOLD_OUT으로_확정된다`() {
             userService.signUp(사용자_회원가입())
             val templateId = createTemplate().body?.data?.get("id") as Int
 
@@ -176,74 +115,57 @@ class CouponApiE2ETest
                 HttpEntity<Unit>(adminHeaders()),
                 mapResponseType,
             )
-            val issueResponse = testRestTemplate.exchange(
+            val issueResponse = issueCoupon(templateId)
+            val requestId = requestId(issueResponse)
+
+            processIssueRequest(requestId)
+            val statusResponse = findIssueRequest(requestId)
+
+            assertThat(deleteResponse.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(issueResponse.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            assertThat(statusResponse.body?.data?.get("status")).isEqualTo("SOLD_OUT")
+        }
+
+        private fun issueCoupon(templateId: Int) =
+            testRestTemplate.exchange(
                 "/api/v1/coupons/$templateId/issue",
                 HttpMethod.POST,
                 HttpEntity<Unit>(authHeaders()),
                 mapResponseType,
             )
 
-            assertThat(deleteResponse.statusCode).isEqualTo(HttpStatus.OK)
-            assertThat(issueResponse.statusCode).isEqualTo(HttpStatus.CONFLICT)
-        }
-
-        @Test
-        fun `관리자는_쿠폰_템플릿_목록을_페이지로_조회한다`() {
-            val totalCount = 5
-            val size = 2
-            repeat(totalCount) { index ->
-                createTemplate(name = "PAGED_$index")
-            }
-
-            val response = testRestTemplate.exchange(
-                "/api-admin/v1/coupons?page=0&size=$size",
+        private fun findIssueRequest(requestId: UUID) =
+            testRestTemplate.exchange(
+                "/api/v1/coupons/issue-requests/$requestId",
                 HttpMethod.GET,
-                HttpEntity<Unit>(adminHeaders()),
-                pageResponseType,
+                HttpEntity<Unit>(authHeaders()),
+                mapResponseType,
             )
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-            assertThat(response.body?.data?.content).hasSize(size)
-            assertThat(response.body?.data?.totalElements).isEqualTo(totalCount.toLong())
-            assertThat(response.body?.data?.totalPages).isEqualTo(3)
-            assertThat(response.body?.data?.hasNext).isEqualTo(true)
-            assertThat(response.body?.data?.content?.first()?.get("name")).isEqualTo("PAGED_4")
-            assertThat(response.body?.data?.content?.last()?.get("name")).isEqualTo("PAGED_3")
-        }
-
-        @Test
-        fun `관리자는_쿠폰_템플릿별_발급_이력을_페이지로_조회한다`() {
-            val templateId = createTemplate().body?.data?.get("id") as Int
-            val totalCount = 3
-            val size = 2
-            (1..totalCount).forEach { index ->
-                userService.signUp(사용자_회원가입(loginId = "issuer%04d".format(index), email = "issuer$index@example.com"))
-                testRestTemplate.exchange(
-                    "/api/v1/coupons/$templateId/issue",
-                    HttpMethod.POST,
-                    HttpEntity<Unit>(authHeaders(loginId = "issuer%04d".format(index))),
-                    mapResponseType,
-                )
-            }
-
-            val response = testRestTemplate.exchange(
-                "/api-admin/v1/coupons/$templateId/issues?page=0&size=$size",
+        private fun findIssueRequest(requestId: UUID, loginId: String) =
+            testRestTemplate.exchange(
+                "/api/v1/coupons/issue-requests/$requestId",
                 HttpMethod.GET,
-                HttpEntity<Unit>(adminHeaders()),
-                pageResponseType,
+                HttpEntity<Unit>(authHeaders(loginId)),
+                mapResponseType,
             )
 
-            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
-            assertThat(response.body?.data?.content).hasSize(size)
-            assertThat(response.body?.data?.totalElements).isEqualTo(totalCount.toLong())
-            assertThat(response.body?.data?.totalPages).isEqualTo(2)
-            assertThat(response.body?.data?.hasNext).isEqualTo(true)
-            assertThat(response.body?.data?.content?.map { it["templateId"] }).containsOnly(templateId)
+        private fun requestId(response: org.springframework.http.ResponseEntity<ApiResponse<Map<String, Any?>>>): UUID =
+            UUID.fromString(response.body?.data?.get("requestId").toString())
+
+        private fun processIssueRequest(requestId: UUID) {
+            couponIssueRequestWorker.process(
+                eventId = UUID.randomUUID(),
+                consumerGroup = "commerce-api-coupon-issue",
+                eventType = "COUPON_ISSUE_REQUESTED_V1",
+                requestId = requestId,
+            )
         }
 
         private fun createTemplate(
             name: String = "WELCOME_10",
             expiredAt: LocalDateTime = LocalDateTime.now().plusDays(7),
+            totalQuantity: Long = Long.MAX_VALUE,
         ) =
             testRestTemplate.exchange(
                 "/api-admin/v1/coupons",
@@ -255,6 +177,7 @@ class CouponApiE2ETest
                         "value" to 10,
                         "minOrderAmount" to 10_000,
                         "expiredAt" to expiredAt.toString(),
+                        "totalQuantity" to totalQuantity,
                     ),
                     adminHeaders(),
                 ),

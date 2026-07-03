@@ -3,6 +3,7 @@ package com.loopers.domain.coupon.constant
 object CouponErrorMessages {
     const val COUPON_TEMPLATE_NOT_ISSUABLE_DELETED = "삭제된 쿠폰 템플릿은 발급할 수 없습니다."
     const val COUPON_TEMPLATE_NOT_ISSUABLE_EXPIRED = "만료된 쿠폰 템플릿은 발급할 수 없습니다."
+    const val COUPON_TEMPLATE_SOLD_OUT = "쿠폰 발급 수량이 소진되었습니다."
     const val COUPON_NOT_USABLE_DELETED = "삭제된 쿠폰은 사용할 수 없습니다."
     const val COUPON_NOT_USABLE_EXPIRED = "만료된 쿠폰은 사용할 수 없습니다."
     const val COUPON_NOT_USABLE_MIN_ORDER_AMOUNT = "최소 주문 금액을 만족하지 않습니다."

@@ -4,8 +4,12 @@ import com.loopers.domain.payment.constant.PaymentErrorMessages
 import com.loopers.domain.payment.port.PaymentGatewayPort
 import com.loopers.domain.payment.port.PaymentGatewayRequest
 import com.loopers.domain.payment.port.PaymentGatewayResult
-import com.loopers.domain.payment.port.PaymentGatewayStatus
 import com.loopers.domain.payment.port.PaymentGatewayUnknownException
+import com.loopers.domain.payment.infrastructure.pg.dto.PgApiResponse
+import com.loopers.domain.payment.infrastructure.pg.dto.PgOrderResponse
+import com.loopers.domain.payment.infrastructure.pg.dto.PgPaymentRequest
+import com.loopers.domain.payment.infrastructure.pg.dto.PgTransactionDetailResponse
+import com.loopers.domain.payment.infrastructure.pg.dto.PgTransactionResponse
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
@@ -20,6 +24,7 @@ import org.springframework.http.HttpMethod
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClientException
+import java.util.concurrent.CancellationException
 
 @Component
 class PgSimulatorPaymentGatewayAdapter(
@@ -120,57 +125,9 @@ class PgSimulatorPaymentGatewayAdapter(
             )
         } catch (e: RestClientException) {
             throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_STATUS_UNCONFIRMED, e)
+        } catch (e: CancellationException) {
+            throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_STATUS_UNCONFIRMED, e)
         }
         return response.body?.data ?: throw PaymentGatewayUnknownException(PaymentErrorMessages.PG_RESPONSE_NO_DATA)
     }
 }
-
-private data class PgApiResponse<T>(
-    val data: T?,
-)
-
-private data class PgPaymentRequest(
-    val orderId: String,
-    val cardType: String,
-    val cardNo: String,
-    val amount: Long,
-    val callbackUrl: String,
-) {
-    companion object {
-        fun from(request: PaymentGatewayRequest): PgPaymentRequest = PgPaymentRequest(
-            orderId = request.orderId.toString(),
-            cardType = request.cardType,
-            cardNo = request.cardNo,
-            amount = request.amount,
-            callbackUrl = request.callbackUrl,
-        )
-    }
-}
-
-private data class PgTransactionResponse(
-    val transactionKey: String,
-    val status: String,
-    val reason: String?,
-) {
-    fun toGatewayResult(): PaymentGatewayResult = PaymentGatewayResult(
-        transactionKey = transactionKey,
-        status = PaymentGatewayStatus.valueOf(status),
-        reason = reason,
-    )
-}
-
-private data class PgTransactionDetailResponse(
-    val transactionKey: String,
-    val status: String,
-    val reason: String?,
-) {
-    fun toGatewayResult(): PaymentGatewayResult = PaymentGatewayResult(
-        transactionKey = transactionKey,
-        status = PaymentGatewayStatus.valueOf(status),
-        reason = reason,
-    )
-}
-
-private data class PgOrderResponse(
-    val transactions: List<PgTransactionResponse>,
-)

@@ -2,6 +2,8 @@ package com.loopers.support.outbox.relay
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.loopers.support.outbox.OutboxEventModel
+import com.loopers.support.outbox.event.CommerceOutboxAggregateType
+import com.loopers.support.outbox.event.CommerceOutboxEventType
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -19,8 +21,7 @@ import org.springframework.kafka.support.SendResult
 
 class KafkaOutboxEventPublisherTest {
     private val kafkaTemplate = mockk<KafkaTemplate<Any, Any>>()
-    private val properties = LikeCountOutboxRelayProperties(
-        topicName = "test.like-count-events",
+    private val properties = OutboxRelayProperties(
         relayPublishTimeout = Duration.ofSeconds(1),
     )
     private val publisher = KafkaOutboxEventPublisher(
@@ -30,7 +31,7 @@ class KafkaOutboxEventPublisherTest {
     )
 
     @Test
-    fun `좋아요_수_이벤트는_설정된_토픽과_productId_키로_Kafka에_발행된다`() {
+    fun `좋아요_수_이벤트는_라우팅된_토픽과_aggregateId_키로_Kafka에_발행된다`() {
         val topicSlot = slot<String>()
         val keySlot = slot<Any>()
         val messageSlot = slot<Any>()
@@ -46,15 +47,51 @@ class KafkaOutboxEventPublisherTest {
             ),
         )
 
-        assertThat(topicSlot.captured).isEqualTo("test.like-count-events")
+        assertThat(topicSlot.captured).isEqualTo("catalog-events")
         assertThat(keySlot.captured).isEqualTo("123")
         assertThat(messageSlot.captured).isEqualTo(
             LikeCountChangedKafkaMessage(
                 eventId = eventId,
-                eventType = LikeCountOutboxRelayProperties.EVENT_TYPE,
+                eventType = CommerceOutboxEventType.LIKE_COUNT_CHANGED_V1.name,
                 productId = 123L,
                 userId = 456L,
                 delta = -1,
+            ),
+        )
+    }
+
+    @Test
+    fun `일반_outbox_이벤트는_라우팅된_토픽과_aggregateId_키로_Kafka에_발행된다`() {
+        val topicSlot = slot<String>()
+        val keySlot = slot<Any>()
+        val messageSlot = slot<Any>()
+        every {
+            kafkaTemplate.send(capture(topicSlot), capture(keySlot), capture(messageSlot))
+        } returns CompletableFuture.completedFuture(mockk<SendResult<Any, Any>>(relaxed = true))
+        val eventId = UUID.fromString("00000000-0000-0000-0000-000000000456")
+
+        publisher.publish(
+            OutboxEventModel(
+                eventId = eventId,
+                type = CommerceOutboxEventType.ORDER_PAID_V1.name,
+                aggregateType = CommerceOutboxAggregateType.ORDER.value,
+                aggregateId = 789L,
+                payload = """{"orderId":789}""",
+            ),
+        )
+
+        assertThat(topicSlot.captured).isEqualTo("order-events")
+        assertThat(keySlot.captured).isEqualTo("789")
+        assertThat(messageSlot.captured).isInstanceOf(OutboxEventKafkaMessage::class.java)
+        assertThat((messageSlot.captured as OutboxEventKafkaMessage).createdAt).isInstanceOf(String::class.java)
+        assertThat(messageSlot.captured).usingRecursiveComparison().isEqualTo(
+            OutboxEventKafkaMessage(
+                eventId = eventId,
+                eventType = CommerceOutboxEventType.ORDER_PAID_V1.name,
+                aggregateType = CommerceOutboxAggregateType.ORDER.value,
+                aggregateId = 789L,
+                payload = """{"orderId":789}""",
+                createdAt = (messageSlot.captured as OutboxEventKafkaMessage).createdAt,
             ),
         )
     }
@@ -91,8 +128,8 @@ class KafkaOutboxEventPublisherTest {
     ): OutboxEventModel =
         OutboxEventModel(
             eventId = eventId,
-            type = LikeCountOutboxRelayProperties.EVENT_TYPE,
-            aggregateType = "PRODUCT",
+            type = CommerceOutboxEventType.LIKE_COUNT_CHANGED_V1.name,
+            aggregateType = CommerceOutboxAggregateType.PRODUCT.value,
             aggregateId = 123L,
             payload = payload,
         )

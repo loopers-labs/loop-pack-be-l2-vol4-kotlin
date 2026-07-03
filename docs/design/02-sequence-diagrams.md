@@ -16,7 +16,8 @@ Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 �
 - 도메인 간 협력은 Facade에서 조합되고, Service끼리 직접 의존하지 않는가?
 - 여러 도메인 상태를 함께 바꾸는 유스케이스가 하나의 트랜잭션 경계 안에서 처리되는가?
 - 좋아요 멱등성, 재고 부족 전체 거부, 쿠폰 중복 사용 방지, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
-- 좋아요 수는 `likes` 변경 이벤트에서 파생되는 eventually consistent projection이며, 쿠폰 발급·사용의 권위 상태는 기존 동기 트랜잭션에 남아 있는가?
+- 좋아요·판매·조회 지표는 원천 상태와 이벤트에서 파생되는 `product_metrics` eventually consistent projection이며, 쿠폰 발급 요청은 비동기 command로 접수/처리/조회가 분리되는가?
+- 로컬 부가 처리는 `ApplicationEvent`와 `@TransactionalEventListener`로 커밋 이후에 실행되고, 시스템 간 전파는 outbox/Kafka로 분리되는가?
 
 ## 표기 규칙
 
@@ -237,12 +238,14 @@ sequenceDiagram
     participant ProductService
     participant LikeService
     participant LikeRepository
+    participant Events as ApplicationEventPublisher
+    participant Listener as TransactionalEventListener
     participant OutboxRepository
     participant Relay as OutboxRelay
-    participant Kafka as Kafka commerce.like-count-events.v1
+    participant Kafka as Kafka catalog-events
     participant Consumer as LikeCountEventConsumer
     participant ProcessedEvents as processed_kafka_events
-    participant Projection as product_like_counts
+    participant Projection as product_metrics
     participant Advice as ApiControllerAdvice
 
     Customer->>CustomerAPI: 좋아요 상태 변경 요청
@@ -261,29 +264,31 @@ sequenceDiagram
         else 등록 요청이고 미좋아요 상태
             LikeService->>LikeRepository: 좋아요 저장
             LikeRepository-->>LikeService: 저장 완료
-            LikeService->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, productId key, delta=+1)
+            LikeService->>Events: LikeChangedApplicationEvent(delta=+1) 발행
         else 취소 요청
             LikeService->>LikeRepository: 좋아요 삭제
             LikeRepository-->>LikeService: 삭제 완료 또는 부재 (멱등)
             alt 삭제된 행 있음
-                LikeService->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, productId key, delta=-1)
+                LikeService->>Events: LikeChangedApplicationEvent(delta=-1) 발행
             else 삭제된 행 없음
                 Note over LikeService: no-op DELETE — 이벤트 없음
             end
         end
-        Note over LikeService: TX commit — likes가 상태 source of truth, outbox row만 함께 저장
+        Note over LikeService: TX commit — likes가 상태 source of truth
+        Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
+        Listener->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, topic=catalog-events, productId key)
         LikeFacade-->>CustomerAPI: 최종 좋아요 상태
         CustomerAPI-->>Customer: 200 성공 또는 204 응답 본문 없음
     end
 
     Relay->>OutboxRepository: 발행 대기 이벤트 조회
-    Relay->>Kafka: productId key로 LIKE_COUNT_CHANGED_V1 발행
+    Relay->>Kafka: productId key로 LIKE_COUNT_CHANGED_V1 발행 (acks=all, idempotence=true)
     Kafka-->>Consumer: LIKE_COUNT_CHANGED_V1(eventId, productId, userId, delta)
     Consumer->>ProcessedEvents: consumer_group + eventId 처리 기록
     alt 이미 처리된 eventId
         Consumer-->>Kafka: ack (중복 no-op)
     else 신규 eventId
-        Consumer->>Projection: delta를 product_like_counts projection에 반영
+        Consumer->>Projection: delta를 product_metrics.like_count에 반영
         Note over Consumer,Projection: DB TX commit 후 ack. projection lag는 허용하며 replay/backfill로 복구
         Consumer-->>Kafka: ack
     end
@@ -314,10 +319,66 @@ sequenceDiagram
 
 - 좋아요 목록은 user에서 likes 컬렉션을 양방향으로 열지 않고 `LikeRepository.findByUserId` 명시 쿼리로 조회한다.
 - 좋아요 이력이 아니라 현재 상태만 필요하므로 취소는 hard delete를 기본으로 둔다.
-- 좋아요 수는 `likes`의 직접 권위 상태가 아니라 `LIKE_COUNT_CHANGED_V1`을 Kafka consumer가 반영한 eventually consistent projection이다. 실제 상태 전이가 없는 반복 `POST`/`DELETE`는 이벤트를 만들지 않는다.
-- Kafka key는 `productId`, 이벤트 식별자는 UUID `eventId`, 증감량은 `delta=+1/-1`이다. consumer는 `processed_kafka_events`로 eventId를 dedupe하고 `product_like_counts`에 중복 delta를 적용하지 않는다.
+- 좋아요 수는 `likes`의 직접 권위 상태가 아니라 `LIKE_COUNT_CHANGED_V1`을 Kafka consumer가 `product_metrics`에 반영한 eventually consistent projection이다. 실제 상태 전이가 없는 반복 `POST`/`DELETE`는 이벤트를 만들지 않는다.
+- Kafka topic은 `catalog-events`, key는 `productId`, 이벤트 식별자는 UUID `eventId`, 증감량은 `delta=+1/-1`이다. consumer는 `processed_kafka_events`로 eventId를 dedupe하고 `product_metrics`에 중복 delta를 적용하지 않는다.
 - consumer lag나 장애 후 재처리 때문에 상품 목록·상세의 좋아요 수는 짧게 늦을 수 있다. 필요 시 Kafka replay 또는 `likes` 기준 backfill/rebuild로 projection을 복구한다.
 - 본인 외 자원 접근은 자원 존재 여부를 노출하지 않기 위해 `404 자원 없음`으로 응답한다.
+
+## 5. Round 7 이벤트 파이프라인
+
+로컬 이벤트는 트랜잭션 경계 안의 핵심 상태 변경과 커밋 이후 부가 처리를 나눈다.
+시스템 간 전파가 필요한 이벤트는 outbox를 거쳐 Kafka로 발행한다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Facade
+    participant Service
+    participant Events as ApplicationEventPublisher
+    participant Listener as TransactionalEventListener
+    participant OutboxRepository
+    participant Relay as OutboxRelay
+    participant Kafka as Kafka topics
+    participant Streamer as MetricsCollector
+    participant ProcessedEvents as processed_kafka_events
+    participant Metrics as product_metrics
+
+    Facade->>Service: 핵심 유스케이스 처리
+    Note over Service: @Transactional — 원천 상태 저장
+    Service->>Events: ApplicationEvent 발행
+    Note over Service: commit 성공
+    Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
+    alt 부가 로그만 필요한 이벤트
+        Listener->>Listener: 구조화 로그 기록
+    else 시스템 간 전파 필요
+        Listener->>OutboxRepository: topic/key/payload 포함 outbox 저장
+    end
+
+    Relay->>OutboxRepository: 발행 대기 outbox 조회
+    Relay->>Kafka: Kafka 발행 (acks=all, idempotence=true)
+    Kafka-->>Streamer: catalog-events/order-events
+    Streamer->>ProcessedEvents: consumer_group + eventId insert
+    alt 이미 처리한 eventId
+        Streamer-->>Kafka: manual ack
+    else 신규 eventId
+        Streamer->>Metrics: product_metrics upsert, stale event 방어
+        Note over Streamer,Metrics: DB commit 이후 manual ack
+        Streamer-->>Kafka: manual ack
+    end
+```
+
+관련 topic:
+
+- `catalog-events`: 상품 조회, 좋아요, 카탈로그/재고 지표 이벤트. Kafka key는 `productId`.
+- `order-events`: 주문 생성, 결제 승인/실패, 판매량 반영 이벤트. Kafka key는 `orderId`.
+- `coupon-issue-requests`: 쿠폰 발급 요청 command. Kafka key는 `couponId`.
+
+핵심 포인트:
+
+- 이벤트 생산, routing, outbox row 저장은 API 애플리케이션 경계가 담당한다.
+- streamer는 수집과 projection 갱신만 담당하고 권위 상태 변경을 수행하지 않는다.
+- `product_metrics`는 `product_id`, `like_count`, `sales_count`, `view_count`, `last_event_at`, `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`, `updated_at`을 갖는 rebuildable projection이다.
+- consumer는 `processed_kafka_events` 또는 `event_handled` 기반 idempotency를 먼저 확보하고, DB commit 이후 manual ack 한다.
 
 ## 6. User-E2 재고 부족 거부
 
@@ -708,10 +769,10 @@ sequenceDiagram
 - 관리자 작업 로그는 변경 저장 성공 후 기록한다. 브랜드 변경 시도처럼 실패한 요청은 성공 이력으로 기록하지 않는다.
 - 관리자 주문 조회는 읽기 작업이므로 `admin_operation_logs` 기록 대상이 아니다.
 
-## 12. User-J5 쿠폰 발급과 내 쿠폰 조회
+## 12. User-J5 쿠폰 발급 요청, 처리 상태 조회, 내 쿠폰 조회
 
-쿠폰 발급은 쿠폰 템플릿과 사용자 사이에 `IssuedCoupon`을 생성하는 흐름이다.
-한 사용자는 같은 쿠폰 템플릿을 한 번만 발급받을 수 있으며, DB unique 제약이 최종 중복을 막는다.
+쿠폰 발급 API는 실제 발급을 완료하지 않고 요청을 durable하게 접수한다.
+실제 발급은 `coupon-issue-requests`를 소비하는 worker가 별도 트랜잭션에서 수행하며, 사용자는 polling API로 결과를 확인한다.
 
 ```mermaid
 sequenceDiagram
@@ -720,32 +781,71 @@ sequenceDiagram
     participant CustomerAPI
     participant CouponFacade
     participant CouponService
+    participant RequestRepository as CouponIssueRequestRepository
+    participant Events as ApplicationEventPublisher
+    participant Listener as TransactionalEventListener
+    participant OutboxRepository
+    participant Kafka as Kafka coupon-issue-requests
+    participant Relay as OutboxRelay
+    participant Worker as CouponIssueWorker
+    participant EventHandled as event_handled
     participant CouponRepository
     participant IssuedCouponRepository
     participant Advice as ApiControllerAdvice
 
     Customer->>CustomerAPI: 쿠폰 발급 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
-    CustomerAPI->>CouponFacade: 쿠폰 발급
-    Note over CouponFacade: @Transactional — 템플릿 검증 + 발급 저장
-    CouponFacade->>CouponService: 쿠폰 템플릿 발급
+    CustomerAPI->>CouponFacade: 쿠폰 발급 요청 접수
+    Note over CouponFacade: @Transactional — 템플릿 기본 검증 + 요청 저장
+    CouponFacade->>CouponService: 쿠폰 템플릿 발급 가능성 확인
     CouponService->>CouponRepository: 템플릿 조회
     CouponRepository-->>CouponService: 쿠폰 템플릿
     alt 템플릿 없음 또는 삭제/만료됨
         CouponService-->>Advice: 예외(발급 불가 쿠폰)
         Advice-->>Customer: 404 자원 없음 또는 409 충돌
-    else 이미 발급됨
-        CouponService->>IssuedCouponRepository: 사용자-템플릿 발급 여부 확인
-        IssuedCouponRepository-->>CouponService: 이미 존재
-        CouponService-->>Advice: 예외(쿠폰 중복 발급)
-        Advice-->>Customer: 409 충돌
-    else 발급 가능
-        CouponService->>IssuedCouponRepository: 발급 쿠폰 저장
-        IssuedCouponRepository-->>CouponService: 발급 쿠폰
-        CouponService-->>CouponFacade: 발급 쿠폰
-        CouponFacade-->>CustomerAPI: 발급 쿠폰
-        CustomerAPI-->>Customer: 201 생성됨
+    else 기존 pending/final 요청 있음
+        CouponFacade->>RequestRepository: 기존 요청 조회
+        RequestRepository-->>CouponFacade: requestId + status
+        CouponFacade-->>CustomerAPI: 기존 요청 상태
+        CustomerAPI-->>Customer: 202 접수됨
+    else 요청 접수 가능
+        CouponFacade->>RequestRepository: 요청 저장 (PENDING)
+        CouponFacade->>Events: CouponIssueRequestedApplicationEvent 발행
+        Note over CouponFacade: commit 성공
+        Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
+        Listener->>OutboxRepository: coupon-issue-requests outbox 저장
+        CouponFacade-->>CustomerAPI: requestId + PENDING
+        CustomerAPI-->>Customer: 202 접수됨
     end
+
+    Relay->>Kafka: couponId key로 요청 발행 (acks=all, idempotence=true)
+    Kafka-->>Worker: CouponIssueRequested(eventId, requestId, couponId, userId)
+    Worker->>EventHandled: eventId 처리 기록
+    alt 이미 처리된 eventId
+        Worker-->>Kafka: manual ack
+    else 신규 eventId
+        Note over Worker: 별도 @Transactional worker
+        Worker->>RequestRepository: 요청 상태 잠금 조회
+        Worker->>CouponRepository: 선착순 수량 잠금 또는 조건부 차감
+        alt 이미 발급됨
+            Worker->>RequestRepository: DUPLICATE 저장
+        else 수량 소진
+            Worker->>RequestRepository: SOLD_OUT 저장
+        else 발급 가능
+            Worker->>IssuedCouponRepository: 발급 쿠폰 저장
+            Worker->>RequestRepository: ISSUED 저장
+        end
+        Note over Worker: DB commit 후 manual ack
+        Worker-->>Kafka: manual ack
+    end
+
+    Customer->>CustomerAPI: 발급 요청 상태 조회
+    Note over CustomerAPI: 고객 인증 (§1 참조)
+    CustomerAPI->>CouponFacade: 요청 상태 조회
+    CouponFacade->>RequestRepository: requestId + userId 조회
+    RequestRepository-->>CouponFacade: status
+    CouponFacade-->>CustomerAPI: 요청 상태
+    CustomerAPI-->>Customer: 200 성공
 
     Customer->>CustomerAPI: 내 쿠폰 목록 조회
     Note over CustomerAPI: 고객 인증 (§1 참조)
@@ -762,12 +862,15 @@ sequenceDiagram
 관련 API:
 
 - `POST /api/v1/coupons/{couponId}/issue`
+- `GET /api/v1/coupons/issue-requests/{requestId}`
 - `GET /api/v1/users/me/coupons`
 
 핵심 포인트:
 
 - `CouponTemplate`은 관리자 정의이고, `IssuedCoupon`은 사용자 보유 상태다.
 - `issued_coupons(user_id, coupon_template_id)` unique 제약으로 중복 발급을 최종 차단한다.
+- 요청 접수와 실제 발급은 다른 트랜잭션이다. 접수 응답의 `202`는 실제 발급 성공을 뜻하지 않는다.
+- 선착순 수량과 중복 발급은 worker 트랜잭션에서 처리한다. `event_handled`와 DB unique 제약이 Kafka 재전달과 중복 요청을 멱등하게 만든다.
 - `EXPIRED`는 저장 상태가 아니라 조회 응답을 만들 때 계산한 표시 상태다.
 - 발급 가능한 쿠폰 목록 조회(`GET /api/v1/coupons`)는 원문 필수 API가 아니므로 선택 확장 후보로 분리한다.
 

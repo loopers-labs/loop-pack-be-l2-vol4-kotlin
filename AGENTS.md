@@ -34,7 +34,7 @@
 | 기본 작업 태도, 수정 범위, 협업 원칙 | `CLAUDE.md` |
 | 프로젝트 개요, 기술 스택, 모듈 구조, 실행/검증 명령 | `agent_rules/projectInfo.md` |
 | API 요구사항, 도메인 요구사항, 인증/사용자 관련 규칙 | `agent_rules/projectInfo.md` |
-| DDD 경계, 패키지 구조, 도메인/JPA 분리, 예외 처리 방향 | `agent_rules/groundRules.md` |
+| DDD 경계, 패키지 구조, 도메인/JPA 분리, 1 파일 1 top-level 선언, 예외 처리 방향 | `agent_rules/groundRules.md` |
 | 테스트 전략, TDD 흐름, 테스트 종류, 픽스처, 모킹 정책 | `agent_rules/groundRules.md` |
 | 테스트 파일 분류, 테스트 네이밍, Steps 패턴, API 테스트 기준 | `agent_rules/testing-conventions.md` |
 | 이전 PR 리뷰 수정, CodeRabbit/Copilot 리뷰 대응, CI 픽스, 커밋/브랜치/worktree 규칙 | `agent_rules/vcs_rule.md` |

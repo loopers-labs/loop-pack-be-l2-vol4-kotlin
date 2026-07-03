@@ -18,16 +18,16 @@ interface OutboxEventJpaRepository : JpaRepository<OutboxEventJpaEntity, Long> {
         """
         select e
         from OutboxEventJpaEntity e
-        where e.type = :type
-          and (
+        where (
             e.status = :pendingStatus
             or (e.status = :failedStatus and e.nextRetryAt <= :now)
           )
+          and e.type in :publishableTypes
         order by e.eventCreatedAt asc, e.id asc
         """,
     )
     fun findPublishableForUpdate(
-        type: String,
+        publishableTypes: Set<String>,
         pendingStatus: OutboxEventStatus,
         failedStatus: OutboxEventStatus,
         now: ZonedDateTime,

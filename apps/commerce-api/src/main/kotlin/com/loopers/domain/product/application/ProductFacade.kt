@@ -13,6 +13,8 @@ import com.loopers.domain.product.application.service.StockService
 import com.loopers.domain.product.model.ProductModel
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.support.event.ProductViewedApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -22,6 +24,7 @@ class ProductFacade(
     private val productService: ProductService,
     private val stockService: StockService,
     private val likeService: LikeService,
+    private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
     @Transactional
     fun registerProduct(command: ProductRegisterCommand): ProductInfo {
@@ -46,10 +49,12 @@ class ProductFacade(
         productService.softDelete(productId)
     }
 
+    @Transactional(readOnly = true)
     fun getProduct(productId: Long): ProductDetailInfo {
         val product = productService.getById(productId)
         val brand = brandService.getById(product.brandId)
         val likeCount = likeService.countByProductId(product.id)
+        applicationEventPublisher.publishEvent(ProductViewedApplicationEvent(product.id))
         return ProductDetailInfo.from(product, brand, likeCount)
     }
 

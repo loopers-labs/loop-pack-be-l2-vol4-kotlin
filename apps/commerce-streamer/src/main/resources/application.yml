@@ -30,9 +30,11 @@ demo-kafka:
     topic-name: demo.internal.topic-v1
 
 commerce-events:
-  like-count:
-    topic-name: commerce.like-count-events.v1
-    dlt-topic-name: commerce.like-count-events.v1.DLT
+  product-metrics:
+    catalog-topic-name: catalog-events
+    catalog-dlt-topic-name: catalog-events.DLT
+    order-topic-name: order-events
+    order-dlt-topic-name: order-events.DLT
     partitions: 3
     replicas: 1
 

@@ -7,6 +7,7 @@ import com.loopers.domain.like.infrastructure.persistence.LikeJpaEntity
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaId
 import com.loopers.domain.like.infrastructure.persistence.LikeJpaRepository
 import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
+import com.loopers.domain.like.port.LikeBulkRepository
 import com.loopers.domain.product.infrastructure.persistence.product.ProductJpaRepository
 import com.loopers.domain.product.model.ProductModel
 import com.loopers.domain.product.port.ProductBulkRepository
@@ -18,9 +19,10 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.jdbc.core.JdbcTemplate
 
 @SpringBootTest(
-    properties = ["commerce-events.like-count.relay.enabled=false"],
+    properties = ["commerce-events.outbox-relay.enabled=false"],
 )
 class LikeCountReconciliationIntegrationTest
     @Autowired
@@ -31,6 +33,8 @@ class LikeCountReconciliationIntegrationTest
         private val productJpaRepository: ProductJpaRepository,
         private val likeJpaRepository: LikeJpaRepository,
         private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
+        private val likeBulkRepository: LikeBulkRepository,
+        private val jdbcTemplate: JdbcTemplate,
         private val databaseCleanUp: DatabaseCleanUp,
     ) {
         @AfterEach
@@ -63,6 +67,17 @@ class LikeCountReconciliationIntegrationTest
             assertThat(secondCounts).containsEntry(productIds[2], 0L)
         }
 
+        @Test
+        fun `벌크_좋아요_집계는_product_metrics_updated_at을_채운다`() {
+            seedProductsWithoutLikeCountRows()
+
+            val inserted = likeBulkRepository.deriveLikeCounts()
+
+            assertThat(inserted).isEqualTo(3)
+            assertThat(productLikeCountJpaRepository.count()).isEqualTo(3)
+            assertThat(productMetricsNullUpdatedAtRows()).isZero()
+        }
+
         private fun findCounts(productIds: List<Long>): Map<Long, Long> =
             productLikeCountJpaRepository.findCountsByProductIds(productIds.toSet())
                 .associate { it.getProductId() to it.getLikeCount() }
@@ -81,4 +96,10 @@ class LikeCountReconciliationIntegrationTest
                 .map { it.id }
                 .sorted()
         }
+
+        private fun productMetricsNullUpdatedAtRows(): Long =
+            jdbcTemplate.queryForObject(
+                "select count(*) from product_metrics where updated_at is null",
+                Long::class.java,
+            ) ?: 0L
     }

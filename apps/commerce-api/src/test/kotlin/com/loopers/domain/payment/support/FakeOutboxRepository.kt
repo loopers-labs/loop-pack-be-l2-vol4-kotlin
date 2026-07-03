@@ -21,11 +21,15 @@ class FakeOutboxRepository : OutboxRepository {
     override fun findPendingByType(type: String): List<OutboxEventModel> =
         events.filter { it.type == type && it.status == OutboxEventStatus.PENDING }
 
-    override fun claimPublishable(type: String, now: ZonedDateTime, limit: Int): List<OutboxEventModel> {
+    override fun claimPublishable(
+        publishableTypes: Set<String>,
+        now: ZonedDateTime,
+        limit: Int,
+    ): List<OutboxEventModel> {
         val indexes = events
             .withIndex()
             .filter { (_, event) ->
-                event.type == type &&
+                event.type in publishableTypes &&
                     (
                         event.status == OutboxEventStatus.PENDING ||
                             (event.status == OutboxEventStatus.FAILED && event.nextRetryAt?.let { it <= now } == true)

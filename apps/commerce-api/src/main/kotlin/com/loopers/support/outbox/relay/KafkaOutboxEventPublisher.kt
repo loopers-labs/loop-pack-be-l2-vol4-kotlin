@@ -2,6 +2,8 @@ package com.loopers.support.outbox.relay
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.support.outbox.OutboxEventModel
+import com.loopers.support.outbox.event.CommerceOutboxEventType
+import com.loopers.support.outbox.event.OutboxEventRouting
 import java.util.concurrent.TimeUnit
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
@@ -11,19 +13,33 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class KafkaOutboxEventPublisher(
     private val kafkaTemplate: KafkaTemplate<Any, Any>,
     private val objectMapper: ObjectMapper,
-    private val properties: LikeCountOutboxRelayProperties,
+    private val properties: OutboxRelayProperties,
 ) : OutboxEventPublisher {
     override fun publish(event: OutboxEventModel) {
         check(!TransactionSynchronizationManager.isActualTransactionActive()) {
             "Outbox event publish must run outside an active transaction."
         }
+        val route = OutboxEventRouting.route(event)
         val message = event.toKafkaMessage()
         kafkaTemplate
-            .send(properties.topicName, message.productId.toString(), message)
+            .send(route.topicName, route.key, message)
             .get(properties.relayPublishTimeout.toMillis(), TimeUnit.MILLISECONDS)
     }
 
-    private fun OutboxEventModel.toKafkaMessage(): LikeCountChangedKafkaMessage {
+    private fun OutboxEventModel.toKafkaMessage(): Any =
+        when (type) {
+            CommerceOutboxEventType.LIKE_COUNT_CHANGED_V1.name -> toLikeCountChangedKafkaMessage()
+            else -> OutboxEventKafkaMessage(
+                eventId = eventId,
+                eventType = type,
+                aggregateType = aggregateType,
+                aggregateId = aggregateId,
+                payload = payload,
+                createdAt = createdAt.toString(),
+            )
+        }
+
+    private fun OutboxEventModel.toLikeCountChangedKafkaMessage(): LikeCountChangedKafkaMessage {
         val payload = objectMapper.readValue(payload, LikeCountChangedPayload::class.java)
         return LikeCountChangedKafkaMessage(
             eventId = eventId,
@@ -34,9 +50,3 @@ class KafkaOutboxEventPublisher(
         )
     }
 }
-
-private data class LikeCountChangedPayload(
-    val productId: Long?,
-    val userId: Long?,
-    val delta: Int?,
-)

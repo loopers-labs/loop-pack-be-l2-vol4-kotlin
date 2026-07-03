@@ -2,6 +2,7 @@ package com.loopers.support.outbox.relay
 
 import com.loopers.support.outbox.OutboxEventModel
 import com.loopers.support.outbox.OutboxRepository
+import com.loopers.support.outbox.event.OutboxEventRouting
 import java.time.ZonedDateTime
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
@@ -13,7 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate
 class OutboxRelay(
     private val outboxRepository: OutboxRepository,
     private val publisher: OutboxEventPublisher,
-    private val properties: LikeCountOutboxRelayProperties,
+    private val properties: OutboxRelayProperties,
     transactionManager: PlatformTransactionManager,
 ) {
     private val transactionTemplate = TransactionTemplate(transactionManager).apply {
@@ -31,7 +32,7 @@ class OutboxRelay(
     private fun claimPublishableEvents(): List<OutboxEventModel> =
         transactionTemplate.execute {
             outboxRepository.claimPublishable(
-                type = LikeCountOutboxRelayProperties.EVENT_TYPE,
+                publishableTypes = OutboxEventRouting.publishableTypes,
                 now = ZonedDateTime.now(),
                 limit = properties.relayBatchSize,
             )

@@ -1,6 +1,7 @@
 package com.loopers.domain.coupon.application.service
 
 import com.loopers.domain.coupon.application.command.CouponTemplateCommand
+import com.loopers.domain.coupon.exception.CouponNotIssuableException
 import com.loopers.domain.coupon.exception.DuplicateIssuedCouponException
 import com.loopers.domain.coupon.exception.IssuedCouponNotAvailableException
 import com.loopers.domain.coupon.model.CouponTemplateModel
@@ -39,6 +40,7 @@ class CouponService(
                 discountPolicy = command.toDiscountPolicy(),
                 minOrderAmount = Money.of(command.minOrderAmount),
                 expiredAt = command.expiredAt,
+                totalQuantity = command.totalQuantity,
             ),
         )
     }
@@ -47,14 +49,19 @@ class CouponService(
     fun softDeleteTemplate(templateId: Long): CouponTemplateModel =
         couponTemplateRepository.save(getTemplate(templateId).delete(LocalDateTime.now()))
 
-    @Transactional
+    @Transactional(
+        noRollbackFor = [
+            CouponNotIssuableException::class,
+            DuplicateIssuedCouponException::class,
+        ],
+    )
     fun issue(userId: Long, templateId: Long): IssuedCouponModel {
         val now = LocalDateTime.now()
-        val template = getTemplate(templateId)
-        template.requireIssuable(now)
+        val template = getTemplateForUpdate(templateId)
         if (issuedCouponRepository.existsByUserIdAndTemplateId(userId, templateId)) {
             throw DuplicateIssuedCouponException()
         }
+        couponTemplateRepository.save(template.increaseIssuedQuantity(now))
         return issuedCouponRepository.save(IssuedCouponModel.issue(userId, templateId, now))
     }
 
@@ -93,6 +100,9 @@ class CouponService(
     fun getTemplate(templateId: Long): CouponTemplateModel =
         couponTemplateRepository.findByIdOrNull(templateId) ?: throw CoreException(ErrorType.NOT_FOUND)
 
+    private fun getTemplateForUpdate(templateId: Long): CouponTemplateModel =
+        couponTemplateRepository.findByIdForUpdateOrNull(templateId) ?: throw CoreException(ErrorType.NOT_FOUND)
+
     @Transactional(readOnly = true)
     fun getTemplatesByIds(templateIds: Set<Long>): List<CouponTemplateModel> {
         if (templateIds.isEmpty()) {
@@ -126,6 +136,7 @@ class CouponService(
         discountPolicy = toDiscountPolicy(),
         minOrderAmount = Money.of(minOrderAmount),
         expiredAt = expiredAt,
+        totalQuantity = totalQuantity,
     )
 
     private fun CouponTemplateCommand.toDiscountPolicy(): DiscountPolicy =

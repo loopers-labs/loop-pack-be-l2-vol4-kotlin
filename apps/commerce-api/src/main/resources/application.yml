@@ -47,10 +47,8 @@ payment:
     circuit-breaker-permitted-calls-in-half-open-state: 2
 
 commerce-events:
-  like-count:
-    topic-name: commerce.like-count-events.v1
-    relay:
-      enabled: true
+  outbox-relay:
+    enabled: true
 
 ---
 spring:
@@ -65,9 +63,8 @@ spring:
       on-profile: test
 
 commerce-events:
-  like-count:
-    relay:
-      enabled: false
+  outbox-relay:
+    enabled: false
 
 ---
 spring:

@@ -20,12 +20,24 @@ interface ProductLikeCountJpaRepository : JpaRepository<ProductLikeCountJpaEntit
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         value = """
-            insert into product_like_counts (product_id, like_count)
-            select p.id, count(l.product_id)
+            insert into product_metrics (
+                product_id,
+                like_count,
+                sales_count,
+                view_count,
+                last_event_at,
+                last_like_event_at,
+                last_sales_event_at,
+                last_view_event_at,
+                updated_at
+            )
+            select p.id, count(l.product_id), 0, 0, null, null, null, null, current_timestamp
             from products p
             left join likes l on l.product_id = p.id
             group by p.id
-            on duplicate key update like_count = values(like_count)
+            on duplicate key update
+                like_count = values(like_count),
+                updated_at = current_timestamp
         """,
         nativeQuery = true,
     )
@@ -40,8 +52,9 @@ interface ProductLikeCountJpaRepository : JpaRepository<ProductLikeCountJpaEntit
     @Modifying(clearAutomatically = true)
     @Query(
         value = """
-            update product_like_counts
-            set like_count = like_count + 1
+            update product_metrics
+            set like_count = like_count + 1,
+                updated_at = current_timestamp
             where product_id = :productId
         """,
         nativeQuery = true,
@@ -53,8 +66,9 @@ interface ProductLikeCountJpaRepository : JpaRepository<ProductLikeCountJpaEntit
     @Modifying(clearAutomatically = true)
     @Query(
         value = """
-            update product_like_counts
-            set like_count = like_count - 1
+            update product_metrics
+            set like_count = like_count - 1,
+                updated_at = current_timestamp
             where product_id = :productId and like_count > 0
         """,
         nativeQuery = true,

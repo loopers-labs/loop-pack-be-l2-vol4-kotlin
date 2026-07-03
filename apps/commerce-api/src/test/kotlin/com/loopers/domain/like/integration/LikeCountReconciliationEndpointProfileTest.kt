@@ -12,7 +12,7 @@ import org.springframework.http.HttpStatus
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "spring.profiles.active=test",
-        "commerce-events.like-count.relay.enabled=false",
+        "commerce-events.outbox-relay.enabled=false",
     ],
 )
 class LikeCountReconciliationEndpointProfileTest

@@ -26,9 +26,14 @@ class OutboxRepositoryImpl(
         outboxEventJpaRepository.findAllByTypeAndStatus(type, OutboxEventStatus.PENDING).map { it.toDomain() }
 
     @Transactional
-    override fun claimPublishable(type: String, now: ZonedDateTime, limit: Int): List<OutboxEventModel> {
+    override fun claimPublishable(
+        publishableTypes: Set<String>,
+        now: ZonedDateTime,
+        limit: Int,
+    ): List<OutboxEventModel> {
+        if (publishableTypes.isEmpty()) return emptyList()
         val events = outboxEventJpaRepository.findPublishableForUpdate(
-            type = type,
+            publishableTypes = publishableTypes,
             pendingStatus = OutboxEventStatus.PENDING,
             failedStatus = OutboxEventStatus.FAILED,
             now = now,

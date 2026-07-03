@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component
 
 @Component
 @ConditionalOnProperty(
-    prefix = "commerce-events.like-count.relay",
+    prefix = "commerce-events.outbox-relay",
     name = ["enabled"],
     havingValue = "true",
     matchIfMissing = true,
@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component
 class OutboxRelayScheduler(
     private val outboxRelay: OutboxRelay,
 ) {
-    @Scheduled(fixedDelayString = "\${commerce-events.like-count.relay.fixed-delay-ms:1000}")
-    fun publishLikeCountEvents() {
+    @Scheduled(fixedDelayString = "\${commerce-events.outbox-relay.fixed-delay-ms:1000}")
+    fun publishOutboxEvents() {
         outboxRelay.publishOnce()
     }
 }

@@ -8,4 +8,5 @@ data class CouponTemplateCommand(
     val value: Long,
     val minOrderAmount: Long,
     val expiredAt: LocalDateTime,
+    val totalQuantity: Long = Long.MAX_VALUE,
 )

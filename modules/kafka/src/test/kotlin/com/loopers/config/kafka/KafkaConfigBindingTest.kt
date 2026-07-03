@@ -50,10 +50,18 @@ class KafkaConfigBindingTest {
                 .isEqualTo(StringSerializer::class.java)
             assertThat(producerProperties[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG])
                 .isEqualTo(JsonSerializer::class.java)
+            assertThat(producerProperties[ProducerConfig.ACKS_CONFIG])
+                .isEqualTo("all")
+            assertThat(producerProperties[ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG])
+                .isEqualTo("true")
+            assertThat(producerProperties[ProducerConfig.RETRIES_CONFIG])
+                .isEqualTo(3)
             assertThat(consumerProperties[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG])
                 .isEqualTo(StringDeserializer::class.java)
             assertThat(consumerProperties[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG])
                 .isEqualTo(ByteArrayDeserializer::class.java)
+            assertThat(consumerProperties[ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG])
+                .isEqualTo(false)
         }
     }
 

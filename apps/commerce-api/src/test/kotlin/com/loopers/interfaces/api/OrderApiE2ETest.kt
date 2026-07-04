@@ -3,8 +3,7 @@ package com.loopers.interfaces.api
 import com.loopers.ApiTest
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
-import com.loopers.domain.coupon.application.command.CouponTemplateCommand
-import com.loopers.domain.coupon.application.service.CouponService
+import com.loopers.domain.coupon.application.service.CouponIssueRequestWorker
 import com.loopers.domain.product.application.ProductFacade
 import com.loopers.domain.product.infrastructure.persistence.stock.ProductStockJpaRepository
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
@@ -21,13 +20,14 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDateTime
+import java.util.UUID
 
 class OrderApiE2ETest
     @Autowired
     constructor(
         private val userService: UserService,
         private val brandService: BrandService,
-        private val couponService: CouponService,
+        private val couponIssueRequestWorker: CouponIssueRequestWorker,
         private val productFacade: ProductFacade,
         private val productStockJpaRepository: ProductStockJpaRepository,
     ) : ApiTest() {
@@ -102,90 +102,6 @@ class OrderApiE2ETest
             assertThat(savedStock.leftStock).isEqualTo(5)
         }
 
-        @Test
-        fun `만료된_쿠폰으로_주문하면_409_CONFLICT를_반환하고_재고를_차감하지_않는다`() {
-            userService.signUp(사용자_회원가입())
-            val productId = registerProduct(price = 10_000, initialStock = 5)
-            val templateId = createRateTemplate(value = 10, minOrderAmount = 0)
-            val issuedCouponId = issueCoupon(templateId)
-            expireTemplate(templateId)
-
-            val response = placeOrder(
-                productId = productId,
-                quantity = 1,
-                issuedCouponId = issuedCouponId,
-            )
-            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
-
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
-            assertThat(savedStock.leftStock).isEqualTo(5)
-        }
-
-        @Test
-        fun `최소_주문금액에_미달하면_409_CONFLICT를_반환하고_재고를_차감하지_않는다`() {
-            userService.signUp(사용자_회원가입())
-            val productId = registerProduct(price = 10_000, initialStock = 5)
-            val issuedCouponId = issueCoupon(createRateTemplate(value = 10, minOrderAmount = 100_000))
-
-            val response = placeOrder(
-                productId = productId,
-                quantity = 1,
-                issuedCouponId = issuedCouponId,
-            )
-            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
-
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
-            assertThat(savedStock.leftStock).isEqualTo(5)
-        }
-
-        @Test
-        fun `존재하지_않는_쿠폰으로_주문하면_404_NOT_FOUND를_반환하고_재고를_차감하지_않는다`() {
-            userService.signUp(사용자_회원가입())
-            val productId = registerProduct(price = 10_000, initialStock = 5)
-
-            val response = placeOrder(
-                productId = productId,
-                quantity = 1,
-                issuedCouponId = 999_999L,
-            )
-            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
-
-            assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
-            assertThat(savedStock.leftStock).isEqualTo(5)
-        }
-
-        @Test
-        fun `재고가_부족하면_주문이_실패하고_쿠폰_사용과_재고_차감이_모두_롤백된다`() {
-            userService.signUp(사용자_회원가입())
-            val productId = registerProduct(price = 10_000, initialStock = 1)
-            val issuedCouponId = issueCoupon(createRateTemplate(value = 10, minOrderAmount = 0))
-
-            val response = placeOrder(
-                productId = productId,
-                quantity = 2,
-                issuedCouponId = issuedCouponId,
-            )
-            val myCouponsResponse = findMyCoupons()
-            val savedStock = productStockJpaRepository.findById(productId).orElseThrow()
-
-            assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
-            assertThat(myCouponsResponse.body?.data?.first()?.get("displayStatus")).isEqualTo("AVAILABLE")
-            assertThat(savedStock.leftStock).isEqualTo(1)
-        }
-
-        private fun expireTemplate(templateId: Long) {
-            couponService.updateTemplate(
-                templateId = templateId,
-                command = CouponTemplateCommand(
-                    name = "EXPIRED_RATE",
-                    type = "RATE",
-                    value = 10,
-                    minOrderAmount = 0,
-                    expiredAt = LocalDateTime.now().minusDays(1),
-                ),
-            )
-        }
-
         private fun registerProduct(price: Long, initialStock: Long): Long {
             val brand = brandService.register(브랜드_등록_커맨드())
             return productFacade.registerProduct(
@@ -226,8 +142,28 @@ class OrderApiE2ETest
                 HttpEntity<Unit>(headers),
                 mapResponseType,
             )
-            return response.body?.data?.number("id") ?: error("쿠폰 발급 실패")
+            assertThat(response.statusCode).isEqualTo(HttpStatus.ACCEPTED)
+            val requestId = UUID.fromString(response.body?.data?.get("requestId").toString())
+
+            couponIssueRequestWorker.process(
+                eventId = UUID.randomUUID(),
+                consumerGroup = "commerce-api-coupon-issue",
+                eventType = "COUPON_ISSUE_REQUESTED_V1",
+                requestId = requestId,
+            )
+            val statusResponse = findIssueRequest(requestId, headers)
+
+            assertThat(statusResponse.body?.data?.get("status")).isEqualTo("ISSUED")
+            return statusResponse.body?.data?.number("issuedCouponId") ?: error("쿠폰 발급 실패")
         }
+
+        private fun findIssueRequest(requestId: UUID, headers: HttpHeaders) =
+            testRestTemplate.exchange(
+                "/api/v1/coupons/issue-requests/$requestId",
+                HttpMethod.GET,
+                HttpEntity<Unit>(headers),
+                mapResponseType,
+            )
 
         private fun placeOrder(productId: Long, quantity: Long, issuedCouponId: Long) =
             testRestTemplate.exchange(

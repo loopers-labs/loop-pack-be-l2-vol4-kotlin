@@ -1,5 +1,6 @@
 package com.loopers.domain.product.vo
 
+import com.loopers.domain.product.constant.ProductErrorMessages
 import com.loopers.domain.product.exception.InvalidProductException
 
 @JvmInline
@@ -14,7 +15,7 @@ value class ProductName private constructor(
 
         private fun validate(value: String) {
             if (value.isBlank()) {
-                throw InvalidProductException("상품명은 공백일 수 없습니다.")
+                throw InvalidProductException(ProductErrorMessages.PRODUCT_NAME_MUST_NOT_BE_BLANK)
             }
         }
     }

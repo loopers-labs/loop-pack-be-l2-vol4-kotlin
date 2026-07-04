@@ -20,6 +20,7 @@ spring:
   config:
     import:
       - jpa.yml
+      - kafka.yml
       - redis.yml
       - logging.yml
       - monitoring.yml
@@ -45,11 +46,25 @@ payment:
     circuit-breaker-wait-duration-in-open-state: 5s
     circuit-breaker-permitted-calls-in-half-open-state: 2
 
+commerce-events:
+  outbox-relay:
+    enabled: true
+
 ---
 spring:
   config:
     activate:
       on-profile: local, test
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+commerce-events:
+  outbox-relay:
+    enabled: false
 
 ---
 spring:

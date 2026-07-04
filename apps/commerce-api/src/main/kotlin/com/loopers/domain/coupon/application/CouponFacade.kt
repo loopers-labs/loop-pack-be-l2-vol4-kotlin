@@ -1,18 +1,22 @@
 package com.loopers.domain.coupon.application
 
 import com.loopers.domain.coupon.application.command.CouponTemplateCommand
+import com.loopers.domain.coupon.application.info.CouponIssueRequestInfo
 import com.loopers.domain.coupon.application.info.CouponTemplateInfo
 import com.loopers.domain.coupon.application.info.IssuedCouponInfo
+import com.loopers.domain.coupon.application.service.CouponIssueRequestService
 import com.loopers.domain.coupon.application.service.CouponService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.page.PageResult
 import org.springframework.stereotype.Component
 import java.time.LocalDateTime
+import java.util.UUID
 
 @Component
 class CouponFacade(
     private val couponService: CouponService,
+    private val couponIssueRequestService: CouponIssueRequestService,
 ) {
     fun createTemplate(command: CouponTemplateCommand): CouponTemplateInfo =
         CouponTemplateInfo.from(couponService.createTemplate(command))
@@ -35,6 +39,12 @@ class CouponFacade(
         val template = findTemplate(issuedCoupon.couponTemplateId)
         return IssuedCouponInfo.from(issuedCoupon, template, LocalDateTime.now())
     }
+
+    fun requestIssue(userId: Long, templateId: Long): CouponIssueRequestInfo =
+        CouponIssueRequestInfo.from(couponIssueRequestService.requestIssue(userId, templateId))
+
+    fun findIssueRequest(userId: Long, requestId: UUID): CouponIssueRequestInfo =
+        CouponIssueRequestInfo.from(couponIssueRequestService.getRequest(userId, requestId))
 
     fun findMyCoupons(userId: Long): List<IssuedCouponInfo> {
         val issuedCoupons = couponService.findMyCoupons(userId)

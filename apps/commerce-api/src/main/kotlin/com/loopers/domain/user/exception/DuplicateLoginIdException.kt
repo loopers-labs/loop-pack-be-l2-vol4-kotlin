@@ -1,6 +1,8 @@
 package com.loopers.domain.user.exception
 
+import com.loopers.domain.user.constant.UserErrorMessages
+
 class DuplicateLoginIdException(
     loginId: String,
     cause: Throwable? = null,
-) : UserDomainException("이미 가입된 로그인 ID 입니다.", cause)
+) : UserDomainException(UserErrorMessages.DUPLICATE_LOGIN_ID, cause)

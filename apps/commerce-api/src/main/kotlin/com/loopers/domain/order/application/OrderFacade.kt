@@ -17,6 +17,9 @@ import com.loopers.domain.product.vo.Quantity
 import com.loopers.domain.user.application.service.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.support.event.CommerceEventOrderItem
+import com.loopers.support.event.OrderCreatedApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -29,6 +32,7 @@ class OrderFacade(
     private val stockService: StockService,
     private val orderService: OrderService,
     private val couponService: CouponService,
+    private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
     @Transactional
     fun placeOrder(command: OrderCreateCommand): OrderInfo {
@@ -54,6 +58,12 @@ class OrderFacade(
             idempotencyKey = idempotencyKey,
             issuedCouponId = command.issuedCouponId,
             discountPrice = discountPrice,
+        )
+        applicationEventPublisher.publishEvent(
+            OrderCreatedApplicationEvent(
+                orderId = order.id,
+                items = order.items.map { CommerceEventOrderItem(it.productId, it.quantity.value) },
+            ),
         )
         return OrderInfo.from(order)
     }

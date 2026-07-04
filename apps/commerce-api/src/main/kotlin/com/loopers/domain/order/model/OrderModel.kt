@@ -1,5 +1,6 @@
 package com.loopers.domain.order.model
 
+import com.loopers.domain.order.constant.OrderErrorMessages
 import com.loopers.domain.order.exception.InvalidOrderException
 import com.loopers.domain.product.vo.Money
 
@@ -101,44 +102,44 @@ data class OrderModel(
 
         private fun validateId(id: Long) {
             if (id < 0) {
-                throw InvalidOrderException("주문 ID는 음수일 수 없습니다.")
+                throw InvalidOrderException(OrderErrorMessages.ORDER_ID_NEGATIVE)
             }
         }
 
         private fun validatePersistedId(id: Long) {
             if (id <= 0) {
-                throw InvalidOrderException("저장된 주문 ID는 양수여야 합니다.")
+                throw InvalidOrderException(OrderErrorMessages.PERSISTED_ORDER_ID_MUST_BE_POSITIVE)
             }
         }
 
         private fun validateUserId(orderedUserId: Long) {
             if (orderedUserId <= 0) {
-                throw InvalidOrderException("주문자 ID는 양수여야 합니다.")
+                throw InvalidOrderException(OrderErrorMessages.ORDERED_USER_ID_MUST_BE_POSITIVE)
             }
         }
 
         private fun validateIssuedCouponId(issuedCouponId: Long?) {
             if (issuedCouponId != null && issuedCouponId <= 0) {
-                throw InvalidOrderException("발급 쿠폰 ID는 양수여야 합니다.")
+                throw InvalidOrderException(OrderErrorMessages.ISSUED_COUPON_ID_MUST_BE_POSITIVE)
             }
         }
 
         private fun validateItems(items: List<OrderItemModel>) {
             if (items.isEmpty()) {
-                throw InvalidOrderException("주문은 하나 이상의 상품을 포함해야 합니다.")
+                throw InvalidOrderException(OrderErrorMessages.ORDER_MUST_HAVE_ITEMS)
             }
         }
 
         private fun validateDiscount(totalPrice: Money, discountPrice: Money) {
             if (discountPrice > totalPrice) {
-                throw InvalidOrderException("할인 금액은 주문 총액을 초과할 수 없습니다.")
+                throw InvalidOrderException(OrderErrorMessages.DISCOUNT_EXCEEDS_TOTAL)
             }
         }
     }
 
     private fun validatePendingTransition() {
         if (status != OrderStatus.PAYMENT_PENDING) {
-            throw InvalidOrderException("주문 상태 전이는 결제 대기 상태에서만 가능합니다.")
+            throw InvalidOrderException(OrderErrorMessages.INVALID_STATUS_TRANSITION)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.loopers.domain.product.vo
 
+import com.loopers.domain.product.constant.ProductErrorMessages
 import com.loopers.domain.product.exception.InvalidProductException
 
 enum class ProductSort(
@@ -19,7 +20,7 @@ enum class ProductSort(
                 ?: LATEST.code
 
             return entries.firstOrNull { it.code == normalized }
-                ?: throw InvalidProductException("지원하지 않는 상품 정렬조건입니다.")
+                ?: throw InvalidProductException(ProductErrorMessages.UNSUPPORTED_PRODUCT_SORT)
         }
     }
 }

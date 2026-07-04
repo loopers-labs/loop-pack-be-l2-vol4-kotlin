@@ -14,6 +14,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.http.HttpStatus
 import java.io.IOException
 import java.net.InetSocketAddress
+import java.time.Duration
 import kotlin.system.measureTimeMillis
 
 class PgSimulatorPaymentGatewayAdapterTest {
@@ -26,8 +27,9 @@ class PgSimulatorPaymentGatewayAdapterTest {
 
     @Test
     fun `PG_응답이_튜닝된_read_timeout보다_지연되면_빠르게_불확정_실패로_종료한다`() {
-        pgServer.start(delayMillis = 1_200)
-        val adapter = adapter(retryMaxAttempts = 1)
+        val pgResponseDelayMillis = 2_500L
+        pgServer.start(delayMillis = pgResponseDelayMillis)
+        val adapter = adapter(retryMaxAttempts = 1, readTimeout = Duration.ofMillis(200))
 
         val elapsedMillis = measureTimeMillis {
             assertThrows<PaymentGatewayUnknownException> {
@@ -35,7 +37,7 @@ class PgSimulatorPaymentGatewayAdapterTest {
             }
         }
 
-        assertThat(elapsedMillis).isLessThan(1_100)
+        assertThat(elapsedMillis).isLessThan(pgResponseDelayMillis)
         assertThat(pgServer.requests).hasSize(1)
     }
 
@@ -81,6 +83,7 @@ class PgSimulatorPaymentGatewayAdapterTest {
 
     private fun adapter(
         retryMaxAttempts: Int = 3,
+        readTimeout: Duration = Duration.ofMillis(700),
         circuitBreakerSlidingWindowSize: Int = 10,
         circuitBreakerMinimumNumberOfCalls: Int = 5,
     ): PgSimulatorPaymentGatewayAdapter =
@@ -88,6 +91,7 @@ class PgSimulatorPaymentGatewayAdapterTest {
             restTemplateBuilder = RestTemplateBuilder(),
             properties = PgSimulatorPaymentProperties(
                 baseUrl = pgServer.baseUrl,
+                readTimeout = readTimeout,
                 retryMaxAttempts = retryMaxAttempts,
                 circuitBreakerSlidingWindowSize = circuitBreakerSlidingWindowSize,
                 circuitBreakerMinimumNumberOfCalls = circuitBreakerMinimumNumberOfCalls,
@@ -153,8 +157,4 @@ class PgSimulatorPaymentGatewayAdapterTest {
             }
         }
     }
-
-    private data class PgResponse(
-        val status: HttpStatus = HttpStatus.OK,
-    )
 }

@@ -1,5 +1,6 @@
 package com.loopers.domain.user.vo
 
+import com.loopers.domain.user.constant.UserErrorMessages
 import com.loopers.domain.user.exception.InvalidUserException
 
 @JvmInline
@@ -18,7 +19,7 @@ value class LoginId private constructor(
 
         private fun validate(value: String) {
             if (!PATTERN.matches(value)) {
-                throw InvalidUserException("로그인 ID는 영문/숫자 4~20자여야 합니다.")
+                throw InvalidUserException(UserErrorMessages.INVALID_LOGIN_ID_FORMAT)
             }
         }
     }

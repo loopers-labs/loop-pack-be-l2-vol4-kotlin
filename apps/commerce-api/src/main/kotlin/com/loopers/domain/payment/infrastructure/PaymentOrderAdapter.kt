@@ -3,6 +3,7 @@ package com.loopers.domain.payment.infrastructure
 import com.loopers.domain.order.application.service.OrderService
 import com.loopers.domain.order.model.OrderModel
 import com.loopers.domain.order.model.OrderStatus
+import com.loopers.domain.payment.constant.PaymentErrorMessages
 import com.loopers.domain.payment.port.PaymentOrderPort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -25,7 +26,7 @@ class PaymentOrderAdapter(
 
     private fun requirePending(order: OrderModel): OrderModel {
         if (order.status != OrderStatus.PAYMENT_PENDING) {
-            throw CoreException(ErrorType.CONFLICT, "결제 대기 상태 주문만 결제할 수 있습니다.")
+            throw CoreException(ErrorType.CONFLICT, PaymentErrorMessages.ORDER_NOT_PAYABLE)
         }
         return order
     }

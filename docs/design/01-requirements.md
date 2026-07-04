@@ -28,6 +28,7 @@
     - [5.6.4 쿠폰 사용·조회 규칙](#564-쿠폰-사용조회-규칙)
     - [5.6.5 쿠폰 할인 정책](#565-쿠폰-할인-정책)
     - [5.6.6 운영 감사 확장 후보](#566-운영-감사-확장-후보)
+  - [5.7 이벤트 아키텍처와 상품 지표](#57-이벤트-아키텍처와-상품-지표)
 - [6. 심화 과정](#6-심화-과정)
 
 ---
@@ -38,6 +39,7 @@
 > 본 프로젝트는 **좋아요**, **쿠폰**, **결제** 기능을 포함하는 **가상 이커머스 서비스**의 백엔드 시스템 구현을 목표로 한다.
 > Round 2 핵심 설계 범위는 **브랜드/상품 조회, 좋아요, 주문, 재고, 결제 기록**이다.
 > Round 4 핵심 설계 범위는 **쿠폰 생성·발급·조회·사용과 주문 시 쿠폰/재고 동시 정합성 보장**이다.
+> Round 7 핵심 설계 범위는 **ApplicationEvent 기반 트랜잭션 이후 부가 처리, outbox/Kafka 이벤트 파이프라인, 상품 지표 projection, Kafka 기반 비동기 선착순 쿠폰 발급**이다.
 > Payment 사가, 외부 결제 연동, 결제 실패 보상 회복은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 트랜잭션 정합성에 한정하며, 별도 이슈가 없으면 Payment 도메인과 결제 게이트웨이를 새로 구현하지 않는다.
 > 사용자 회원가입·내 정보 조회·비밀번호 변경은 현재 구현 패턴과 인증 전제를 설명하기 위한 레퍼런스로 포함한다.
 
@@ -122,12 +124,31 @@
 #### 좋아요
 사용자가 특정 상품에 관심을 표시한 상태다. 좋아요는 사용자와 상품 사이의 관계로 표현되며, 사용자는 자신이 좋아요 한 상품 목록을 조회할 수 있다.
 자신의 식별자이자 인증 정보인 계정이 있는 사용자가 로그인 후 특정 상품에 대하여 '좋아요 누르기'를 수행할 수 있으며, 한 사용자가 한 상품에 대하여 한 번만 수행할 수 있다.
+`likes` 레코드는 사용자-상품 좋아요 상태의 진실 원천(source of truth)이다. 상품별 좋아요 수는 `product_metrics.like_count`로 조회하며, 이 값은 `likes` 변경 이벤트를 Kafka consumer가 반영하는 eventually consistent projection이다. 기존 `product_like_counts`의 의미는 `product_metrics.like_count`로 흡수되며, 독립 테이블로 남기더라도 마이그레이션 bridge로만 취급한다.
 
 ##### 값과 규칙
 
 - 사용자: 좋아요를 등록하거나 취소하는 주체다.
 - 상품: 좋아요의 대상이다.
 - 좋아요 목록: 로그인한 사용자가 좋아요 한 상품들의 목록이다.
+- 좋아요 수: 상품 목록·상세 조회와 `likes_desc` 정렬에 사용하는 `product_metrics.like_count` 읽기 모델이다. 쓰기 직후에는 projection lag 때문에 `likes`의 최신 상태보다 늦게 보일 수 있으며, 정확한 사용자별 좋아요 상태 판단은 `likes`를 기준으로 한다.
+
+#### 상품 지표
+
+상품 지표는 상품 목록·상세 조회, 정렬, 운영 분석에 필요한 파생 카운터다. `product_metrics`는 상품별 좋아요 수, 판매 수, 조회 수를 한 행으로 보관하는 rebuildable derived projection이다. 권위 상태는 `likes`, 주문/주문 항목, 상품 조회 이벤트 같은 원천 이벤트와 원천 테이블에 남는다.
+
+##### 값과 규칙
+
+- 상품 식별자: 지표가 귀속되는 상품 ID다.
+- 좋아요 수: `likes` 상태 변경 이벤트의 증감량을 반영한 카운터다.
+- 판매 수: 주문/결제 확정 또는 설계상 판매 반영 시점으로 선택한 주문 이벤트에서 파생되는 카운터다.
+- 조회 수: 상품 상세 조회가 커밋된 뒤 발행되는 상품 조회 이벤트에서 파생되는 카운터다.
+- 최신성 기준: `product_metrics`는 전체 row의 `last_event_at`와 함께 `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`을 저장한다. consumer는 같은 지표의 이전 발생시각 이벤트만 stale로 무시하고, 서로 다른 지표 이벤트는 발생시각이 역전되어도 독립적으로 반영한다.
+
+##### 행위 정의
+
+- 지표 반영: Kafka consumer가 이벤트를 처리해 `product_metrics`를 upsert한다.
+- 지표 재구성: consumer 장애나 누락 의심 시 원천 테이블과 이벤트 replay를 기준으로 projection을 다시 만든다.
 
 ##### 행위 정의
 
@@ -334,11 +355,14 @@
 
 ##### User-J5. 쿠폰을 발급받아 주문에 적용한다
 1. 일반 사용자가 발급 가능한 쿠폰 목록을 조회한다
-2. 원하는 쿠폰 템플릿을 선택해 발급 요청한다
-3. 내 쿠폰 목록에서 발급 쿠폰과 표시 상태(`AVAILABLE`/`USED`/`EXPIRED`)를 확인한다
-4. 주문 요청에 `issuedCouponId`를 포함한다
-5. 시스템은 발급 쿠폰 소유자·상태·유효기간·최소 주문 금액을 검증하고, 재고 차감과 쿠폰 사용 처리를 하나의 트랜잭션으로 확정한다
-6. 주문 상세에서 총액, 할인 금액, 최종 결제 금액, 적용 쿠폰 식별자를 확인한다
+2. 원하는 쿠폰 템플릿을 선택해 발급 요청을 접수한다
+3. 시스템은 요청 식별자와 `PENDING` 상태를 `202 Accepted`로 반환한다
+4. 실제 발급은 `coupon-issue-requests` Kafka topic을 소비하는 worker가 별도 트랜잭션에서 처리한다
+5. 사용자는 발급 요청 상태 polling API로 `PENDING`/`ISSUED`/`DUPLICATE`/`SOLD_OUT`/`FAILED`를 확인한다
+6. 내 쿠폰 목록에서 발급 완료 쿠폰과 표시 상태(`AVAILABLE`/`USED`/`EXPIRED`)를 확인한다
+7. 주문 요청에 `issuedCouponId`를 포함한다
+8. 시스템은 발급 쿠폰 소유자·상태·유효기간·최소 주문 금액을 검증하고, 재고 차감과 쿠폰 사용 처리를 하나의 트랜잭션으로 확정한다
+9. 주문 상세에서 총액, 할인 금액, 최종 결제 금액, 적용 쿠폰 식별자를 확인한다
 
 ##### User-E1. 타인 자원에 접근하려다 거부된다
 - 일반 사용자 A가 사용자 B의 좋아요 목록 또는 주문 상세를 조회 시도
@@ -435,6 +459,7 @@
 | API | U-J5 | U-E4 | A-J5 |
 | :--- | :---: | :---: | :---: |
 | `POST /api/v1/coupons/{couponId}/issue` | ● | | |
+| `GET /api/v1/coupons/issue-requests/{requestId}` | ● | | |
 | `GET /api/v1/users/me/coupons` | ● | ● | |
 | `POST /api/v1/orders` with `couponId` | ● | ● | |
 | `POST /api-admin/v1/coupons` | | | ● |
@@ -482,6 +507,7 @@
 | 상황 | 코드 | 적용 예시 |
 | :--- | :---: | :--- |
 | 조회·변경 정상 처리 | `200 OK` | 내 정보 조회, 비밀번호 변경 성공, 상품·브랜드 조회 |
+| 비동기 요청 접수 | `202 Accepted` | 쿠폰 발급 요청 접수 |
 | 자원 생성 성공 | `201 Created` | 회원가입, 주문 요청, 브랜드 등록, 상품 등록 |
 | 삭제 등 응답 본문 없는 성공 | `204 No Content` | 좋아요 취소, 브랜드 삭제, 상품 삭제 |
 | 요청 형식·필수값·필드 정책 위반 | `400 Bad Request` | JSON 파싱 실패, 타입 오류, 필수 필드 누락, 로그인 ID/비밀번호/이름 입력 규칙 위반, 미래 생년월일, 잘못된 이메일 형식, 잘못된 정렬 키, 현재 비밀번호와 동일한 신규 비밀번호 |
@@ -576,6 +602,16 @@
 > [!IMPORTANT]
 > `GET /api/v1/users/{userId}/likes`의 path `userId`는 **인증된 사용자 식별자와 반드시 일치**해야 한다. 불일치 시 자원 존재 여부를 노출하지 않도록 `404`로 응답한다 (§3.1, §3.2 `User-E1`, §4 HTTP 응답 코드 정책 참조).
 
+#### 좋아요 수 projection 이벤트
+
+- `likes`는 사용자-상품 좋아요 상태의 source of truth이고, `product_metrics.like_count`는 `LIKE_COUNT_CHANGED_V1` 이벤트를 Kafka consumer가 반영하는 eventually consistent projection이다.
+- 좋아요 등록이 실제 상태 전이를 만들면(`likes` INSERT 영향 행 수 `1`) `delta = +1` 이벤트를 남긴다. 이미 좋아요 상태인 반복 `POST`처럼 영향 행 수가 `0`인 no-op 요청은 이벤트를 남기지 않는다.
+- 좋아요 취소가 실제 상태 전이를 만들면(`likes` DELETE 영향 행 수 `1`) `delta = -1` 이벤트를 남긴다. 이미 미좋아요 상태인 반복 `DELETE`처럼 영향 행 수가 `0`인 no-op 요청은 이벤트를 남기지 않는다.
+- Kafka topic은 `catalog-events`, 이벤트 타입은 `LIKE_COUNT_CHANGED_V1`, Kafka key는 `productId`다. 동일 상품의 증감 이벤트는 같은 key로 보내 상품 단위 순서를 최대한 보존한다.
+- 이벤트는 UUID `eventId`를 가진다. consumer는 `processed_kafka_events` 또는 동일 목적의 `event_handled` 테이블에 `(consumer_group, eventId)` 처리 기록을 저장하고, 같은 이벤트가 재전달되면 `product_metrics`에 `delta`를 다시 적용하지 않는다.
+- `product_metrics`는 조회 성능을 위한 projection이므로 짧은 projection lag를 허용한다. consumer 중단, 재처리, 장애 복구 시에는 Kafka replay와 `likes` 기준 backfill/rebuild로 projection을 다시 맞춘다.
+- 쿠폰 발급 요청은 이 좋아요 수 이벤트 흐름으로 옮기지 않고 `coupon-issue-requests` topic을 사용하는 별도 비동기 command 흐름으로 처리한다.
+
 ---
 
 ### 5.5 주문 (Orders)
@@ -666,8 +702,8 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 | 유스케이스 | 동시성 위험 | 선택한 락/제약 | 근거 |
 | :--- | :--- | :--- | :--- |
 | 좋아요 등록/취소 | 중복·연타·동시 요청 | DB 복합 PK + 조건부 INSERT/DELETE (행 락 없음) | 멱등 연산이라 락 불필요. 멱등성은 `(user_id, product_id)` PK가 보장 |
-| 좋아요 수 갱신 | 동시 증감으로 카운트 어긋남 | `product_like_counts` 행 원자 UPDATE (`like_count = like_count ± 1`) | 단일 컬럼 증감. 증감량은 좋아요 INSERT/DELETE 영향 행 수(0/1)로 결정, 취소는 `like_count > 0` 가드로 음수 방지 |
-| 쿠폰 발급 | 동일 사용자·템플릿 중복 발급 | `UNIQUE(user_id, coupon_template_id)` | 1인 1발급 멱등. 위반은 `409 Conflict` |
+| 좋아요 수 projection | Kafka 재전달·consumer 장애·짧은 조회 지연 | `likes` source of truth + `LIKE_COUNT_CHANGED_V1` + `processed_kafka_events` 또는 `event_handled` dedupe | 실제 INSERT/DELETE 영향 행 수가 1일 때만 `delta=+1/-1` 이벤트를 남기고, `productId` key로 발행한다. consumer는 UUID `eventId` 처리 이력을 저장한 뒤 `product_metrics.like_count` projection을 갱신한다. projection lag는 허용하며 replay/backfill로 복구한다 |
+| 쿠폰 발급 요청 | 중복 요청·Kafka 재전달·선착순 수량 경합 | 요청 상태 테이블 + outbox + `coupon-issue-requests` + worker 멱등 처리 | API는 요청 저장과 outbox 저장까지만 원자적으로 처리하고 `202 Accepted`를 반환한다. worker는 별도 트랜잭션에서 요청 상태를 확정하며 event id 처리 이력, 사용자-템플릿 unique, 수량 차감 락/조건부 update로 중복 발급과 초과 발급을 막는다 |
 | 쿠폰 사용 | 동일 쿠폰 동시 주문으로 중복 사용 | 낙관적 락(`version`) + 상태 검증(`AVAILABLE`/`used_at IS NULL`) | 경합 주체가 소유자 본인으로 한정돼 충돌 확률이 낮아 비관적 락 대비 응답이 빠르고 재처리가 단순. `version`은 lost update를, 상태 검증은 재사용을 막으며 둘이 함께 작동해야 "단 1회 사용"이 보장됨. 충돌 시 주문 실패로 응답 |
 | 재고 차감 | 동시 주문으로 초과 차감·음수 재고 | 비관적 락(`PESSIMISTIC_WRITE`) + 상품 ID 정렬 잠금 | 다중 상품 행을 read-modify-write로 차감하므로 경합이 잦고 정렬 잠금으로 교착을 방지. 차감은 잔여 재고 검증 후 수행 |
 
@@ -683,6 +719,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 | Method | URI | User Required | 설명 |
 | :--- | :--- | :---: | :--- |
 | `POST` | `/api/v1/coupons/{couponId}/issue` | O | 쿠폰 발급 |
+| `GET` | `/api/v1/coupons/issue-requests/{requestId}` | O | 쿠폰 발급 요청 상태 조회 |
 | `GET` | `/api/v1/users/me/coupons` | O | 내 발급 쿠폰 목록 조회 |
 
 > [!IMPORTANT]
@@ -722,7 +759,12 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 - 삭제된 쿠폰 템플릿은 발급할 수 없다.
 - 유효기간이 지난 쿠폰 템플릿은 발급할 수 없다.
 - 한 사용자는 같은 쿠폰 템플릿을 한 번만 발급받을 수 있다.
-- 중복 발급 요청은 `409 Conflict`로 응답한다. DB unique 제약이 최종 중복을 막는다.
+- `POST /api/v1/coupons/{couponId}/issue`는 실제 발급 완료가 아니라 발급 요청 접수 API다. 성공적으로 접수되면 `202 Accepted`와 `requestId`, 현재 status(`PENDING` 등)를 반환한다.
+- API 트랜잭션은 쿠폰 템플릿 기본 검증, 발급 요청 저장, `coupon-issue-requests` outbox row 저장까지만 원자적으로 처리한다.
+- `coupon-issue-requests` worker는 `commerce-api` command owner 쪽에서 별도 트랜잭션으로 실제 발급을 수행하고 요청 상태를 `ISSUED`, `DUPLICATE`, `SOLD_OUT`, `FAILED` 중 하나로 확정한다.
+- 같은 사용자와 같은 쿠폰 템플릿의 중복 요청은 기존 `PENDING`/최종 요청을 반환하는 멱등 흐름을 우선한다. 실제 발급 중복은 DB unique 제약이 최종 방어선이다.
+- 선착순 수량 제한은 worker 트랜잭션에서 쿠폰 템플릿 수량 잠금 또는 조건부 차감으로 보장한다. Kafka 재전달은 처리 이력 테이블로 멱등하게 처리한다.
+- 사용자는 polling API로 발급 결과를 확인한다. 요청 접수 응답을 실제 쿠폰 발급 성공으로 해석하지 않는다.
 
 #### 5.6.4 쿠폰 사용·조회 규칙
 
@@ -750,6 +792,32 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 
 ---
 
+### 5.7 이벤트 아키텍처와 상품 지표
+
+Round 7 이벤트 아키텍처는 로컬 트랜잭션 경계 분리와 시스템 간 전파를 구분한다.
+
+#### 책임 경계
+
+- `commerce-api`는 도메인 이벤트 계약, `ApplicationEvent` 발행, `@TransactionalEventListener` 기반 후속 처리, outbox 저장, Kafka topic/key 라우팅을 소유한다.
+- streamer 애플리케이션은 Kafka record 수집, 처리 이력 저장, projection upsert만 수행한다. 권위 상태 변경과 쿠폰 발급 비즈니스 규칙은 복제하지 않는다.
+- 이벤트 계약은 현재 애플리케이션 경계 안에 둔다. 별도 공유 이벤트 모듈을 새로 만들지 않는다.
+
+#### 로컬 이벤트
+
+- 주문 생성, 결제 승인/실패, 상품 조회, 좋아요 변경, 쿠폰 발급 요청/완료/실패처럼 주 행위와 부가 처리를 나눌 필요가 있는 지점에서 Spring `ApplicationEvent`를 발행한다.
+- 커밋된 상태만 관찰해야 하는 부가 로그, outbox 생성, 외부 전파 준비는 `@TransactionalEventListener(phase = AFTER_COMMIT)`를 사용한다.
+- 롤백된 성공 행위는 성공 로그나 Kafka 이벤트를 만들지 않는다. 실패 자체를 기록해야 하는 별도 요구가 있을 때만 실패 이벤트/로그를 분리한다.
+
+#### Kafka/outbox 정책
+
+- 시스템 간 전파가 필요한 이벤트는 먼저 `outbox_events`에 durable row로 저장하고, relay가 DB 트랜잭션 밖에서 Kafka로 발행한다.
+- producer는 `acks=all`, `idempotence=true`를 전제로 한다.
+- 주요 topic은 `catalog-events`(상품 조회·좋아요·재고/카탈로그 지표, key=`productId`), `order-events`(주문·결제 결과, key=`orderId`), `coupon-issue-requests`(쿠폰 발급 command, key=`couponId`)다.
+- consumer는 manual ack를 사용하고, DB commit 이후에 ack한다. 같은 event id 재전달은 `processed_kafka_events` 또는 동일 목적의 `event_handled` 테이블로 멱등 처리한다.
+- `product_metrics(product_id, like_count, sales_count, view_count, last_event_at, last_like_event_at, last_sales_event_at, last_view_event_at, updated_at)`는 `product_like_counts`를 대체/흡수하는 상품 지표 projection이다. stale event는 지표별 마지막 발생시각 기준으로 방어한다.
+
+---
+
 ## 6. 심화 과정
 
 > [!TIP]
@@ -763,5 +831,5 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 > * **분산 시스템 데이터 일관성 (Consistency)**: 여러 서비스 간 트랜잭션 롤백 및 보상 트랜잭션 기법 연구
 > * **외부 IO와 트랜잭션 경계**: 외부 결제 호출은 분산 환경 여부와 무관하게 DB 트랜잭션 밖에서 수행해야 한다. 이를 `TX1 → 외부 호출 → TX2` 로 분리하면 *외부 호출 직후 프로세스 종료* 같은 경계 실패 시 주문 `PAYMENT_PENDING`, 결제 `REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 미결 회복 프로세스는 결제 상태를 확인한 뒤 주문 실패 전이, 재고 복구, 쿠폰 복구, 주문-쿠폰 연결 해제를 멱등하게 수행해야 한다. 외부 시스템 웹훅 수신, outbox 패턴 같은 회복 전략은 결제수단과 연동 방식이 구체화될 때 도입한다.
 > * **조회 성능 최적화 (Slow Query Optimization)**: 상품 목록 필터링 및 대량의 주문 목록 조회 쿼리에 대한 최적의 인덱스 설계와 튜닝
-> * **좋아요 수 조회 최적화**: 좋아요 수를 매번 `COUNT`로 계산하는 방식이 병목이 되면 캐시 컬럼, 집계 테이블, Redis 카운터를 검토한다.
+> * **상품 지표 projection 운영**: `product_metrics`는 좋아요·판매·조회 이벤트를 Kafka consumer가 갱신하는 projection이므로 consumer lag, replay, `processed_kafka_events`/`event_handled` dedupe, 원천 테이블 기준 backfill/rebuild 절차를 함께 관리한다.
 > * **동시 대량 주문 처리**: 핫스팟 상품에 대한 선착순 주문 및 트래픽 폭주 대응 방안

@@ -25,6 +25,10 @@ class CouponTemplateJpaEntity(
     var minOrderAmount: Long,
     @Column(name = "expired_at", nullable = false)
     var expiredAt: LocalDateTime,
+    @Column(name = "total_quantity", nullable = false)
+    var totalQuantity: Long = Long.MAX_VALUE,
+    @Column(name = "issued_quantity", nullable = false)
+    var issuedQuantity: Long = 0,
 ) : BaseEntity() {
     fun updateFrom(template: CouponTemplateModel) {
         couponName = template.name.value
@@ -33,6 +37,8 @@ class CouponTemplateJpaEntity(
         discountValue = mappedPolicy.value
         minOrderAmount = template.minOrderAmount.value
         expiredAt = template.expiredAt
+        totalQuantity = template.totalQuantity
+        issuedQuantity = template.issuedQuantity
         if (template.deletedAt == null) {
             restore()
         } else {
@@ -49,6 +55,8 @@ class CouponTemplateJpaEntity(
         },
         minOrderAmount = Money.of(minOrderAmount),
         expiredAt = expiredAt,
+        totalQuantity = totalQuantity,
+        issuedQuantity = issuedQuantity,
         deletedAt = deletedAt?.toLocalDateTime(),
     )
 
@@ -61,6 +69,8 @@ class CouponTemplateJpaEntity(
                 discountValue = mappedPolicy.value,
                 minOrderAmount = template.minOrderAmount.value,
                 expiredAt = template.expiredAt,
+                totalQuantity = template.totalQuantity,
+                issuedQuantity = template.issuedQuantity,
             )
         }
 
@@ -70,9 +80,4 @@ class CouponTemplateJpaEntity(
                 is PercentageDiscountPolicy -> StorageDiscountPolicy(CouponType.PERCENTAGE, percent.toLong())
             }
     }
-
-    private data class StorageDiscountPolicy(
-        val type: CouponType,
-        val value: Long,
-    )
 }

@@ -74,7 +74,7 @@ class PaymentFacade(
         events.forEach { event ->
             val payment = paymentService.getById(event.aggregateId)
             if (payment.status.isCompleted()) {
-                paymentService.markEventProcessed(event.id)
+                paymentService.markEventProcessed(event.eventId)
                 recovered++
                 return@forEach
             }
@@ -88,7 +88,7 @@ class PaymentFacade(
                 PaymentGatewayStatus.FAILED -> paymentResultHandler.fail(result.transactionKey, result.reason)
                 PaymentGatewayStatus.PENDING -> return@forEach
             }
-            paymentService.markEventProcessed(event.id)
+            paymentService.markEventProcessed(event.eventId)
             recovered++
         }
         return PaymentRecoveryResult(scanned = events.size, recovered = recovered)

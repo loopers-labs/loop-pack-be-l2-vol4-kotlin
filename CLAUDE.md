@@ -80,7 +80,7 @@ make init                                   # 최초 1회: ktlint pre-commit hoo
 
 # 문서 목록 및 설명
 하위 문서 정보를 에이전트가 작업 시 먼저 파악 선행할 것.
-1. **`agent_rules/groundRules.md` - 작업물 작성 시 지켜야 할 규칙, 프로젝트 워크플로우 정의서, DDD/패키지/예외 처리/테스트 전략 기준**
+1. **`agent_rules/groundRules.md` - 작업물 작성 시 지켜야 할 규칙, 프로젝트 워크플로우 정의서, DDD/패키지/1 파일 1 top-level 선언/예외 처리/테스트 전략 기준**
 2. **`agent_rules/projectInfo.md` - 프로젝트 간단 정보 및 기술 스택, 모듈 구조, 실행/검증 명령, API/도메인 요구사항 기준**
 3. **`agent_rules/testing-conventions.md` - 테스트 파일 분류, 테스트 네이밍, Steps 패턴, API 테스트 작성 기준**
 4. **`agent_rules/vcs_rule.md` - 이전 PR 리뷰 수정, CodeRabbit/Copilot/사람 리뷰 대응, CI 픽스, 커밋/브랜치/worktree/GitHub Issue/PR 작업 기준**

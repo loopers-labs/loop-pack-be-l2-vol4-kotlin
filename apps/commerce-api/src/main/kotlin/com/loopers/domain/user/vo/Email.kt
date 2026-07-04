@@ -1,5 +1,6 @@
 package com.loopers.domain.user.vo
 
+import com.loopers.domain.user.constant.UserErrorMessages
 import com.loopers.domain.user.exception.InvalidUserException
 
 @JvmInline
@@ -18,7 +19,7 @@ value class Email private constructor(
 
         private fun validate(value: String) {
             if (!PATTERN.matches(value)) {
-                throw InvalidUserException("이메일 형식이 올바르지 않습니다.")
+                throw InvalidUserException(UserErrorMessages.INVALID_EMAIL_FORMAT)
             }
         }
     }

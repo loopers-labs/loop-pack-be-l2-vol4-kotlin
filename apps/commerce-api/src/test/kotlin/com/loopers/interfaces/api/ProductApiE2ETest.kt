@@ -3,7 +3,8 @@ package com.loopers.interfaces.api
 import com.loopers.ApiTest
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
-import com.loopers.domain.like.application.service.LikeService
+import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaEntity
+import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
 import com.loopers.domain.product.application.service.ProductService
 import com.loopers.domain.product.presentation.response.ProductResponse
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
@@ -19,7 +20,7 @@ class ProductApiE2ETest
     @Autowired
     constructor(
         private val brandService: BrandService,
-        private val likeService: LikeService,
+        private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
         private val productService: ProductService,
     ) : ApiTest() {
         companion object {
@@ -32,12 +33,12 @@ class ProductApiE2ETest
             object : ParameterizedTypeReference<ApiResponse<List<ProductResponse>>>() {}
 
         @Test
-        fun `존재하는_상품_ID면_상품_상세를_반환한다`() {
+        fun `존재하는_상품_ID면_projection_좋아요_수와_상품_상세를_반환한다`() {
             val brand = brandService.register(브랜드_등록_커맨드())
             val product = productService.register(상품_등록_커맨드(brandId = brand.id))
-            likeService.initializeCount(product.id)
-            likeService.like(userId = 1L, productId = product.id)
-            likeService.like(userId = 2L, productId = product.id)
+            productLikeCountJpaRepository.saveAndFlush(
+                ProductLikeCountJpaEntity(productId = product.id, likeCount = 2L),
+            )
 
             val response = testRestTemplate.exchange(
                 "$ENDPOINT/${product.id}",
@@ -106,20 +107,18 @@ class ProductApiE2ETest
         }
 
         @Test
-        fun `상품_목록은_좋아요_많은순으로_조회할_수_있다`() {
+        fun `상품_목록은_projection_좋아요_많은순으로_조회할_수_있다`() {
             val brand = brandService.register(브랜드_등록_커맨드())
             val low = productService.register(상품_등록_커맨드(brandId = brand.id, name = "낮은 상품", price = 1_000))
             val high = productService.register(상품_등록_커맨드(brandId = brand.id, name = "높은 상품", price = 2_000))
             val middle = productService.register(상품_등록_커맨드(brandId = brand.id, name = "중간 상품", price = 3_000))
-            likeService.initializeCount(low.id)
-            likeService.initializeCount(high.id)
-            likeService.initializeCount(middle.id)
-            likeService.like(userId = 1L, productId = low.id)
-            likeService.like(userId = 1L, productId = high.id)
-            likeService.like(userId = 2L, productId = high.id)
-            likeService.like(userId = 3L, productId = high.id)
-            likeService.like(userId = 1L, productId = middle.id)
-            likeService.like(userId = 2L, productId = middle.id)
+            productLikeCountJpaRepository.saveAllAndFlush(
+                listOf(
+                    ProductLikeCountJpaEntity(productId = low.id, likeCount = 1L),
+                    ProductLikeCountJpaEntity(productId = high.id, likeCount = 3L),
+                    ProductLikeCountJpaEntity(productId = middle.id, likeCount = 2L),
+                ),
+            )
 
             val response = testRestTemplate.exchange(
                 "$ENDPOINT?brandId=${brand.id}&sort=likes_desc&page=0&size=2",

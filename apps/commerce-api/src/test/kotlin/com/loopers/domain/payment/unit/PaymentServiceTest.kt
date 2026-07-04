@@ -1,12 +1,12 @@
 package com.loopers.domain.payment.unit
 
 import com.loopers.domain.payment.application.service.PaymentService
+import com.loopers.domain.payment.constant.PaymentOutboxEventType
 import com.loopers.domain.payment.exception.InvalidPaymentException
-import com.loopers.domain.payment.model.OutboxEventStatus
-import com.loopers.domain.payment.model.OutboxEventType
 import com.loopers.domain.payment.model.PaymentStatus
 import com.loopers.domain.payment.support.FakeOutboxRepository
 import com.loopers.domain.payment.support.FakePaymentRepository
+import com.loopers.support.outbox.OutboxEventStatus
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -39,7 +39,7 @@ class PaymentServiceTest {
 
         assertThat(payment.status).isEqualTo(PaymentStatus.UNKNOWN)
         assertThat(outboxRepository.events).hasSize(1)
-        assertThat(outboxRepository.events.first().type).isEqualTo(OutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED)
+        assertThat(outboxRepository.events.first().type).isEqualTo(PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name)
     }
 
     @Test
@@ -56,7 +56,7 @@ class PaymentServiceTest {
         assertThat(first.changed).isTrue()
         assertThat(duplicated.changed).isFalse()
         assertThat(outboxRepository.events).hasSize(1)
-        assertThat(outboxRepository.events.first().type).isEqualTo(OutboxEventType.PAYMENT_APPROVED)
+        assertThat(outboxRepository.events.first().type).isEqualTo(PaymentOutboxEventType.PAYMENT_APPROVED.name)
         assertThat(paymentRepository.lockedOrderIds).containsExactly(1L)
         assertThat(paymentRepository.lockedTransactionKeys).containsExactly(
             "20260625:TR:test01",
@@ -65,7 +65,7 @@ class PaymentServiceTest {
     }
 
     @Test
-    fun `PENDING_결과이벤트를_소비하면_PROCESSED로_마킹한다`() {
+    fun `PENDING_결과이벤트를_소비하면_PUBLISHED로_마킹한다`() {
         val paymentRepository = FakePaymentRepository()
         val outboxRepository = FakeOutboxRepository()
         val paymentService = PaymentService(paymentRepository, outboxRepository)
@@ -76,8 +76,8 @@ class PaymentServiceTest {
         val drained = paymentService.consumeResultEvents()
 
         assertThat(drained).isEqualTo(1)
-        assertThat(outboxRepository.events.first { it.type == OutboxEventType.PAYMENT_APPROVED }.status)
-            .isEqualTo(OutboxEventStatus.PROCESSED)
+        assertThat(outboxRepository.events.first { it.type == PaymentOutboxEventType.PAYMENT_APPROVED.name }.status)
+            .isEqualTo(OutboxEventStatus.PUBLISHED)
     }
 
     @Test

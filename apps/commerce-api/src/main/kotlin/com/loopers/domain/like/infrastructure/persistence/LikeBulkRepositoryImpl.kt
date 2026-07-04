@@ -24,7 +24,7 @@ class LikeBulkRepositoryImpl(
         jdbcTemplate.queryForObject("SELECT COUNT(*) FROM likes", Long::class.java) ?: 0L
 
     override fun countLikeCounts(): Long =
-        jdbcTemplate.queryForObject("SELECT COUNT(*) FROM product_like_counts", Long::class.java) ?: 0L
+        jdbcTemplate.queryForObject("SELECT COUNT(*) FROM product_metrics", Long::class.java) ?: 0L
 
     companion object {
         // 재귀 깊이 = maxLikesPerProduct(≤1000) 라 기본 cte_max_recursion_depth(1000) 내에서 동작.
@@ -41,8 +41,18 @@ class LikeBulkRepositoryImpl(
 
         private const val DERIVE_COUNTS_SQL =
             """
-            INSERT INTO product_like_counts (product_id, like_count)
-            SELECT p.id, COUNT(l.product_id)
+            INSERT INTO product_metrics (
+                product_id,
+                like_count,
+                sales_count,
+                view_count,
+                last_event_at,
+                last_like_event_at,
+                last_sales_event_at,
+                last_view_event_at,
+                updated_at
+            )
+            SELECT p.id, COUNT(l.product_id), 0, 0, NULL, NULL, NULL, NULL, NOW()
             FROM products p
             LEFT JOIN likes l ON l.product_id = p.id
             GROUP BY p.id

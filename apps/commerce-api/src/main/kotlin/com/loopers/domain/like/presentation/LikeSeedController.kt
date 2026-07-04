@@ -1,6 +1,7 @@
 package com.loopers.domain.like.presentation
 
 import com.loopers.domain.like.application.LikeSeeder
+import com.loopers.domain.like.application.SeedResult
 import com.loopers.interfaces.api.ApiResponse
 import org.springframework.context.annotation.Profile
 import org.springframework.web.bind.annotation.PostMapping
@@ -21,6 +22,6 @@ class LikeSeedController(
     @PostMapping("/likes")
     fun seedLikes(
         @RequestParam(defaultValue = "100") maxLikesPerProduct: Int,
-    ): ApiResponse<LikeSeeder.SeedResult> =
+    ): ApiResponse<SeedResult> =
         ApiResponse.success(likeSeeder.seedLikes(maxLikesPerProduct))
 }

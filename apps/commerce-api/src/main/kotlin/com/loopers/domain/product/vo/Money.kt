@@ -1,5 +1,6 @@
 package com.loopers.domain.product.vo
 
+import com.loopers.domain.product.constant.ProductErrorMessages
 import com.loopers.domain.product.exception.InvalidProductException
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -36,7 +37,7 @@ value class Money private constructor(
 
         private fun validate(value: Long) {
             if (value < 0) {
-                throw InvalidProductException("가격은 음수일 수 없습니다.")
+                throw InvalidProductException(ProductErrorMessages.PRICE_MUST_NOT_BE_NEGATIVE)
             }
         }
     }

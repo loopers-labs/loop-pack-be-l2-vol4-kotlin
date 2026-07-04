@@ -16,6 +16,7 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 - DDD 도메인 모델은 POJO로 유지하고, JPA Entity는 `infrastructure/persistence`에서 분리한다.
 - 도메인 간 협력은 Facade가 조합한다. Service끼리는 직접 의존하지 않는다.
 - 자기 도메인의 영속성/외부 협력은 port + adapter로 분리한다.
+- Round 7 이벤트 생산, routing, outbox 저장은 API 애플리케이션 경계가 담당하고, streamer 쪽 모델은 collector/projection 구조로만 둔다.
 - 클래스 다이어그램의 메서드는 구현 상세가 아니라 도메인 객체가 책임져야 할 행위와 규칙의 위치를 뜻한다.
 - Value Object 는 별도 클래스 박스로 그리지 않는 것을 기본으로 한다. 도메인 속성에 해당하는 VO 는 소속 모델의 필드 타입으로 표기해 시각적 잡음을 줄이고, 각 도메인 절 하단에 사용된 VO 목록과 책임을 정리한다.
 
@@ -60,8 +61,8 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 | Admin | `AdminModel`, `AdminOperationLogModel` | `Ldap`, `AdminName`, `TargetType`, `OperationType` | 관리자 LDAP 유일성, 로그 대상은 브랜드/상품 변경 작업으로 제한 | 관리자 식별, 변경 작업 기록 |
 | Brand | `BrandModel` | `BrandName` | 브랜드명 유효성, 삭제된 브랜드는 상품 등록 기준이 될 수 없음 | 등록, 이름 변경, soft delete |
 | Product | `ProductModel`, `StockModel` | `ProductName`, `Money`, `Quantity`, `StockQuantity` | 상품은 존재하는 브랜드에 속함, 가격은 음수 불가, 재고는 음수 불가, 삭제된 상품은 주문 불가 | 상품 정보 변경, 삭제, 재고 초기화/차감 |
-| Like | `LikeModel`, `ProductLikeCountModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 레코드와 정합을 이루는 집계 캐시 | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 좋아요 수 집계 갱신/조회 |
-| Coupon | `CouponTemplateModel`, `IssuedCouponModel` | `CouponName`, `DiscountPolicy`, `IssuedCouponStatus`, `Money` | 한 사용자-쿠폰 템플릿 조합은 한 번만 발급됨, 발급 쿠폰은 사용 가능 상태에서 한 번만 사용 가능, 만료 쿠폰은 사용 불가 | 쿠폰 템플릿 생성/수정/삭제, 쿠폰 발급, 할인 계산, 쿠폰 사용/복구 |
+| Like | `LikeModel`, `ProductMetricsModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 `LIKE_COUNT_CHANGED_V1` 기반 eventually consistent projection | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 상품 지표 projection 조회/재구성 |
+| Coupon | `CouponTemplateModel`, `IssuedCouponModel`, `CouponIssueRequestModel` | `CouponName`, `DiscountPolicy`, `IssuedCouponStatus`, `CouponIssueRequestStatus`, `Money` | 한 사용자-쿠폰 템플릿 조합은 한 번만 발급됨, 발급 요청은 비동기 상태를 가짐, 발급 쿠폰은 사용 가능 상태에서 한 번만 사용 가능, 만료 쿠폰은 사용 불가 | 쿠폰 템플릿 생성/수정/삭제, 쿠폰 발급 요청 접수, worker 발급, 상태 조회, 할인 계산, 쿠폰 사용/복구 |
 | Order | `OrderModel`, `OrderItemModel` | `Money`, `Quantity`, `OrderStatus` | 주문 항목 1개 이상, 수량 양수, 주문 시점 상품명/단가/할인 스냅샷 불변, 생성 상태는 `PAYMENT_PENDING`, 전이는 `PAYMENT_PENDING -> ORDERED/PAYMENT_FAILED`만 허용 | 주문 생성, 금액 계산, 쿠폰 할인 반영, 결제 결과 전이, 본인 주문 검증 |
 | Payment | `PaymentModel` | `PaymentMethod`, `PaymentStatus`, `Money` | 후속 결제 연동 설계에서 주문에 1:1로 속함, 결제 금액은 주문 결제 금액과 일치, 상태 전이는 요청 후 승인/실패 | 결제 요청 기록, 승인 기록, 실패 기록 |
 
@@ -514,24 +515,76 @@ classDiagram
         <<jpa_entity>>
     }
 
-    class ProductLikeCountModel {
+    class ProductMetricsModel {
         <<aggregate_root>>
         Long productId
         Long likeCount
+        Long salesCount
+        Long viewCount
+        Long versionOrLastEventAt
+        DateTime updatedAt
     }
 
-    class ProductLikeCountRepository {
+    class ApplicationEventPublisher {
         <<port>>
-        increment(productId) Int
-        decrement(productId) Int
+        publishEvent(event) void
+    }
+
+    class TransactionalEventListener {
+        <<listener>>
+        afterCommit(event) void
+    }
+
+    class OutboxEventPort {
+        <<port>>
+        append(eventType, aggregateType, aggregateId, topic, kafkaKey, payload) void
+    }
+
+    class LikeCountChangedEvent {
+        <<event>>
+        UUID eventId
+        Long productId
+        Long userId
+        Int delta
+        String eventType = LIKE_COUNT_CHANGED_V1
+        String topic
+    }
+
+    class ProductMetricsRepository {
+        <<projection_port>>
+        initialize(productId) void
         countByProductId(productId) Long
         countByProductIds(productIds) Map
+        rebuild(productId) void
+        applyLikeDelta(productId, delta, eventTime) void
+        applySalesDelta(productId, delta, eventTime) void
+        applyViewDelta(productId, delta, eventTime) void
+    }
+
+    class ProductMetricsEventConsumer {
+        <<streamer_consumer>>
+        consume(record) void
+    }
+
+    class ProductMetricsProjectionService {
+        <<projection_service>>
+        project(event) void
+    }
+
+    class ProcessedKafkaEventRepository {
+        <<dedupe_port>>
+        insertProcessed(eventId, consumerGroup) Boolean
     }
 
     LikeFacade ..> ProductService
     LikeFacade ..> LikeService
     LikeService ..> LikeRepository
-    LikeService ..> ProductLikeCountRepository
+    LikeService ..> ApplicationEventPublisher
+    TransactionalEventListener ..> OutboxEventPort
+    OutboxEventPort ..> LikeCountChangedEvent
+    ProductMetricsEventConsumer ..> ProductMetricsProjectionService
+    ProductMetricsProjectionService ..> ProductMetricsRepository
+    ProductMetricsProjectionService ..> ProcessedKafkaEventRepository
     LikeRepository <|.. LikeRepositoryImpl
     LikeRepositoryImpl ..> LikeJpaEntity
     LikeJpaEntity ..> LikeModel
@@ -549,7 +602,9 @@ classDiagram
 - 좋아요는 이력보다 현재 상태가 중요하므로 취소 시 hard delete를 기본으로 한다.
 - 같은 `LikeKey`는 하나만 존재할 수 있다. 멱등 처리는 `LikeService`가 repository 존재 여부를 기준으로 조합하고, DB 복합 PK가 최종 중복을 막는다.
 - `LikeModel`은 `UserModel`이나 `ProductModel` 객체를 직접 들고 있지 않는다. 다른 애그리거트와는 식별자로만 연결한다.
-- `ProductLikeCountModel`은 상품별 좋아요 수 집계 애그리거트로 `likes` 레코드의 비정규화 캐시다. `LikeService`는 좋아요 등록/취소와 같은 트랜잭션에서 `ProductLikeCountRepository.increment/decrement`로 `likeCount`를 원자 갱신한다. 증감 수행 여부는 `likes` INSERT/DELETE의 영향 행 수(0/1)로 결정해 동시·반복 요청에도 카운트가 어긋나지 않으며, 감소는 `likeCount > 0` 가드로 음수를 방지한다. 상품 조회(`ProductFacade`)는 이 집계를 읽어 매 요청 `COUNT`를 피한다.
+- `LikeService`는 `likes` INSERT/DELETE가 실제 상태 전이를 만들 때만 `ApplicationEventPublisher`로 `LikeChangedApplicationEvent`를 발행한다. 커밋 이후 `@TransactionalEventListener`가 `LIKE_COUNT_CHANGED_V1` outbox event를 저장한다. 이벤트는 UUID `eventId`, `productId`, `userId`, `delta=+1/-1`을 포함하고, Kafka key는 `productId`, topic은 `catalog-events`이다. 이미 좋아요가 있거나 이미 취소된 멱등 no-op 요청은 이벤트를 만들지 않는다.
+- `ProductMetricsModel`은 좋아요·판매·조회 원천에서 파생되는 eventually consistent projection이다. `LikeService`가 직접 변경하지 않으며, `ProductMetricsEventConsumer`가 Kafka record를 받은 뒤 `processed_kafka_events`에 `eventId`를 먼저 기록해 중복 처리를 막고 `ProductMetricsRepository.applyLikeDelta`로 projection을 반영한다.
+- `ProductMetricsRepository`는 projection 조회, 상품 생성 시 초기화, 장애 복구용 backfill/rebuild 책임을 갖는다. projection lag가 있을 수 있으므로 상품 조회(`ProductFacade`)의 `likeCount`/`salesCount`/`viewCount`는 짧은 지연을 허용하며, 장기 불일치는 원천 테이블과 Kafka replay 기준 재구성으로 보정한다.
 
 해석:
 
@@ -723,11 +778,14 @@ classDiagram
         CouponName name
         DiscountPolicy discountPolicy
         Money minOrderAmount
+        Long issueLimit
+        Long issuedCount
         DateTime expiredAt
         DateTime deletedAtOrNull
         calculateDiscount(totalPrice) Money
         requireIssuable(now) void
         requireUsable(totalPrice, now) void
+        reserveIssueSlot() CouponTemplateModel
         changePolicy(command) CouponTemplateModel
         delete() CouponTemplateModel
     }
@@ -747,6 +805,32 @@ classDiagram
         use(now) IssuedCouponModel
         revertUse() IssuedCouponModel
         displayStatus(expiredAt, now) IssuedCouponDisplayStatus
+    }
+
+    class CouponIssueRequestModel {
+        <<aggregate_root>>
+        UUID requestId
+        Long couponTemplateId
+        Long userId
+        CouponIssueRequestStatus status
+        Long issuedCouponIdOrNull
+        String failureReasonOrNull
+        DateTime requestedAt
+        DateTime completedAtOrNull
+        accept(userId, couponTemplateId, now) CouponIssueRequestModel
+        markIssued(issuedCouponId, now) CouponIssueRequestModel
+        markDuplicate(now) CouponIssueRequestModel
+        markSoldOut(now) CouponIssueRequestModel
+        markFailed(reason, now) CouponIssueRequestModel
+    }
+
+    class CouponIssueRequestStatus {
+        <<enum>>
+        PENDING
+        ISSUED
+        DUPLICATE
+        SOLD_OUT
+        FAILED
     }
 
     class DiscountPolicy {
@@ -771,7 +855,8 @@ classDiagram
         createTemplate(ldap, command) CouponTemplateInfo
         updateTemplate(ldap, templateId, command) CouponTemplateInfo
         deleteTemplate(ldap, templateId) void
-        issue(userId, couponTemplateId) IssuedCouponInfo
+        requestIssue(userId, couponTemplateId) CouponIssueRequestInfo
+        findIssueRequest(userId, requestId) CouponIssueRequestInfo
         findMyCoupons(userId) List
         findIssuedCouponsByTemplate(templateId, page) List
     }
@@ -781,17 +866,24 @@ classDiagram
         createTemplate(command) CouponTemplateModel
         updateTemplate(templateId, command) CouponTemplateModel
         softDeleteTemplate(templateId) void
-        issue(userId, couponTemplateId) IssuedCouponModel
+        acceptIssueRequest(userId, couponTemplateId) CouponIssueRequestModel
+        issueFromRequest(requestId) IssuedCouponModel
         findMyCoupons(userId) List
         validateAndCalculateDiscount(userId, issuedCouponId, totalPrice) CouponDiscount
         useIssuedCoupon(issuedCouponId) void
         cancelUse(issuedCouponId) void
     }
 
+    class CouponIssueWorker {
+        <<worker>>
+        consume(CouponIssueRequestedEvent) void
+    }
+
     class CouponRepository {
         <<port>>
         save(template) CouponTemplateModel
         findById(templateId) CouponTemplateModel
+        findByIdForIssue(templateId) CouponTemplateModel
     }
 
     class IssuedCouponRepository {
@@ -801,6 +893,27 @@ classDiagram
         findById(issuedCouponId) IssuedCouponModel
         findByUserId(userId, page) List
         findByTemplateId(templateId, page) List
+    }
+
+    class CouponIssueRequestRepository {
+        <<port>>
+        save(request) CouponIssueRequestModel
+        findById(requestId) CouponIssueRequestModel
+        findExisting(userId, templateId) CouponIssueRequestModel
+    }
+
+    class CouponIssueRequestedEvent {
+        <<event>>
+        UUID eventId
+        UUID requestId
+        Long couponTemplateId
+        Long userId
+        String topic
+    }
+
+    class EventHandledRepository {
+        <<dedupe_port>>
+        insertHandled(eventId, consumerName) Boolean
     }
 
     class CouponTemplateJpaEntity {
@@ -815,16 +928,28 @@ classDiagram
         Long version
     }
 
+    class CouponIssueRequestJpaEntity {
+        <<jpa_entity>>
+    }
+
     CouponTemplateModel --> DiscountPolicy
     DiscountPolicy <|.. FixedAmountDiscountPolicy
     DiscountPolicy <|.. PercentageDiscountPolicy
+    CouponIssueRequestModel --> CouponIssueRequestStatus
     CouponFacade ..> CouponService
+    CouponFacade ..> ApplicationEventPublisher
     CouponService ..> CouponRepository
     CouponService ..> IssuedCouponRepository
+    CouponService ..> CouponIssueRequestRepository
+    CouponIssueWorker ..> CouponService
+    CouponIssueWorker ..> EventHandledRepository
+    CouponIssueRequestedEvent ..> CouponIssueRequestModel
     CouponRepository ..> CouponTemplateJpaEntity
     IssuedCouponRepository ..> IssuedCouponJpaEntity
+    CouponIssueRequestRepository ..> CouponIssueRequestJpaEntity
     CouponTemplateJpaEntity ..> CouponTemplateModel
     IssuedCouponJpaEntity ..> IssuedCouponModel
+    CouponIssueRequestJpaEntity ..> CouponIssueRequestModel
 ```
 
 ### Value Objects
@@ -837,23 +962,27 @@ classDiagram
 | `PercentageDiscountPolicy` | 정률 할인 계산 | 1~100 정수 퍼센트, `BigDecimal` 중간 계산 후 `RoundingMode.FLOOR`로 원 단위 정수화 |
 | `IssuedCouponStatus` | 저장 상태 | `AVAILABLE` / `USED` |
 | `IssuedCouponDisplayStatus` | 조회 표시 상태 | `AVAILABLE` / `USED` / `EXPIRED`, `EXPIRED`는 저장하지 않고 계산 |
+| `CouponIssueRequestStatus` | 비동기 발급 요청 상태 | `PENDING` / `ISSUED` / `DUPLICATE` / `SOLD_OUT` / `FAILED` |
 | `Money` | 최소 주문 금액과 할인 금액 | 원 단위 정수 표현, 음수 불가, 할인 금액은 주문 총액을 초과할 수 없음 |
 
 ### 객체 책임/불변식
 
 - `CouponTemplateModel`은 쿠폰 정책의 기준이다. 할인 전략, 최소 주문 금액, 만료 시각, 삭제 상태를 가진다.
+- `CouponTemplateModel.issueLimit`/`issuedCount`는 선착순 발급 수량을 표현한다. worker는 발급 트랜잭션에서 잠금 또는 조건부 update로 `issuedCount <= issueLimit`을 보장한다.
 - `CouponTemplateModel.calculateDiscount(totalPrice)`는 `DiscountPolicy.calculate(totalPrice)`에 계산을 위임하고, 할인 금액이 주문 총액을 넘지 않도록 제한한다.
 - 영속성의 `coupon_type + discount_value`는 `CouponTemplateJpaEntity.toDomain()`에서 `FixedAmountDiscountPolicy` 또는 `PercentageDiscountPolicy`로 변환한다. JPA 상속 매핑은 사용하지 않는다.
 - `IssuedCouponModel`은 사용자에게 발급된 쿠폰의 현재 상태다. 한 발급 쿠폰은 한 번만 `USED`로 전환될 수 있다.
 - 결제 실패 보상에서는 `IssuedCouponModel.revertUse()`로 `USED` 상태를 `AVAILABLE`로 되돌린다.
 - 한 사용자와 한 쿠폰 템플릿 조합은 하나의 `IssuedCouponModel`만 가질 수 있다. 애플리케이션 사전 검사와 DB unique 제약으로 함께 보장한다.
+- `CouponIssueRequestModel`은 발급 요청 접수와 실제 발급 완료 사이의 비동기 상태를 보관한다. API는 `PENDING` 요청을 반환하고, `CouponIssueWorker`가 `coupon-issue-requests` 이벤트를 처리해 최종 상태를 확정한다.
+- `CouponIssueWorker`는 event id 처리 이력을 먼저 남긴 뒤 요청 상태를 잠금 조회하고, 수량 차감과 `IssuedCouponModel` 생성을 같은 worker 트랜잭션에서 수행한다. Kafka 재전달이나 같은 사용자 중복 요청은 `DUPLICATE` 또는 기존 요청 반환으로 멱등하게 끝난다.
 - 쿠폰 사용 검증과 `USED` 전환은 주문 트랜잭션 안에서 사용 가능(`AVAILABLE`) 상태를 검증한 뒤 수행하며, `version` 낙관적 락으로 동시 사용 시 lost update를 감지해 한 주문만 성공시킨다. 비관적 잠금 조회(`findByIdForUpdate`)는 사용하지 않는다.
 - `EXPIRED`는 저장 상태가 아니라 `expiredAt`과 현재 시각을 기준으로 응답 모델에서 계산한다.
 
 해석:
 
 - 쿠폰 템플릿 수정·삭제는 이미 생성된 주문의 `discountPrice`를 변경하지 않는다.
-- 쿠폰 발급은 `CouponFacade`/`CouponService`의 단일 도메인 유스케이스다.
+- 쿠폰 발급 요청 접수는 `CouponFacade`/`CouponService`의 단일 요청 트랜잭션이고, 실제 발급은 `CouponIssueWorker`의 별도 트랜잭션이다.
 - 쿠폰 적용 주문은 `OrderFacade`가 `CouponService`를 호출해 검증·할인 계산·사용 처리를 주문 트랜잭션에 포함한다.
 - 쿠폰 사용 복구는 결제 실패 보상 TX2에서 `CouponService.cancelUse(issuedCouponId)`로 수행한다.
 - 발급 가능한 쿠폰 목록 조회는 원문 필수 API가 아니므로 기본 클래스 책임에서 제외하고, 필요 시 선택 확장으로 추가한다.
@@ -932,7 +1061,7 @@ classDiagram
 - `PaymentModel`은 외부 결제 시스템에 대한 요청과 결과를 보관하는 결제 기록 애그리거트다.
 - 후속 결제 연동 구현에서 하나의 주문은 하나의 결제 기록만 가진다. `payments.order_id` unique 제약으로 보장한다.
 - 결제 상태는 요청 후 승인 또는 실패로만 전이한다. 승인된 기록에는 외부 거래 식별자를 보관한다.
-- outbox 는 현재 클래스 구조에 포함하지 않는다. 결제수단별 비동기 승인, 웹훅, 재시도, 다중 결제 이력, 이벤트 발행 안정성이 필요해질 때 별도 `OutboxEventModel`/`outbox_events` 또는 Payment 1:N 구조로 확장한다.
+- 결제 승인/실패 결과가 상품 지표나 외부 전파에 필요하면 `ApplicationEvent`와 `@TransactionalEventListener`를 거쳐 `order-events` outbox row를 남긴다. 결제수단별 비동기 승인, 웹훅, 재시도, 다중 결제 이력은 Payment 1:N 구조로 확장한다.
 
 해석:
 

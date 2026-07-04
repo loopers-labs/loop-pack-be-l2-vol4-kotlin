@@ -6,8 +6,3 @@ data class OrderCreateCommand(
     val issuedCouponId: Long? = null,
     val items: List<OrderItemCreateCommand>,
 )
-
-data class OrderItemCreateCommand(
-    val productId: Long,
-    val quantity: Long,
-)

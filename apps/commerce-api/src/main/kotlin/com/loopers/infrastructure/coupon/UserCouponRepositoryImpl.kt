@@ -21,4 +21,10 @@ class UserCouponRepositoryImpl(
 
     override fun save(userCouponModel: UserCouponModel): UserCouponModel =
         userCouponJpaRepository.save(userCouponModel)
+
+    override fun countAllByCouponId(couponId: Long): Long =
+        userCouponJpaRepository.countAllByCoupon_Id(couponId)
+
+    override fun existsByCouponIdAndUserId(couponId: Long, userId: Long): Boolean =
+        userCouponJpaRepository.existsByCoupon_IdAndUserId(couponId, userId)
 }

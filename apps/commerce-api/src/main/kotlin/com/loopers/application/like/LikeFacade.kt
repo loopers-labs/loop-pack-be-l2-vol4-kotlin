@@ -1,35 +1,50 @@
 package com.loopers.application.like
 
+import com.loopers.domain.like.LikeEvent
 import com.loopers.domain.like.LikeResult
 import com.loopers.domain.like.LikeService
 import com.loopers.domain.like.ProductId
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.user.UserService
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
+import java.util.UUID
 
 @Component
 class LikeFacade(
     private val likeService: LikeService,
     private val productService: ProductService,
-    private val userService: UserService
+    private val userService: UserService,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
-    /**
-     * 좋아요 등록. 신규 생성 시 true, 이미 존재 시 false (멱등 no-op).
-     */
+    @Transactional
     fun addLike(loginId: String, productId: Long): Boolean {
         val user = userService.getByLoginId(loginId)
         val product = productService.getProduct(productId)
-        return likeService.addLike(user.id, product.id) is LikeResult.Liked
+
+        val result = likeService.addLike(user.id, product.id)
+        if (result is LikeResult.Liked) {
+            eventPublisher.publishEvent(LikeEvent.Changed(UUID.randomUUID().toString(), user.id, product.id,
+                LikeEvent.LikeChangeType.LIKED, ZonedDateTime.now())
+            )
+        }
+
+        return result is LikeResult.Liked
     }
 
-    /**
-     * 좋아요 취소. 존재 시 삭제, 미존재 시 no-op. 결과 무관 항상 정상 종료.
-     */
+    @Transactional
     fun removeLike(loginId: String, productId: Long): Unit {
         val user = userService.getByLoginId(loginId)
         val product = productService.getProduct(productId)
 
-        likeService.remove(user.id, product.id)
+        val removed = likeService.remove(user.id, product.id)
+        if (removed) {
+            eventPublisher.publishEvent(LikeEvent.Changed(UUID.randomUUID().toString(), user.id, product.id,
+                LikeEvent.LikeChangeType.UNLIKED, ZonedDateTime.now())
+            )
+        }
     }
 
     fun findLikes(requestLoginId: String, pathUserId: Long): List<LikedProductInfo> {

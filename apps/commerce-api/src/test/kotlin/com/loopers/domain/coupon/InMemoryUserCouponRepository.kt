@@ -23,6 +23,10 @@ class InMemoryUserCouponRepository : UserCouponRepository {
         return userCouponModel
     }
 
+    override fun countAllByCouponId(couponId: Long): Long {
+        TODO("Not yet implemented")
+    }
+
     override fun findAllByCouponId(couponId: Long, pageable: Pageable): Page<UserCouponModel> =
         data.values.filter { it.coupon.id == couponId }
             .let { PageImpl(it, pageable, it.size.toLong()) }
@@ -31,4 +35,7 @@ class InMemoryUserCouponRepository : UserCouponRepository {
         data.values.filter { it.userId == userId }
 
     override fun findWithLockById(id: Long): UserCouponModel? = data[id]
+
+    override fun existsByCouponIdAndUserId(couponId: Long, userId: Long): Boolean =
+        data.values.any { it.coupon.id == couponId && it.userId == userId }
 }

@@ -10,10 +10,16 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import java.time.ZonedDateTime
 
 @Entity
-@Table(name = "user_coupon")
+@Table(
+    name = "user_coupon",
+    uniqueConstraints = [
+        UniqueConstraint(name = "uk_user_coupon_coupon_id_user_id", columnNames = ["coupon_id", "user_id"]),
+    ]
+)
 class UserCouponModel private constructor(
     coupon: CouponModel,
     userId: Long,

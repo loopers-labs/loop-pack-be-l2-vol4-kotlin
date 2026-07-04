@@ -1,7 +1,9 @@
 package com.loopers.domain.like
 
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.time.ZonedDateTime
 
 @Transactional
 @Component
@@ -33,12 +35,23 @@ class LikeService(
             .associate { ProductId(it.productId) to LikeCount(it.likeCount) }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    fun applyLikeCount(event: LikeEvent.Changed) {
+        val delta = when (event.type) {
+            LikeEvent.LikeChangeType.LIKED -> 1
+            LikeEvent.LikeChangeType.UNLIKED -> -1
+        }
+        productLikeCountRepository.upsertLikeCount(event.productId, delta, ZonedDateTime.now())
+    }
+
     fun addLike(userId: Long, productId: Long): LikeResult =
         likeRepository.like(userId, productId)
 
-    fun remove(userId: Long, productId: Long) {
-        val likeModel = likeRepository.findByUserIdAndProductId(userId, productId) ?: return
+    fun remove(userId: Long, productId: Long): Boolean {
+        val likeModel = likeRepository.findByUserIdAndProductId(userId, productId) ?: return false
+        if (!likeModel.available()) return false
         likeModel.delete()
+        return true
     }
 
     fun getLikeByUserId(userId: Long): List<LikeModel> {

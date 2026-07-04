@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.coupon
 
 import com.loopers.application.coupon.MyCouponInfo
+import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.CouponType as DomainCouponType
 import com.loopers.domain.coupon.CouponStatus as DomainCouponStatus
 import java.time.ZonedDateTime
@@ -54,4 +55,14 @@ class CouponV1Dto {
             }
         }
     }
+
+    data class CouponIssueRequestResponse(
+        val requestId: String,
+        val status: CouponIssueStatus = CouponIssueStatus.PENDING
+    )
+
+    data class CouponIssueRequestInfo(
+        val requestId: String,
+        val status: CouponIssueStatus,
+    )
 }

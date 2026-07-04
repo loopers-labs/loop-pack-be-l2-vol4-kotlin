@@ -22,6 +22,7 @@ class ApplyCouponTest {
         value = 30.0,
         minOrderAmount = MIN_ORDER_AMOUNT,
         expiredAt = EXPIRED_AT,
+        quantity = 100,
     )
 
     fun userCoupon(used: Boolean = false) =

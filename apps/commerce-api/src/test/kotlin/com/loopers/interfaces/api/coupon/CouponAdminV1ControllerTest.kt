@@ -64,6 +64,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
                         LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                         ZoneId.of("UTC")
                     ),
+                    quantity = 100,
                 )
             )
             couponJpaRepository.save(
@@ -76,6 +77,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
                         LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                         ZoneId.of("UTC")
                     ),
+                    quantity = 100,
                 )
             )
             couponJpaRepository.save(
@@ -88,6 +90,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
                         LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                         ZoneId.of("UTC")
                     ),
+                    quantity = 100,
                 )
             )
         }
@@ -131,6 +134,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
                         LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                         ZoneId.of("UTC")
                     ),
+                    quantity = 100,
                 )
             )
         }
@@ -163,7 +167,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
         @BeforeEach
         fun init() {
             couponModel = couponJpaRepository.save(
-                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10))
+                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10), 100)
             )
         }
 
@@ -194,7 +198,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
         @BeforeEach
         fun init() {
             couponModel = couponJpaRepository.save(
-                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10))
+                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10), 100)
             )
         }
 
@@ -227,7 +231,7 @@ class CouponAdminV1ControllerTest @Autowired constructor (
         @BeforeEach
         fun init() {
             couponModel = couponJpaRepository.save(
-                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10)),
+                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(10), 100),
             )
         }
 

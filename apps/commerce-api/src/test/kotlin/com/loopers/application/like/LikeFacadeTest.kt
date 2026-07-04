@@ -1,9 +1,8 @@
 package com.loopers.application.like
 
 import com.loopers.domain.like.InMemoryLikeRepository
+import com.loopers.domain.like.InMemoryProductLikeCountRepository
 import com.loopers.domain.like.LikeService
-import com.loopers.domain.like.ProductLikeCountModel
-import com.loopers.domain.like.ProductLikeCountRepository
 import com.loopers.domain.product.InMemoryProductRepository
 import com.loopers.domain.product.Level
 import com.loopers.domain.product.ProductModel
@@ -21,23 +20,22 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDate
 
 class LikeFacadeTest {
     private val inMemoryUserRepository = InMemoryUserRepository()
     private val inMemoryProductRepository = InMemoryProductRepository()
     private val inMemoryLikeRepository = InMemoryLikeRepository()
+    private val inMemoryProductLikeCountRepository = InMemoryProductLikeCountRepository()
+    private val publishedEvents = mutableListOf<Any>()
+    private val eventPublisher = ApplicationEventPublisher { publishedEvents.add(it) }
 
     private val userService = UserService(inMemoryUserRepository)
     private val productService = ProductService(inMemoryProductRepository)
-    private val likeService = LikeService(
-        inMemoryLikeRepository,
-        object : ProductLikeCountRepository {
-            override fun findByProductIdIn(productIds: List<Long>): List<ProductLikeCountModel> = emptyList()
-        },
-    )
+    private val likeService = LikeService(inMemoryLikeRepository, inMemoryProductLikeCountRepository)
 
-    private val likeFacade = LikeFacade(likeService, productService, userService)
+    private val likeFacade = LikeFacade(likeService, productService, userService, eventPublisher)
 
     private fun saveUser(loginId: String = "testId"): UserModel =
         inMemoryUserRepository.save(

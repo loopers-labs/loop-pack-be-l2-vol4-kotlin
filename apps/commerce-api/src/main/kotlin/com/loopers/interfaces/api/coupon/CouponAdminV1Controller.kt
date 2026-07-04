@@ -42,6 +42,7 @@ class CouponAdminV1Controller(
             value = request.value,
             minOrderAmount = request.minOrderAmount,
             expiredAt = request.expiredAt,
+            quantity = request.quantity,
         )
         val response = CouponAdminV1Dto.CouponResponse.from(info)
         return ApiResponse.success(response)

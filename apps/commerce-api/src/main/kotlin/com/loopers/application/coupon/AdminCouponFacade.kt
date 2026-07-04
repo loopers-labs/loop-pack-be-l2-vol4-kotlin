@@ -15,13 +15,14 @@ class AdminCouponFacade(
     private val couponService: CouponService,
     private val userCouponService: UserCouponService,
 ) {
-    fun createCoupon(name: String, type: CouponType, value: Double, minOrderAmount: Double, expiredAt: ZonedDateTime): AdminCouponInfo {
+    fun createCoupon(name: String, type: CouponType, value: Double, minOrderAmount: Double, expiredAt: ZonedDateTime, quantity: Int): AdminCouponInfo {
         val couponModel = couponService.createCoupon(
             name = name,
             type = type,
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            quantity = quantity,
         )
         return AdminCouponInfo.from(couponModel)
     }

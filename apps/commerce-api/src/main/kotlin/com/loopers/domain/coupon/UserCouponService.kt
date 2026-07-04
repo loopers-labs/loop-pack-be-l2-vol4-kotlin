@@ -20,4 +20,10 @@ class UserCouponService(
     fun issueCoupon(userId: Long, coupon: CouponModel) =
         UserCouponModel.of(coupon, userId)
             .let { userCouponRepository.save(it) }
+
+    fun countIssuedByCouponId(couponId: Long) =
+        userCouponRepository.countAllByCouponId(couponId)
+
+    fun hasIssuedTo(couponId: Long, userId: Long) =
+        userCouponRepository.existsByCouponIdAndUserId(couponId, userId)
 }

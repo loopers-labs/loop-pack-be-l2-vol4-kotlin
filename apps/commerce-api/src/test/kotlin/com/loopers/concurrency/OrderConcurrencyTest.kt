@@ -62,7 +62,7 @@ class OrderConcurrencyTest @Autowired constructor(
     }
 
     private fun saveCoupon(minOrderAmount: Double = 10000.0) =
-        couponJpaRepository.save(CouponModel.of("쿠폰", CouponType.FIXED, 3000.0, minOrderAmount, ZonedDateTime.now().plusDays(1)))
+        couponJpaRepository.save(CouponModel.of("쿠폰", CouponType.FIXED, 3000.0, minOrderAmount, ZonedDateTime.now().plusDays(1), 100))
 
     private fun saveUserCoupon(coupon: CouponModel, userId: Long, used: Boolean = false) =
         userCouponJpaRepository.save(UserCouponModel.of(coupon, userId).apply { if (used) use() })

@@ -16,4 +16,8 @@ interface UserCouponJpaRepository : JpaRepository<UserCouponModel, Long> {
 
     @Query("SELECT uc FROM UserCouponModel uc JOIN FETCH uc.coupon WHERE uc.userId = :userId")
     fun findByUserId(userId: Long): List<UserCouponModel>
+
+    fun countAllByCoupon_Id(couponId: Long): Long
+
+    fun existsByCoupon_IdAndUserId(couponId: Long, userId: Long): Boolean
 }

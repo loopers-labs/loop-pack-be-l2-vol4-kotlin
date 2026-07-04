@@ -22,6 +22,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 import java.time.Duration
 import java.time.ZonedDateTime
 
@@ -34,7 +35,7 @@ class PaymentReconcilerTest {
     private val paymentService = PaymentService(inMemoryPaymentRepository)
     private val orderService = OrderService(inMemoryOrderRepository)
     private val stockService = StockService(inMemoryStockRepository)
-    private val paymentFacade = PaymentFacade(paymentService, orderService, stockService, fakePaymentPort)
+    private val paymentFacade = PaymentFacade(paymentService, orderService, stockService, fakePaymentPort, ApplicationEventPublisher {})
 
     private val staleThreshold = Duration.ofSeconds(30)
     private val reconciler = PaymentReconciler(paymentService, paymentFacade, staleThreshold, fakePaymentPort)

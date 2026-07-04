@@ -11,4 +11,8 @@ interface UserCouponRepository {
     fun findWithLockById(id: Long): UserCouponModel?
 
     fun save(userCouponModel: UserCouponModel): UserCouponModel
+
+    fun countAllByCouponId(couponId: Long): Long
+
+    fun existsByCouponIdAndUserId(couponId: Long, userId: Long): Boolean
 }

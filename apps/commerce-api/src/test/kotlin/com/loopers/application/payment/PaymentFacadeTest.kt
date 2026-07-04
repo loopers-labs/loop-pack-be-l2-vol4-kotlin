@@ -17,6 +17,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 
 class PaymentFacadeTest {
     private val inMemoryPaymentRepository = InMemoryPaymentRepository()
@@ -27,7 +28,7 @@ class PaymentFacadeTest {
     private val paymentService = PaymentService(inMemoryPaymentRepository)
     private val orderService = OrderService(inMemoryOrderRepository)
     private val stockService = StockService(inMemoryStockRepository)
-    private val paymentFacade = PaymentFacade(paymentService, orderService, stockService, fakePaymentPort)
+    private val paymentFacade = PaymentFacade(paymentService, orderService, stockService, fakePaymentPort, ApplicationEventPublisher {})
 
     @Nested
     @DisplayName("결제를 요청할 때")

@@ -56,7 +56,7 @@ class CouponV1ControllerTest @Autowired constructor (
         fun init() {
             userJpaRepository.save(UserModelFixture.defaults().toModel())
             couponModel = couponJpaRepository.save(
-                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusHours(10)),
+                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusHours(10), 100),
             )
         }
 
@@ -87,8 +87,8 @@ class CouponV1ControllerTest @Autowired constructor (
         @BeforeEach
         fun init() {
             val user = userJpaRepository.save(UserModelFixture.defaults().toModel())
-            val valid   = couponJpaRepository.save(CouponModel.of("유효", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(1)))
-            val expired = couponJpaRepository.save(CouponModel.of("만료", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().minusDays(1)))
+            val valid   = couponJpaRepository.save(CouponModel.of("유효", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().plusDays(1), 100))
+            val expired = couponJpaRepository.save(CouponModel.of("만료", CouponType.RATE, 10.0, 10000.0, ZonedDateTime.now().minusDays(1), 100))
             userCouponJpaRepository.save(UserCouponModel.of(valid, user.id))
             userCouponJpaRepository.save(UserCouponModel.of(valid, user.id).apply { use() })
             userCouponJpaRepository.save(UserCouponModel.of(expired, user.id))

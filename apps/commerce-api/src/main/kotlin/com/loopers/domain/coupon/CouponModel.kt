@@ -16,6 +16,7 @@ class CouponModel private constructor(
     value: Double,
     minOrderAmount: Double,
     expiredAt: ZonedDateTime,
+    quantity: Int,
 ) : BaseEntity() {
     var name: String = name
         protected set
@@ -31,6 +32,9 @@ class CouponModel private constructor(
         protected set
 
     var expiredAt: ZonedDateTime = expiredAt
+        protected set
+
+    var quantity: Int = quantity
         protected set
 
     fun isApplicable(orderAmount: Double, now: ZonedDateTime): Boolean =
@@ -61,12 +65,14 @@ class CouponModel private constructor(
             value: Double,
             minOrderAmount: Double,
             expiredAt: ZonedDateTime,
+            quantity: Int,
         ): CouponModel = CouponModel(
             name = name,
             type = type,
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            quantity = quantity,
         )
     }
 }

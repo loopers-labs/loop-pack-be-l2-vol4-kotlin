@@ -21,6 +21,7 @@ class CouponModelTest {
                 LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                 ZoneId.of("UTC"),
             ),
+            quantity = 100,
         )
 
         // when
@@ -45,6 +46,7 @@ class CouponModelTest {
                 LocalDateTime.of(2020, 1, 1, 0, 0, 0),
                 ZoneId.of("UTC"),
             ),
+            quantity = 100,
         )
 
         // when
@@ -67,7 +69,8 @@ class CouponModelTest {
             type = CouponType.RATE,
             value = 10.0,
             minOrderAmount = 10000.0,
-            expiredAt = ZonedDateTime.now().minusDays(1)
+            expiredAt = ZonedDateTime.now().minusDays(1),
+            quantity = 100,
         )
 
         // when
@@ -86,7 +89,8 @@ class CouponModelTest {
             type = CouponType.RATE,
             value = 10.0,
             minOrderAmount = 10000.0,
-            expiredAt = ZonedDateTime.now().plusDays(1)
+            expiredAt = ZonedDateTime.now().plusDays(1),
+            quantity = 100,
         )
 
         // when

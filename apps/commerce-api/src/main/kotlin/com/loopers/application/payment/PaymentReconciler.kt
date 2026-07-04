@@ -1,6 +1,5 @@
 package com.loopers.application.payment
 
-import com.loopers.application.payment.PaymentFacade
 import com.loopers.domain.payment.PaymentPort
 import com.loopers.domain.payment.PaymentService
 import com.loopers.domain.payment.PaymentStatus

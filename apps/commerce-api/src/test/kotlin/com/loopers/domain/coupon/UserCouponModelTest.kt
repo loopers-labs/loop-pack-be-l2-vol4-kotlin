@@ -19,7 +19,7 @@ class UserCouponModelTest {
     )
 
     private fun coupon(expiredAt: ZonedDateTime = this.expiredAt): CouponModel =
-        CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, expiredAt)
+        CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, expiredAt, 100)
 
     @DisplayName("이미 사용한 쿠폰에 use()를 호출하면 예외가 발생한다.")
     @Test
@@ -42,7 +42,7 @@ class UserCouponModelTest {
         val now = ZonedDateTime.now()
         val userCouponModel: (ZonedDateTime, Boolean) -> UserCouponModel = { expiredAt, used ->
         UserCouponModel.of(
-                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, expiredAt), 1L,
+                CouponModel.of("쿠폰", CouponType.RATE, 10.0, 10000.0, expiredAt, 100), 1L,
             ).apply { if (used) use() }
         }
 

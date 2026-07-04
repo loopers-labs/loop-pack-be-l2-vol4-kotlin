@@ -13,6 +13,7 @@ class CouponAdminV1Dto {
         val value: Double,
         val minOrderAmount: Double,
         val expiredAt: ZonedDateTime,
+        val quantity: Int,
     )
 
     data class UpdateCouponRequest(

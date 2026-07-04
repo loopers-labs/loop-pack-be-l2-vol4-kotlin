@@ -22,7 +22,7 @@ class MySqlTestContainersConfig {
             }
 
         init {
-            val mySqlJdbcUrl = mySqlContainer.let { "jdbc:mysql://${it.host}:${it.firstMappedPort}/${it.databaseName}" }
+            val mySqlJdbcUrl = mySqlContainer.let { "jdbc:mysql://${it.host}:${it.firstMappedPort}/${it.databaseName}?useAffectedRows=true" }
             System.setProperty("datasource.mysql-jpa.main.jdbc-url", mySqlJdbcUrl)
             System.setProperty("datasource.mysql-jpa.main.username", mySqlContainer.username)
             System.setProperty("datasource.mysql-jpa.main.password", mySqlContainer.password)

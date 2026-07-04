@@ -6,6 +6,7 @@ dependencies {
     // add-ons
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
+    implementation(project(":modules:kafka"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
     implementation(project(":supports:monitoring"))
@@ -28,5 +29,6 @@ dependencies {
     testImplementation(testFixtures(project(":modules:redis")))
 
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.1")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
     implementation("org.springframework.security:spring-security-crypto")
 }

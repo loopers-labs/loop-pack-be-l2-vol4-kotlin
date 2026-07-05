@@ -41,4 +41,11 @@ class ProductMetricsServiceIntegrationTest {
         service.applyOnce("evt-4", listOf(MetricDelta(productId = 10L, sales = 2)))
         assertThat(metricRepository.findByProductId(10L)?.salesCount).isEqualTo(5L)
     }
+
+    @DisplayName("신규 상품에 like=-1 delta가 먼저 도착해도 like_count는 0으로 clamp된다.")
+    @Test
+    fun clampsLikeCountToZeroOnFreshProduct() {
+        service.applyOnce("evt-5", listOf(MetricDelta(productId = 20L, like = -1)))
+        assertThat(metricRepository.findByProductId(20L)?.likeCount).isEqualTo(0L)
+    }
 }

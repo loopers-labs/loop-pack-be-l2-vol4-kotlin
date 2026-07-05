@@ -46,4 +46,10 @@ class MetricEventMapperTest {
     fun ignoresUnknownType() {
         assertThat(mapper.toCommand("""{"eventId":"e5","type":"WHATEVER"}""")).isNull()
     }
+
+    @DisplayName("known type이라도 productId가 없으면 null(무시), NPE를 던지지 않는다.")
+    @Test
+    fun ignoresMissingProductIdInsteadOfThrowing() {
+        assertThat(mapper.toCommand("""{"eventId":"e6","type":"LIKE_ADDED"}""")).isNull()
+    }
 }

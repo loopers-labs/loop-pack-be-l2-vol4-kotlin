@@ -13,11 +13,25 @@ class MetricEventMapper(
         val node = objectMapper.readTree(json)
         val eventId = node["eventId"]?.asText() ?: return null
         val deltas = when (node["type"]?.asText()) {
-            "LIKE_ADDED" -> listOf(MetricDelta(productId = node["productId"].asLong(), like = 1))
-            "LIKE_REMOVED" -> listOf(MetricDelta(productId = node["productId"].asLong(), like = -1))
-            "PRODUCT_VIEWED" -> listOf(MetricDelta(productId = node["productId"].asLong(), view = 1))
-            "PAYMENT_SUCCEEDED" -> node["items"].map {
-                MetricDelta(productId = it["productId"].asLong(), sales = it["quantity"].asLong())
+            "LIKE_ADDED" -> {
+                val productId = node["productId"]?.asLong() ?: return null
+                listOf(MetricDelta(productId = productId, like = 1))
+            }
+            "LIKE_REMOVED" -> {
+                val productId = node["productId"]?.asLong() ?: return null
+                listOf(MetricDelta(productId = productId, like = -1))
+            }
+            "PRODUCT_VIEWED" -> {
+                val productId = node["productId"]?.asLong() ?: return null
+                listOf(MetricDelta(productId = productId, view = 1))
+            }
+            "PAYMENT_SUCCEEDED" -> {
+                val items = node["items"] ?: return null
+                items.mapNotNull {
+                    val productId = it["productId"]?.asLong() ?: return@mapNotNull null
+                    val quantity = it["quantity"]?.asLong() ?: return@mapNotNull null
+                    MetricDelta(productId = productId, sales = quantity)
+                }
             }
             else -> return null
         }

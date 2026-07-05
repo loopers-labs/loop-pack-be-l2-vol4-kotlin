@@ -14,11 +14,11 @@ interface ProductMetricJpaRepository : JpaRepository<ProductMetric, Long> {
         nativeQuery = true,
         value = """
             INSERT INTO product_metrics (product_id, like_count, sales_count, view_count)
-            VALUES (:productId, :likeDelta, :salesDelta, :viewDelta)
+            VALUES (:productId, GREATEST(0, :likeDelta), GREATEST(0, :salesDelta), GREATEST(0, :viewDelta))
             ON DUPLICATE KEY UPDATE
-                like_count = like_count + :likeDelta,
-                sales_count = sales_count + :salesDelta,
-                view_count = view_count + :viewDelta
+                like_count = GREATEST(0, like_count + :likeDelta),
+                sales_count = GREATEST(0, sales_count + :salesDelta),
+                view_count = GREATEST(0, view_count + :viewDelta)
         """,
     )
     fun upsertDelta(

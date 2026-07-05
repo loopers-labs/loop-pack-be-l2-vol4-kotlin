@@ -31,15 +31,20 @@ class MetricsConsumer(
                 if (command != null) {
                     service.applyOnce(command.eventId, command.deltas)
                 } else {
-                    log.warn("Unknown metric event skipped. topic={} payload={}", record.topic(), json)
+                    log.warn(
+                        "Unknown metric event skipped. topic={} partition={} offset={}",
+                        record.topic(),
+                        record.partition(),
+                        record.offset(),
+                    )
                 }
+                // ponytail: per-record catch + ack skips poison messages; add DefaultErrorHandler+DLQ if transient-failure retry is needed.
             }.onFailure {
                 log.error(
-                    "Failed to process metric record, skipping. topic={} partition={} offset={} payload={}",
+                    "Failed to process metric record, skipping. topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
                     record.offset(),
-                    String(record.value(), Charsets.UTF_8),
                     it,
                 )
             }

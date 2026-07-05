@@ -3,20 +3,41 @@ package com.loopers.application.queue.usecase
 import com.loopers.application.queue.QueuePosition
 import com.loopers.domain.queue.OrderQueueRepository
 import com.loopers.domain.user.UserService
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 
 @Component
 class GetQueuePositionUsecase(
     private val userService: UserService,
     private val queueRepository: OrderQueueRepository,
+    @Value("\${queue.throughput-per-second:175}") private val throughputPerSecond: Long,
 ) {
+    private val log = LoggerFactory.getLogger(GetQueuePositionUsecase::class.java)
+
     fun execute(loginId: String, password: String): QueuePosition {
         val user = userService.getProfile(loginId = loginId, password = password)
-        val rank = queueRepository.rank(user.id)
-        return if (rank != null) {
-            QueuePosition(position = rank + 1, waiting = true)
-        } else {
-            QueuePosition(position = null, waiting = false)
+        return try {
+            val rank = queueRepository.rank(user.id)
+            if (rank != null) {
+                QueuePosition(
+                    position = rank + 1,
+                    waiting = true,
+                    estimatedWaitSeconds = rank / throughputPerSecond,
+                    token = null,
+                )
+            } else {
+                val token = queueRepository.findToken(user.id)
+                if (token != null) {
+                    QueuePosition(position = 0, waiting = false, estimatedWaitSeconds = 0, token = token)
+                } else {
+                    QueuePosition(position = null, waiting = false, estimatedWaitSeconds = null, token = null)
+                }
+            }
+        } catch (e: Exception) {
+            // fail-open degradation: Redis 장애 시 순번 조회 불가 → degraded 응답(주문은 게이트 bypass로 가능).
+            log.warn("Redis unavailable — degraded queue position. userId={}", user.id, e)
+            QueuePosition(position = null, waiting = false, estimatedWaitSeconds = null, token = null)
         }
     }
 }

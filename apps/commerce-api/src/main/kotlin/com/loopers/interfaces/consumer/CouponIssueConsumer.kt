@@ -30,11 +30,13 @@ class CouponIssueConsumer(
                     couponId = node["couponId"].asLong(),
                 )
             }.onFailure {
+                // ponytail: per-record runCatching + ack만으로는 일시적 실패가 재시도되지 않는다.
+                // 재시도가 필요하면 DefaultErrorHandler + DLQ 도입이 필요하며 이번 라운드 범위 밖이다.
                 log.error(
-                    "Failed to process coupon-issue record. partition={} offset={} payload={}",
+                    "Failed to process coupon-issue record. topic={} partition={} offset={}",
+                    record.topic(),
                     record.partition(),
                     record.offset(),
-                    String(record.value(), Charsets.UTF_8),
                     it,
                 )
             }

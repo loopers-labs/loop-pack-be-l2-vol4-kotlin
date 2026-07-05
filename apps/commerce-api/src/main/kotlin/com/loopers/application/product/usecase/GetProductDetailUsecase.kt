@@ -27,11 +27,13 @@ class GetProductDetailUsecase(
 
     @Transactional(readOnly = true)
     fun execute(productId: Long): ProductInfo {
-        eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
         runCatching { productCacheRepository.getDetail(productId) }
             .onFailure { log.warn("Failed to get product detail cache. productId={}", productId, it) }
             .getOrNull()
-            ?.let { return it }
+            ?.let {
+                eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
+                return it
+            }
 
         val product = productRepository.findActiveById(productId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "상품을 찾을 수 없습니다.")
@@ -44,6 +46,7 @@ class GetProductDetailUsecase(
             .let { ProductInfo.from(it, stockQuantity) }
         runCatching { productCacheRepository.putDetail(productId = productId, product = productInfo) }
             .onFailure { log.warn("Failed to put product detail cache. productId={}", productId, it) }
+        eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
         return productInfo
     }
 }

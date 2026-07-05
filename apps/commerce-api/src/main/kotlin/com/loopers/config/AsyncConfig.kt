@@ -21,6 +21,9 @@ class AsyncConfig : AsyncConfigurer {
             maxPoolSize = 8
             queueCapacity = 100
             setThreadNamePrefix("app-event-")
+            setRejectedExecutionHandler(java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy())
+            setWaitForTasksToCompleteOnShutdown(true)
+            setAwaitTerminationSeconds(5)
             initialize()
         }
 

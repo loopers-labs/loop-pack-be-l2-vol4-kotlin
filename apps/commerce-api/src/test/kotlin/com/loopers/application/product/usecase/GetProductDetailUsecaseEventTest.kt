@@ -12,7 +12,10 @@ import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.product.ProductViewedEvent
 import com.loopers.domain.withId
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.context.ApplicationEventPublisher
@@ -33,6 +36,20 @@ class GetProductDetailUsecaseEventTest {
 
         // assert
         assertThat(fixture.eventPublisher.events).containsExactly(ProductViewedEvent(productId = 10L))
+    }
+
+    @DisplayName("존재하지 않는 상품을 조회하면 ProductViewedEvent 를 발행하지 않는다.")
+    @Test
+    fun doesNotPublishProductViewedEvent_onNotFound() {
+        // arrange
+        val fixture = Fixture()
+
+        // act & assert
+        assertThatThrownBy { fixture.usecase.execute(999L) }
+            .isInstanceOf(CoreException::class.java)
+            .extracting { (it as CoreException).errorType }
+            .isEqualTo(ErrorType.NOT_FOUND)
+        assertThat(fixture.eventPublisher.events).isEmpty()
     }
 
     private class Fixture {

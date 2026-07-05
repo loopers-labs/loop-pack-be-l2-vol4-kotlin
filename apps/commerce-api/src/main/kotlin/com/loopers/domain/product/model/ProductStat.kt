@@ -8,8 +8,14 @@ class ProductStat(
     val productId: Long,
     val brandId: Long,
     likeCount: Long,
+    salesCount: Long = 0L,
+    viewCount: Long = 0L,
 ) {
     var likeCount: Long = likeCount
+        private set
+    var salesCount: Long = salesCount
+        private set
+    var viewCount: Long = viewCount
         private set
 
     init {
@@ -21,6 +27,12 @@ class ProductStat(
         }
         if (likeCount < 0L) {
             throw CoreException(ErrorType.BAD_REQUEST, "Like count must not be negative.")
+        }
+        if (salesCount < 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Sales count must not be negative.")
+        }
+        if (viewCount < 0L) {
+            throw CoreException(ErrorType.BAD_REQUEST, "View count must not be negative.")
         }
     }
 
@@ -37,7 +49,13 @@ class ProductStat(
 
     companion object {
         fun empty(productId: Long, brandId: Long): ProductStat {
-            return ProductStat(productId = productId, brandId = brandId, likeCount = 0L)
+            return ProductStat(
+                productId = productId,
+                brandId = brandId,
+                likeCount = 0L,
+                salesCount = 0L,
+                viewCount = 0L,
+            )
         }
     }
 }

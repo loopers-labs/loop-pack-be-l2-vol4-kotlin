@@ -10,6 +10,8 @@ import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.application.productstat.ProductStatService
 import com.loopers.domain.product.dto.ProductSummary
+import com.loopers.domain.product.event.ProductEvent
+import com.loopers.domain.product.event.ProductEventPublisher
 import com.loopers.domain.product.service.ProductCatalogService
 import org.springframework.data.domain.Page
 import org.springframework.stereotype.Component
@@ -23,6 +25,7 @@ class ProductFacade(
     private val productStatService: ProductStatService,
     private val productCatalogService: ProductCatalogService,
     private val productCacheService: ProductCacheService,
+    private val productEventPublisher: ProductEventPublisher,
 ) {
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
         val cachedProducts = productCacheService.findList(command)
@@ -40,13 +43,24 @@ class ProductFacade(
 
     fun getProduct(productId: Long): ProductDetailInfo {
         productCacheService.findDetail(productId)?.let {
+            publishViewedEvent(it)
             return it
         }
 
         val productDetail = getProductDetailFromDatabase(productId)
         productCacheService.saveDetail(productId, productDetail)
+        publishViewedEvent(productDetail)
 
         return productDetail
+    }
+
+    private fun publishViewedEvent(productDetail: ProductDetailInfo) {
+        productEventPublisher.publish(
+            ProductEvent.Viewed(
+                productId = productDetail.productId,
+                brandId = productDetail.brand.brandId,
+            ),
+        )
     }
 
     private fun getProductDetailFromDatabase(productId: Long): ProductDetailInfo {

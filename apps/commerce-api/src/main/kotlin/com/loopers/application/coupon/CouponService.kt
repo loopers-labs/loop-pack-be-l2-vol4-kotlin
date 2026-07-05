@@ -64,12 +64,18 @@ class CouponService(
 
     @Transactional
     fun issueCoupon(memberId: Long, couponId: Long): CouponIssue {
-        val coupon = getCoupon(couponId)
+        val coupon = couponRepository.findByIdForUpdate(couponId)
+            ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon not found.")
 
         if (!coupon.isValid()) {
             throw CoreException(ErrorType.BAD_REQUEST, "This coupon is not valid. : $couponId")
         }
+        if (!coupon.hasRemainingIssueQuantity()) {
+            throw CoreException(ErrorType.BAD_REQUEST, "Coupon issue limit exceeded.")
+        }
 
+        coupon.increaseIssuedCount()
+        couponRepository.update(coupon)
         return CouponIssue.issue(memberId = memberId, coupon = coupon)
             .let(couponIssueRepository::save)
     }
@@ -85,6 +91,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 
@@ -93,6 +100,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         ).let(couponRepository::save)
     }
@@ -114,6 +122,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 
@@ -122,6 +131,7 @@ class CouponService(
             type = command.type,
             discountValue = command.discountValue,
             minOrderAmount = command.minOrderAmount,
+            issueLimit = command.issueLimit,
             expiredAt = command.expiredAt,
         )
 

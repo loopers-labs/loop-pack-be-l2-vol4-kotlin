@@ -1,7 +1,9 @@
 package com.loopers.interfaces.api.coupon.dto
 
 import com.loopers.application.coupon.dto.CouponIssueInfo
+import com.loopers.application.coupon.dto.CouponIssueRequestInfo
 import com.loopers.domain.coupon.enums.CouponIssueDisplayStatus
+import com.loopers.domain.coupon.enums.CouponIssueRequestStatus
 import com.loopers.domain.coupon.enums.DiscountType
 import java.time.ZonedDateTime
 
@@ -29,6 +31,30 @@ class CouponV1Dto {
                     minOrderAmount = info.minOrderAmount,
                     expiredAt = info.expiredAt,
                     usedAt = info.usedAt,
+                )
+            }
+        }
+    }
+
+    data class CouponIssueRequestResponse(
+        val requestId: String,
+        val couponId: Long,
+        val memberId: Long,
+        val status: CouponIssueRequestStatus,
+        val issueId: Long?,
+        val reason: String?,
+        val requestedAt: ZonedDateTime,
+    ) {
+        companion object {
+            fun from(info: CouponIssueRequestInfo): CouponIssueRequestResponse {
+                return CouponIssueRequestResponse(
+                    requestId = info.requestId,
+                    couponId = info.couponId,
+                    memberId = info.memberId,
+                    status = info.status,
+                    issueId = info.issueId,
+                    reason = info.reason,
+                    requestedAt = info.requestedAt,
                 )
             }
         }

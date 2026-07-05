@@ -10,6 +10,8 @@ object ProductStatMapper {
             productId = productStat.productId,
             brandId = productStat.brandId,
             likeCount = productStat.likeCount,
+            salesCount = productStat.salesCount,
+            viewCount = productStat.viewCount,
         )
     }
 
@@ -18,6 +20,8 @@ object ProductStatMapper {
             productId = productStat.productId,
             brandId = productStat.brandId,
             likeCount = productStat.likeCount,
+            salesCount = productStat.salesCount,
+            viewCount = productStat.viewCount,
         )
     }
 }

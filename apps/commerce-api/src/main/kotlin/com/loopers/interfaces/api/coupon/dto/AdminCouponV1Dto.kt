@@ -15,14 +15,16 @@ class AdminCouponV1Dto {
         val value: Long,
         val minOrderAmount: Long?,
         val expiredAt: ZonedDateTime,
+        val issueLimit: Long? = null,
     ) {
         fun toCommand(): CouponCreateCommand {
             return CouponCreateCommand(
-                name,
-                type,
-                value,
-                minOrderAmount,
-                expiredAt,
+                name = name,
+                type = type,
+                discountValue = value,
+                minOrderAmount = minOrderAmount,
+                expiredAt = expiredAt,
+                issueLimit = issueLimit,
             )
         }
     }
@@ -33,14 +35,16 @@ class AdminCouponV1Dto {
         val value: Long,
         val minOrderAmount: Long?,
         val expiredAt: ZonedDateTime,
+        val issueLimit: Long? = null,
     ) {
         fun toCommand(): CouponUpdateCommand {
             return CouponUpdateCommand(
-                name,
-                type,
-                value,
-                minOrderAmount,
-                expiredAt,
+                name = name,
+                type = type,
+                discountValue = value,
+                minOrderAmount = minOrderAmount,
+                expiredAt = expiredAt,
+                issueLimit = issueLimit,
             )
         }
     }
@@ -51,17 +55,19 @@ class AdminCouponV1Dto {
         val type: DiscountType,
         val value: Long,
         val minOrderAmount: Long?,
+        val issueLimit: Long?,
         val expiredAt: ZonedDateTime,
     ) {
         companion object {
             fun from(info: CouponInfo): CouponResponse {
                 return CouponResponse(
-                    info.couponId,
-                    info.name,
-                    info.type,
-                    info.value,
-                    info.minOrderAmount,
-                    info.expiredAt,
+                    couponId = info.couponId,
+                    name = info.name,
+                    type = info.type,
+                    value = info.value,
+                    minOrderAmount = info.minOrderAmount,
+                    issueLimit = info.issueLimit,
+                    expiredAt = info.expiredAt,
                 )
             }
         }

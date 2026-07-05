@@ -6,24 +6,28 @@ import com.loopers.infrastructure.coupon.entity.CouponEntity
 object CouponMapper {
     fun toDomain(coupon: CouponEntity): Coupon {
         return Coupon(
-            coupon.id,
-            coupon.name,
-            coupon.type,
-            coupon.discountValue,
-            coupon.minOrderAmount,
-            coupon.expiredAt,
-            coupon.isDeleted,
+            id = coupon.id,
+            name = coupon.name,
+            type = coupon.type,
+            discountValue = coupon.discountValue,
+            minOrderAmount = coupon.minOrderAmount,
+            expiredAt = coupon.expiredAt,
+            isDeleted = coupon.isDeleted,
+            issueLimit = coupon.issueLimit,
+            issuedCount = coupon.issuedCount,
         )
     }
 
     fun toEntity(coupon: Coupon): CouponEntity {
         return CouponEntity(
-            coupon.name,
-            coupon.type,
-            coupon.discountValue,
-            coupon.minOrderAmount,
-            coupon.expiredAt,
-            coupon.isDeleted,
+            name = coupon.name,
+            type = coupon.type,
+            discountValue = coupon.discountValue,
+            minOrderAmount = coupon.minOrderAmount,
+            expiredAt = coupon.expiredAt,
+            isDeleted = coupon.isDeleted,
+            issueLimit = coupon.issueLimit,
+            issuedCount = coupon.issuedCount,
         )
     }
 }

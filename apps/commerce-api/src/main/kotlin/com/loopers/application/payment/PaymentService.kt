@@ -10,6 +10,8 @@ import com.loopers.domain.order.repository.OrderRepository
 import com.loopers.domain.payment.Payment
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
+import com.loopers.domain.payment.event.PaymentEvent
+import com.loopers.domain.payment.event.PaymentEventPublisher
 import com.loopers.domain.payment.PgTransactionStatus
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -22,6 +24,7 @@ class PaymentService(
     private val orderRepository: OrderRepository,
     private val inventoryService: InventoryService,
     private val couponService: CouponService,
+    private val paymentEventPublisher: PaymentEventPublisher,
 ) {
     @Transactional(readOnly = true)
     fun findByIdempotencyKey(memberId: Long, idempotencyKey: String): PaymentInfo? {
@@ -71,6 +74,7 @@ class PaymentService(
             transactionKey = transactionKey,
             reason = reason,
         ).let(paymentRepository::save)
+        paymentEventPublisher.publish(PaymentEvent.Requested.from(payment))
 
         return PaymentInfo.from(payment, preparation.order.status)
     }
@@ -88,6 +92,7 @@ class PaymentService(
             idempotencyKey = command.idempotencyKey,
             reason = reason,
         ).let(paymentRepository::save)
+        paymentEventPublisher.publish(PaymentEvent.Requested.from(payment))
 
         return PaymentInfo.from(payment, preparation.order.status)
     }
@@ -105,6 +110,7 @@ class PaymentService(
             idempotencyKey = command.idempotencyKey,
             reason = reason,
         ).let(paymentRepository::save)
+        paymentEventPublisher.publish(PaymentEvent.Failed.from(payment))
 
         return PaymentInfo.from(payment, preparation.order.status)
     }
@@ -166,10 +172,13 @@ class PaymentService(
         val order = orderRepository.findByIdForUpdate(payment.orderId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "Order not found.")
 
+        val previousStatus = payment.status
         payment.fail("Payment gateway has no transaction for this order.")
 
-        return paymentRepository.save(payment)
-            .let { PaymentInfo.from(it, order.status) }
+        val savedPayment = paymentRepository.save(payment)
+        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
+
+        return PaymentInfo.from(savedPayment, order.status)
     }
 
     private fun applyPgTransaction(
@@ -179,12 +188,14 @@ class PaymentService(
         status: PgTransactionStatus,
         reason: String?,
     ): PaymentInfo {
+        val previousStatus = payment.status
         when (status) {
             PgTransactionStatus.PENDING -> {
                 if (payment.status == PaymentStatus.SYNC_REQUIRED) {
                     payment.markPending(transactionKey = transactionKey, reason = reason)
-                    return paymentRepository.save(payment)
-                        .let { PaymentInfo.from(it, order.status) }
+                    val savedPayment = paymentRepository.save(payment)
+                    publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
+                    return PaymentInfo.from(savedPayment, order.status)
                 }
 
                 return PaymentInfo.from(payment, order.status)
@@ -209,8 +220,23 @@ class PaymentService(
             }
         }
 
-        return paymentRepository.save(payment)
-            .let { PaymentInfo.from(it, order.status) }
+        val savedPayment = paymentRepository.save(payment)
+        publishPaymentStatusChangedEvent(previousStatus = previousStatus, payment = savedPayment, order = order)
+
+        return PaymentInfo.from(savedPayment, order.status)
+    }
+
+    private fun publishPaymentStatusChangedEvent(previousStatus: PaymentStatus, payment: Payment, order: Order) {
+        if (previousStatus == payment.status) {
+            return
+        }
+
+        when (payment.status) {
+            PaymentStatus.PENDING -> paymentEventPublisher.publish(PaymentEvent.Requested.from(payment))
+            PaymentStatus.SUCCESS -> paymentEventPublisher.publish(PaymentEvent.Succeeded.from(payment = payment, order = order))
+            PaymentStatus.FAILED -> paymentEventPublisher.publish(PaymentEvent.Failed.from(payment))
+            PaymentStatus.SYNC_REQUIRED -> Unit
+        }
     }
 
     private fun recoverCallbackPayment(command: PaymentCommand.Callback): PaymentInfo {

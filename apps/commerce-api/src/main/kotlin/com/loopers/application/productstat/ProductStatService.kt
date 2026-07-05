@@ -3,6 +3,7 @@ package com.loopers.application.productstat
 import com.loopers.domain.product.model.ProductStat
 import com.loopers.domain.product.repository.ProductStatRepository
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class ProductStatService(
@@ -34,12 +35,14 @@ class ProductStatService(
         return productStatRepository.save(productStat)
     }
 
+    @Transactional
     fun increaseLikeCount(productId: Long, brandId: Long) {
         val productStat = getProductStatForUpdate(productId = productId, brandId = brandId)
         productStat.increaseLikeCount()
         save(productStat)
     }
 
+    @Transactional
     fun decreaseLikeCount(productId: Long, brandId: Long) {
         val productStat = getProductStatForUpdate(productId = productId, brandId = brandId)
         productStat.decreaseLikeCount()

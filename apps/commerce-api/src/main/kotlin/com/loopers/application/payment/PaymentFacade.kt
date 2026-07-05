@@ -8,7 +8,10 @@ import com.loopers.infrastructure.payment.client.PgPaymentCircuitOpenException
 import com.loopers.infrastructure.payment.client.PgPaymentClient
 import com.loopers.infrastructure.payment.client.PgPaymentCommand
 import com.loopers.infrastructure.payment.client.PgPaymentRequestException
+import com.loopers.infrastructure.payment.client.PgPaymentResult
 import com.loopers.infrastructure.payment.client.PgPaymentTimeoutException
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 
 @Component
@@ -72,10 +75,7 @@ class PaymentFacade(
             return paymentService.findByIdempotencyKey(
                 memberId = user.id,
                 idempotencyKey = command.idempotencyKey,
-            ) ?: throw com.loopers.support.error.CoreException(
-                com.loopers.support.error.ErrorType.CONFLICT,
-                "Payment request is already in progress.",
-            )
+            ) ?: throw CoreException(ErrorType.CONFLICT, "Payment request is already in progress.")
         }
 
         try {
@@ -86,10 +86,7 @@ class PaymentFacade(
 
             val preparation = paymentService.preparePayment(memberId = user.id, command = command)
             if (!paymentRequestLockRepository.acquireOrderLock(command.orderId)) {
-                throw com.loopers.support.error.CoreException(
-                    com.loopers.support.error.ErrorType.CONFLICT,
-                    "Payment is already in progress.",
-                )
+                throw CoreException(ErrorType.CONFLICT, "Payment is already in progress.")
             }
 
             try {
@@ -145,7 +142,7 @@ class PaymentFacade(
         }
     }
 
-    private fun requestPgPayment(command: PgPaymentCommand.Request): com.loopers.infrastructure.payment.client.PgPaymentResult {
+    private fun requestPgPayment(command: PgPaymentCommand.Request): PgPaymentResult {
         var lastFailure: PgPaymentRequestException? = null
 
         repeat(PG_REQUEST_ATTEMPTS) {

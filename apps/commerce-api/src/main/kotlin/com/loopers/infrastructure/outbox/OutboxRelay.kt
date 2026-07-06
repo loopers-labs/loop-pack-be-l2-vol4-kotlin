@@ -4,15 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.kafka.EventEnvelope
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
 /**
- * Transactional Outbox 릴레이 — 미발행(PENDING) 아웃박스를 주기적으로 Kafka 로 발행한다.
+ * Transactional Outbox 릴레이 — 미발행(PENDING) 아웃박스를 Kafka 로 발행한다.
  * 브로커 ack(`.get()`) 이후에만 PUBLISHED 로 전이하고, 실패는 PENDING 으로 남겨 다음 주기에 재시도한다(At Least Once).
  * `aggregateId` 를 파티션 key 로 써 같은 애그리거트 이벤트의 순서를 파티션 단위로 보장한다.
+ * 주기 구동은 [OutboxRelayScheduler] 가 담당한다 — 통합 테스트는 이 함수를 직접 호출해 발행을 명시 제어한다.
  */
 @Component
 class OutboxRelay(
@@ -22,7 +22,6 @@ class OutboxRelay(
 ) {
     private val log = LoggerFactory.getLogger(OutboxRelay::class.java)
 
-    @Scheduled(fixedDelayString = "\${loopers.outbox.relay-interval-ms:1000}")
     @Transactional
     fun relay() {
         outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING).forEach { event ->

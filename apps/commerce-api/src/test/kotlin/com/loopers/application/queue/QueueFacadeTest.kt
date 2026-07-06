@@ -19,32 +19,51 @@ import java.time.Instant
 class QueueFacadeTest {
     private val waitingQueueRepository: WaitingQueueRepository = mockk(relaxed = true)
     private val entryTokenStore: EntryTokenStore = mockk(relaxed = true)
-    private val queueFacade = QueueFacade(waitingQueueRepository, entryTokenStore, TOKEN_TTL_SECONDS)
+    private val queueFacade = QueueFacade(waitingQueueRepository, entryTokenStore, TOKEN_TTL_SECONDS, THROUGHPUT_PER_SECOND)
 
     @Test
-    @DisplayName("enter — 대기열에 진입시키고 순번·전체 인원을 반환한다")
+    @DisplayName("enter — 대기열에 진입시키고 순번·전체 인원·예상 시간을 반환한다")
     fun enterReturnsPosition() {
         every { waitingQueueRepository.enter(eq(7L), any()) } returns true
-        every { waitingQueueRepository.rank(7L) } returns 2L
-        every { waitingQueueRepository.size() } returns 3L
+        every { waitingQueueRepository.rank(7L) } returns 360L
+        every { waitingQueueRepository.size() } returns 500L
+        every { entryTokenStore.find(7L) } returns null
 
         val result = queueFacade.enter(7L)
 
         verify { waitingQueueRepository.enter(eq(7L), any<Instant>()) }
-        assertThat(result.position).isEqualTo(2L)
-        assertThat(result.totalWaiting).isEqualTo(3L)
+        assertThat(result.position).isEqualTo(360L)
+        assertThat(result.totalWaiting).isEqualTo(500L)
+        assertThat(result.estimatedWaitSeconds).isEqualTo(2L) // 360 / 180 = 2
+        assertThat(result.entryToken).isNull()
     }
 
     @Test
-    @DisplayName("position — 대기열에 없으면 position 은 null, 전체 인원만 반환한다")
+    @DisplayName("position — 대기열에 없으면 position·예상시간 0, 전체 인원만 반환한다")
     fun positionIsNullWhenAbsent() {
         every { waitingQueueRepository.rank(404L) } returns null
         every { waitingQueueRepository.size() } returns 5L
+        every { entryTokenStore.find(404L) } returns null
 
         val result = queueFacade.position(404L)
 
         assertThat(result.position).isNull()
         assertThat(result.totalWaiting).isEqualTo(5L)
+        assertThat(result.estimatedWaitSeconds).isEqualTo(0L)
+        assertThat(result.entryToken).isNull()
+    }
+
+    @Test
+    @DisplayName("position — 입장 토큰이 발급됐으면 응답에 토큰을 포함한다")
+    fun positionIncludesTokenWhenAdmitted() {
+        every { waitingQueueRepository.rank(7L) } returns null // 대기열에서 빠짐
+        every { waitingQueueRepository.size() } returns 5L
+        every { entryTokenStore.find(7L) } returns EntryToken("token-abc")
+
+        val result = queueFacade.position(7L)
+
+        assertThat(result.position).isNull()
+        assertThat(result.entryToken).isEqualTo("token-abc")
     }
 
     @Test
@@ -107,5 +126,6 @@ class QueueFacadeTest {
 
     companion object {
         private const val TOKEN_TTL_SECONDS = 300L
+        private const val THROUGHPUT_PER_SECOND = 180.0
     }
 }

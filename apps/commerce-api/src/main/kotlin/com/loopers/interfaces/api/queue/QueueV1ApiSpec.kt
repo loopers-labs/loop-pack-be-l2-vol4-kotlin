@@ -14,8 +14,10 @@ interface QueueV1ApiSpec {
     fun enter(user: AuthUser): ApiResponse<QueueV1Dto.PositionResponse>
 
     @Operation(
-        summary = "순번 조회",
-        description = "인증 회원의 현재 순번과 전체 대기 인원을 조회합니다. 대기열에 없으면 순번은 null 입니다.",
+        summary = "순번 조회 (Polling)",
+        description = "현재 순번·전체 대기 인원·예상 대기 시간(초)을 조회합니다. " +
+            "입장 처리되면 응답에 entryToken 이 채워지고 순번은 null 이 됩니다 — 그 토큰으로 주문 API 를 호출합니다. " +
+            "클라이언트가 1~3초 주기로 polling 하며, 대기 인원이 많으면 조회 부하(인원 × 주기)가 크므로 구간별 주기 조절은 Nice-To-Have 입니다.",
     )
     fun position(user: AuthUser): ApiResponse<QueueV1Dto.PositionResponse>
 }

@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api
 
+import com.loopers.application.queue.QueueFacade
 import com.loopers.domain.user.UserFixture
 import com.loopers.interfaces.api.queue.QueueV1Dto
 import com.loopers.interfaces.api.user.UserV1Dto
@@ -33,6 +34,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
+    private val queueFacade: QueueFacade,
 ) {
     @BeforeEach
     fun setUp() {
@@ -60,6 +62,8 @@ class QueueV1ApiE2ETest @Autowired constructor(
             { assertThat(response.body?.meta?.result).isEqualTo(ApiResponse.Metadata.Result.SUCCESS) },
             { assertThat(response.body?.data?.position).isEqualTo(0L) },
             { assertThat(response.body?.data?.totalWaiting).isEqualTo(1L) },
+            { assertThat(response.body?.data?.estimatedWaitSeconds).isEqualTo(0L) },
+            { assertThat(response.body?.data?.entryToken).isNull() },
         )
     }
 
@@ -87,6 +91,22 @@ class QueueV1ApiE2ETest @Autowired constructor(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(response.body?.data?.position).isEqualTo(0L) },
             { assertThat(response.body?.data?.totalWaiting).isEqualTo(1L) },
+        )
+    }
+
+    @DisplayName("입장 처리되면 순번 조회 응답에 토큰이 포함되고 순번은 null 이 된다.")
+    @Test
+    fun includesToken_afterAdmission() {
+        enter()
+        // 스케줄러는 test 프로필에서 꺼져 있으므로, 입장 처리를 직접 트리거한다.
+        queueFacade.admit(1)
+
+        val response = position()
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.position).isNull() },
+            { assertThat(response.body?.data?.entryToken).isNotNull() },
         )
     }
 

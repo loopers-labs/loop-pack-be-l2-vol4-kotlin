@@ -5,6 +5,7 @@ import com.loopers.application.queue.port.WaitingQueueRepository
 import com.loopers.application.queue.result.QueuePositionResult
 import com.loopers.domain.queue.EntryToken
 import com.loopers.domain.queue.QueueErrorType
+import com.loopers.domain.queue.WaitTimeEstimator
 import com.loopers.support.error.CoreException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
@@ -17,6 +18,9 @@ class QueueFacade(
     private val entryTokenStore: EntryTokenStore,
     @Value("\${loopers.queue.token-ttl-seconds:300}")
     private val tokenTtlSeconds: Long,
+    // 초당 입장 처리량 — 예상 대기 시간 계산에 쓴다. admit-batch-size(18) / admit-interval(100ms) = 180/s 와 맞춘다.
+    @Value("\${loopers.queue.throughput-per-second:180}")
+    private val throughputPerSecond: Double,
 ) {
     /** 대기열에 진입하고 현재 순번을 반환한다. 이미 진입한 유저는 기존 순번을 유지한다. */
     fun enter(userId: Long): QueuePositionResult {
@@ -24,12 +28,20 @@ class QueueFacade(
         return position(userId)
     }
 
-    /** 현재 순번과 전체 대기 인원을 조회한다. 대기열에 없으면 position 은 null. */
-    fun position(userId: Long): QueuePositionResult =
-        QueuePositionResult(
-            position = waitingQueueRepository.rank(userId),
+    /**
+     * 현재 순번·전체 인원·예상 대기 시간을 조회한다.
+     * 입장 토큰이 발급됐으면 함께 반환한다(대기열에서 빠져 position 은 null 이고 entryToken 이 채워진다).
+     */
+    fun position(userId: Long): QueuePositionResult {
+        val rank = waitingQueueRepository.rank(userId)
+        val token = entryTokenStore.find(userId)
+        return QueuePositionResult(
+            position = rank,
             totalWaiting = waitingQueueRepository.size(),
+            estimatedWaitSeconds = rank?.let { WaitTimeEstimator.estimateSeconds(it, throughputPerSecond) } ?: 0L,
+            entryToken = token?.value,
         )
+    }
 
     /** 대기열 앞에서 batchSize 명을 꺼내 입장 토큰을 발급한다. 발급한 인원 수를 반환한다. */
     fun admit(batchSize: Int): Int {

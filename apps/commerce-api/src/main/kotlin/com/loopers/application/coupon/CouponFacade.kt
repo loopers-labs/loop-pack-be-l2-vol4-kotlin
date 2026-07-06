@@ -4,11 +4,17 @@ import com.loopers.application.coupon.command.RegisterCouponCommand
 import com.loopers.application.coupon.command.UpdateCouponCommand
 import com.loopers.application.coupon.result.AdminCouponResult
 import com.loopers.application.coupon.result.CouponIssueResult
+import com.loopers.application.coupon.result.FirstComeIssueRequestResult
+import com.loopers.application.coupon.result.FirstComeIssueResult
 import com.loopers.application.coupon.result.IssuedCouponResult
 import com.loopers.application.coupon.result.MyCouponResult
+import com.loopers.application.support.event.DomainEventPublisher
 import com.loopers.domain.coupon.Coupon
 import com.loopers.domain.coupon.CouponErrorType
+import com.loopers.domain.coupon.CouponIssueRequestedEvent
 import com.loopers.domain.coupon.CouponRepository
+import com.loopers.domain.coupon.IssueRequest
+import com.loopers.domain.coupon.IssueRequestRepository
 import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepository
 import com.loopers.support.error.CoreException
@@ -22,11 +28,40 @@ import java.time.LocalDateTime
 class CouponFacade(
     private val couponRepository: CouponRepository,
     private val userCouponRepository: UserCouponRepository,
+    private val issueRequestRepository: IssueRequestRepository,
+    private val eventPublisher: DomainEventPublisher,
 ) {
+    /**
+     * 선착순 발급 요청을 즉시 접수한다 — 존재·선착순 대상·발급 가능 구간만 확인하고 접수 레코드(REQUESTED)를 남긴 뒤
+     * `commerce-streamer` 로 처리 이벤트를 발행한다. 한도 소진·중복(1인 1매) 은 여기서가 아니라 처리 결과로 확정된다.
+     */
+    @Transactional
+    fun requestFirstComeIssue(userId: Long, couponId: Long): FirstComeIssueRequestResult {
+        val coupon = couponRepository.findById(couponId)
+            ?: throw CoreException(CouponErrorType.COUPON_NOT_FOUND)
+        coupon.ensureFirstCome()
+        coupon.ensureIssuable(LocalDateTime.now())
+        val saved = issueRequestRepository.save(IssueRequest.request(userId = userId, couponId = couponId))
+        eventPublisher.publish(
+            CouponIssueRequestedEvent(couponId = couponId, userId = userId, requestId = saved.requestId),
+        )
+        return FirstComeIssueRequestResult.of(saved)
+    }
+
+    @Transactional(readOnly = true)
+    fun getIssueResult(userId: Long, requestId: String): FirstComeIssueResult {
+        val request = issueRequestRepository.findByRequestId(requestId)
+        if (request == null || request.userId != userId) {
+            throw CoreException(CouponErrorType.ISSUE_REQUEST_NOT_FOUND)
+        }
+        return FirstComeIssueResult.of(request)
+    }
+
     @Transactional
     fun issueCoupon(userId: Long, couponId: Long): IssuedCouponResult {
         val coupon = couponRepository.findById(couponId)
             ?: throw CoreException(CouponErrorType.COUPON_NOT_FOUND)
+        coupon.ensureNotFirstCome()
         coupon.ensureIssuable(LocalDateTime.now())
         if (userCouponRepository.existsByUserIdAndCouponId(userId, couponId)) {
             throw CoreException(CouponErrorType.ALREADY_ISSUED_COUPON)

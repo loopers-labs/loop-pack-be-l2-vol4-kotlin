@@ -31,6 +31,8 @@ class CouponEntity private constructor(
     issueEndAt: LocalDateTime,
     useStartAt: LocalDateTime,
     useEndAt: LocalDateTime,
+    issueLimit: Long?,
+    issuedCount: Long,
 ) : BaseEntity() {
     @Column(nullable = false)
     var name: String = name
@@ -65,6 +67,14 @@ class CouponEntity private constructor(
     var useEndAt: LocalDateTime = useEndAt
         protected set
 
+    @Column(name = "issue_limit")
+    var issueLimit: Long? = issueLimit
+        protected set
+
+    @Column(name = "issued_count", nullable = false)
+    var issuedCount: Long = issuedCount
+        protected set
+
     fun toDomain(): Coupon = Coupon(
         id = this.id,
         name = CouponName.of(this.name),
@@ -74,6 +84,8 @@ class CouponEntity private constructor(
         issueEndAt = this.issueEndAt,
         useStartAt = this.useStartAt,
         useEndAt = this.useEndAt,
+        issueLimit = this.issueLimit,
+        issuedCount = this.issuedCount,
     )
 
     fun syncFrom(coupon: Coupon) {
@@ -103,6 +115,8 @@ class CouponEntity private constructor(
                 issueEndAt = coupon.issueEndAt,
                 useStartAt = coupon.useStartAt,
                 useEndAt = coupon.useEndAt,
+                issueLimit = coupon.issueLimit,
+                issuedCount = coupon.issuedCount,
             )
         }
     }

@@ -12,6 +12,8 @@ class Coupon internal constructor(
     issueEndAt: LocalDateTime,
     useStartAt: LocalDateTime,
     useEndAt: LocalDateTime,
+    issueLimit: Long? = null,
+    issuedCount: Long = 0L,
 ) {
     var name: CouponName = name
         private set
@@ -34,8 +36,40 @@ class Coupon internal constructor(
     var useEndAt: LocalDateTime = useEndAt
         private set
 
+    var issueLimit: Long? = issueLimit
+        private set
+
+    var issuedCount: Long = issuedCount
+        private set
+
     var deletedAt: LocalDateTime? = null
         private set
+
+    /** 선착순 발급(접수) 대상인지 확인한다 — 발급 한도가 없는(무제한) 템플릿이면 거부한다. */
+    fun ensureFirstCome() {
+        if (issueLimit == null) {
+            throw CoreException(CouponErrorType.COUPON_NOT_APPLICABLE, "선착순 발급 대상이 아닌 템플릿")
+        }
+    }
+
+    /** 즉시 발급 대상인지 확인한다 — 발급 한도가 있는(선착순 전용) 템플릿이면 거부한다. */
+    fun ensureNotFirstCome() {
+        if (issueLimit != null) {
+            throw CoreException(CouponErrorType.COUPON_NOT_APPLICABLE, "선착순 전용 템플릿은 즉시 발급할 수 없다")
+        }
+    }
+
+    /**
+     * 선착순 발급 한 장을 소진한다. 한도에 도달했으면 품절로 거부한다(발급 수는 그대로).
+     * 한도가 없는(선착순 아닌) 템플릿은 상한 없이 카운트만 증가한다.
+     */
+    fun issue() {
+        val limit = issueLimit
+        if (limit != null && issuedCount >= limit) {
+            throw CoreException(CouponErrorType.COUPON_SOLD_OUT, "발급 한도 소진")
+        }
+        issuedCount += 1
+    }
 
     fun calculateDiscount(orderAmount: Long): Long {
         val min = minOrderAmount
@@ -113,6 +147,7 @@ class Coupon internal constructor(
             useStartAt: LocalDateTime,
             useEndAt: LocalDateTime,
             now: LocalDateTime,
+            issueLimit: Long? = null,
         ): Coupon {
             validate(minOrderAmount, issueStartAt, issueEndAt, useStartAt, useEndAt, now)
             return Coupon(
@@ -123,6 +158,7 @@ class Coupon internal constructor(
                 issueEndAt = issueEndAt,
                 useStartAt = useStartAt,
                 useEndAt = useEndAt,
+                issueLimit = issueLimit,
             )
         }
     }

@@ -19,6 +19,8 @@ object CouponFixture {
         issueEndAt: LocalDateTime = LocalDateTime.now().plusDays(30),
         useStartAt: LocalDateTime = LocalDateTime.now().minusDays(1),
         useEndAt: LocalDateTime = LocalDateTime.now().plusDays(30),
+        issueLimit: Long? = null,
+        issuedCount: Long = 0L,
     ): Coupon = Coupon(
         id = id,
         name = CouponName.of(name),
@@ -28,6 +30,8 @@ object CouponFixture {
         issueEndAt = issueEndAt,
         useStartAt = useStartAt,
         useEndAt = useEndAt,
+        issueLimit = issueLimit,
+        issuedCount = issuedCount,
     )
 
     fun userCoupon(

@@ -27,7 +27,14 @@ class Coupon(
     val expiredAt: LocalDateTime,
     @Column(name = "created_by", nullable = false, updatable = false)
     val createdBy: Long,
+    // 선착순 발급 한도. null = 발급 한도 없음(관리자 지급 전용 쿠폰)
+    @Column(name = "total_quantity", updatable = false)
+    val totalQuantity: Long? = null,
 ) : BaseEntity() {
+
+    @Column(name = "issued_quantity", nullable = false)
+    var issuedQuantity: Long = 0
+        protected set
 
     init {
         if (value <= 0) {
@@ -36,9 +43,21 @@ class Coupon(
         if (type == CouponType.RATE && value > 100) {
             throw BadRequestException(CouponErrorCode.RATE_DISCOUNT_OUT_OF_RANGE)
         }
+        if (totalQuantity != null && totalQuantity <= 0) {
+            throw BadRequestException(CouponErrorCode.INVALID_TOTAL_QUANTITY)
+        }
     }
 
     fun isExpired(now: LocalDateTime): Boolean = this.expiredAt < now
+
+    fun validateIssuable(now: LocalDateTime) {
+        if (totalQuantity == null) {
+            throw BadRequestException(CouponErrorCode.NOT_ISSUABLE)
+        }
+        if (isExpired(now)) {
+            throw BadRequestException(CouponErrorCode.EXPIRED)
+        }
+    }
 
     fun validateUsable(orderAmount: Long, now: LocalDateTime) {
         if (Money(orderAmount).amount < minOrderAmount.amount) {

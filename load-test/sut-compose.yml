@@ -1,0 +1,139 @@
+# 부하 측정 SUT 토폴로지. 모든 host 포트는 127.0.0.1 바인딩 → 공인 IP 무노출(보안 결정).
+# 외부(맥 k6)에서는 SSH 터널로 127.0.0.1 포트에 접속한다.
+#
+# 실행:
+#   core (Phase 1~2, DB-only): docker compose -f load-test/sut-compose.yml up -d --build
+#   p3   (Phase 3, +Redis):    docker compose -f load-test/sut-compose.yml --profile p3 up -d --build
+#   p4   (Phase 4, +Kafka):    docker compose -f load-test/sut-compose.yml --profile p4 up -d --build
+#
+# 시드: api 가 뜨면(ddl-auto=create 로 스키마 생성 완료) 아래를 실행.
+#   mysql -h127.0.0.1 -uapplication -papplication loopers < load-test/coupon-perf-seed.sql
+# ⚠️ api 를 재시작하면 ddl-auto=create 가 스키마를 재생성하므로 시드를 다시 적재해야 한다.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: sut-mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=application
+      - MYSQL_PASSWORD=application
+      - MYSQL_DATABASE=loopers
+      - MYSQL_CHARACTER_SET=utf8mb4
+      - MYSQL_COLLATE=utf8mb4_general_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uapplication", "-papplication"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  commerce-api:
+    build:
+      context: ..
+      dockerfile: apps/commerce-api/Dockerfile
+    container_name: sut-commerce-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # local 프로파일도 redis.yml 베이스의 placeholder 를 상속 → 값이 있어야 부팅.
+      # core/p1/p2 에선 redis 컨테이너가 없지만 Lettuce lazy + redis health off 라 접속 시도 없음.
+      REDIS_MASTER_HOST: redis-master
+      REDIS_MASTER_PORT: "6379"
+      REDIS_REPLICA_1_HOST: redis-readonly
+      REDIS_REPLICA_1_PORT: "6379"
+      JAVA_OPTS: "-Xms1g -Xmx1g"
+    command:
+      # local 프로파일 = plain-console 로깅(Slack 무의존). dev/qa/prd 는 slack-appender +
+      # properties/slack-log-*.xml 를 include 해 웹훅 프로퍼티가 없으면 logback init 이 깨진다.
+      # 부하 SUT 는 stdout 로그면 충분하므로 local 이 정답. datasource 는 아래 인자로 컨테이너 mysql 로 덮어쓴다.
+      - --spring.profiles.active=local
+      # 컨테이너 안엔 docker 데몬이 없다 → spring-boot-docker-compose 자동 기동 비활성(로컬 bootRun 과 동일).
+      - --spring.docker.compose.enabled=false
+      - --datasource.mysql-jpa.main.jdbc-url=jdbc:mysql://mysql:3306/loopers?rewriteBatchedStatements=true
+      - --datasource.mysql-jpa.main.username=application
+      - --datasource.mysql-jpa.main.password=application
+      - --spring.jpa.hibernate.ddl-auto=create
+      - --spring.jpa.show-sql=false
+      # 무의존 no-op 헬스 경로(harness ceiling smoke 용). redis/db 검사 없는 liveness probe.
+      - --management.endpoint.health.probes.enabled=true
+      - --management.health.redis.enabled=false
+      # local 프로파일의 kafka bootstrap(localhost:19092)은 호스트 기준 — 컨테이너에선 내부 리스너로 override.
+      # p4 미기동(core/p3) 시에도 무해: producer/admin 은 lazy 라 접속 시도 없음(발급 API 호출 전까지).
+      - --spring.kafka.bootstrap-servers=kafka:9092
+      - --spring.kafka.admin.properties.bootstrap.servers=kafka:9092
+      # redis.yml 의 local 프로파일 문서가 localhost:6379/6380 을 하드코딩해 위 REDIS_* env 를 덮어씀
+      # (EXP-03 RUN-1 실측: 게이트 상시 fail-open). 명령행 인자는 프로파일 문서보다 우선 → 컨테이너 호스트로 강제.
+      - --datasource.redis.master.host=redis-master
+      - --datasource.redis.master.port=6379
+      - --datasource.redis.replicas[0].host=redis-readonly
+      - --datasource.redis.replicas[0].port=6379
+    ports:
+      - "127.0.0.1:8080:8080"   # API
+      - "127.0.0.1:8081:8081"   # actuator (management.server.port)
+
+  # --- Phase 3: Redis (--profile p3) ---
+  redis-master:
+    image: redis:7.0
+    container_name: sut-redis-master
+    profiles: ["p3"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    command:
+      ["redis-server", "--appendonly", "yes", "--save", "", "--latency-monitor-threshold", "100"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "PING"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  redis-readonly:
+    image: redis:7.0
+    container_name: sut-redis-readonly
+    profiles: ["p3"]
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6380:6379"
+    command:
+      ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec",
+       "--replicaof", "redis-master", "6379", "--replica-read-only", "yes",
+       "--latency-monitor-threshold", "100"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "PING"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  # --- Phase 4: Kafka (--profile p4). 앱의 kafka producer 배선은 Phase 4 에서 추가 ---
+  kafka:
+    image: bitnamilegacy/kafka:3.5.1
+    container_name: sut-kafka
+    profiles: ["p4"]
+    ports:
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:19092:19092"
+    environment:
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,PLAINTEXT_HOST://:19092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:19092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+    healthcheck:
+      test: ["CMD", "bash", "-c", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  default:
+    driver: bridge

@@ -44,8 +44,11 @@ class PaymentService(
             ?: throw NotFoundException(PaymentErrorCode.PAYMENT_NOT_FOUND)
         when (result) {
             is PgSubmitResult.Accepted -> payment.accept(result.transactionKey)
+
             is PgSubmitResult.Rejected -> failAndCompensate(payment, result.reason)
+
             is PgSubmitResult.Failed -> failAndCompensate(payment, "PG 사용 불가로 결제 실패")
+
             is PgSubmitResult.Unknown -> {
                 payment.markUnknown()
                 markOrderUnknown(payment.orderId)
@@ -84,12 +87,15 @@ class PaymentService(
                     resolve(payment, PaymentResultStatus.SUCCESS, queryResult.transactionKey, null)
                     ReconcileOutcome.RESOLVED
                 }
+
                 PaymentResultStatus.FAILED -> {
                     resolve(payment, PaymentResultStatus.FAILED, queryResult.transactionKey, "PG 조회 결과 실패")
                     ReconcileOutcome.RESOLVED
                 }
+
                 PaymentResultStatus.PENDING -> if (overDeadline) ReconcileOutcome.NEEDS_ALERT else ReconcileOutcome.PENDING
             }
+
             // PG 에 기록 없음 = 미전송. grace 지나면 실패 확정(과금 없음이므로 안전)
             is PgQueryResult.NotFound ->
                 if (overDeadline) {
@@ -98,6 +104,7 @@ class PaymentService(
                 } else {
                     ReconcileOutcome.PENDING
                 }
+
             // PG 장애로 확인 불가 — deadline 지나도 함부로 실패시키지 않고 알람
             is PgQueryResult.Unreachable -> if (overDeadline) ReconcileOutcome.NEEDS_ALERT else ReconcileOutcome.PENDING
         }
@@ -118,7 +125,9 @@ class PaymentService(
                 payment.success()
                 confirmOrder(payment.orderId)
             }
+
             PaymentResultStatus.FAILED -> failAndCompensate(payment, reason)
+
             PaymentResultStatus.PENDING -> Unit
         }
     }
@@ -150,16 +159,9 @@ class PaymentService(
     }
 }
 
-data class PaymentPrepareCommand(
-    val userId: Long,
-    val orderKey: String,
-    val cardType: CardType,
-)
+data class PaymentPrepareCommand(val userId: Long, val orderKey: String, val cardType: CardType)
 
-data class PreparedPayment(
-    val paymentId: Long,
-    val amount: Long,
-)
+data class PreparedPayment(val paymentId: Long, val amount: Long)
 
 data class PaymentCallbackCommand(
     val orderKey: String,
@@ -174,12 +176,7 @@ enum class PaymentResultStatus {
     FAILED,
 }
 
-data class ReconcileTarget(
-    val paymentId: Long,
-    val userId: Long,
-    val orderKey: String,
-    val createdAt: ZonedDateTime,
-)
+data class ReconcileTarget(val paymentId: Long, val userId: Long, val orderKey: String, val createdAt: ZonedDateTime)
 
 enum class ReconcileOutcome {
     RESOLVED,
@@ -187,11 +184,7 @@ enum class ReconcileOutcome {
     NEEDS_ALERT,
 }
 
-data class PaymentInfo(
-    val paymentId: Long,
-    val orderId: Long,
-    val status: PaymentStatus,
-) {
+data class PaymentInfo(val paymentId: Long, val orderId: Long, val status: PaymentStatus) {
     companion object {
         fun from(payment: Payment): PaymentInfo =
             PaymentInfo(

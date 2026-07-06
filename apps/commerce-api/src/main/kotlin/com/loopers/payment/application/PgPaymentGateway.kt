@@ -27,10 +27,7 @@ sealed interface PgSubmitResult {
     data object Unknown : PgSubmitResult
 }
 
-data class PgQueryCommand(
-    val userId: Long,
-    val orderKey: String,
-)
+data class PgQueryCommand(val userId: Long, val orderKey: String)
 
 sealed interface PgQueryResult {
     data class Found(val transactionKey: String, val status: PaymentResultStatus) : PgQueryResult

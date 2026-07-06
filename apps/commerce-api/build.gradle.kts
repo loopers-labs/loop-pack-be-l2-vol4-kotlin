@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
+    implementation(project(":modules:kafka"))
     implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
@@ -30,4 +31,5 @@ dependencies {
     kapt("com.querydsl:querydsl-apt::jakarta")
 
     testRuntimeOnly("com.h2database:h2")
+    testImplementation(testFixtures(project(":modules:redis")))
 }

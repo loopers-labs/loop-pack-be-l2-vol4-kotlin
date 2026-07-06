@@ -6,9 +6,7 @@ import com.loopers.payment.domain.PaymentStatus
 import org.springframework.stereotype.Repository
 
 @Repository
-class PaymentRepositoryImpl(
-    private val paymentJpaRepository: PaymentJpaRepository,
-) : PaymentRepository {
+class PaymentRepositoryImpl(private val paymentJpaRepository: PaymentJpaRepository) : PaymentRepository {
     override fun save(payment: Payment): Payment =
         paymentJpaRepository.save(payment)
 

@@ -9,9 +9,9 @@ import com.loopers.payment.application.PgSubmitResult
 import feign.FeignException
 import feign.RetryableException
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
+import java.net.ConnectException
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import java.net.ConnectException
 
 @Component
 class PgPaymentGatewayImpl(
@@ -27,11 +27,14 @@ class PgPaymentGatewayImpl(
 
         return when (val primary = attempt { pgPaymentRequester.requestToPgA(userId, request) }) {
             is Attempt.Accepted -> PgSubmitResult.Accepted(primary.transactionKey)
+
             is Attempt.Rejected -> PgSubmitResult.Rejected(primary.reason)
+
             is Attempt.InDoubt -> {
                 logger.warn("PG-A 결과 미확정({}). UNKNOWN 처리합니다.", primary.message)
                 PgSubmitResult.Unknown
             }
+
             is Attempt.Unavailable -> {
                 logger.warn("PG-A 사용 불가({}). PG-B 로 failover 합니다.", primary.message)
                 failover(userId, request)
@@ -42,11 +45,14 @@ class PgPaymentGatewayImpl(
     private fun failover(userId: String, request: PgPaymentRequest): PgSubmitResult =
         when (val secondary = attempt { pgPaymentRequester.requestToPgB(userId, request) }) {
             is Attempt.Accepted -> PgSubmitResult.Accepted(secondary.transactionKey)
+
             is Attempt.Rejected -> PgSubmitResult.Rejected(secondary.reason)
+
             is Attempt.InDoubt -> {
                 logger.warn("PG-B 결과 미확정({}). UNKNOWN 처리합니다.", secondary.message)
                 PgSubmitResult.Unknown
             }
+
             is Attempt.Unavailable -> {
                 logger.warn("PG-B 도 사용 불가({}). 결제 실패 처리합니다.", secondary.message)
                 PgSubmitResult.Failed

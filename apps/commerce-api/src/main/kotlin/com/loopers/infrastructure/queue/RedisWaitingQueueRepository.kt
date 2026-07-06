@@ -27,6 +27,12 @@ class RedisWaitingQueueRepository(
     override fun size(): Long =
         redisTemplate.opsForZSet().zCard(QUEUE_KEY) ?: 0L
 
+    override fun pollNext(count: Long): List<Long> {
+        if (count <= 0) return emptyList()
+        val popped = redisTemplate.opsForZSet().popMin(QUEUE_KEY, count) ?: return emptyList()
+        return popped.mapNotNull { it.value?.toLongOrNull() }
+    }
+
     companion object {
         private const val QUEUE_KEY = "queue:waiting:v1"
     }

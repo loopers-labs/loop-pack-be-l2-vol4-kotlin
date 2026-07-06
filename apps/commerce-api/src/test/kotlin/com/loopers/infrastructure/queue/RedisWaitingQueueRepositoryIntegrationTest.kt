@@ -65,4 +65,29 @@ class RedisWaitingQueueRepositoryIntegrationTest @Autowired constructor(
     fun rankIsNullWhenAbsent() {
         assertThat(waitingQueue.rank(404L)).isNull()
     }
+
+    @Test
+    @DisplayName("pollNext — 앞에서부터 N명을 꺼내 대기열에서 제거한다")
+    fun pollNextRemovesFront() {
+        waitingQueue.enter(1L, Instant.ofEpochMilli(100))
+        waitingQueue.enter(2L, Instant.ofEpochMilli(200))
+        waitingQueue.enter(3L, Instant.ofEpochMilli(300))
+
+        val polled = waitingQueue.pollNext(2)
+
+        assertThat(polled).containsExactlyInAnyOrder(1L, 2L)
+        assertThat(waitingQueue.size()).isEqualTo(1L)
+        assertThat(waitingQueue.rank(3L)).isEqualTo(0L)
+    }
+
+    @Test
+    @DisplayName("pollNext — 대기 인원보다 많이 요청해도 있는 만큼만 꺼낸다")
+    fun pollNextClampsToSize() {
+        waitingQueue.enter(1L, Instant.ofEpochMilli(100))
+
+        val polled = waitingQueue.pollNext(10)
+
+        assertThat(polled).containsExactly(1L)
+        assertThat(waitingQueue.size()).isEqualTo(0L)
+    }
 }

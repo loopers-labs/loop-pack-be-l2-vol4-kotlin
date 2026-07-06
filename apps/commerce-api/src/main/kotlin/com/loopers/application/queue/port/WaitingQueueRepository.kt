@@ -15,4 +15,7 @@ interface WaitingQueueRepository {
 
     /** 전체 대기 인원. */
     fun size(): Long
+
+    /** 앞에서부터 최대 count 명을 꺼내 반환한다(대기열에서 제거). 스케줄러의 입장 처리에 쓴다. */
+    fun pollNext(count: Long): List<Long>
 }

@@ -91,6 +91,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(response.body?.data?.position).isEqualTo(0L) },
             { assertThat(response.body?.data?.totalWaiting).isEqualTo(1L) },
+            { assertThat(response.body?.data?.pollIntervalSeconds).isEqualTo(1L) },
         )
     }
 
@@ -107,6 +108,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(response.body?.data?.position).isNull() },
             { assertThat(response.body?.data?.entryToken).isNotNull() },
+            { assertThat(response.body?.data?.pollIntervalSeconds).isEqualTo(0L) },
         )
     }
 

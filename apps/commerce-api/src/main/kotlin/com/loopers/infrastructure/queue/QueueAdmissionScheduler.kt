@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 @Profile("!test")
 class QueueAdmissionScheduler(
     private val queueFacade: QueueFacade,
-    @Value("\${loopers.queue.admit-batch-size:18}")
+    @Value("\${loopers.queue.admit-batch-size:8}")
     private val batchSize: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

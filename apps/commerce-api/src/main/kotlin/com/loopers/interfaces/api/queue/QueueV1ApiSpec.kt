@@ -17,7 +17,10 @@ interface QueueV1ApiSpec {
         summary = "순번 조회 (Polling)",
         description = "현재 순번·전체 대기 인원·예상 대기 시간(초)을 조회합니다. " +
             "입장 처리되면 응답에 entryToken 이 채워지고 순번은 null 이 됩니다 — 그 토큰으로 주문 API 를 호출합니다. " +
-            "클라이언트가 1~3초 주기로 polling 하며, 대기 인원이 많으면 조회 부하(인원 × 주기)가 크므로 구간별 주기 조절은 Nice-To-Have 입니다.",
+            "클라이언트는 응답의 pollIntervalSeconds 만큼 기다린 뒤 다음 조회를 보냅니다(setTimeout, 0~20% jitter 권장). " +
+            "주기는 순번 구간별로 서버가 정합니다 — 0~99: 1초 / 100~999: 3초 / 1000+: 5초. " +
+            "pollIntervalSeconds = 0 은 폴링 종료 신호입니다: entryToken 이 있으면 주문으로 진행, 순번·토큰 모두 null 이면 만료/이탈이므로 재진입합니다. " +
+            "구간별 주기로 폴링 부하가 줄어듭니다 — 대기 1만 명 균등 분포 기준 고정 2초(5,000 QPS) 대비 약 2,200 QPS.",
     )
     fun position(user: AuthUser): ApiResponse<QueueV1Dto.PositionResponse>
 }

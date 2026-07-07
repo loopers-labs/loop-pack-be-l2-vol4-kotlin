@@ -4,6 +4,7 @@ import com.loopers.application.queue.port.EntryTokenStore
 import com.loopers.application.queue.port.WaitingQueueRepository
 import com.loopers.application.queue.result.QueuePositionResult
 import com.loopers.domain.queue.EntryToken
+import com.loopers.domain.queue.PollingIntervalPolicy
 import com.loopers.domain.queue.QueueErrorType
 import com.loopers.domain.queue.WaitTimeEstimator
 import com.loopers.support.error.CoreException
@@ -18,8 +19,7 @@ class QueueFacade(
     private val entryTokenStore: EntryTokenStore,
     @Value("\${loopers.queue.token-ttl-seconds:300}")
     private val tokenTtlSeconds: Long,
-    // 초당 입장 처리량 — 예상 대기 시간 계산에 쓴다. admit-batch-size(18) / admit-interval(100ms) = 180/s 와 맞춘다.
-    @Value("\${loopers.queue.throughput-per-second:180}")
+    @Value("\${loopers.queue.throughput-per-second:80}")
     private val throughputPerSecond: Double,
 ) {
     /** 대기열에 진입하고 현재 순번을 반환한다. 이미 진입한 유저는 기존 순번을 유지한다. */
@@ -40,6 +40,7 @@ class QueueFacade(
             totalWaiting = waitingQueueRepository.size(),
             estimatedWaitSeconds = rank?.let { WaitTimeEstimator.estimateSeconds(it, throughputPerSecond) } ?: 0L,
             entryToken = token?.value,
+            pollIntervalSeconds = PollingIntervalPolicy.intervalSeconds(rank),
         )
     }
 

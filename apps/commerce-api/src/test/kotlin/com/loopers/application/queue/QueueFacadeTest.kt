@@ -67,6 +67,30 @@ class QueueFacadeTest {
     }
 
     @Test
+    @DisplayName("position — 대기 중이면 순번 구간에 맞는 폴링 주기를 포함한다")
+    fun positionIncludesPollInterval() {
+        every { waitingQueueRepository.rank(7L) } returns 4_213L
+        every { waitingQueueRepository.size() } returns 9_800L
+        every { entryTokenStore.find(7L) } returns null
+
+        val result = queueFacade.position(7L)
+
+        assertThat(result.pollIntervalSeconds).isEqualTo(5L) // rank 1000+ 구간
+    }
+
+    @Test
+    @DisplayName("position — 토큰 발급·미진입이면 폴링 주기 0 (폴링 종료 신호)")
+    fun pollIntervalIsZeroWhenNotWaiting() {
+        every { waitingQueueRepository.rank(any()) } returns null
+        every { waitingQueueRepository.size() } returns 5L
+        every { entryTokenStore.find(7L) } returns EntryToken("token-abc")
+        every { entryTokenStore.find(404L) } returns null
+
+        assertThat(queueFacade.position(7L).pollIntervalSeconds).isEqualTo(0L)
+        assertThat(queueFacade.position(404L).pollIntervalSeconds).isEqualTo(0L)
+    }
+
+    @Test
     @DisplayName("admit — 꺼낸 인원 각각에 TTL 토큰을 발급하고 발급 수를 반환한다")
     fun admitIssuesTokens() {
         every { waitingQueueRepository.pollNext(3L) } returns listOf(1L, 2L, 3L)

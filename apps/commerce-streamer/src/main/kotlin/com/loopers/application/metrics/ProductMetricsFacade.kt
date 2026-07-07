@@ -36,7 +36,8 @@ class ProductMetricsFacade(
 
     @Transactional
     fun addSales(eventId: UUID, lines: List<SalesLine>) = onlyOnce(eventId) {
-        lines.forEach { line -> apply(line.productId) { it.addSales(line.quantity) } }
+        // 여러 행을 잠글 때는 productId 오름차순으로 고정해 락 획득 순서를 통일한다(교차 대기 데드락 방지).
+        lines.sortedBy { it.productId }.forEach { line -> apply(line.productId) { it.addSales(line.quantity) } }
     }
 
     private fun onlyOnce(eventId: UUID, block: () -> Unit) {
@@ -45,8 +46,14 @@ class ProductMetricsFacade(
         processedEventRepository.save(eventId)
     }
 
+    /**
+     * 지표 행을 비관 락으로 잠근 뒤 증분을 반영한다 — catalog(key=productId)·order(key=orderId) 두 소비자가
+     * 같은 상품 지표를 동시에 갱신할 수 있어, 락 없는 read-modify-write 는 앞선 증분을 덮어쓴다.
+     * 행이 아직 없으면 새로 만든다. 동시 최초 생성 경합은 product_id UNIQUE 가 한쪽을 실패시키고,
+     * 실패한 쪽은 멱등 표식 없이 롤백되므로 재전달에서 락 경로로 수렴한다.
+     */
     private fun apply(productId: Long, change: (ProductMetrics) -> Unit) {
-        val metrics = productMetricsRepository.findByProductId(productId) ?: ProductMetrics.create(productId)
+        val metrics = productMetricsRepository.findByProductIdForUpdate(productId) ?: ProductMetrics.create(productId)
         change(metrics)
         productMetricsRepository.save(metrics)
     }

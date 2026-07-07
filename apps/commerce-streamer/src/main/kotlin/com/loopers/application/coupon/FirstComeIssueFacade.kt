@@ -21,7 +21,9 @@ class FirstComeIssueFacade(
 ) {
     @Transactional
     fun handle(requestId: String) {
-        val request = couponIssueRequestRepository.findByRequestId(requestId) ?: return
+        // 요청 행을 비관 락으로 잠근다 — 같은 요청이 동시에 두 번 배달돼도(리밸런스 재전달) 처리는 직렬화되고,
+        // 뒤따르는 쪽은 확정된 상태를 보고 건너뛴다.
+        val request = couponIssueRequestRepository.findByRequestIdForUpdate(requestId) ?: return
         if (!request.isPending()) return
 
         val now = LocalDateTime.now(SEOUL)

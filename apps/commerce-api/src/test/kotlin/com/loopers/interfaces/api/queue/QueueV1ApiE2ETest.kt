@@ -1,5 +1,7 @@
 package com.loopers.interfaces.api.queue
 
+import com.loopers.domain.queue.EntryTokenRepository
+import com.loopers.domain.queue.WaitingQueueStatus
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.member.entity.MemberEntity
 import com.loopers.infrastructure.member.repository.MemberJpaRepository
@@ -31,10 +33,14 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = ["commerce.queue.scheduler.batch-size=0"],
+)
 class QueueV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val memberJpaRepository: MemberJpaRepository,
+    private val entryTokenRepository: EntryTokenRepository,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -112,6 +118,64 @@ class QueueV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/queue/position")
+    @Nested
+    inner class GetPosition {
+        @DisplayName("입장 토큰이 있으면 READY 상태와 토큰을 반환한다")
+        @Test
+        fun returnsReady_whenEntryTokenExists() {
+            val member = createMember()
+            entryTokenRepository.issue(
+                memberId = member.id,
+                token = ENTRY_TOKEN,
+                ttl = java.time.Duration.ofMinutes(5),
+            )
+
+            val response = getPosition(loginId = LOGIN_ID)
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueStatus.READY) },
+                { assertThat(response.body?.data?.rank).isEqualTo(0L) },
+                { assertThat(response.body?.data?.entryToken).isEqualTo(ENTRY_TOKEN) },
+            )
+        }
+
+        @DisplayName("대기열에 있으면 WAITING 상태와 현재 순번을 반환한다")
+        @Test
+        fun returnsWaiting_whenMemberIsWaiting() {
+            createMember()
+            createMember(loginId = "other123")
+            enter(loginId = LOGIN_ID)
+            enter(loginId = "other123")
+
+            val response = getPosition(loginId = "other123")
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueStatus.WAITING) },
+                { assertThat(response.body?.data?.rank).isEqualTo(1L) },
+                { assertThat(response.body?.data?.totalWaiting).isEqualTo(2L) },
+                { assertThat(response.body?.data?.entryToken).isNull() },
+            )
+        }
+
+        @DisplayName("대기열과 입장 토큰이 없으면 NOT_ENTERED 상태를 반환한다")
+        @Test
+        fun returnsNotEntered_whenMemberHasNotEntered() {
+            createMember()
+
+            val response = getPosition(loginId = LOGIN_ID)
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueStatus.NOT_ENTERED) },
+                { assertThat(response.body?.data?.rank).isNull() },
+                { assertThat(response.body?.data?.entryToken).isNull() },
+            )
+        }
+    }
+
     private fun enter(
         loginId: String,
         password: String = RAW_PASSWORD,
@@ -119,6 +183,18 @@ class QueueV1ApiE2ETest @Autowired constructor(
         return testRestTemplate.exchange(
             "$QUEUE_ENDPOINT/enter",
             HttpMethod.POST,
+            HttpEntity<Unit>(createAuthHeaders(loginId = loginId, password = password)),
+            object : ParameterizedTypeReference<ApiResponse<QueueV1Dto.PositionResponse>>() {},
+        )
+    }
+
+    private fun getPosition(
+        loginId: String,
+        password: String = RAW_PASSWORD,
+    ): org.springframework.http.ResponseEntity<ApiResponse<QueueV1Dto.PositionResponse>> {
+        return testRestTemplate.exchange(
+            "$QUEUE_ENDPOINT/position",
+            HttpMethod.GET,
             HttpEntity<Unit>(createAuthHeaders(loginId = loginId, password = password)),
             object : ParameterizedTypeReference<ApiResponse<QueueV1Dto.PositionResponse>>() {},
         )
@@ -159,6 +235,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
         private const val QUEUE_ENDPOINT = "/api/v1/queue"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
+        private const val ENTRY_TOKEN = "entry-token"
         private const val CONCURRENT_USER_COUNT = 8
 
         @JvmStatic

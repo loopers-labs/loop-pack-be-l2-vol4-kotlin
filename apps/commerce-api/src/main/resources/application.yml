@@ -21,6 +21,7 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
   cloud:
@@ -70,6 +71,16 @@ resilience4j:
         retry-exceptions:
           - feign.RetryableException
           - feign.FeignException$FeignServerException
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+# 통합 테스트 컨텍스트에서는 쿠폰 Consumer 를 기본 비활성화한다. (필요 테스트만 @DynamicPropertySource 로 활성화)
+coupon:
+  consumer:
+    enabled: false
 
 ---
 spring:

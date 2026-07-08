@@ -196,4 +196,30 @@ class CouponServiceIntegrationTest @Autowired constructor(
             couponService.delete(saved.id)
         }
     }
+
+    @DisplayName("발급 수량을 소진할 때,")
+    @Nested
+    inner class TryIssue {
+        @DisplayName("직접 호출해도 쓰기 트랜잭션으로 발급 수량이 1 증가한다.")
+        @Test
+        fun incrementsIssuedQuantity_whenCalledDirectly() {
+            // arrange: 클래스 기본 readOnly 트랜잭션을 상속하면 이 발급(UPDATE)이 막힐 수 있다.
+            val saved = couponService.register(
+                name = "선착순 쿠폰",
+                discountType = DiscountType.RATE,
+                discountValue = 10,
+                minOrderAmount = null,
+                expiredAt = expiredAt,
+                issuableQuantity = 2,
+            )
+
+            // act
+            val issued = couponService.tryIssue(saved.id)
+
+            // assert
+            assertThat(issued).isTrue()
+            val reloaded = couponJpaRepository.findById(saved.id).orElseThrow()
+            assertThat(reloaded.issuedQuantity).isEqualTo(1L)
+        }
+    }
 }

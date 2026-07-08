@@ -9,6 +9,7 @@ import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -23,6 +24,7 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class LikeV1ApiE2ETest @Autowired constructor(
@@ -72,23 +74,26 @@ class LikeV1ApiE2ETest @Autowired constructor(
                 responseType,
             )
 
-            // assert
-            val reloaded = productJpaRepository.findById(product.id).orElseThrow()
-            assertAll(
-                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
-                { assertThat(reloaded.likeCount).isEqualTo(1L) },
-            )
+            // assert: 집계는 커밋 후 비동기로 반영된다
+            assertThat(response.statusCode.is2xxSuccessful).isTrue()
+            await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+                val reloaded = productJpaRepository.findById(product.id).orElseThrow()
+                assertThat(reloaded.likeCount).isEqualTo(1L)
+            }
         }
 
         @DisplayName("이미 좋아요 한 상품에 다시 요청해도, 좋아요 수는 변하지 않는다 (멱등).")
         @Test
         fun isIdempotent_whenAlreadyLiked() {
-            // arrange
+            // arrange: 첫 좋아요의 집계가 반영될 때까지 대기
             signUp()
             val brand = brandService.register("Nike")
             val product = productService.register(brand.id, "Air Max", 100_000, 10, ProductStatus.ON_SALE)
             val responseType = object : ParameterizedTypeReference<ApiResponse<Unit>>() {}
             testRestTemplate.exchange("/api/v1/products/${product.id}/likes", HttpMethod.POST, HttpEntity<Any>(authHeaders()), responseType)
+            await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+                assertThat(productJpaRepository.findById(product.id).orElseThrow().likeCount).isEqualTo(1L)
+            }
 
             // act
             testRestTemplate.exchange("/api/v1/products/${product.id}/likes", HttpMethod.POST, HttpEntity<Any>(authHeaders()), responseType)
@@ -146,16 +151,20 @@ class LikeV1ApiE2ETest @Autowired constructor(
             val product = productService.register(brand.id, "Air Max", 100_000, 10, ProductStatus.ON_SALE)
             val responseType = object : ParameterizedTypeReference<ApiResponse<Unit>>() {}
             testRestTemplate.exchange("/api/v1/products/${product.id}/likes", HttpMethod.POST, HttpEntity<Any>(authHeaders()), responseType)
+            // 좋아요 집계(+1)가 반영된 후 취소해야 감소(-1)와의 실행 순서가 보장된다
+            await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+                assertThat(productJpaRepository.findById(product.id).orElseThrow().likeCount).isEqualTo(1L)
+            }
 
             // act
             val response = testRestTemplate.exchange("/api/v1/products/${product.id}/likes", HttpMethod.DELETE, HttpEntity<Any>(authHeaders()), responseType)
 
-            // assert
-            val reloaded = productJpaRepository.findById(product.id).orElseThrow()
-            assertAll(
-                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
-                { assertThat(reloaded.likeCount).isEqualTo(0L) },
-            )
+            // assert: 집계는 커밋 후 비동기로 반영된다
+            assertThat(response.statusCode.is2xxSuccessful).isTrue()
+            await().atMost(3, TimeUnit.SECONDS).untilAsserted {
+                val reloaded = productJpaRepository.findById(product.id).orElseThrow()
+                assertThat(reloaded.likeCount).isEqualTo(0L)
+            }
         }
 
         @DisplayName("좋아요한 적 없는 상품을 취소해도, 200 응답을 받는다 (멱등).")

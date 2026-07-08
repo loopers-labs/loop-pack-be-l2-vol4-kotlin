@@ -18,4 +18,6 @@ class CouponRepositoryImpl(
 
     override fun findAllByIds(ids: List<Long>): List<CouponModel> =
         if (ids.isEmpty()) emptyList() else couponJpaRepository.findAllById(ids).toList()
+
+    override fun tryIssue(couponId: Long): Boolean = couponJpaRepository.tryIssue(couponId) == 1
 }

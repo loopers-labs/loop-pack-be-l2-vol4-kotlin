@@ -1,12 +1,14 @@
 package com.loopers.application.order
 
 import com.loopers.domain.coupon.UserCouponService
+import com.loopers.domain.order.OrderCreatedEvent
 import com.loopers.domain.order.OrderItemModel
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
@@ -19,6 +21,7 @@ class OrderFacade(
     private val productService: ProductService,
     private val orderService: OrderService,
     private val userCouponService: UserCouponService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun place(
@@ -68,6 +71,7 @@ class OrderFacade(
         } ?: 0L
 
         val order = orderService.createPending(user.id, orderItems, couponId, discountAmount)
+        eventPublisher.publishEvent(OrderCreatedEvent.from(order))
         return OrderInfo.from(order)
     }
 

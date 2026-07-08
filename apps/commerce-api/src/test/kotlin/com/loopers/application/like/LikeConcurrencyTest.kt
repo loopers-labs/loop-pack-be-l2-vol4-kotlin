@@ -7,6 +7,7 @@ import com.loopers.domain.product.ProductStatus
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -15,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 class LikeConcurrencyTest @Autowired constructor(
@@ -58,8 +60,10 @@ class LikeConcurrencyTest @Autowired constructor(
         latch.await()
         executor.shutdown()
 
-        // assert: 좋아요 수가 정확히 10
-        val reloaded = productJpaRepository.findById(product.id).orElseThrow()
-        assertThat(reloaded.likeCount).isEqualTo(10L)
+        // assert: 좋아요 수가 최종적으로 정확히 10 (집계는 커밋 후 비동기로 반영)
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted {
+            val reloaded = productJpaRepository.findById(product.id).orElseThrow()
+            assertThat(reloaded.likeCount).isEqualTo(10L)
+        }
     }
 }

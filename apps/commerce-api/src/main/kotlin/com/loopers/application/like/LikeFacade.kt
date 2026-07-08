@@ -1,14 +1,16 @@
 package com.loopers.application.like
 
-import com.loopers.application.product.ProductCacheStore
 import com.loopers.application.product.ProductInfo
 import com.loopers.domain.brand.BrandService
 import com.loopers.domain.like.LikeModel
 import com.loopers.domain.like.LikeRepository
+import com.loopers.domain.like.ProductLikedEvent
+import com.loopers.domain.like.ProductUnlikedEvent
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -21,7 +23,7 @@ class LikeFacade(
     private val productService: ProductService,
     private val brandService: BrandService,
     private val likeRepository: LikeRepository,
-    private val productCacheStore: ProductCacheStore,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun like(loginId: String, rawPassword: String, productId: Long) {
@@ -29,8 +31,7 @@ class LikeFacade(
         val product = productService.getActiveById(productId)
         if (likeRepository.existsByUserIdAndProductId(user.id, product.id)) return
         likeRepository.save(LikeModel(userId = user.id, productId = product.id))
-        productService.increaseLikeCount(product.id)
-        productCacheStore.evictProductDetail(product.id)
+        eventPublisher.publishEvent(ProductLikedEvent(userId = user.id, productId = product.id))
     }
 
     @Transactional
@@ -38,8 +39,7 @@ class LikeFacade(
         val user = userService.authenticate(loginId, rawPassword)
         val affected = likeRepository.deleteByUserIdAndProductId(user.id, productId)
         if (affected == 0) return
-        productService.decreaseLikeCount(productId)
-        productCacheStore.evictProductDetail(productId)
+        eventPublisher.publishEvent(ProductUnlikedEvent(userId = user.id, productId = productId))
     }
 
     @Transactional(readOnly = true)

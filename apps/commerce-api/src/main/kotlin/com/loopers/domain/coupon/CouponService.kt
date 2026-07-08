@@ -33,6 +33,7 @@ class CouponService(
         return couponRepository.save(coupon)
     }
 
+    @Transactional
     fun tryIssue(couponId: Long): Boolean = couponRepository.tryIssue(couponId)
 
     fun getById(id: Long): CouponModel {

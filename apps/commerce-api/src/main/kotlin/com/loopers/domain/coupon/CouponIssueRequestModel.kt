@@ -1,6 +1,8 @@
 package com.loopers.domain.coupon
 
 import com.loopers.domain.BaseEntity
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -41,12 +43,21 @@ class CouponIssueRequestModel(
         protected set
 
     fun markSuccess() {
+        requirePending()
         status = CouponIssueStatus.SUCCESS
         reason = null
     }
 
     fun markFailed(reason: String) {
+        requirePending()
         status = CouponIssueStatus.FAILED
         this.reason = reason
+    }
+
+    /** 종결(SUCCESS/FAILED)된 요청을 다시 덮어쓰지 못하도록 상태 전이를 엔티티에서 강제한다. */
+    private fun requirePending() {
+        if (status != CouponIssueStatus.PENDING) {
+            throw CoreException(ErrorType.CONFLICT, "PENDING 상태에서만 처리할 수 있습니다. 현재 상태: $status")
+        }
     }
 }

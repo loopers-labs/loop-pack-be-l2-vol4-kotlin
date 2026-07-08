@@ -17,6 +17,7 @@ import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.Awaitility.await
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.DisplayName
@@ -78,6 +79,11 @@ class MetricsPipelineIntegrationTest @Autowired constructor(
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+    }
+
+    @AfterAll
+    fun tearDownAll() {
+        producer.close()
     }
 
     @DisplayName("catalog-events 의 ProductLiked 를 소비하면, 상품 좋아요 수가 집계된다.")

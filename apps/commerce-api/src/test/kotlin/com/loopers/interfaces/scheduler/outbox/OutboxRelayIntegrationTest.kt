@@ -113,6 +113,7 @@ class OutboxRelayIntegrationTest @Autowired constructor(
             // Outbox 는 PUBLISHED 로 마킹
             await().atMost(5, TimeUnit.SECONDS).untilAsserted {
                 val rows = outboxEventJpaRepository.findAll().filter { it.eventType == "OrderCreated" }
+                assertThat(rows).isNotEmpty()
                 assertThat(rows).allMatch { it.status == OutboxStatus.PUBLISHED }
             }
         }

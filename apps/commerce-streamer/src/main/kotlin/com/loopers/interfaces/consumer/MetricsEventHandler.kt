@@ -40,7 +40,7 @@ class MetricsEventHandler(
             "LIKE_CANCELED" -> productMetricsFacade.decreaseLike(eventId, productIdOf(envelope) ?: return)
             "PRODUCT_VIEWED" -> productMetricsFacade.increaseView(eventId, productIdOf(envelope) ?: return)
             "ORDER_CREATED" -> productMetricsFacade.addSales(eventId, salesLinesOf(envelope) ?: return)
-            else -> Unit
+            else -> log.debug("처리 대상이 아닌 이벤트 타입: {}", envelope.eventType)
         }
     }
 

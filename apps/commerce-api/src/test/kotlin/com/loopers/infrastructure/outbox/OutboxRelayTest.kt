@@ -46,7 +46,7 @@ class OutboxRelayTest {
     }
 
     @Test
-    fun `발행이 실패하면 PENDING 으로 남겨 다음 릴레이에서 재시도한다`() {
+    fun `발행이 실패하면 실패를 기록하고 PENDING 으로 남겨 다음 릴레이에서 재시도한다`() {
         val order = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
         every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(order)
         every { kafkaTemplate.send(any<String>(), any(), any()) } throws RuntimeException("broker down")
@@ -55,6 +55,39 @@ class OutboxRelayTest {
 
         assertThat(order.status).isEqualTo(OutboxStatus.PENDING)
         assertThat(order.publishedAt).isNull()
+        assertThat(order.retryCount).isEqualTo(1)
+        assertThat(order.nextRetryAt).isNotNull()
+    }
+
+    @Test
+    fun `백오프 대기 중인 이벤트는 발행을 시도하지 않고, 같은 애그리거트의 뒤 이벤트도 건너뛴다 - 순서 보존`() {
+        val first = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
+        val second = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
+        val other = outboxRow(aggregateType = "PRODUCT", aggregateId = "7", eventType = "LIKE_CREATED", payload = "{}")
+        first.recordFailure(LocalDateTime.now(), "broker down") // nextRetryAt 이 미래 → 대기 중
+        every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(first, second, other)
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns CompletableFuture.completedFuture(mockk())
+
+        relay.relay()
+
+        // 대기 중인 애그리거트(주문 42)는 두 건 모두 시도조차 하지 않고, 무관한 애그리거트만 발행된다.
+        verify(exactly = 0) { kafkaTemplate.send("order-events", "42", any()) }
+        verify(exactly = 1) { kafkaTemplate.send("catalog-events", "7", any()) }
+        assertThat(first.retryCount).isEqualTo(1) // 건너뛰기는 실패 기록이 아니다
+        assertThat(second.status).isEqualTo(OutboxStatus.PENDING)
+        assertThat(other.status).isEqualTo(OutboxStatus.PUBLISHED)
+    }
+
+    @Test
+    fun `재시도 상한을 소진한 실패는 FAILED 로 격리된다`() {
+        val order = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
+        repeat(9) { order.recordFailure(LocalDateTime.now().minusHours(1), "broker down") } // 백오프는 소진된 과거
+        every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(order)
+        every { kafkaTemplate.send(any<String>(), any(), any()) } throws RuntimeException("broker down")
+
+        relay.relay()
+
+        assertThat(order.status).isEqualTo(OutboxStatus.FAILED)
     }
 
     @Test

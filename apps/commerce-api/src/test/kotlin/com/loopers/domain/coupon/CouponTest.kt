@@ -151,6 +151,27 @@ class CouponTest {
         fun allowsNullMinOrderAmount() {
             assertThat(create(minOrderAmount = null).minOrderAmount).isNull()
         }
+
+        @DisplayName("issueLimit 가 0 이하면 COUPON_BAD_REQUEST 예외가 발생한다.")
+        @Test
+        fun throwsWhenIssueLimitNotPositive() {
+            assertThat(assertThrows<CoreException> { create(issueLimit = 0) }.errorType)
+                .isEqualTo(CouponErrorType.COUPON_BAD_REQUEST)
+            assertThat(assertThrows<CoreException> { create(issueLimit = -1) }.errorType)
+                .isEqualTo(CouponErrorType.COUPON_BAD_REQUEST)
+        }
+
+        @DisplayName("issueLimit 가 양수면 선착순 템플릿이 생성된다.")
+        @Test
+        fun createsFirstComeTemplate() {
+            assertThat(create(issueLimit = 100).issueLimit).isEqualTo(100L)
+        }
+
+        @DisplayName("issueLimit 가 null 이면 무제한 템플릿으로 생성된다.")
+        @Test
+        fun allowsNullIssueLimit() {
+            assertThat(create(issueLimit = null).issueLimit).isNull()
+        }
     }
 
     @DisplayName("calculateDiscount 를 호출할 때, ")

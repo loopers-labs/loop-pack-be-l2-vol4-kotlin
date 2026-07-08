@@ -57,7 +57,27 @@ class QueueConcurrencyIntegrationTest @Autowired constructor(
         assertThat(waitingQueueRepository.rank(42L)).isEqualTo(0L)
     }
 
-    @DisplayName("[3] 배치 크기 이상이 대기 중이어도, admit 은 앞에서 배치 크기만큼만 입장시키고 나머지는 큐에 남긴다.")
+    @DisplayName("[3] 동시 진입이 섞여도, 먼저 진입을 마친 그룹이 항상 뒤 그룹보다 앞 순번을 받는다(FIFO).")
+    @Test
+    fun earlierGroupAlwaysRanksAhead() {
+        val groupSize = 100
+
+        runConcurrently(groupSize) { i -> queueFacade.enter((i + 1).toLong()) }
+        // score 해상도가 밀리초라, 그룹 경계가 같은 밀리초에 걸리지 않도록 최소 간격을 둔다.
+        Thread.sleep(5)
+        runConcurrently(groupSize) { i -> queueFacade.enter((groupSize + i + 1).toLong()) }
+
+        val firstGroupRanks = (1..groupSize).map { waitingQueueRepository.rank(it.toLong()) }
+        val secondGroupRanks = (groupSize + 1..groupSize * 2).map { waitingQueueRepository.rank(it.toLong()) }
+        assertThat(firstGroupRanks).doesNotContainNull()
+        assertThat(secondGroupRanks).doesNotContainNull()
+        // 앞 그룹이 0..99, 뒤 그룹이 100..199 — 그룹 간 역전이 없다.
+        assertThat(firstGroupRanks.filterNotNull().toSet()).isEqualTo((0L until groupSize.toLong()).toSet())
+        assertThat(secondGroupRanks.filterNotNull().toSet())
+            .isEqualTo((groupSize.toLong() until groupSize * 2L).toSet())
+    }
+
+    @DisplayName("[4] 배치 크기 이상이 대기 중이어도, admit 은 앞에서 배치 크기만큼만 입장시키고 나머지는 큐에 남긴다.")
     @Test
     fun admitCapsAtBatchSize() {
         (1..50).forEach { waitingQueueRepository.enter(it.toLong(), Instant.ofEpochMilli(it.toLong())) }
@@ -71,7 +91,7 @@ class QueueConcurrencyIntegrationTest @Autowired constructor(
         assertThat((19..50).count { entryTokenStore.find(it.toLong()) != null }).isEqualTo(0)
     }
 
-    @DisplayName("[4] 여러 스케줄러가 동시에 admit 해도, 대기 인원을 넘겨 발급하거나 한 유저를 중복 발급하지 않는다(ZPOPMIN 원자성).")
+    @DisplayName("[5] 여러 스케줄러가 동시에 admit 해도, 대기 인원을 넘겨 발급하거나 한 유저를 중복 발급하지 않는다(ZPOPMIN 원자성).")
     @Test
     fun concurrentAdmitNeverOverIssues() {
         val users = 100

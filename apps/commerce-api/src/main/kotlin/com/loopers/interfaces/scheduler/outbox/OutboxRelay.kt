@@ -38,6 +38,8 @@ class OutboxRelay(
                     .get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 publishedIds += event.id
             } catch (e: Exception) {
+                // graceful shutdown 등으로 인터럽트되면 플래그를 복원해 스케줄러 스레드가 정상 종료되게 한다.
+                if (e is InterruptedException) Thread.currentThread().interrupt()
                 log.warn("Outbox 발행 실패 (다음 주기 재시도): eventId={}, topic={}", event.eventId, event.topic, e)
             }
         }

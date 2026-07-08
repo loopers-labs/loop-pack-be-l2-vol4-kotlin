@@ -48,11 +48,17 @@ class ProductMetricsService(
             "OrderCreated" -> {
                 val items = message.payload.get("items") ?: return
                 items.forEach { item ->
+                    val productId = item.get("productId")?.asLong()
+                    val quantity = item.get("quantity")?.asLong()
+                    if (productId == null || quantity == null) {
+                        log.warn("OrderCreated 항목에 productId/quantity 누락, 스킵: eventId={}", message.eventId)
+                        return@forEach
+                    }
                     productMetricsRepository.upsert(
-                        productId = item.get("productId").asLong(),
+                        productId = productId,
                         likeDelta = 0,
                         viewDelta = 0,
-                        salesDelta = item.get("quantity").asLong(),
+                        salesDelta = quantity,
                     )
                 }
             }

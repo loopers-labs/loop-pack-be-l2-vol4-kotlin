@@ -19,6 +19,9 @@ import java.util.concurrent.TimeUnit
  * 발행 실패는 이벤트별 catch 로 격리되어 다른 이벤트를 막지 않고, 실패분은 PENDING 으로 남아 다음 주기에 재시도된다.
  * payload 는 이 앱이 직렬화한 JSON 을 되읽는 것이라 파싱 실패(poison)는 사실상 없고, 현실적 실패인 브로커 일시 장애는
  * 무한 재시도가 곧 At Least Once 보장이 된다. 따라서 별도 DLQ/attempt_count 는 (현 규모에선) 도입하지 않는다.
+ *
+ * 다중 인스턴스 배포 시 @Scheduled 가 인스턴스별 독립 실행되어 같은 PENDING 을 중복 발행할 수 있으나, 소비측 event_handled
+ * 멱등으로 흡수된다(중복 소비 없음, Kafka 트래픽 낭비만). 분산 락(ShedLock 등)은 스케일아웃 시점에 재검토한다.
  */
 @Component
 class OutboxRelay(

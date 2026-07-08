@@ -16,7 +16,8 @@ import jakarta.persistence.Table
 @Entity
 @Table(
     name = "outbox_event",
-    indexes = [Index(name = "idx_outbox_event_status", columnList = "status")],
+    // 릴레이가 status 필터 + id 정렬(findByStatusOrderByIdAsc)로 조회하므로 (status, id) 복합 인덱스로 정렬까지 커버한다.
+    indexes = [Index(name = "idx_outbox_event_status_id", columnList = "status, id")],
 )
 class OutboxEventModel(
     eventId: String,

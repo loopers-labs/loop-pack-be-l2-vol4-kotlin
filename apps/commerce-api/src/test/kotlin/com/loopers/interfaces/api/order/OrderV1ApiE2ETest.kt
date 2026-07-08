@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.order
 import com.loopers.domain.coupon.enums.CouponIssueStatus
 import com.loopers.domain.coupon.enums.DiscountType
 import com.loopers.domain.order.OrderStatus
+import com.loopers.domain.queue.EntryTokenRepository
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.brand.entity.BrandEntity
 import com.loopers.infrastructure.brand.repository.BrandJpaRepository
@@ -22,6 +23,7 @@ import com.loopers.infrastructure.product.repository.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.order.dto.OrderV1Dto
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -37,6 +39,11 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.DockerImageName
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.util.concurrent.Callable
@@ -53,12 +60,15 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private val couponJpaRepository: CouponJpaRepository,
     private val couponIssueJpaRepository: CouponIssueJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
+    private val entryTokenRepository: EntryTokenRepository,
     private val jdbcTemplate: JdbcTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     @DisplayName("POST /api/v1/orders")
@@ -100,6 +110,59 @@ class OrderV1ApiE2ETest @Autowired constructor(
                 { assertThat(countOrderItems()).isEqualTo(2) },
                 { assertThat(inventoryJpaRepository.findByProductId(firstProduct.id)?.quantity).isEqualTo(8L) },
                 { assertThat(inventoryJpaRepository.findByProductId(secondProduct.id)?.quantity).isEqualTo(2L) },
+            )
+        }
+
+        @DisplayName("입장 토큰이 없으면 주문할 수 없다")
+        @Test
+        fun returnsUnauthorized_whenEntryTokenIsMissing() {
+            createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            createInventory(productId = product.id, quantity = 1L)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 1L)),
+                    ),
+                    createAuthHeaders(entryToken = null),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED) },
+                { assertThat(orderJpaRepository.findAll()).isEmpty() },
+                { assertThat(inventoryJpaRepository.findByProductId(product.id)?.quantity).isEqualTo(1L) },
+            )
+        }
+
+        @DisplayName("주문에 성공하면 사용한 입장 토큰을 삭제한다")
+        @Test
+        fun deletesEntryToken_whenOrderSucceeds() {
+            val member = createMember()
+            val brand = createBrand()
+            val product = createProduct(brandId = brand.id)
+            createInventory(productId = product.id, quantity = 1L)
+
+            val response = testRestTemplate.exchange(
+                ORDERS_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(
+                    OrderV1Dto.CreateOrderRequest(
+                        items = listOf(OrderV1Dto.CreateOrderRequest.Item(productId = product.id, quantity = 1L)),
+                    ),
+                    createAuthHeaders(),
+                ),
+                object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {},
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(entryTokenRepository.find(member.id)).isNull() },
             )
         }
 
@@ -735,10 +798,20 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private fun createAuthHeaders(
         loginId: String = LOGIN_ID,
         password: String = RAW_PASSWORD,
+        entryToken: String? = "entry-token-$loginId",
     ): HttpHeaders {
+        entryToken
+            ?.let { token ->
+                memberJpaRepository.findByLoginId(loginId)
+                    ?.let { member ->
+                        entryTokenRepository.issue(memberId = member.id, token = token, ttl = Duration.ofMinutes(5))
+                    }
+            }
+
         return HttpHeaders().apply {
             set("X-Loopers-LoginId", loginId)
             set("X-Loopers-LoginPw", password)
+            entryToken?.let { token -> set("X-Entry-Token", token) }
         }
     }
 
@@ -766,10 +839,27 @@ class OrderV1ApiE2ETest @Autowired constructor(
     }
 
     private companion object {
+        private val redisContainer = GenericContainer(DockerImageName.parse("redis:latest"))
+            .withExposedPorts(REDIS_PORT)
+            .apply {
+                start()
+            }
+
         private const val ORDERS_ENDPOINT = "/api/v1/orders"
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
         private const val CONCURRENT_ORDER_COUNT = 10
         private const val CONCURRENT_ORDER_STOCK = 5L
+        private const val REDIS_PORT = 6379
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun redisProperties(registry: DynamicPropertyRegistry) {
+            registry.add("datasource.redis.database") { "0" }
+            registry.add("datasource.redis.master.host") { redisContainer.host }
+            registry.add("datasource.redis.master.port") { redisContainer.getMappedPort(REDIS_PORT).toString() }
+            registry.add("datasource.redis.replicas[0].host") { redisContainer.host }
+            registry.add("datasource.redis.replicas[0].port") { redisContainer.getMappedPort(REDIS_PORT).toString() }
+        }
     }
 }

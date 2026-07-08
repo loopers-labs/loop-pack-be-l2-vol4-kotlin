@@ -15,6 +15,7 @@ interface OrderV1ApiSpec {
     fun placeOrder(
         loginId: String,
         password: String,
+        entryToken: String?,
         request: OrderV1Dto.CreateOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse>
 

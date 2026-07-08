@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.order.controller
 
 import com.loopers.application.order.OrderFacade
+import com.loopers.application.queue.WaitingQueueFacade
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.order.OrderV1ApiSpec
 import com.loopers.interfaces.api.order.dto.OrderV1Dto
@@ -21,20 +22,27 @@ import java.time.ZoneId
 @RequestMapping("/api/v1/orders")
 class OrderV1Controller(
     private val orderFacade: OrderFacade,
+    private val waitingQueueFacade: WaitingQueueFacade,
 ) : OrderV1ApiSpec {
     @PostMapping
     override fun placeOrder(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
         @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
+        @RequestHeader(name = LoopersHeaders.ENTRY_TOKEN, required = false) entryToken: String?,
         @RequestBody request: OrderV1Dto.CreateOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
         LoopersHeaders.validateUser(loginId = loginId, password = password)
+        waitingQueueFacade.validateEntryToken(loginId = loginId, rawPassword = password, entryToken = entryToken)
 
-        return orderFacade.placeOrder(
+        val order = orderFacade.placeOrder(
             loginId = loginId,
             rawPassword = password,
             command = request.toCommand(),
-        ).let(OrderV1Dto.OrderResponse::from)
+        )
+        waitingQueueFacade.deleteEntryToken(loginId = loginId, rawPassword = password)
+
+        return order
+            .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
     }
 

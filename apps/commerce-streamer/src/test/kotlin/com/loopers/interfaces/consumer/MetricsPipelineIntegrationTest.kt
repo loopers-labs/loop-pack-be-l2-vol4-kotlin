@@ -184,6 +184,29 @@ class MetricsPipelineIntegrationTest @Autowired constructor(
         }
     }
 
+    @DisplayName("좋아요가 없는 상태에서 ProductUnliked 를 소비해도, like_count 는 0 미만으로 내려가지 않는다.")
+    @Test
+    fun likeCountNotNegative_whenUnlikeWithoutPriorLike() {
+        // arrange: 좋아요 기록이 없는 신규 상품 (upsert INSERT 경로)
+        val productId = 505L
+        val message = mapOf(
+            "eventId" to UUID.randomUUID().toString(),
+            "eventType" to "ProductUnliked",
+            "aggregateId" to productId,
+            "occurredAt" to "2026-07-03T10:00:00+09:00",
+            "payload" to mapOf("userId" to 1L, "productId" to productId),
+        )
+
+        // act
+        send("catalog-events", productId.toString(), message)
+
+        // assert: -1 이 아니라 0 하한
+        await().atMost(20, TimeUnit.SECONDS).untilAsserted {
+            val metrics = productMetricsRepository.findByProductId(productId)
+            assertThat(metrics?.likeCount).isEqualTo(0L)
+        }
+    }
+
     private fun send(topic: String, key: String, message: Map<String, Any?>) {
         producer.send(ProducerRecord(topic, key, objectMapper.writeValueAsBytes(message))).get()
     }

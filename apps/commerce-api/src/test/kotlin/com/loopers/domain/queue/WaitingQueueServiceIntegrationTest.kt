@@ -8,7 +8,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
-@SpringBootTest
+// 활성화 스케줄러가 테스트 중간에 개입해 Waiting 이 Ready 로 바뀌지 않도록 주기를 사실상 무한대로 늘린다.
+@SpringBootTest(properties = ["queue.activate.interval=1h"])
 class WaitingQueueServiceIntegrationTest @Autowired constructor(
     private val waitingQueueService: WaitingQueueService,
     private val redisCleanUp: RedisCleanUp,

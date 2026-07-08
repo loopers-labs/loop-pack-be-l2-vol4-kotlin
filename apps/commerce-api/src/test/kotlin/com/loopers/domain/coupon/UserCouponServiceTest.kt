@@ -28,6 +28,7 @@ class UserCouponServiceTest {
         value = 10_000L,
         minOrderAmount = 0L,
         expiredAt = expiredAt,
+        totalCount = 100L,
     )
 
     @BeforeEach

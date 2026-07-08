@@ -1,7 +1,8 @@
 package com.loopers.interfaces.api
 
 import com.loopers.application.user.SignupCommand
-import com.loopers.interfaces.api.coupon.CouponApplicationServicePort
+import com.loopers.domain.coupon.UserCoupon
+import com.loopers.domain.coupon.UserCouponRepositoryPort
 import com.loopers.interfaces.api.user.UserApplicationServicePort
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
@@ -21,12 +22,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CouponAdminV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userApplicationService: UserApplicationServicePort,
-    private val couponApplicationService: CouponApplicationServicePort,
+    private val userCouponRepositoryPort: UserCouponRepositoryPort,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     companion object {
@@ -112,9 +114,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         )
     }
 
-    private fun createAndGetId(
-        body: Map<String, Any?>,
-    ): Long {
+    private fun createAndGetId(body: Map<String, Any?>): Long {
         val createResponse = create(body)
         val createdId = ((createResponse.body?.data as? Map<*, *>)?.get("id") as? Number)?.toLong()
         return requireNotNull(createdId) { "쿠폰 생성 후 id를 얻지 못했습니다." }
@@ -146,9 +146,27 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
             ),
         ).id
 
+    /** 테스트 데이터 용도로 UserCoupon을 직접 DB에 저장한다. (비동기 발급 플로우 우회) */
     private fun issueTo(loginId: String, couponId: Long) {
         val userId = signup(loginId)
-        couponApplicationService.issueCoupon(userId = userId, couponId = couponId)
+        userCouponRepositoryPort.save(UserCoupon.issue(couponTemplateId = couponId, userId = userId, issuedAt = LocalDateTime.now()))
+    }
+
+    /** `totalCount` 필드를 포함한 기본 쿠폰 생성 요청 body. */
+    private fun defaultCouponBody(
+        name: String = "1만원 할인",
+        type: String = "FIXED",
+        value: Int = 10_000,
+        expiredAt: String = "2026-12-31T23:59:59",
+        totalCount: Int = 1000,
+        minOrderAmount: Int? = null,
+    ): Map<String, Any?> = buildMap {
+        put("name", name)
+        put("type", type)
+        put("value", value)
+        put("expiredAt", expiredAt)
+        put("totalCount", totalCount)
+        if (minOrderAmount != null) put("minOrderAmount", minOrderAmount)
     }
 
     @DisplayName("GET /api-admin/v1/coupons/{id}")
@@ -159,12 +177,11 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsCoupon_whenExists() {
             val createResponse = create(
-                mapOf(
-                    "name" to "1만원 할인",
-                    "type" to "FIXED",
-                    "value" to 10_000,
-                    "minOrderAmount" to 30_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
+                defaultCouponBody(
+                    name = "1만원 할인",
+                    value = 10_000,
+                    minOrderAmount = 30_000,
+                    totalCount = 500,
                 ),
             )
             val createdId = ((createResponse.body?.data as? Map<*, *>)?.get("id") as? Number)?.toLong()
@@ -180,6 +197,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
                 { assertThat(data?.get("type")).isEqualTo("FIXED") },
                 { assertThat((data?.get("value") as? Number)?.toLong()).isEqualTo(10_000L) },
                 { assertThat((data?.get("minOrderAmount") as? Number)?.toLong()).isEqualTo(30_000L) },
+                { assertThat((data?.get("totalCount") as? Number)?.toLong()).isEqualTo(500L) },
             )
         }
 
@@ -221,14 +239,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @Test
         fun returnsPagedCoupons_sortedByIdDesc() {
             repeat(3) { index ->
-                create(
-                    mapOf(
-                        "name" to "쿠폰 $index",
-                        "type" to "FIXED",
-                        "value" to 1_000,
-                        "expiredAt" to "2026-12-31T23:59:59",
-                    ),
-                )
+                create(defaultCouponBody(name = "쿠폰 $index", value = 1_000))
             }
 
             val response = getCoupons(page = 0, size = 2)
@@ -260,15 +271,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("어드민이 유효한 FIXED 쿠폰을 등록하면, 생성된 템플릿 전체 필드를 반환한다.")
         @Test
         fun returnsCreatedFixedCoupon() {
-            val body = mapOf(
-                "name" to "1만원 할인",
-                "type" to "FIXED",
-                "value" to 10_000,
-                "minOrderAmount" to 30_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(name = "1만원 할인", value = 10_000, minOrderAmount = 30_000, totalCount = 100))
 
             val data = response.body?.data as? Map<*, *>
             assertAll(
@@ -278,21 +281,14 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
                 { assertThat(data?.get("type")).isEqualTo("FIXED") },
                 { assertThat((data?.get("value") as? Number)?.toLong()).isEqualTo(10_000L) },
                 { assertThat((data?.get("minOrderAmount") as? Number)?.toLong()).isEqualTo(30_000L) },
+                { assertThat((data?.get("totalCount") as? Number)?.toLong()).isEqualTo(100L) },
             )
         }
 
         @DisplayName("어드민이 유효한 RATE 쿠폰을 등록하면, type=RATE로 반환한다.")
         @Test
         fun returnsCreatedRateCoupon() {
-            val body = mapOf(
-                "name" to "10% 할인",
-                "type" to "RATE",
-                "value" to 10,
-                "minOrderAmount" to 10_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(type = "RATE", value = 10, totalCount = 50))
 
             val data = response.body?.data as? Map<*, *>
             assertAll(
@@ -305,14 +301,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("minOrderAmount를 생략하면, 0으로 기본 처리되어 등록된다.")
         @Test
         fun defaultsMinOrderAmountToZero_whenOmitted() {
-            val body = mapOf(
-                "name" to "조건 없는 할인",
-                "type" to "FIXED",
-                "value" to 5_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(name = "조건 없는 할인", value = 5_000))
 
             val data = response.body?.data as? Map<*, *>
             assertAll(
@@ -324,14 +313,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("type 값이 FIXED/RATE가 아니면, 400 BAD_REQUEST 응답을 받는다.")
         @Test
         fun returnsBadRequest_whenInvalidType() {
-            val body = mapOf(
-                "name" to "잘못된 타입",
-                "type" to "PERCENT",
-                "value" to 10,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(type = "PERCENT"))
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         }
@@ -339,14 +321,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("RATE 할인율이 1~100 범위를 벗어나면, 400 BAD_REQUEST 응답을 받는다.")
         @Test
         fun returnsBadRequest_whenRateOutOfRange() {
-            val body = mapOf(
-                "name" to "할인율 초과",
-                "type" to "RATE",
-                "value" to 150,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(type = "RATE", value = 150))
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         }
@@ -354,14 +329,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("value가 0 이하면, 400 BAD_REQUEST 응답을 받는다.")
         @Test
         fun returnsBadRequest_whenValueNonPositive() {
-            val body = mapOf(
-                "name" to "0원 할인",
-                "type" to "FIXED",
-                "value" to 0,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body)
+            val response = create(defaultCouponBody(value = 0))
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         }
@@ -369,14 +337,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("어드민 헤더가 없으면, 403 FORBIDDEN 응답을 받는다.")
         @Test
         fun returnsForbidden_whenLdapHeaderMissing() {
-            val body = mapOf(
-                "name" to "권한 없음",
-                "type" to "FIXED",
-                "value" to 1_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body, ldap = null)
+            val response = create(defaultCouponBody(), ldap = null)
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }
@@ -384,14 +345,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("어드민 헤더 값이 잘못되었으면, 403 FORBIDDEN 응답을 받는다.")
         @Test
         fun returnsForbidden_whenLdapHeaderInvalid() {
-            val body = mapOf(
-                "name" to "권한 없음",
-                "type" to "FIXED",
-                "value" to 1_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            )
-
-            val response = create(body, ldap = "wrong.user")
+            val response = create(defaultCouponBody(), ldap = "wrong.user")
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
         }
@@ -404,15 +358,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("어드민이 유효한 값으로 수정하면, 모든 필드가 교체되고 id는 유지된다.")
         @Test
         fun updatesAllFields_andKeepsId() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "원본 쿠폰",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "minOrderAmount" to 0,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "원본 쿠폰", value = 1_000))
 
             val response = update(
                 id,
@@ -439,24 +385,9 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("수정 결과는 단건 조회에도 반영된다.")
         @Test
         fun reflectsInGet() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "원본 쿠폰",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "원본 쿠폰", value = 1_000))
 
-            update(
-                id,
-                mapOf(
-                    "name" to "수정됨",
-                    "type" to "FIXED",
-                    "value" to 2_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            update(id, mapOf("name" to "수정됨", "type" to "FIXED", "value" to 2_000, "expiredAt" to "2026-12-31T23:59:59"))
 
             val data = getCoupon(id).body?.data
             assertAll(
@@ -470,12 +401,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         fun returnsNotFound_whenMissing() {
             val response = update(
                 9999L,
-                mapOf(
-                    "name" to "유령",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
+                mapOf("name" to "유령", "type" to "FIXED", "value" to 1_000, "expiredAt" to "2026-12-31T23:59:59"),
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
@@ -484,23 +410,11 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("type 값이 FIXED/RATE가 아니면, 400 BAD_REQUEST 응답을 받는다.")
         @Test
         fun returnsBadRequest_whenInvalidType() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "원본",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "원본", value = 1_000))
 
             val response = update(
                 id,
-                mapOf(
-                    "name" to "원본",
-                    "type" to "PERCENT",
-                    "value" to 10,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
+                mapOf("name" to "원본", "type" to "PERCENT", "value" to 10, "expiredAt" to "2026-12-31T23:59:59"),
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
@@ -509,23 +423,11 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("RATE 할인율이 1~100 범위를 벗어나면, 400 BAD_REQUEST 응답을 받는다.")
         @Test
         fun returnsBadRequest_whenRateOutOfRange() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "원본",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "원본", value = 1_000))
 
             val response = update(
                 id,
-                mapOf(
-                    "name" to "원본",
-                    "type" to "RATE",
-                    "value" to 150,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
+                mapOf("name" to "원본", "type" to "RATE", "value" to 150, "expiredAt" to "2026-12-31T23:59:59"),
             )
 
             assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
@@ -536,12 +438,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         fun returnsForbidden_whenLdapHeaderMissing() {
             val response = update(
                 1L,
-                mapOf(
-                    "name" to "권한 없음",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
+                mapOf("name" to "권한 없음", "type" to "FIXED", "value" to 1_000, "expiredAt" to "2026-12-31T23:59:59"),
                 ldap = null,
             )
 
@@ -556,14 +453,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("어드민이 등록된 템플릿을 삭제하면, 2xx 응답을 받고 이후 단건 조회는 404가 된다.")
         @Test
         fun deletesCoupon_andGetReturnsNotFound() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "삭제 대상",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "삭제 대상", value = 1_000))
 
             val deleteResponse = delete(id)
 
@@ -576,14 +466,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("삭제된 템플릿은 목록 조회에서도 제외된다.")
         @Test
         fun excludesDeletedFromList() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "삭제 대상",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "삭제 대상", value = 1_000))
 
             delete(id)
 
@@ -605,14 +488,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
         @DisplayName("이미 삭제된 템플릿을 다시 삭제하면, 404 NOT_FOUND 응답을 받는다(멱등 아님).")
         @Test
         fun returnsNotFound_whenAlreadyDeleted() {
-            val id = createAndGetId(
-                mapOf(
-                    "name" to "삭제 대상",
-                    "type" to "FIXED",
-                    "value" to 1_000,
-                    "expiredAt" to "2026-12-31T23:59:59",
-                ),
-            )
+            val id = createAndGetId(defaultCouponBody(name = "삭제 대상", value = 1_000))
             delete(id)
 
             val response = delete(id)
@@ -634,12 +510,7 @@ class CouponAdminV1ApiE2ETest @Autowired constructor(
     inner class GetCouponIssues {
 
         private fun createTemplate(name: String = "1만원 할인"): Long = createAndGetId(
-            mapOf(
-                "name" to name,
-                "type" to "FIXED",
-                "value" to 10_000,
-                "expiredAt" to "2026-12-31T23:59:59",
-            ),
+            defaultCouponBody(name = name, value = 10_000, totalCount = 100),
         )
 
         @DisplayName("발급 내역이 있으면, loginId가 매핑된 발급 항목을 최근 발급순(id DESC)으로 페이지 반환한다.")

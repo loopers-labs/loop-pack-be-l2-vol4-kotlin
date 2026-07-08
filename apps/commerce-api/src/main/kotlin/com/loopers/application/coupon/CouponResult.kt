@@ -11,6 +11,7 @@ data class CouponResult(
     val value: Long,
     val minOrderAmount: Long,
     val expiredAt: LocalDateTime,
+    val totalCount: Long,
 ) {
     companion object {
         fun from(couponTemplate: CouponTemplate): CouponResult = CouponResult(
@@ -20,6 +21,7 @@ data class CouponResult(
             value = couponTemplate.value,
             minOrderAmount = couponTemplate.minOrderAmount,
             expiredAt = couponTemplate.expiredAt,
+            totalCount = couponTemplate.totalCount,
         )
     }
 }

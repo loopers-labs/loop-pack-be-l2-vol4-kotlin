@@ -1,8 +1,12 @@
 package com.loopers.application.payment
 
 import com.loopers.application.order.OrderCancellation
+import com.loopers.application.outbox.OutboxFactory
+import com.loopers.application.outbox.OutboxSavedEvent
+import com.loopers.application.outbox.OutboxWriter
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.order.OrderStatus
+import com.loopers.domain.outbox.ProductMetricType
 import com.loopers.domain.payment.Payment
 import com.loopers.domain.payment.PaymentGatewayPort
 import com.loopers.domain.payment.PaymentGatewayRequest
@@ -11,6 +15,7 @@ import com.loopers.domain.payment.PaymentStatus
 import com.loopers.interfaces.api.payment.PaymentApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,6 +26,9 @@ class PaymentApplicationServiceAdapter(
     private val paymentGatewayPort: PaymentGatewayPort,
     private val paymentInitiation: PaymentInitiation,
     private val orderCancellation: OrderCancellation,
+    private val eventPublisher: ApplicationEventPublisher,
+    private val outboxWriter: OutboxWriter,
+    private val outboxFactory: OutboxFactory,
 ) : PaymentApplicationServicePort {
 
     override fun pay(command: PayCommand): PaymentResult {
@@ -77,9 +85,22 @@ class PaymentApplicationServiceAdapter(
     private fun applyResult(payment: Payment, status: PaymentStatus, reason: String?) {
         when (status) {
             PaymentStatus.SUCCESS -> {
-                paymentService.save(payment.approve())
+                val approvedPayment = paymentService.save(payment.approve())
                 val order = orderService.getById(payment.orderId)
                 orderService.save(order.updateStatus(OrderStatus.PAYMENT_COMPLETED))
+                order.items.productIds().forEach { productId ->
+                    val outbox = outboxWriter.save(
+                        outboxFactory.createProductMetricOutbox(productId, ProductMetricType.SALES, 1L),
+                    )
+                    eventPublisher.publishEvent(OutboxSavedEvent(outbox))
+                }
+                eventPublisher.publishEvent(
+                    PaymentCompletedEvent(
+                        paymentId = approvedPayment.id,
+                        orderId = approvedPayment.orderId,
+                        userId = approvedPayment.userId,
+                    ),
+                )
             }
             PaymentStatus.FAILED -> {
                 paymentService.save(payment.fail(reason))

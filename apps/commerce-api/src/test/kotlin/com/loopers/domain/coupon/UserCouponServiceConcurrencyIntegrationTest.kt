@@ -41,6 +41,7 @@ class UserCouponServiceConcurrencyIntegrationTest @Autowired constructor(
                 value = 1_000L,
                 minOrderAmount = 0L,
                 expiredAt = now.plusDays(30),
+                totalCount = 100L,
             ),
         )
         val coupon = userCouponRepositoryPort.save(

@@ -21,6 +21,7 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
 
@@ -28,6 +29,17 @@ springdoc:
   use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
+
+product-metric:
+  topic: product.metric.v1
+
+coupon:
+  issue:
+    topic: coupon.issue.v1
+
+outbox:
+  relay:
+    interval-ms: 30000
 
 pg-simulator:
   url: ${PG_SIMULATOR_URL:http://localhost:8082}
@@ -53,7 +65,6 @@ resilience4j:
         sliding-window-size: 100            # 윈도우가 작으면(10) 실패율 추정 분산이 커져(σ≈15%) 정상 변동에도 회로가 깜빡인다. 100이면 σ≈5%로 안정
         minimum-number-of-calls: 50         # 표본이 적으면 한두 건으로 실패율이 출렁인다. 윈도우의 절반 이상 쌓인 뒤 판단
         failure-rate-threshold: 50          # 실패율 50% 초과 시 Open
-        slow-call-duration-threshold: 1s    # 정상 응답(≤500ms)의 2배. 타임아웃(5s)보다 앞서 조기 차단
         slow-call-rate-threshold: 50        # 느린 호출 비율 50% 초과 시 Open
         wait-duration-in-open-state: 10s    # Open 상태 유지 시간
         permitted-number-of-calls-in-half-open-state: 3

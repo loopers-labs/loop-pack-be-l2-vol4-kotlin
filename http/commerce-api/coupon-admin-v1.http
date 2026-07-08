@@ -30,7 +30,8 @@ X-Loopers-Ldap: loopers.admin
   "type": "FIXED",
   "value": 10000,
   "minOrderAmount": 30000,
-  "expiredAt": "2026-12-31T23:59:59"
+  "expiredAt": "2026-12-31T23:59:59",
+  "totalCount": 100
 }
 
 ### 어드민: 쿠폰 템플릿 등록 — 정률(RATE)
@@ -43,7 +44,8 @@ X-Loopers-Ldap: loopers.admin
   "type": "RATE",
   "value": 10,
   "minOrderAmount": 10000,
-  "expiredAt": "2026-12-31T23:59:59"
+  "expiredAt": "2026-12-31T23:59:59",
+  "totalCount": 50
 }
 
 ### 어드민: 쿠폰 템플릿 등록 — minOrderAmount 생략 (선택 값)
@@ -55,7 +57,8 @@ X-Loopers-Ldap: loopers.admin
   "name": "조건 없는 5천원 할인",
   "type": "FIXED",
   "value": 5000,
-  "expiredAt": "2026-12-31T23:59:59"
+  "expiredAt": "2026-12-31T23:59:59",
+  "totalCount": 200
 }
 
 ### 어드민: 쿠폰 템플릿 등록 — 잘못된 type (400)

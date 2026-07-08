@@ -94,7 +94,7 @@ class KafkaConfig {
     }
 
     /**
-     * 소비 실패를 DLT(`<원본토픽>.DLT`)로 격리하는 에러 핸들러.
+     * 소비 실패를 DLT(`<원본토픽>-dlt`, recoverer 기본 접미사)로 격리하는 에러 핸들러.
      * 일시 오류는 지수 백오프로 재시도 후 DLT 로, 형식이 깨진 메시지(MalformedEventException)는 재시도 없이 바로 DLT 로 보낸다.
      * 리스너가 BatchListenerFailedException 으로 실패 레코드를 지목하면 앞 레코드는 커밋되고 그 레코드만 격리된다.
      */

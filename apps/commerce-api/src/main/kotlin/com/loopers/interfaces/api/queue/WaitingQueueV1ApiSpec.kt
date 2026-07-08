@@ -12,16 +12,20 @@ import org.springframework.web.bind.annotation.ResponseStatus
 interface WaitingQueueV1ApiSpec {
     @Operation(
         summary = "대기열 진입",
-        description = "주문 대기열에 진입하고 자신의 순번과 전체 대기 인원을 반환한다. 이미 진입한 유저가 다시 진입하면 맨 뒤로 재배치된다.",
+        description = "주문 대기열에 진입해 status=WAITING 과 순번/전체 인원을 반환한다. " +
+            "아직 입장 전인 유저가 다시 진입하면 맨 뒤로 재배치되고, " +
+            "이미 입장 처리(토큰 발급)된 유저가 다시 진입하면 재진입 없이 status=READY 와 token 을 그대로 반환한다.",
     )
     @ResponseStatus(HttpStatus.OK)
     fun enter(
         @LoginAuth loginUser: LoginUser,
-    ): ApiResponse<WaitingQueueV1Dto.EnterResponse>
+    ): ApiResponse<WaitingQueueV1Dto.PositionResponse>
 
     @Operation(
         summary = "대기열 순번 조회",
-        description = "대기열에서 자신의 현재 순번과 전체 대기 인원을 조회한다. 대기열에 없는 유저가 조회하면 404를 반환한다.",
+        description = "대기열에서 자신의 상태를 조회한다. 아직 대기 중이면 status=WAITING 과 순번/전체 인원을, " +
+            "입장 처리되어 토큰이 발급됐으면 status=READY 와 token 을 반환한다. " +
+            "대기열에도 없고 토큰도 없으면 404를 반환한다.",
     )
     fun getPosition(
         @LoginAuth loginUser: LoginUser,

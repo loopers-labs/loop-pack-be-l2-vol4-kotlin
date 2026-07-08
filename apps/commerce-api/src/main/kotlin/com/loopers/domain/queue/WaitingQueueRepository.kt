@@ -8,4 +8,6 @@ interface WaitingQueueRepository {
     fun findRank(userId: Long): Long?
 
     fun size(): Long
+
+    fun pop(count: Long): List<Long>
 }

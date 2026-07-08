@@ -25,6 +25,11 @@ class WaitingQueueRepositoryImpl(
         return masterRedisTemplate.opsForZSet().size(WAITING_KEY) ?: 0
     }
 
+    override fun pop(count: Long): List<Long> {
+        val popped = masterRedisTemplate.opsForZSet().popMin(WAITING_KEY, count)
+        return popped?.mapNotNull { it.value?.toLong() } ?: emptyList()
+    }
+
     companion object {
         private const val WAITING_KEY = "queue:order:waiting"
     }

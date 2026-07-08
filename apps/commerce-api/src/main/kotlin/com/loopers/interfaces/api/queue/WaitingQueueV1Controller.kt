@@ -22,13 +22,13 @@ class WaitingQueueV1Controller(
     @ResponseStatus(HttpStatus.OK)
     override fun enter(
         @LoginAuth loginUser: LoginUser,
-    ): ApiResponse<WaitingQueueV1Dto.EnterResponse> {
+    ): ApiResponse<WaitingQueueV1Dto.PositionResponse> {
         val userInfo = userApplicationService.getUserInfo(
             loginId = loginUser.loginId,
             rawPassword = loginUser.rawPassword,
         )
         val info = waitingQueueFacade.enter(userInfo.id)
-        return ApiResponse.success(WaitingQueueV1Dto.EnterResponse.from(info))
+        return ApiResponse.success(WaitingQueueV1Dto.PositionResponse.from(info))
     }
 
     @GetMapping("/position")

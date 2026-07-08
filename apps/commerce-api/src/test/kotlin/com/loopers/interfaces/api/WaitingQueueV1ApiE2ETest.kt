@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api
 
+import com.loopers.domain.queue.WaitingQueueAdmissionService
 import com.loopers.interfaces.api.queue.WaitingQueueV1Dto
 import com.loopers.interfaces.api.user.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
@@ -24,6 +25,7 @@ import java.time.LocalDate
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WaitingQueueV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
+    private val waitingQueueAdmissionService: WaitingQueueAdmissionService,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -44,14 +46,14 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
     @DisplayName("POST /api/v1/queue/enter")
     @Nested
     inner class Enter {
-        @DisplayName("인증된 사용자가 대기열에 진입하면 200과 함께 순번을 반환한다.")
+        @DisplayName("인증된 사용자가 대기열에 진입하면 200과 함께 WAITING 상태(순번)를 반환한다.")
         @Test
-        fun enter_returnsPosition_whenAuthenticated() {
+        fun enter_returnsWaiting_whenAuthenticated() {
             // arrange
             val headers = signUpAndGetAuthHeaders()
 
             // act
-            val responseType = object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.EnterResponse>>() {}
+            val responseType = object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {}
             val response = testRestTemplate.exchange(
                 QUEUE_ENTER_ENDPOINT,
                 HttpMethod.POST,
@@ -62,8 +64,10 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
             // assert
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueV1Dto.PositionResponse.Status.WAITING) },
                 { assertThat(response.body?.data?.rank).isEqualTo(1L) },
                 { assertThat(response.body?.data?.totalCount).isEqualTo(1L) },
+                { assertThat(response.body?.data?.token).isNull() },
             )
         }
 
@@ -90,16 +94,16 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
     @DisplayName("GET /api/v1/queue/position")
     @Nested
     inner class GetPosition {
-        @DisplayName("대기열에 진입한 사용자가 조회하면 200과 함께 순번을 반환한다.")
+        @DisplayName("아직 입장하지 않은 대기 사용자가 조회하면 200과 WAITING 상태(순번)를 반환한다.")
         @Test
-        fun getPosition_returnsPosition_whenInQueue() {
+        fun getPosition_returnsWaiting_whenStillInQueue() {
             // arrange
             val headers = signUpAndGetAuthHeaders()
             testRestTemplate.exchange(
                 QUEUE_ENTER_ENDPOINT,
                 HttpMethod.POST,
                 HttpEntity(null, headers),
-                object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.EnterResponse>>() {},
+                object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {},
             )
 
             // act
@@ -114,8 +118,41 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
             // assert
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueV1Dto.PositionResponse.Status.WAITING) },
                 { assertThat(response.body?.data?.rank).isEqualTo(1L) },
                 { assertThat(response.body?.data?.totalCount).isEqualTo(1L) },
+                { assertThat(response.body?.data?.token).isNull() },
+            )
+        }
+
+        @DisplayName("입장 처리된 사용자가 조회하면 200과 READY 상태(토큰)를 반환한다.")
+        @Test
+        fun getPosition_returnsReadyWithToken_whenAdmitted() {
+            // arrange
+            val headers = signUpAndGetAuthHeaders()
+            testRestTemplate.exchange(
+                QUEUE_ENTER_ENDPOINT,
+                HttpMethod.POST,
+                HttpEntity(null, headers),
+                object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {},
+            )
+            waitingQueueAdmissionService.admit(1)
+
+            // act
+            val responseType = object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {}
+            val response = testRestTemplate.exchange(
+                QUEUE_POSITION_ENDPOINT,
+                HttpMethod.GET,
+                HttpEntity(null, headers),
+                responseType,
+            )
+
+            // assert
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+                { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueV1Dto.PositionResponse.Status.READY) },
+                { assertThat(response.body?.data?.token).isNotNull() },
+                { assertThat(response.body?.data?.rank).isNull() },
             )
         }
 

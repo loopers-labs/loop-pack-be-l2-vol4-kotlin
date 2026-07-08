@@ -19,6 +19,8 @@ import java.util.concurrent.Executors
 @SpringBootTest
 class WaitingQueueServiceIntegrationTest @Autowired constructor(
     private val waitingQueueService: WaitingQueueService,
+    private val waitingQueueRepository: WaitingQueueRepository,
+    private val entryTokenRepository: EntryTokenRepository,
     private val redisCleanUp: RedisCleanUp,
 ) {
     @AfterEach
@@ -59,6 +61,26 @@ class WaitingQueueServiceIntegrationTest @Autowired constructor(
             assertThat(position.totalCount).isEqualTo(2L)
         }
 
+        @DisplayName("이미 입장 토큰이 발급된 유저가 다시 진입하면 재진입 없이 토큰(READY)을 그대로 반환한다.")
+        @Test
+        fun returnsToken_whenAdmittedUserReenters() {
+            // arrange
+            val token = EntryToken.issue()
+            entryTokenRepository.save(1L, token)
+
+            // act
+            val position = waitingQueueService.enter(1L)
+
+            // assert
+            assertAll(
+                { assertThat(position.token).isEqualTo(token) },
+                { assertThat(position.rank).isNull() },
+                // 대기열에 다시 들어가지 않는다
+                { assertThat(waitingQueueRepository.findRank(1L)).isNull() },
+                { assertThat(waitingQueueRepository.size()).isEqualTo(0L) },
+            )
+        }
+
         @DisplayName("여러 유저가 동시에 진입해도 유실 없이 서로 다른 순번을 받는다.")
         @Test
         fun assignsDistinctRanks_whenUsersEnterConcurrently() {
@@ -84,9 +106,9 @@ class WaitingQueueServiceIntegrationTest @Autowired constructor(
     @DisplayName("대기열 순번을 조회할 때,")
     @Nested
     inner class GetPosition {
-        @DisplayName("대기열에 있는 유저의 현재 순번과 전체 대기 인원을 반환한다.")
+        @DisplayName("아직 입장하지 않은 대기 유저는 순번과 전체 인원을 반환하고 토큰은 없다.")
         @Test
-        fun returnsPosition_whenUserInQueue() {
+        fun returnsRankWithoutToken_whenStillWaiting() {
             // arrange
             waitingQueueService.enter(1L)
             waitingQueueService.enter(2L)
@@ -98,6 +120,25 @@ class WaitingQueueServiceIntegrationTest @Autowired constructor(
             assertAll(
                 { assertThat(position.rank).isEqualTo(1L) },
                 { assertThat(position.totalCount).isEqualTo(2L) },
+                { assertThat(position.token).isNull() },
+            )
+        }
+
+        @DisplayName("입장 토큰이 발급된 유저는 순번 대신 토큰을 반환한다.")
+        @Test
+        fun returnsToken_whenAdmitted() {
+            // arrange
+            val token = EntryToken.issue()
+            entryTokenRepository.save(1L, token)
+
+            // act
+            val position = waitingQueueService.getPosition(1L)
+
+            // assert
+            assertAll(
+                { assertThat(position.token).isEqualTo(token) },
+                { assertThat(position.rank).isNull() },
+                { assertThat(position.totalCount).isNull() },
             )
         }
 

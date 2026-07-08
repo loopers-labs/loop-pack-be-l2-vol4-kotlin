@@ -26,6 +26,12 @@ spring:
       - monitoring.yml
 
 commerce:
+  queue:
+    scheduler:
+      fixed-delay-millis: 1000
+      batch-size: 50
+    entry-token-ttl-seconds: 300
+    estimated-throughput-per-second: 50
   events:
     catalog-topic: catalog-events
     order-topic: order-events

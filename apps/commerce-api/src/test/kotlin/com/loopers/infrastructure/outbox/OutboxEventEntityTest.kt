@@ -52,6 +52,16 @@ class OutboxEventEntityTest {
     }
 
     @Test
+    fun `비재시도성 실패는 재시도 없이 즉시 FAILED 로 격리된다`() {
+        val event = outboxRow()
+
+        event.failPermanently("unknown aggregateType for outbox routing: X")
+
+        assertThat(event.status).isEqualTo(OutboxStatus.FAILED)
+        assertThat(event.lastError).contains("unknown aggregateType")
+    }
+
+    @Test
     fun `실패 기록은 원인 메시지를 남긴다`() {
         val event = outboxRow()
 

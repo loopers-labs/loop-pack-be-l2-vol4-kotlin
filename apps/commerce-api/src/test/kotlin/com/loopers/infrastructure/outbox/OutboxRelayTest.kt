@@ -2,6 +2,7 @@ package com.loopers.infrastructure.outbox
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.kafka.EventEnvelope
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -22,7 +23,8 @@ class OutboxRelayTest {
     private val outboxEventJpaRepository = mockk<OutboxEventJpaRepository>(relaxed = true)
     private val kafkaTemplate = mockk<KafkaTemplate<Any, Any>>()
     private val objectMapper = ObjectMapper()
-    private val relay = OutboxRelay(outboxEventJpaRepository, kafkaTemplate, objectMapper)
+    private val meterRegistry = SimpleMeterRegistry()
+    private val relay = OutboxRelay(outboxEventJpaRepository, kafkaTemplate, objectMapper, meterRegistry)
 
     @Test
     fun `PENDING 아웃박스를 aggregateType 별 토픽에 aggregateId key 로 봉투에 담아 발행하고 PUBLISHED 로 전이한다`() {
@@ -79,7 +81,7 @@ class OutboxRelayTest {
     }
 
     @Test
-    fun `재시도 상한을 소진한 실패는 FAILED 로 격리된다`() {
+    fun `재시도 상한을 소진한 실패는 FAILED 로 격리되고 지표를 남긴다`() {
         val order = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
         repeat(9) { order.recordFailure(LocalDateTime.now().minusHours(1), "broker down") } // 백오프는 소진된 과거
         every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(order)
@@ -88,6 +90,37 @@ class OutboxRelayTest {
         relay.relay()
 
         assertThat(order.status).isEqualTo(OutboxStatus.FAILED)
+        assertThat(meterRegistry.counter(OutboxRelay.METRIC_FAILED).count()).isEqualTo(1.0)
+    }
+
+    @Test
+    fun `라우팅할 수 없는 aggregateType 은 재시도 없이 즉시 FAILED 로 격리하고, 뒤 이벤트는 발행된다`() {
+        val unroutable = outboxRow(aggregateType = "UNKNOWN", aggregateId = "1", eventType = "X", payload = "{}")
+        val other = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "{}")
+        every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(unroutable, other)
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns CompletableFuture.completedFuture(mockk())
+
+        relay.relay()
+
+        // 몇 번을 재시도해도 같은 결과인 오류 — 백오프를 태우지 않고 바로 격리한다
+        assertThat(unroutable.status).isEqualTo(OutboxStatus.FAILED)
+        assertThat(unroutable.retryCount).isEqualTo(0)
+        assertThat(unroutable.lastError).contains("unknown aggregateType")
+        assertThat(other.status).isEqualTo(OutboxStatus.PUBLISHED)
+        assertThat(meterRegistry.counter(OutboxRelay.METRIC_FAILED).count()).isEqualTo(1.0)
+    }
+
+    @Test
+    fun `payload 를 봉투로 만들 수 없으면 재시도 없이 즉시 FAILED 로 격리한다`() {
+        val broken = outboxRow(aggregateType = "ORDER", aggregateId = "42", eventType = "ORDER_CREATED", payload = "not-json{{")
+        every { outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING, any()) } returns listOf(broken)
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns CompletableFuture.completedFuture(mockk())
+
+        relay.relay()
+
+        assertThat(broken.status).isEqualTo(OutboxStatus.FAILED)
+        assertThat(broken.retryCount).isEqualTo(0)
+        verify(exactly = 0) { kafkaTemplate.send(any<String>(), any(), any()) }
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.loopers.infrastructure.outbox
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.kafka.EventEnvelope
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.kafka.core.KafkaTemplate
@@ -27,8 +28,12 @@ class OutboxRelay(
     private val outboxEventJpaRepository: OutboxEventJpaRepository,
     private val kafkaTemplate: KafkaTemplate<Any, Any>,
     private val objectMapper: ObjectMapper,
+    meterRegistry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(OutboxRelay::class.java)
+
+    // FAILED 격리는 운영자가 봐야 하는 사건 — 알림 룰(rate > 0)의 근거 지표.
+    private val failedCounter = meterRegistry.counter(METRIC_FAILED)
 
     @Transactional
     fun relay() {
@@ -43,16 +48,25 @@ class OutboxRelay(
                 blockedAggregates += aggregateKey // 백오프 대기 — 시도하지 않아야 poison 이 relay 주기를 잠식하지 않는다
                 return@forEach
             }
+            // 발행 준비(라우팅·봉투 직렬화) 실패는 몇 번을 재시도해도 같은 결과 — 백오프 없이 즉시 격리한다.
+            val (topic, envelope) = runCatching { topicOf(event.aggregateType) to envelopeOf(event) }
+                .getOrElse { e ->
+                    blockedAggregates += aggregateKey
+                    event.failPermanently(e.toString())
+                    failedCounter.increment()
+                    log.error("outbox event is not publishable, moved to FAILED: eventId={}", event.eventId, e)
+                    return@forEach
+                }
             runCatching {
-                kafkaTemplate.send(topicOf(event.aggregateType), event.aggregateId, envelopeOf(event))
-                    .get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                kafkaTemplate.send(topic, event.aggregateId, envelope).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             }.onSuccess {
                 event.markPublished(LocalDateTime.now())
             }.onFailure { e ->
                 blockedAggregates += aggregateKey
                 event.recordFailure(LocalDateTime.now(), e.toString())
                 if (event.status == OutboxStatus.FAILED) {
-                    log.error("outbox relay publish failed permanently, moved to FAILED: eventId={}", event.eventId, e)
+                    failedCounter.increment()
+                    log.error("outbox relay retries exhausted, moved to FAILED: eventId={}", event.eventId, e)
                 } else {
                     log.warn(
                         "outbox relay publish failed, keep PENDING for retry: eventId={} retry={}",
@@ -85,6 +99,7 @@ class OutboxRelay(
         const val ORDER_EVENTS = "order-events"
         const val CATALOG_EVENTS = "catalog-events"
         const val COUPON_ISSUE_REQUESTS = "coupon-issue-requests"
+        const val METRIC_FAILED = "outbox.relay.failed"
 
         private const val BATCH_SIZE = 500
         private const val SEND_TIMEOUT_SECONDS = 10L

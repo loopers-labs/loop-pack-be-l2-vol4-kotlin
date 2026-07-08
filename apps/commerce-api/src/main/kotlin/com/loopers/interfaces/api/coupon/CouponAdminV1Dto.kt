@@ -16,6 +16,7 @@ class CouponAdminV1Dto {
         val value: Long,
         val minOrderAmount: Long? = null,
         val expiredAt: LocalDateTime,
+        val totalCount: Long,
     ) {
         fun toCommand(): CreateCouponCommand = CreateCouponCommand(
             name = name,
@@ -23,6 +24,7 @@ class CouponAdminV1Dto {
             value = value,
             minOrderAmount = minOrderAmount ?: 0L,
             expiredAt = expiredAt,
+            totalCount = totalCount,
         )
     }
 
@@ -50,6 +52,7 @@ class CouponAdminV1Dto {
         val value: Long,
         val minOrderAmount: Long,
         val expiredAt: LocalDateTime,
+        val totalCount: Long,
     ) {
         companion object {
             fun from(result: CouponResult): CouponResponse = CouponResponse(
@@ -59,6 +62,7 @@ class CouponAdminV1Dto {
                 value = result.value,
                 minOrderAmount = result.minOrderAmount,
                 expiredAt = result.expiredAt,
+                totalCount = result.totalCount,
             )
         }
     }

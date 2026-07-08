@@ -43,4 +43,7 @@ class UserCouponRepositoryAdapter(
             totalElements = page.totalElements,
         )
     }
+
+    override fun countByCouponTemplateId(couponTemplateId: Long): Long =
+        userCouponJpaRepository.countByCouponTemplateId(couponTemplateId)
 }

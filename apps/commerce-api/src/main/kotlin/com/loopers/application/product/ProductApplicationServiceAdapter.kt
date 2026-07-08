@@ -15,6 +15,7 @@ import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.interfaces.api.product.ProductApplicationServicePort
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -25,11 +26,13 @@ class ProductApplicationServiceAdapter(
     private val likeService: LikeService,
     private val likeCountQueryPort: LikeCountQueryPort,
     private val orderService: OrderService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) : ProductApplicationServicePort,
     ProductAdminApplicationServicePort {
     @Transactional(readOnly = true)
     override fun getProduct(id: Long): ProductDetail {
         val product = productService.getById(id)
+        eventPublisher.publishEvent(ProductViewedEvent(productId = product.id))
         return composeDetail(product)
     }
 

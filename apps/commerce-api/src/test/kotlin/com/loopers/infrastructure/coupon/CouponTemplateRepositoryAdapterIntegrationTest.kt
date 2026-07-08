@@ -27,6 +27,17 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         databaseCleanUp.truncateAllTables()
     }
 
+    private fun template(
+        name: String = "테스트 쿠폰",
+        type: CouponType = CouponType.FIXED,
+        value: Long = 1_000L,
+        minOrderAmount: Long = 0L,
+        totalCount: Long = 100L,
+    ) = CouponTemplate.create(
+        name = name, type = type, value = value,
+        minOrderAmount = minOrderAmount, expiredAt = expiredAt, totalCount = totalCount,
+    )
+
     @DisplayName("save를 호출할 때, ")
     @Nested
     inner class Save {
@@ -34,13 +45,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun insertsTemplate_whenIdIsZero() {
             val saved = couponTemplateRepositoryPort.save(
-                CouponTemplate.create(
-                    name = "1만원 할인",
-                    type = CouponType.FIXED,
-                    value = 10_000L,
-                    minOrderAmount = 30_000L,
-                    expiredAt = expiredAt,
-                ),
+                template(name = "1만원 할인", value = 10_000L, minOrderAmount = 30_000L),
             )
 
             assertThat(saved.id).isGreaterThan(0L)
@@ -51,13 +56,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun restoresAllFields() {
             val saved = couponTemplateRepositoryPort.save(
-                CouponTemplate.create(
-                    name = "10% 할인",
-                    type = CouponType.RATE,
-                    value = 10L,
-                    minOrderAmount = 10_000L,
-                    expiredAt = expiredAt,
-                ),
+                template(name = "10% 할인", type = CouponType.RATE, value = 10L, minOrderAmount = 10_000L, totalCount = 50L),
             )
 
             val found = couponTemplateRepositoryPort.findById(saved.id)
@@ -68,20 +67,13 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
             assertThat(found?.value).isEqualTo(10L)
             assertThat(found?.minOrderAmount).isEqualTo(10_000L)
             assertThat(found?.expiredAt).isEqualTo(expiredAt)
+            assertThat(found?.totalCount).isEqualTo(50L)
         }
 
         @DisplayName("id가 있는 템플릿을 저장하면, 새 행이 아니라 기존 행이 UPDATE된다.")
         @Test
         fun updatesInPlace_whenIdExists() {
-            val saved = couponTemplateRepositoryPort.save(
-                CouponTemplate.create(
-                    name = "원본",
-                    type = CouponType.FIXED,
-                    value = 1_000L,
-                    minOrderAmount = 0L,
-                    expiredAt = expiredAt,
-                ),
-            )
+            val saved = couponTemplateRepositoryPort.save(template(name = "원본", value = 1_000L))
             val newExpiredAt = LocalDateTime.parse("2027-06-30T23:59:59")
 
             val updated = couponTemplateRepositoryPort.save(
@@ -114,6 +106,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
                 value = 1_000L,
                 minOrderAmount = 0L,
                 expiredAt = expiredAt,
+                totalCount = 100L,
             )
 
             org.junit.jupiter.api.assertThrows<com.loopers.support.error.CoreException> {
@@ -138,12 +131,8 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @DisplayName("주어진 id 집합에 해당하는 템플릿만 반환한다(미존재 id는 무시).")
         @Test
         fun returnsMatchingTemplates() {
-            val a = couponTemplateRepositoryPort.save(
-                CouponTemplate.create("A", CouponType.FIXED, 1_000L, 0L, expiredAt),
-            )
-            val b = couponTemplateRepositoryPort.save(
-                CouponTemplate.create("B", CouponType.FIXED, 2_000L, 0L, expiredAt),
-            )
+            val a = couponTemplateRepositoryPort.save(template(name = "A", value = 1_000L))
+            val b = couponTemplateRepositoryPort.save(template(name = "B", value = 2_000L))
 
             val found = couponTemplateRepositoryPort.findByIds(setOf(a.id, b.id, 9999L))
 
@@ -153,12 +142,8 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @DisplayName("소프트 삭제된 템플릿은 결과에 포함되지 않는다.")
         @Test
         fun excludesSoftDeleted() {
-            val a = couponTemplateRepositoryPort.save(
-                CouponTemplate.create("A", CouponType.FIXED, 1_000L, 0L, expiredAt),
-            )
-            val deleted = couponTemplateRepositoryPort.save(
-                CouponTemplate.create("B", CouponType.FIXED, 2_000L, 0L, expiredAt),
-            )
+            val a = couponTemplateRepositoryPort.save(template(name = "A", value = 1_000L))
+            val deleted = couponTemplateRepositoryPort.save(template(name = "B", value = 2_000L))
             couponTemplateRepositoryPort.delete(deleted.id)
 
             val found = couponTemplateRepositoryPort.findByIds(setOf(a.id, deleted.id))
@@ -179,15 +164,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @DisplayName("저장된 템플릿을 삭제하면, 1을 반환하고 소프트 삭제되어 더 이상 findById로 조회되지 않는다.")
         @Test
         fun softDeletesAndReturnsOne_whenExists() {
-            val saved = couponTemplateRepositoryPort.save(
-                CouponTemplate.create(
-                    name = "삭제 대상",
-                    type = CouponType.FIXED,
-                    value = 1_000L,
-                    minOrderAmount = 0L,
-                    expiredAt = expiredAt,
-                ),
-            )
+            val saved = couponTemplateRepositoryPort.save(template(name = "삭제 대상"))
 
             val deletedCount = couponTemplateRepositoryPort.delete(saved.id)
 
@@ -205,15 +182,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @DisplayName("이미 삭제된 템플릿을 다시 삭제하면, 0을 반환한다(멱등 아님은 상위 계층에서 NOT_FOUND로 처리).")
         @Test
         fun returnsZero_whenAlreadyDeleted() {
-            val saved = couponTemplateRepositoryPort.save(
-                CouponTemplate.create(
-                    name = "삭제 대상",
-                    type = CouponType.FIXED,
-                    value = 1_000L,
-                    minOrderAmount = 0L,
-                    expiredAt = expiredAt,
-                ),
-            )
+            val saved = couponTemplateRepositoryPort.save(template(name = "삭제 대상"))
             couponTemplateRepositoryPort.delete(saved.id)
 
             assertThat(couponTemplateRepositoryPort.delete(saved.id)).isEqualTo(0)
@@ -237,15 +206,7 @@ class CouponTemplateRepositoryAdapterIntegrationTest @Autowired constructor(
         @Test
         fun returnsPagedAndSortedByIdDesc() {
             repeat(25) { index ->
-                couponTemplateRepositoryPort.save(
-                    CouponTemplate.create(
-                        name = "쿠폰 $index",
-                        type = CouponType.FIXED,
-                        value = 1_000L,
-                        minOrderAmount = 0L,
-                        expiredAt = expiredAt,
-                    ),
-                )
+                couponTemplateRepositoryPort.save(template(name = "쿠폰 $index"))
             }
 
             val firstPage = couponTemplateRepositoryPort.findAll(PageRequest(page = 0, size = 20))

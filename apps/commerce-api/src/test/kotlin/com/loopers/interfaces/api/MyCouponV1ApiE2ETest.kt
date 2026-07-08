@@ -62,6 +62,7 @@ class MyCouponV1ApiE2ETest @Autowired constructor(
             value = 10_000L,
             minOrderAmount = 0L,
             expiredAt = expiredAt,
+            totalCount = 100L,
         ),
     ).id
 

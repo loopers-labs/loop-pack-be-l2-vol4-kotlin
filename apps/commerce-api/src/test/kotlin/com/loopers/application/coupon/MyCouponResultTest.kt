@@ -21,6 +21,7 @@ class MyCouponResultTest {
         value = 10_000L,
         minOrderAmount = 5_000L,
         expiredAt = expiredAt,
+        totalCount = 100L,
     )
 
     @DisplayName("AVAILABLE 이고 템플릿이 만료 전이면, 표시 상태는 AVAILABLE 이다.")

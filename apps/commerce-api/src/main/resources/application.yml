@@ -21,6 +21,7 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
 
@@ -28,6 +29,17 @@ springdoc:
   use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
+
+product-metric:
+  topic: product.metric.v1
+
+coupon:
+  issue:
+    topic: coupon.issue.v1
+
+outbox:
+  relay:
+    interval-ms: 30000
 
 pg-simulator:
   url: ${PG_SIMULATOR_URL:http://localhost:8082}

@@ -29,6 +29,9 @@ class CouponTemplateEntity(
 
     @Column(name = "expired_at", nullable = false)
     var expiredAt: LocalDateTime,
+
+    @Column(name = "total_count", nullable = false)
+    val totalCount: Long,
 ) : BaseEntity() {
     fun update(
         name: String,
@@ -51,6 +54,7 @@ class CouponTemplateEntity(
         value = discountValue,
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
+        totalCount = totalCount,
     )
 
     companion object {
@@ -60,6 +64,7 @@ class CouponTemplateEntity(
             discountValue = domain.value,
             minOrderAmount = domain.minOrderAmount,
             expiredAt = domain.expiredAt,
+            totalCount = domain.totalCount,
         )
     }
 }

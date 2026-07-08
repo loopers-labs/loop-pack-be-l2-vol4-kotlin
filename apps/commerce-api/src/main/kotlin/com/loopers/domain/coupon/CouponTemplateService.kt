@@ -30,6 +30,7 @@ class CouponTemplateService(
         value: Long,
         minOrderAmount: Long,
         expiredAt: LocalDateTime,
+        totalCount: Long,
     ): CouponTemplate {
         val couponTemplate = CouponTemplate.create(
             name = name,
@@ -37,6 +38,7 @@ class CouponTemplateService(
             value = value,
             minOrderAmount = minOrderAmount,
             expiredAt = expiredAt,
+            totalCount = totalCount,
         )
         return couponTemplateRepositoryPort.save(couponTemplate)
     }

@@ -9,4 +9,5 @@ data class CreateCouponCommand(
     val value: Long,
     val minOrderAmount: Long,
     val expiredAt: LocalDateTime,
+    val totalCount: Long,
 )

@@ -159,6 +159,31 @@ class MetricsPipelineIntegrationTest @Autowired constructor(
         assertThat(productMetricsRepository.findByProductId(productId)?.likeCount).isEqualTo(1L)
     }
 
+    @DisplayName("손상된 JSON 레코드가 섞여도, 역직렬화 실패는 스킵되고 정상 메시지는 집계된다.")
+    @Test
+    fun skipsPoisonRecord_andProcessesValidOne() {
+        // arrange
+        val productId = 404L
+        val eventId = UUID.randomUUID().toString()
+        val valid = mapOf(
+            "eventId" to eventId,
+            "eventType" to "ProductLiked",
+            "aggregateId" to productId,
+            "occurredAt" to "2026-07-03T10:00:00+09:00",
+            "payload" to mapOf("userId" to 1L, "productId" to productId),
+        )
+
+        // act: 같은 키(=같은 파티션)로 poison(파싱 불가) 먼저, 정상 메시지를 뒤에 발행
+        producer.send(ProducerRecord("catalog-events", productId.toString(), "{ broken".toByteArray())).get()
+        send("catalog-events", productId.toString(), valid)
+
+        // assert: poison 이 파티션을 막지 않고, 정상 메시지가 집계된다
+        await().atMost(30, TimeUnit.SECONDS).untilAsserted {
+            val metrics = productMetricsRepository.findByProductId(productId)
+            assertThat(metrics?.likeCount).isEqualTo(1L)
+        }
+    }
+
     private fun send(topic: String, key: String, message: Map<String, Any?>) {
         producer.send(ProducerRecord(topic, key, objectMapper.writeValueAsBytes(message))).get()
     }

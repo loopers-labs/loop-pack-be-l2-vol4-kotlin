@@ -15,6 +15,10 @@ import java.util.concurrent.TimeUnit
  * 발행 성공 후 마킹 전 크래시 시 다음 주기에 재발행 → At Least Once.
  *
  * 외부 I/O(Kafka 발행)를 DB 트랜잭션 밖에서 수행하고, 마킹만 짧은 트랜잭션으로 처리한다.
+ *
+ * 발행 실패는 이벤트별 catch 로 격리되어 다른 이벤트를 막지 않고, 실패분은 PENDING 으로 남아 다음 주기에 재시도된다.
+ * payload 는 이 앱이 직렬화한 JSON 을 되읽는 것이라 파싱 실패(poison)는 사실상 없고, 현실적 실패인 브로커 일시 장애는
+ * 무한 재시도가 곧 At Least Once 보장이 된다. 따라서 별도 DLQ/attempt_count 는 (현 규모에선) 도입하지 않는다.
  */
 @Component
 class OutboxRelay(

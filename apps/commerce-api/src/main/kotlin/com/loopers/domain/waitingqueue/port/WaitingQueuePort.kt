@@ -14,4 +14,10 @@ interface WaitingQueuePort {
 
     /** 대기열에서 제거한다(재진입 전 기존 위치 삭제). */
     fun remove(topic: QueueTopic, userId: Long)
+
+    /** 앞에서부터 count 명을 꺼낸다(ZPOPMIN). 승격 대상 userId 목록을 순서대로 반환. */
+    fun popTop(topic: QueueTopic, count: Int): List<Long>
+
+    /** 사용된 적 있는 토픽 목록(스케줄러 순회 대상). */
+    fun topics(): Set<QueueTopic>
 }

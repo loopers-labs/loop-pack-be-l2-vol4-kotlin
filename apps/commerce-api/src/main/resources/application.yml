@@ -44,6 +44,8 @@ outbox:
 waiting-queue:
   token:
     secret: ${WAITING_QUEUE_TOKEN_SECRET:loopers-local-waiting-queue-secret}
+  admission:
+    tick-ms: 1000
 
 pg-simulator:
   url: ${PG_SIMULATOR_URL:http://localhost:8082}

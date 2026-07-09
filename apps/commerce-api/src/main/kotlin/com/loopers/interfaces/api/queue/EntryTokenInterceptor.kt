@@ -1,13 +1,13 @@
 package com.loopers.interfaces.api.queue
 
 import com.loopers.application.queue.QueueFacade
-import com.loopers.application.queue.QueueProperties
 import com.loopers.domain.queue.QueueErrorType
 import com.loopers.interfaces.api.auth.AuthInterceptor
 import com.loopers.interfaces.api.auth.AuthUser
 import com.loopers.support.error.CoreException
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
@@ -20,10 +20,11 @@ import org.springframework.web.servlet.HandlerInterceptor
 @Component
 class EntryTokenInterceptor(
     private val queueFacade: QueueFacade,
-    private val properties: QueueProperties,
+    @Value("\${loopers.queue.gate-enabled:true}")
+    private val gateEnabled: Boolean,
 ) : HandlerInterceptor {
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
-        if (!properties.gateEnabled) return true
+        if (!gateEnabled) return true
         if (handler !is HandlerMethod) return true
         if (!handler.hasMethodAnnotation(RequireEntryToken::class.java)) return true
 

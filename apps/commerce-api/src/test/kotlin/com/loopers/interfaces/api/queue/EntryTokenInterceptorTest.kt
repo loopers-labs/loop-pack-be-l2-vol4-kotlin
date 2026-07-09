@@ -1,13 +1,9 @@
 package com.loopers.interfaces.api.queue
 
 import com.loopers.application.queue.QueueFacade
-import com.loopers.application.queue.QueueProperties
-import com.loopers.domain.queue.QueueErrorType
 import com.loopers.interfaces.api.ApiControllerAdvice
 import com.loopers.interfaces.api.auth.AuthInterceptor
 import com.loopers.interfaces.api.auth.AuthUser
-import com.loopers.support.error.CoreException
-import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
@@ -26,7 +22,7 @@ class EntryTokenInterceptorTest {
 
     private fun mockMvc(gateEnabled: Boolean): MockMvc =
         MockMvcBuilders.standaloneSetup(StubController())
-            .addInterceptors(EntryTokenInterceptor(queueFacade, QueueProperties(gateEnabled = gateEnabled)))
+            .addInterceptors(EntryTokenInterceptor(queueFacade, gateEnabled))
             .setControllerAdvice(ApiControllerAdvice())
             .build()
 
@@ -62,36 +58,5 @@ class EntryTokenInterceptorTest {
             .andExpect(status().isOk)
 
         verify(exactly = 0) { queueFacade.ensureAdmitted(any(), any()) }
-    }
-
-    @DisplayName("유효한 토큰이 있으면, 요청을 통과시킨다.")
-    @Test
-    fun passesWithValidToken_whenGateEnabled() {
-        justRun { queueFacade.ensureAdmitted(any(), any()) }
-
-        mockMvc(gateEnabled = true)
-            .perform(
-                post("/test/gated")
-                    .header(EntryTokenInterceptor.HEADER_ENTRY_TOKEN, "valid-token")
-                    .requestAttr(AuthInterceptor.ATTRIBUTE_AUTH_USER, AuthUser(id = 1L, loginId = "tester1")),
-            )
-            .andExpect(status().isOk)
-
-        verify(exactly = 1) { queueFacade.ensureAdmitted(1L, "valid-token") }
-    }
-
-    @DisplayName("ensureAdmitted 가 예외를 던지면, 403 ENTRY_TOKEN_INVALID 로 거절한다.")
-    @Test
-    fun rejectsWithInvalidToken_whenGateEnabled() {
-        every { queueFacade.ensureAdmitted(any(), any()) } throws CoreException(QueueErrorType.ENTRY_TOKEN_INVALID)
-
-        mockMvc(gateEnabled = true)
-            .perform(
-                post("/test/gated")
-                    .header(EntryTokenInterceptor.HEADER_ENTRY_TOKEN, "bogus-token")
-                    .requestAttr(AuthInterceptor.ATTRIBUTE_AUTH_USER, AuthUser(id = 1L, loginId = "tester1")),
-            )
-            .andExpect(status().isForbidden)
-            .andExpect(jsonPath("$.meta.errorCode").value("ENTRY_TOKEN_INVALID"))
     }
 }

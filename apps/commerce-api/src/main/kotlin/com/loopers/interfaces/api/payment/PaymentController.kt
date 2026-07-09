@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.payment
 
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.auth.UserAuth
+import com.loopers.interfaces.api.waitingqueue.WaitingQueue
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -14,6 +15,7 @@ class PaymentController(
     private val paymentApplicationService: PaymentApplicationServicePort,
 ) {
     @PostMapping
+    @WaitingQueue("order")
     fun pay(
         @UserAuth userId: Long,
         @RequestBody request: PaymentV1Dto.PaymentRequest,

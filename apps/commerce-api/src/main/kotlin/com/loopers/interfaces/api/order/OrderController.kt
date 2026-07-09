@@ -4,6 +4,7 @@ import com.loopers.domain.common.PageRequest
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.auth.UserAuth
 import com.loopers.interfaces.api.common.PageView
+import com.loopers.interfaces.api.waitingqueue.WaitingQueue
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -20,6 +21,7 @@ class OrderController(
     private val orderApplicationService: OrderApplicationServicePort,
 ) {
     @PostMapping
+    @WaitingQueue("order")
     fun createOrder(
         @UserAuth userId: Long,
         @RequestBody request: OrderV1Dto.CreateOrderRequest,

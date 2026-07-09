@@ -5,6 +5,8 @@ import com.loopers.domain.order.OrderCreatedEvent
 import com.loopers.domain.order.OrderItemModel
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.product.ProductService
+import com.loopers.domain.queue.EntryTokenService
+import com.loopers.domain.user.UserModel
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -21,8 +23,26 @@ class OrderFacade(
     private val productService: ProductService,
     private val orderService: OrderService,
     private val userCouponService: UserCouponService,
+    private val entryTokenService: EntryTokenService,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
+    /** 대기열 입장 토큰을 검증·소비한 뒤 주문한다. (HTTP 진입 경로) */
+    @Transactional
+    fun place(
+        loginId: String,
+        rawPassword: String,
+        entryToken: String,
+        requestItems: List<PlaceOrderLine>,
+        couponId: Long? = null,
+    ): OrderInfo {
+        val user = userService.authenticate(loginId, rawPassword)
+        if (!entryTokenService.consume(user.id, entryToken)) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "유효한 입장 토큰이 없습니다.")
+        }
+        return place(user, requestItems, couponId)
+    }
+
+    /** 인증된 유저로 주문한다. (대기열 게이트가 없는 경로 — 도메인 흐름/내부 호출용) */
     @Transactional
     fun place(
         loginId: String,
@@ -30,6 +50,11 @@ class OrderFacade(
         requestItems: List<PlaceOrderLine>,
         couponId: Long? = null,
     ): OrderInfo {
+        val user = userService.authenticate(loginId, rawPassword)
+        return place(user, requestItems, couponId)
+    }
+
+    private fun place(user: UserModel, requestItems: List<PlaceOrderLine>, couponId: Long?): OrderInfo {
         if (requestItems.isEmpty()) {
             throw CoreException(ErrorType.BAD_REQUEST, "주문 항목은 최소 1개 이상이어야 합니다.")
         }
@@ -38,7 +63,6 @@ class OrderFacade(
             throw CoreException(ErrorType.BAD_REQUEST, "동일한 상품을 여러 라인에 담을 수 없습니다: $duplicateIds")
         }
 
-        val user = userService.authenticate(loginId, rawPassword)
         val productIds = requestItems.map { it.productId }
         val productsById = productService.findAllOnSaleByIds(productIds).associateBy { it.id }
 

@@ -1,6 +1,9 @@
 package com.loopers.application.waitingqueue
 
 import com.loopers.domain.waitingqueue.QueueEntryService
+import com.loopers.domain.waitingqueue.QueuePositionService
+import com.loopers.domain.waitingqueue.port.AdmissionMarkerPort
+import com.loopers.domain.waitingqueue.port.QueueConfigPort
 import com.loopers.domain.waitingqueue.port.TokenSignerPort
 import com.loopers.domain.waitingqueue.port.WaitingQueuePort
 import org.springframework.context.annotation.Bean
@@ -16,4 +19,17 @@ class WaitingQueueBeanConfig {
         waitingQueuePort: WaitingQueuePort,
         tokenSignerPort: TokenSignerPort,
     ): QueueEntryService = QueueEntryService(waitingQueuePort, tokenSignerPort)
+
+    @Bean
+    fun queuePositionService(
+        waitingQueuePort: WaitingQueuePort,
+        admissionMarkerPort: AdmissionMarkerPort,
+        queueConfigPort: QueueConfigPort,
+        tokenSignerPort: TokenSignerPort,
+    ): QueuePositionService = QueuePositionService(
+        waitingQueuePort,
+        admissionMarkerPort,
+        queueConfigPort,
+        tokenSignerPort,
+    )
 }

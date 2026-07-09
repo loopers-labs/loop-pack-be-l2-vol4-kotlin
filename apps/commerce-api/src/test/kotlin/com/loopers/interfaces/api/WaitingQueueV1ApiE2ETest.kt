@@ -99,4 +99,42 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
 
         assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
     }
+
+    private fun waitTokenOf(loginId: String, pw: String): String =
+        callProtected(loginId, pw).body?.data?.get("waitToken") as String
+
+    private fun callPosition(waitToken: String): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val headers = HttpHeaders().apply { set("X-Queue-Wait-Token", waitToken) }
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "/api/v1/queue/position",
+            HttpMethod.GET,
+            HttpEntity<Any>(headers),
+            responseType,
+        )
+    }
+
+    @DisplayName("대기열 토큰으로 순번을 조회하면, WAITING 과 1-based 순번을 반환한다.")
+    @Test
+    fun positionReturnsWaiting() {
+        signup()
+        val waitToken = waitTokenOf("tester01", "password1234")
+
+        val response = callPosition(waitToken)
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.get("topic")).isEqualTo("order") },
+            { assertThat(response.body?.data?.get("status")).isEqualTo("WAITING") },
+            { assertThat((response.body?.data?.get("rank") as? Number)?.toLong()).isEqualTo(1L) },
+        )
+    }
+
+    @DisplayName("위조된 대기열 토큰으로 순번을 조회하면, 401 응답을 받는다.")
+    @Test
+    fun positionRejectsForgedToken() {
+        val response = callPosition("wq.forged.payload")
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+    }
 }

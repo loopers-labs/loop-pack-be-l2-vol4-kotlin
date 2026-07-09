@@ -1,8 +1,10 @@
 package com.loopers.application.waitingqueue
 
+import com.loopers.domain.waitingqueue.AccessTokenIssueService
 import com.loopers.domain.waitingqueue.QueueAdmissionService
 import com.loopers.domain.waitingqueue.QueueEntryService
 import com.loopers.domain.waitingqueue.QueuePositionService
+import com.loopers.domain.waitingqueue.port.AccessTokenStorePort
 import com.loopers.domain.waitingqueue.port.AdmissionGatePort
 import com.loopers.domain.waitingqueue.port.AdmissionMarkerPort
 import com.loopers.domain.waitingqueue.port.QueueConfigPort
@@ -46,5 +48,18 @@ class WaitingQueueBeanConfig {
         admissionMarkerPort,
         queueConfigPort,
         admissionGatePort,
+    )
+
+    @Bean
+    fun accessTokenIssueService(
+        admissionMarkerPort: AdmissionMarkerPort,
+        accessTokenStorePort: AccessTokenStorePort,
+        queueConfigPort: QueueConfigPort,
+        tokenSignerPort: TokenSignerPort,
+    ): AccessTokenIssueService = AccessTokenIssueService(
+        admissionMarkerPort,
+        accessTokenStorePort,
+        queueConfigPort,
+        tokenSignerPort,
     )
 }

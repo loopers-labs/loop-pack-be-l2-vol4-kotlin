@@ -2,6 +2,7 @@ package com.loopers.interfaces.api
 
 import com.loopers.application.user.SignupCommand
 import com.loopers.interfaces.api.user.UserApplicationServicePort
+import com.loopers.interfaces.api.waitingqueue.QueueAdmissionApplicationServicePort
 import com.loopers.interfaces.api.waitingqueue.QueueProtectedTestController
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
@@ -26,6 +27,7 @@ import java.time.LocalDate
 class WaitingQueueV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userApplicationService: UserApplicationServicePort,
+    private val admissionService: QueueAdmissionApplicationServicePort,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -136,5 +138,43 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
         val response = callPosition("wq.forged.payload")
 
         assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
+    }
+
+    private fun callIssueToken(waitToken: String): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val headers = HttpHeaders().apply { set("X-Queue-Wait-Token", waitToken) }
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            "/api/v1/queue/token",
+            HttpMethod.POST,
+            HttpEntity<Any>(headers),
+            responseType,
+        )
+    }
+
+    @DisplayName("승격된 뒤 입장 토큰을 발급하면, 200 과 accessToken 을 받는다.")
+    @Test
+    fun issuesAccessTokenAfterAdmitted() {
+        signup()
+        val waitToken = waitTokenOf("tester01", "password1234")
+        admissionService.admitDueTopics(System.currentTimeMillis())
+
+        val response = callIssueToken(waitToken)
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.get("topic")).isEqualTo("order") },
+            { assertThat(response.body?.data?.get("accessToken") as? String).startsWith("at.") },
+        )
+    }
+
+    @DisplayName("승격되지 않은 상태에서 입장 토큰을 발급하면, 409 응답을 받는다.")
+    @Test
+    fun rejectsIssueWhenNotAdmitted() {
+        signup()
+        val waitToken = waitTokenOf("tester01", "password1234")
+
+        val response = callIssueToken(waitToken)
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
     }
 }

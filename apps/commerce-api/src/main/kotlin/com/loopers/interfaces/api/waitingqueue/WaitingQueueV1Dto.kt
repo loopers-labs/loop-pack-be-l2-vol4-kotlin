@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.waitingqueue
 
+import com.loopers.application.waitingqueue.AccessTokenResult
 import com.loopers.application.waitingqueue.QueuePositionResult
 import com.loopers.application.waitingqueue.WaitTokenResult
 
@@ -15,6 +16,21 @@ class WaitingQueueV1Dto {
                 topic = result.topic,
                 waitToken = result.waitToken,
                 message = "대기열에 등록되었습니다. GET /api/v1/queue/position 으로 순번을 확인하세요.",
+            )
+        }
+    }
+
+    /** 입장 토큰 발급 응답. */
+    data class TokenResponse(
+        val topic: String,
+        val accessToken: String,
+        val expiresInSeconds: Int,
+    ) {
+        companion object {
+            fun from(result: AccessTokenResult): TokenResponse = TokenResponse(
+                topic = result.topic,
+                accessToken = result.accessToken,
+                expiresInSeconds = result.expiresInSeconds,
             )
         }
     }

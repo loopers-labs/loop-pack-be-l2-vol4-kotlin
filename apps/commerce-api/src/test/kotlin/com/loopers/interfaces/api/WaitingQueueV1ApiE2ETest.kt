@@ -67,6 +67,7 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueV1Dto.PositionResponse.Status.WAITING) },
                 { assertThat(response.body?.data?.rank).isEqualTo(1L) },
                 { assertThat(response.body?.data?.totalCount).isEqualTo(1L) },
+                { assertThat(response.body?.data?.estimatedWaitSeconds).isEqualTo(1L) },
                 { assertThat(response.body?.data?.token).isNull() },
             )
         }
@@ -121,6 +122,7 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueV1Dto.PositionResponse.Status.WAITING) },
                 { assertThat(response.body?.data?.rank).isEqualTo(1L) },
                 { assertThat(response.body?.data?.totalCount).isEqualTo(1L) },
+                { assertThat(response.body?.data?.estimatedWaitSeconds).isEqualTo(1L) },
                 { assertThat(response.body?.data?.token).isNull() },
             )
         }

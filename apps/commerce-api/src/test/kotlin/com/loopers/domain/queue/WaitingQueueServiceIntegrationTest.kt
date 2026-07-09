@@ -40,10 +40,11 @@ class WaitingQueueServiceIntegrationTest @Autowired constructor(
             // act
             val position = waitingQueueService.enter(userId)
 
-            // assert
+            // assert (기본 배치 100 / 주기 1초 → rank 1 의 예상 대기 시간은 1초)
             assertAll(
                 { assertThat(position.rank).isEqualTo(1L) },
                 { assertThat(position.totalCount).isEqualTo(1L) },
+                { assertThat(position.estimatedWaitSeconds).isEqualTo(1L) },
             )
         }
 

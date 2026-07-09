@@ -8,4 +8,7 @@ import com.loopers.domain.waitingqueue.model.QueueTopic
  */
 interface QueueConfigPort {
     fun get(topic: QueueTopic): QueueConfig
+
+    /** 원본(DB) 저장 + 캐시 write-through. 캐시/DB 동기화는 어댑터에 은닉. */
+    fun save(topic: QueueTopic, config: QueueConfig)
 }

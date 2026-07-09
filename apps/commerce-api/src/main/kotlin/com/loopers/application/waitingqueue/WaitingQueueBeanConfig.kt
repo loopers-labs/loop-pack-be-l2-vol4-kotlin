@@ -3,6 +3,7 @@ package com.loopers.application.waitingqueue
 import com.loopers.domain.waitingqueue.AccessGuardService
 import com.loopers.domain.waitingqueue.AccessTokenIssueService
 import com.loopers.domain.waitingqueue.QueueAdmissionService
+import com.loopers.domain.waitingqueue.QueueConfigService
 import com.loopers.domain.waitingqueue.QueueEntryService
 import com.loopers.domain.waitingqueue.QueuePositionService
 import com.loopers.domain.waitingqueue.port.AccessTokenStorePort
@@ -69,4 +70,8 @@ class WaitingQueueBeanConfig {
         accessTokenStorePort: AccessTokenStorePort,
         tokenSignerPort: TokenSignerPort,
     ): AccessGuardService = AccessGuardService(accessTokenStorePort, tokenSignerPort)
+
+    @Bean
+    fun queueConfigService(queueConfigPort: QueueConfigPort): QueueConfigService =
+        QueueConfigService(queueConfigPort)
 }

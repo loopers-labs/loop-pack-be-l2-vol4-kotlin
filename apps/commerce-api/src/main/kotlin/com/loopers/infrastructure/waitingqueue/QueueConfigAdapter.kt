@@ -6,8 +6,8 @@ import com.loopers.domain.waitingqueue.port.QueueConfigPort
 import org.springframework.stereotype.Component
 
 /**
- * 설정 조회 어댑터. 캐시 우선 → 캐시 미스 시 DB → DB 에도 없으면 기본값.
- * 조회한 값은 캐시에 채워 다음 조회를 가속한다(캐시/DB 분기는 상위 계층에 은닉).
+ * 설정 어댑터. 조회는 캐시 우선 → DB → 기본값, 저장은 DB 원본 + 캐시 write-through.
+ * 캐시/DB 분기는 상위 계층에 은닉한다(인프라 투명).
  */
 @Component
 class QueueConfigAdapter(
@@ -20,5 +20,12 @@ class QueueConfigAdapter(
         val config = jpaRepository.findByTopic(topic.value)?.toDomain() ?: QueueConfig.default()
         cache.write(topic, config)
         return config
+    }
+
+    override fun save(topic: QueueTopic, config: QueueConfig) {
+        val entity = jpaRepository.findByTopic(topic.value)?.apply { update(config) }
+            ?: QueueConfigEntity.from(topic.value, config)
+        jpaRepository.save(entity)
+        cache.write(topic, config)
     }
 }

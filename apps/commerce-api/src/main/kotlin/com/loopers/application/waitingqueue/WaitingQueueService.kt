@@ -3,6 +3,8 @@ package com.loopers.application.waitingqueue
 import com.loopers.domain.waitingqueue.EntryTokenRepository
 import com.loopers.domain.waitingqueue.WaitingQueuePosition
 import com.loopers.domain.waitingqueue.WaitingQueueRepository
+import com.loopers.support.error.CoreException
+import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
 import java.security.SecureRandom
 import java.util.Base64
@@ -73,8 +75,17 @@ class WaitingQueueService(
             }
     }
 
-    fun validateEntryToken(memberId: Long, token: String): Boolean {
-        return entryTokenRepository.find(memberId) == token
+    fun validateEntryToken(
+        memberId: Long,
+        entryToken: String?,
+    ) {
+        val token = entryToken?.takeIf(String::isNotBlank)
+            ?: throw CoreException(ErrorType.UNAUTHORIZED, "Entry token is required.")
+        val userToken = entryTokenRepository.find(memberId)
+
+        if (token != userToken) {
+            throw CoreException(ErrorType.UNAUTHORIZED, "Entry token is invalid or expired.")
+        }
     }
 
     fun deleteEntryToken(memberId: Long) {

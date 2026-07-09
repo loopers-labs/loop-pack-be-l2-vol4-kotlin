@@ -8,6 +8,7 @@ import com.loopers.application.order.dto.OrderInfo
 import com.loopers.application.order.dto.OrderSummaryInfo
 import com.loopers.application.product.ProductService
 import com.loopers.application.user.UserService
+import com.loopers.application.waitingqueue.WaitingQueueService
 import com.loopers.domain.order.event.OrderEvent
 import com.loopers.domain.order.event.OrderEventPublisher
 import com.loopers.domain.order.dto.OrderPlacementItem
@@ -19,6 +20,7 @@ import java.time.ZonedDateTime
 
 @Component
 class OrderFacade(
+    private val waitingQueueService: WaitingQueueService,
     private val orderService: OrderService,
     private val userService: UserService,
     private val productService: ProductService,
@@ -32,9 +34,12 @@ class OrderFacade(
     fun placeOrder(
         loginId: String,
         rawPassword: String,
+        entryToken: String?,
         command: OrderCreateCommand,
     ): OrderInfo {
         val user = userService.getMe(loginId = loginId, rawPassword = rawPassword)
+        waitingQueueService.validateEntryToken(user.id, entryToken)
+
         val requestedItems = command.items.map { item ->
             OrderPlacementItem(productId = item.productId, quantity = item.quantity)
         }
@@ -55,6 +60,7 @@ class OrderFacade(
         inventoryService.updateInventories(result.inventories)
         result.couponIssue?.let(couponService::saveCouponIssue)
         val order = orderService.save(result.order)
+
         orderEventPublisher.publish(
             OrderEvent.Created(
                 orderId = order.id,

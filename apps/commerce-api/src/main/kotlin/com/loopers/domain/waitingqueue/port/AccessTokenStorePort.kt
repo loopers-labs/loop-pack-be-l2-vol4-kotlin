@@ -7,4 +7,6 @@ import com.loopers.domain.waitingqueue.model.QueueTopic
  */
 interface AccessTokenStorePort {
     fun store(topic: QueueTopic, userId: Long, token: String, ttlSec: Int)
+
+    fun get(topic: QueueTopic, userId: Long): String?
 }

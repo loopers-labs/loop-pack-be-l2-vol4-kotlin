@@ -5,6 +5,7 @@ import com.loopers.application.waitingqueue.EnterCommand
 import com.loopers.application.waitingqueue.IssueTokenCommand
 import com.loopers.application.waitingqueue.PositionQuery
 import com.loopers.application.waitingqueue.QueuePositionResult
+import com.loopers.application.waitingqueue.VerifyCommand
 import com.loopers.application.waitingqueue.WaitTokenResult
 
 /**
@@ -19,4 +20,7 @@ interface QueueApplicationServicePort {
 
     /** 입장 토큰 발급. 승격 마커가 있어야 발급되며, 없으면 409(NOT_ADMITTED). */
     fun issueAccessToken(command: IssueTokenCommand): AccessTokenResult
+
+    /** 입장 토큰 검증(인터셉터 통과 여부). 서명/만료/토픽/Redis 백업 일치를 모두 만족해야 true. */
+    fun verifyAccess(command: VerifyCommand): Boolean
 }

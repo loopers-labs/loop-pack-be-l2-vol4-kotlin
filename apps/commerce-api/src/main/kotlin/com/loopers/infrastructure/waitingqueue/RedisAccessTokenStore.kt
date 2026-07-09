@@ -23,6 +23,9 @@ class RedisAccessTokenStore(
         master.opsForValue().set(accessKey(topic, userId), token, Duration.ofSeconds(ttlSec.toLong()))
     }
 
+    override fun get(topic: QueueTopic, userId: Long): String? =
+        master.opsForValue().get(accessKey(topic, userId))
+
     companion object {
         fun accessKey(topic: QueueTopic, userId: Long) = "queue:access:${topic.value}:$userId"
     }

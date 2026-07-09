@@ -1,5 +1,6 @@
 package com.loopers.application.waitingqueue
 
+import com.loopers.domain.waitingqueue.AccessGuardService
 import com.loopers.domain.waitingqueue.AccessTokenIssueService
 import com.loopers.domain.waitingqueue.QueueEntryService
 import com.loopers.domain.waitingqueue.QueuePositionService
@@ -12,6 +13,7 @@ class QueueApplicationServiceAdapter(
     private val queueEntryService: QueueEntryService,
     private val queuePositionService: QueuePositionService,
     private val accessTokenIssueService: AccessTokenIssueService,
+    private val accessGuardService: AccessGuardService,
 ) : QueueApplicationServicePort {
     override fun enter(command: EnterCommand): WaitTokenResult {
         val token = queueEntryService.enter(
@@ -31,4 +33,7 @@ class QueueApplicationServiceAdapter(
         val accessToken = accessTokenIssueService.issue(command.rawWaitToken, System.currentTimeMillis())
         return AccessTokenResult.from(accessToken)
     }
+
+    override fun verifyAccess(command: VerifyCommand): Boolean =
+        accessGuardService.verify(command.rawAccessToken, QueueTopic(command.topic), System.currentTimeMillis())
 }

@@ -177,4 +177,45 @@ class WaitingQueueV1ApiE2ETest @Autowired constructor(
 
         assertThat(response.statusCode).isEqualTo(HttpStatus.CONFLICT)
     }
+
+    private fun callProtectedWithAccess(
+        loginId: String?,
+        loginPw: String?,
+        accessToken: String,
+    ): ResponseEntity<ApiResponse<Map<String, Any?>>> {
+        val headers = authHeaders(loginId, loginPw).apply { set("X-Queue-Access-Token", accessToken) }
+        val responseType = object : ParameterizedTypeReference<ApiResponse<Map<String, Any?>>>() {}
+        return testRestTemplate.exchange(
+            QueueProtectedTestController.PATH,
+            HttpMethod.GET,
+            HttpEntity<Any>(headers),
+            responseType,
+        )
+    }
+
+    @DisplayName("전체 사이클: 진입 → 승격 → 토큰 발급 → 입장 토큰으로 보호 API 를 호출하면 200.")
+    @Test
+    fun fullCyclePasses() {
+        signup()
+        val waitToken = waitTokenOf("tester01", "password1234")
+        admissionService.admitDueTopics(System.currentTimeMillis())
+        val accessToken = callIssueToken(waitToken).body?.data?.get("accessToken") as String
+
+        val response = callProtectedWithAccess("tester01", "password1234", accessToken)
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat((response.body?.data?.get("userId") as? Number)).isNotNull() },
+        )
+    }
+
+    @DisplayName("위조된 입장 토큰으로 보호 API 를 호출하면, 통과하지 못하고 429 로 재진입한다.")
+    @Test
+    fun forgedAccessTokenReenters() {
+        signup()
+
+        val response = callProtectedWithAccess("tester01", "password1234", "at.forged.signature")
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
+    }
 }

@@ -1,7 +1,7 @@
-package com.loopers.application.queue
+package com.loopers.application.waitingqueue
 
 import com.loopers.application.user.UserService
-import com.loopers.domain.queue.WaitingQueuePosition
+import com.loopers.domain.waitingqueue.WaitingQueuePosition
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component

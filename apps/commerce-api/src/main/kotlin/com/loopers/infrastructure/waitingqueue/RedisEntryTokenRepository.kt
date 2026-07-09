@@ -1,7 +1,7 @@
-package com.loopers.infrastructure.queue
+package com.loopers.infrastructure.waitingqueue
 
 import com.loopers.config.redis.RedisConfig
-import com.loopers.domain.queue.EntryTokenRepository
+import com.loopers.domain.waitingqueue.EntryTokenRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
@@ -9,7 +9,7 @@ import java.time.Duration
 
 @Component
 class RedisEntryTokenRepository(
-    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
+    @param:Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
 ) : EntryTokenRepository {
     override fun issue(memberId: Long, token: String, ttl: Duration) {

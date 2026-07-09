@@ -6,7 +6,7 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentStatus
 import com.loopers.domain.payment.PgTransactionStatus
-import com.loopers.domain.queue.EntryTokenRepository
+import com.loopers.domain.waitingqueue.EntryTokenRepository
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.brand.entity.BrandEntity
 import com.loopers.infrastructure.brand.repository.BrandJpaRepository

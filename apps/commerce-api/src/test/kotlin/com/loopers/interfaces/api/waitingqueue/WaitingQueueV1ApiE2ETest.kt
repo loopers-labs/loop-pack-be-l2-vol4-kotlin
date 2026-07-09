@@ -1,12 +1,12 @@
-package com.loopers.interfaces.api.queue
+package com.loopers.interfaces.api.waitingqueue
 
-import com.loopers.domain.queue.EntryTokenRepository
-import com.loopers.domain.queue.WaitingQueueStatus
+import com.loopers.domain.waitingqueue.EntryTokenRepository
+import com.loopers.domain.waitingqueue.WaitingQueueStatus
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.member.entity.MemberEntity
 import com.loopers.infrastructure.member.repository.MemberJpaRepository
 import com.loopers.interfaces.api.ApiResponse
-import com.loopers.interfaces.api.queue.dto.QueueV1Dto
+import com.loopers.interfaces.api.waitingqueue.dto.WaitingQueueV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = ["commerce.queue.scheduler.batch-size=0"],
 )
-class QueueV1ApiE2ETest @Autowired constructor(
+class WaitingQueueV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val memberJpaRepository: MemberJpaRepository,
     private val entryTokenRepository: EntryTokenRepository,
@@ -63,7 +63,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(response.body?.data?.rank).isEqualTo(0L) },
-                { assertThat(response.body?.data?.totalWaiting).isEqualTo(1L) },
+                { assertThat(response.body?.data?.currentTotalWaitingCount).isEqualTo(1L) },
                 { assertThat(response.body?.data?.entryToken).isNull() },
             )
         }
@@ -81,7 +81,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
             assertAll(
                 { assertThat(firstResponse.body?.data?.rank).isEqualTo(0L) },
                 { assertThat(secondResponse.body?.data?.rank).isEqualTo(0L) },
-                { assertThat(secondResponse.body?.data?.totalWaiting).isEqualTo(2L) },
+                { assertThat(secondResponse.body?.data?.currentTotalWaitingCount).isEqualTo(2L) },
             )
         }
 
@@ -113,7 +113,10 @@ class QueueV1ApiE2ETest @Autowired constructor(
             assertAll(
                 { assertThat(responses).allMatch { it.statusCode == HttpStatus.OK } },
                 { assertThat(ranks).containsExactlyInAnyOrderElementsOf((0L until CONCURRENT_USER_COUNT.toLong()).toList()) },
-                { assertThat(responses.mapNotNull { it.body?.data?.totalWaiting }.toSet()).contains(CONCURRENT_USER_COUNT.toLong()) },
+                {
+                    assertThat(responses.mapNotNull { it.body?.data?.currentTotalWaitingCount }.toSet())
+                        .contains(CONCURRENT_USER_COUNT.toLong())
+                },
             )
         }
     }
@@ -155,7 +158,7 @@ class QueueV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
                 { assertThat(response.body?.data?.status).isEqualTo(WaitingQueueStatus.WAITING) },
                 { assertThat(response.body?.data?.rank).isEqualTo(1L) },
-                { assertThat(response.body?.data?.totalWaiting).isEqualTo(2L) },
+                { assertThat(response.body?.data?.currentTotalWaitingCount).isEqualTo(2L) },
                 { assertThat(response.body?.data?.entryToken).isNull() },
             )
         }
@@ -179,24 +182,24 @@ class QueueV1ApiE2ETest @Autowired constructor(
     private fun enter(
         loginId: String,
         password: String = RAW_PASSWORD,
-    ): org.springframework.http.ResponseEntity<ApiResponse<QueueV1Dto.PositionResponse>> {
+    ): org.springframework.http.ResponseEntity<ApiResponse<WaitingQueueV1Dto.PositionResponse>> {
         return testRestTemplate.exchange(
             "$QUEUE_ENDPOINT/enter",
             HttpMethod.POST,
             HttpEntity<Unit>(createAuthHeaders(loginId = loginId, password = password)),
-            object : ParameterizedTypeReference<ApiResponse<QueueV1Dto.PositionResponse>>() {},
+            object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {},
         )
     }
 
     private fun getPosition(
         loginId: String,
         password: String = RAW_PASSWORD,
-    ): org.springframework.http.ResponseEntity<ApiResponse<QueueV1Dto.PositionResponse>> {
+    ): org.springframework.http.ResponseEntity<ApiResponse<WaitingQueueV1Dto.PositionResponse>> {
         return testRestTemplate.exchange(
             "$QUEUE_ENDPOINT/position",
             HttpMethod.GET,
             HttpEntity<Unit>(createAuthHeaders(loginId = loginId, password = password)),
-            object : ParameterizedTypeReference<ApiResponse<QueueV1Dto.PositionResponse>>() {},
+            object : ParameterizedTypeReference<ApiResponse<WaitingQueueV1Dto.PositionResponse>>() {},
         )
     }
 

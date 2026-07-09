@@ -1,4 +1,4 @@
-package com.loopers.domain.queue
+package com.loopers.domain.waitingqueue
 
 interface WaitingQueueRepository {
     fun enterIfAbsent(memberId: Long, score: Double)

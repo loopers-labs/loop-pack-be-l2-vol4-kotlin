@@ -1,7 +1,7 @@
-package com.loopers.application.queue
+package com.loopers.application.waitingqueue
 
-import com.loopers.domain.queue.EntryTokenRepository
-import com.loopers.domain.queue.WaitingQueueRepository
+import com.loopers.domain.waitingqueue.EntryTokenRepository
+import com.loopers.domain.waitingqueue.WaitingQueueRepository
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -53,6 +53,7 @@ class WaitingQueueServiceIntegrationTest @Autowired constructor(
             { assertThat(issuedTokens).hasSize(batchSize.toInt()) },
             { assertThat(waitingQueueRepository.count()).isEqualTo(memberIds.size - batchSize) },
             { assertThat(memberIds.take(batchSize.toInt()).map(entryTokenRepository::find)).allMatch { it != null } },
+            { assertThat(issuedTokens).containsExactlyElementsOf(memberIds.take(batchSize.toInt()).mapNotNull(entryTokenRepository::find)) },
             { assertThat(memberIds.drop(batchSize.toInt()).map(entryTokenRepository::find)).allMatch { it == null } },
         )
     }

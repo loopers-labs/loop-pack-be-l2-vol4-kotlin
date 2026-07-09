@@ -1,13 +1,13 @@
-package com.loopers.interfaces.api.queue.dto
+package com.loopers.interfaces.api.waitingqueue.dto
 
-import com.loopers.domain.queue.WaitingQueuePosition
-import com.loopers.domain.queue.WaitingQueueStatus
+import com.loopers.domain.waitingqueue.WaitingQueuePosition
+import com.loopers.domain.waitingqueue.WaitingQueueStatus
 
-class QueueV1Dto {
+class WaitingQueueV1Dto {
     data class PositionResponse(
         val status: WaitingQueueStatus,
         val rank: Long?,
-        val totalWaiting: Long,
+        val currentTotalWaitingCount: Long,
         val estimatedWaitSeconds: Long?,
         val pollingIntervalSeconds: Long,
         val entryToken: String?,
@@ -17,7 +17,7 @@ class QueueV1Dto {
                 return PositionResponse(
                     status = position.status,
                     rank = position.rank,
-                    totalWaiting = position.totalWaiting,
+                    currentTotalWaitingCount = position.currentTotalWaitingCount,
                     estimatedWaitSeconds = position.estimatedWaitSeconds,
                     pollingIntervalSeconds = position.pollingIntervalSeconds,
                     entryToken = position.entryToken,

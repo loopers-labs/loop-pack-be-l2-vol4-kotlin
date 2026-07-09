@@ -1,7 +1,7 @@
 package com.loopers.interfaces.api.order.controller
 
 import com.loopers.application.order.OrderFacade
-import com.loopers.application.queue.WaitingQueueFacade
+import com.loopers.application.waitingqueue.WaitingQueueFacade
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.order.OrderV1ApiSpec
 import com.loopers.interfaces.api.order.dto.OrderV1Dto

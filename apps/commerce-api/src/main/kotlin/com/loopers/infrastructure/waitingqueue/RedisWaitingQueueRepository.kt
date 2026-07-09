@@ -1,14 +1,14 @@
-package com.loopers.infrastructure.queue
+package com.loopers.infrastructure.waitingqueue
 
 import com.loopers.config.redis.RedisConfig
-import com.loopers.domain.queue.WaitingQueueRepository
+import com.loopers.domain.waitingqueue.WaitingQueueRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
 
 @Component
 class RedisWaitingQueueRepository(
-    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
+    @param:Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
 ) : WaitingQueueRepository {
     override fun enterIfAbsent(memberId: Long, score: Double) {

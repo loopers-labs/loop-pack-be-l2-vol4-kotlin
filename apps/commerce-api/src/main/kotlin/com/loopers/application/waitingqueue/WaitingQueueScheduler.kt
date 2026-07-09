@@ -1,7 +1,5 @@
-package com.loopers.infrastructure.queue
+package com.loopers.application.waitingqueue
 
-import com.loopers.application.queue.WaitingQueueProperties
-import com.loopers.application.queue.WaitingQueueService
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 

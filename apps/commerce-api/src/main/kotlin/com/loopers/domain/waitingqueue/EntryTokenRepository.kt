@@ -1,4 +1,4 @@
-package com.loopers.domain.queue
+package com.loopers.domain.waitingqueue
 
 import java.time.Duration
 

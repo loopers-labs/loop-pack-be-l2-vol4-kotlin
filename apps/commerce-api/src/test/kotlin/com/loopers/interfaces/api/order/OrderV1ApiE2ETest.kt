@@ -3,7 +3,7 @@ package com.loopers.interfaces.api.order
 import com.loopers.domain.coupon.enums.CouponIssueStatus
 import com.loopers.domain.coupon.enums.DiscountType
 import com.loopers.domain.order.OrderStatus
-import com.loopers.domain.queue.EntryTokenRepository
+import com.loopers.domain.waitingqueue.EntryTokenRepository
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.brand.entity.BrandEntity
 import com.loopers.infrastructure.brand.repository.BrandJpaRepository

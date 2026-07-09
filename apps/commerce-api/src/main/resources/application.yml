@@ -81,6 +81,11 @@ spring:
 coupon:
   consumer:
     enabled: false
+# 대기열 입장 스케줄러의 자동 발화를 끈다. (컨텍스트 캐시로 여러 컨텍스트가 같은 Redis 를 폴링하는 간섭 방지)
+# 스케줄러 로직 테스트는 admitOnce() 를 직접 호출한다.
+queue:
+  admission:
+    enabled: false
 
 ---
 spring:

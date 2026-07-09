@@ -21,7 +21,7 @@ class QueueV1Controller(
         return ApiResponse.success(QueueV1Dto.QueueStatusResponse.from(waitingQueueService.enter(loginId)))
     }
 
-    @GetMapping
+    @GetMapping("/me")
     override fun status(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
     ): ApiResponse<QueueV1Dto.QueueStatusResponse> {

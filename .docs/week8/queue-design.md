@@ -32,7 +32,7 @@
 
 ### bypass 스위치 동작 정의 (Runbook)
 `queue.enabled=false` 시:
-- `POST /queue/enter`, `GET /queue/position` → 즉시 `READY`(token 없이) 응답 — 대기 중이던 유저가 붕 뜨지 않게
+- `POST /api/v1/queue`, `GET /api/v1/queue/me` → 즉시 `READY`(token 없이) 응답 — 대기 중이던 유저가 붕 뜨지 않게
 - 주문 API 관문(verify/complete) → 검증 생략, 통과
 - 복구 후 `true` 전환 시 대기열은 빈 상태에서 재시작 (기존 ZSet 잔여 데이터는 유효)
 
@@ -57,8 +57,8 @@
 ```mermaid
 stateDiagram-v2
     [*] --> NOT_IN_QUEUE
-    NOT_IN_QUEUE --> WAITING: POST /queue/enter (ZADD NX)
-    WAITING --> WAITING: GET /queue/position 폴링
+    NOT_IN_QUEUE --> WAITING: POST /api/v1/queue (ZADD NX)
+    WAITING --> WAITING: GET /api/v1/queue/me 폴링
     WAITING --> READY: 스케줄러 admit (ZPOPMIN → 토큰 발급)
     READY --> READY: 주문 실패 — 토큰 유지, TTL 내 재시도 [정책 2]
     READY --> NOT_IN_QUEUE: TTL 만료 = 이탈, 맨 뒤 재진입 [정책 1]
@@ -83,14 +83,14 @@ sequenceDiagram
     participant O as OrderV1Controller
     participant OF as OrderFacade (@Transactional)
 
-    U->>Q: POST /queue/enter
+    U->>Q: POST /api/v1/queue
     Q->>QF: enter(loginId)
     QF->>WQ: enter(loginId, now)
     WQ->>R: ZADD NX waiting-queue:order
     Q-->>U: WAITING (512번째, 약 4초)
 
     loop 폴링 (2초 주기)
-        U->>Q: GET /queue/position
+        U->>Q: GET /api/v1/queue/me
         Q->>QF: getPosition(loginId)
         QF->>WQ: status(loginId)
         WQ->>R: GET entry-token → ZRANK → ZCARD
@@ -226,11 +226,11 @@ HikariCP maximum-pool-size : 40        (modules/jpa/src/main/resources/jpa.yml)
 ## 10. API 계약
 
 ```
-POST /api/v1/queue/enter        (X-Loopers-LoginId)
+POST /api/v1/queue        (X-Loopers-LoginId)
 → { status: WAITING|READY, position, totalWaiting, estimatedWaitSeconds, token? }
   - 이미 대기 중이면 기존 순번 유지, 이미 READY면 토큰 재응답 (멱등)
 
-GET /api/v1/queue/position      (X-Loopers-LoginId)   ← 2초 폴링
+GET /api/v1/queue/me      (X-Loopers-LoginId)   ← 2초 폴링
 → 동일 스키마. NOT_IN_QUEUE면 재진입 필요 신호
 
 POST /api/v1/orders             (X-Loopers-LoginId, X-Queue-Token)

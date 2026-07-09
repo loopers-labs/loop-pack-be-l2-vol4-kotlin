@@ -6,6 +6,7 @@ class WaitingQueueInfo {
     data class PositionView(
         val rank: Long?,
         val totalCount: Long?,
+        val estimatedWaitSeconds: Long?,
         val token: String?,
     ) {
         companion object {
@@ -13,6 +14,7 @@ class WaitingQueueInfo {
                 PositionView(
                     rank = position.rank,
                     totalCount = position.totalCount,
+                    estimatedWaitSeconds = position.estimatedWaitSeconds,
                     token = position.token?.value,
                 )
         }

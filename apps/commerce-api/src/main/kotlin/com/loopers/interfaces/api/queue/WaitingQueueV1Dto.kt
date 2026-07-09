@@ -9,6 +9,7 @@ class WaitingQueueV1Dto {
         val status: Status,
         val rank: Long?,
         val totalCount: Long?,
+        val estimatedWaitSeconds: Long?,
         val token: String?,
     ) {
         enum class Status {
@@ -17,11 +18,12 @@ class WaitingQueueV1Dto {
         }
 
         companion object {
-            fun waiting(rank: Long, totalCount: Long): PositionResponse =
+            fun waiting(rank: Long, totalCount: Long, estimatedWaitSeconds: Long): PositionResponse =
                 PositionResponse(
                     status = Status.WAITING,
                     rank = rank,
                     totalCount = totalCount,
+                    estimatedWaitSeconds = estimatedWaitSeconds,
                     token = null,
                 )
 
@@ -30,6 +32,7 @@ class WaitingQueueV1Dto {
                     status = Status.READY,
                     rank = null,
                     totalCount = null,
+                    estimatedWaitSeconds = null,
                     token = token,
                 )
 
@@ -40,6 +43,8 @@ class WaitingQueueV1Dto {
                             ?: throw CoreException(ErrorType.INTERNAL_ERROR, "대기 순번 정보가 없습니다."),
                         totalCount = info.totalCount
                             ?: throw CoreException(ErrorType.INTERNAL_ERROR, "대기 인원 정보가 없습니다."),
+                        estimatedWaitSeconds = info.estimatedWaitSeconds
+                            ?: throw CoreException(ErrorType.INTERNAL_ERROR, "예상 대기 시간 정보가 없습니다."),
                     )
         }
     }

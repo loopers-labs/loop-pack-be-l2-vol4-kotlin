@@ -23,7 +23,7 @@ interface WaitingQueueV1ApiSpec {
 
     @Operation(
         summary = "대기열 순번 조회",
-        description = "대기열에서 자신의 상태를 조회한다. 아직 대기 중이면 status=WAITING 과 순번/전체 인원을, " +
+        description = "대기열에서 자신의 상태를 조회한다. 아직 대기 중이면 status=WAITING 과 순번/전체 인원/예상 대기 시간(초)을, " +
             "입장 처리되어 토큰이 발급됐으면 status=READY 와 token 을 반환한다. " +
             "대기열에도 없고 토큰도 없으면 404를 반환한다.",
     )

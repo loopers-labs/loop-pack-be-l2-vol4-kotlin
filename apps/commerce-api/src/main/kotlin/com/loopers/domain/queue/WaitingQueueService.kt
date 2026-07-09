@@ -9,6 +9,7 @@ import java.time.ZonedDateTime
 class WaitingQueueService(
     private val waitingQueueRepository: WaitingQueueRepository,
     private val entryTokenRepository: EntryTokenRepository,
+    private val waitingTimeEstimator: WaitingTimeEstimator,
 ) {
     fun enter(userId: Long): QueuePosition {
         entryTokenRepository.find(userId)?.let { token ->
@@ -20,10 +21,7 @@ class WaitingQueueService(
         val rank = waitingQueueRepository.findRank(userId)
             ?: throw CoreException(ErrorType.INTERNAL_ERROR, "대기열에 존재하지 않는 사용자입니다. userId=$userId")
 
-        return QueuePosition.waiting(
-            rank = rank + 1,
-            totalCount = waitingQueueRepository.size(),
-        )
+        return waitingPositionOf(rank + 1)
     }
 
     fun getPosition(userId: Long): QueuePosition {
@@ -34,9 +32,13 @@ class WaitingQueueService(
         val rank = waitingQueueRepository.findRank(userId)
             ?: throw CoreException(ErrorType.NOT_FOUND, "대기열에 존재하지 않는 사용자입니다. userId=$userId")
 
-        return QueuePosition.waiting(
-            rank = rank + 1,
-            totalCount = waitingQueueRepository.size(),
-        )
+        return waitingPositionOf(rank + 1)
     }
+
+    private fun waitingPositionOf(rank: Long): QueuePosition =
+        QueuePosition.waiting(
+            rank = rank,
+            totalCount = waitingQueueRepository.size(),
+            estimatedWaitSeconds = waitingTimeEstimator.estimateSeconds(rank),
+        )
 }

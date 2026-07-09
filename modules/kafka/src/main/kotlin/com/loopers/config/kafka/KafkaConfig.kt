@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.kafka.MalformedEventException
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
@@ -37,6 +38,7 @@ class KafkaConfig {
         private const val HEARTBEAT_INTERVAL_MS = 20 * 1000 // heartbeat interval = 20s ( 1/3 of session_timeout )
         private const val MAX_POLL_INTERVAL_MS = 2 * 60 * 1000 // max poll interval = 2m
 
+        private const val DLT_SUFFIX = "-dlt"
         private const val DLT_MAX_RETRIES = 5
         private const val DLT_INITIAL_BACKOFF_MS = 1000L
         private const val DLT_MAX_BACKOFF_MS = 10_000L
@@ -94,7 +96,9 @@ class KafkaConfig {
     }
 
     /**
-     * 소비 실패를 DLT(`<원본토픽>-dlt`, recoverer 기본 접미사)로 격리하는 에러 핸들러.
+     * 소비 실패를 DLT(`<원본토픽>-dlt`)로 격리하는 에러 핸들러.
+     * recoverer 기본 접미사는 `.DLT` 라 미리 만들어 둔 `-dlt` 토픽(DltTopicConfig)과 어긋나므로, 목적지 리졸버로 `-dlt` 를 명시한다.
+     * 원본과 같은 파티션으로 보내 DLT 파티션 배치를 원본과 맞춘다.
      * 일시 오류는 지수 백오프로 재시도 후 DLT 로, 형식이 깨진 메시지(MalformedEventException)는 재시도 없이 바로 DLT 로 보낸다.
      * 리스너가 BatchListenerFailedException 으로 실패 레코드를 지목하면 앞 레코드는 커밋되고 그 레코드만 격리된다.
      */
@@ -107,12 +111,15 @@ class KafkaConfig {
                 put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer::class.java)
             }
         val dltTemplate = KafkaTemplate(DefaultKafkaProducerFactory<Any, Any>(producerConfig))
+        val recoverer = DeadLetterPublishingRecoverer(dltTemplate) { record, _ ->
+            TopicPartition("${record.topic()}$DLT_SUFFIX", record.partition())
+        }
         val backOff = ExponentialBackOffWithMaxRetries(DLT_MAX_RETRIES).apply {
             initialInterval = DLT_INITIAL_BACKOFF_MS
             multiplier = 2.0
             maxInterval = DLT_MAX_BACKOFF_MS
         }
-        return DefaultErrorHandler(DeadLetterPublishingRecoverer(dltTemplate), backOff).apply {
+        return DefaultErrorHandler(recoverer, backOff).apply {
             addNotRetryableExceptions(MalformedEventException::class.java)
         }
     }

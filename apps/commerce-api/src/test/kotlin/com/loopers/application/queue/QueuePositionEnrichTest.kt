@@ -5,11 +5,13 @@ import com.loopers.domain.queue.OrderQueueRepository
 import com.loopers.domain.user.UserService
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.redis.RedisConnectionFailureException
 import org.springframework.test.context.TestPropertySource
 import java.time.LocalDate
 
@@ -50,6 +52,41 @@ class QueuePositionEnrichTest {
         val result = getPosition.execute(u.loginId, u.rawPassword)
         assertThat(result.position).isEqualTo(0L)
         assertThat(result.token).isEqualTo("tok-1")
+    }
+
+    @DisplayName("Redis 장애(DataAccessException)만 degraded 응답으로 처리하고, 그 외 예외는 전파한다.")
+    @Test
+    fun degradesOnRedisFailureOnly() {
+        val u = signUp("queuePosDegradeU")
+
+        val redisDown = GetQueuePositionUsecase(userService, throwingRepo(RedisConnectionFailureException("down")), 50)
+        val degraded = redisDown.execute(u.loginId, u.rawPassword)
+        assertThat(degraded.position).isNull()
+        assertThat(degraded.waiting).isFalse()
+
+        val buggy = GetQueuePositionUsecase(userService, throwingRepo(IllegalStateException("bug")), 50)
+        assertThatThrownBy { buggy.execute(u.loginId, u.rawPassword) }
+            .isInstanceOf(IllegalStateException::class.java) // 코드 버그는 장애로 위장되지 않음
+    }
+
+    @DisplayName("refill rate가 0 이하로 설정되면 기동 시점에 즉시 실패한다(0으로 나누기 오진 방지).")
+    @Test
+    fun rejectsNonPositiveRefillRate() {
+        assertThatThrownBy { GetQueuePositionUsecase(userService, repository, 0) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    private fun throwingRepo(e: RuntimeException) = object : OrderQueueRepository {
+        override fun enter(userId: Long, nowMillis: Long): Long = throw e
+        override fun rank(userId: Long): Long? = throw e
+        override fun total(): Long = throw e
+        override fun pruneExpiredProcessing(beforeMillis: Long) = throw e
+        override fun countActive(): Long = throw e
+        override fun popNext(count: Int): List<Long> = throw e
+        override fun issueToken(userId: Long, token: String, ttlSeconds: Long, nowMillis: Long) = throw e
+        override fun findToken(userId: Long): String? = throw e
+        override fun claimToken(userId: Long, token: String): Boolean = throw e
+        override fun release(userId: Long) = throw e
     }
 
     private fun signUp(loginId: String, rawPassword: String = PASSWORD): Account {

@@ -25,8 +25,8 @@ management:
 waiting-queue:
   orders:
     enabled: true
-    consume-delay: 1s
-    admit-count: 50
+    consume-delay: 100ms
+    admit-count: 5
     allowed-ttl: 60s
     heartbeat-ttl: 10s
 

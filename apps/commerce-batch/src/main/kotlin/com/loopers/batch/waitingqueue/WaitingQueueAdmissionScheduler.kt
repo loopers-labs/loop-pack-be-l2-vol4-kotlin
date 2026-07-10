@@ -20,7 +20,7 @@ class WaitingQueueAdmissionScheduler(
 ) {
     private val log = LoggerFactory.getLogger(WaitingQueueAdmissionScheduler::class.java)
 
-    @Scheduled(fixedDelayString = "\${waiting-queue.orders.consume-delay:1s}")
+    @Scheduled(fixedDelayString = "\${waiting-queue.orders.consume-delay:100ms}")
     fun admit() {
         val admitted = waitingQueueAdmissionWorker.admit()
         if (admitted > 0) {

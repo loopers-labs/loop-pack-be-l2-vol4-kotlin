@@ -5,6 +5,7 @@ import com.loopers.domain.coupon.CouponRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 @Component
 class CouponRepositoryImpl(
@@ -24,5 +25,10 @@ class CouponRepositoryImpl(
 
     override fun findAllByIdIn(ids: List<Long>): List<CouponModel> {
         return couponJpaRepository.findAllByIdIn(ids)
+    }
+
+    @Transactional
+    override fun claimIssueSlot(couponId: Long): Boolean {
+        return couponJpaRepository.claimIssueSlot(couponId) == 1
     }
 }

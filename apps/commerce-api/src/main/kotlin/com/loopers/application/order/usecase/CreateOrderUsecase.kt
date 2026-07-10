@@ -4,6 +4,7 @@ import com.loopers.application.order.OrderCommand
 import com.loopers.application.order.OrderInfo
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.UserCouponRepository
+import com.loopers.domain.order.OrderCreatedEvent
 import com.loopers.domain.order.OrderDomainService
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.product.ProductRepository
@@ -11,6 +12,7 @@ import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.user.UserService
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
@@ -23,6 +25,7 @@ class CreateOrderUsecase(
     private val couponRepository: CouponRepository,
     private val userCouponRepository: UserCouponRepository,
     private val orderRepository: OrderRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     private val orderDomainService = OrderDomainService()
 
@@ -43,14 +46,21 @@ class CreateOrderUsecase(
             )
         }
 
-        return orderDomainService.create(
+        val saved = orderDomainService.create(
             userId = user.id,
             items = orderProducts,
             couponApplication = couponApplication,
             now = ZonedDateTime.now(),
+        ).let { orderRepository.save(it) }
+
+        eventPublisher.publishEvent(
+            OrderCreatedEvent(
+                orderId = saved.id,
+                userId = saved.userId,
+                items = saved.items.map { OrderCreatedEvent.Item(productId = it.productId, quantity = it.quantity) },
+            ),
         )
-            .let { orderRepository.save(it) }
-            .let { OrderInfo.from(it) }
+        return OrderInfo.from(saved)
     }
 
     private fun findCouponApplication(userCouponId: Long, userId: Long): OrderDomainService.CouponApplication {

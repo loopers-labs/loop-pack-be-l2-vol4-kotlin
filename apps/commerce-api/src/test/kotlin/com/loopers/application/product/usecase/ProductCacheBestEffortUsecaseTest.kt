@@ -14,6 +14,7 @@ import com.loopers.domain.withId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -84,6 +85,7 @@ class ProductCacheBestEffortUsecaseTest {
             brandRepository = brandRepository,
             productStockRepository = productStockRepository,
             productCacheRepository = cacheRepository,
+            eventPublisher = ApplicationEventPublisher { },
         )
         val getProductsUsecase = GetProductsUsecase(
             productRepository = productRepository,

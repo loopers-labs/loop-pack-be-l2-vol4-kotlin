@@ -8,11 +8,13 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
+import com.loopers.domain.payment.PaymentSucceededEvent
 import com.loopers.domain.payment.PgStatus
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.math.RoundingMode
@@ -24,6 +26,7 @@ class SyncPaymentResultUsecase(
     private val orderRepository: OrderRepository,
     private val productStockRepository: ProductStockRepository,
     private val userCouponRepository: UserCouponRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -81,6 +84,15 @@ class SyncPaymentResultUsecase(
                     val order = orderRepository.findById(payment.orderId)
                         ?: throw CoreException(ErrorType.NOT_FOUND, "주문을 찾을 수 없습니다.")
                     order.markAsPaid()
+                    eventPublisher.publishEvent(
+                        PaymentSucceededEvent(
+                            orderId = order.id,
+                            userId = order.userId,
+                            items = order.items.map {
+                                PaymentSucceededEvent.Item(productId = it.productId, quantity = it.quantity)
+                            },
+                        ),
+                    )
                 }
             }
             else -> { // FAILED

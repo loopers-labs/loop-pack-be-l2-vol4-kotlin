@@ -10,6 +10,7 @@ import com.loopers.domain.payment.PaymentFailureReason
 import com.loopers.domain.payment.PaymentModel
 import com.loopers.domain.payment.PaymentRepository
 import com.loopers.domain.payment.PaymentStatus
+import com.loopers.domain.payment.PaymentSucceededEvent
 import com.loopers.domain.payment.PgStatus
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.support.error.CoreException
@@ -18,11 +19,15 @@ import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.context.event.ApplicationEvents
+import org.springframework.test.context.event.RecordApplicationEvents
 import java.math.BigDecimal
 
+@RecordApplicationEvents
 @SpringBootTest
 class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
     private val syncPaymentResultUsecase: SyncPaymentResultUsecase,
@@ -33,6 +38,9 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
     private val fixtures: PaymentTestFixtures,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
+    @Autowired
+    lateinit var applicationEvents: ApplicationEvents
+
     @AfterEach
     fun tearDown() = databaseCleanUp.truncateAllTables()
 
@@ -55,6 +63,21 @@ class SyncPaymentResultUsecaseIntegrationTest @Autowired constructor(
 
         assertThat(orderRepository.findById(ctx.orderId)?.status).isEqualTo(OrderStatus.PAID)
         assertThat(paymentRepository.findByOrderId(ctx.orderId)?.status).isEqualTo(PaymentStatus.SUCCESS)
+    }
+
+    @DisplayName("결제가 성공하면 PaymentSucceededEvent 를 발행한다.")
+    @Test
+    fun publishesPaymentSucceededEvent_onSuccess() {
+        val ctx = fixtures.pendingOrder()
+        savePendingPayment(ctx.orderId, ctx.userId, ctx.paidPrice, "tx-event")
+
+        syncPaymentResultUsecase.apply(
+            SyncPaymentResultCommand("tx-event", ctx.orderId, amount = null, PgStatus.SUCCESS, null),
+        )
+
+        val published = applicationEvents.stream(PaymentSucceededEvent::class.java).toList()
+        assertThat(published).hasSize(1)
+        assertThat(published.first().orderId).isEqualTo(ctx.orderId)
     }
 
     @Test

@@ -1,0 +1,7 @@
+### 선착순 쿠폰 발급 요청 (즉시 requestId 반환, Kafka로 비동기 발급 처리)
+POST http://localhost:8080/api/v1/coupons/1/issue-requests
+X-Loopers-LoginId: tester
+X-Loopers-LoginPw: Password1!
+
+### 쿠폰 발급 요청 결과 조회 (polling: PENDING -> ISSUED/REJECTED)
+GET http://localhost:8080/api/v1/coupons/issue-requests/{{requestId}}

@@ -50,6 +50,15 @@ pg-simulator:
     wait-duration-in-open-state: 10s
     permitted-number-of-calls-in-half-open-state: 2
 
+waiting-queue:
+  orders:
+    enabled: true
+    traffic-threshold-per-second: 100
+    token-ttl: 30m
+    allowed-ttl: 60s
+    heartbeat-ttl: 10s
+    admit-rate-per-second: 50
+
 ---
 spring:
   config:
@@ -58,6 +67,10 @@ spring:
   kafka:
     listener:
       auto-startup: false
+
+waiting-queue:
+  orders:
+    enabled: false
 
 ---
 spring:

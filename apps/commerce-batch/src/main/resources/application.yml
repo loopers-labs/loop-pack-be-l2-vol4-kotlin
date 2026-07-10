@@ -22,6 +22,14 @@ management:
     defaults:
       enabled: false
 
+waiting-queue:
+  orders:
+    enabled: true
+    consume-delay: 100ms
+    admit-count: 5
+    allowed-ttl: 60s
+    heartbeat-ttl: 10s
+
 ---
 spring:
   config:
@@ -30,6 +38,10 @@ spring:
   batch:
     jdbc:
       initialize-schema: always
+
+waiting-queue:
+  orders:
+    enabled: false
 
 ---
 spring:

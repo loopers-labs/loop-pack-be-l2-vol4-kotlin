@@ -65,6 +65,7 @@ class RedisConfig(
         customizer: LettuceClientConfiguration.LettuceClientConfigurationBuilder.() -> Unit = {},
     ): LettuceConnectionFactory {
         val lettuceClientConfiguration = LettuceClientConfiguration.builder()
+            .commandTimeout(redisProperties.commandTimeout)
             .apply(customizer)
             .build()
         val masterReplicaConfig = RedisStaticMasterReplicaConfiguration(master.host, master.port)

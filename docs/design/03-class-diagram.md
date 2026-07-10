@@ -7,6 +7,7 @@
 특히 이 문서의 목적은 컨트롤러/DB 테이블 목록이 아니라 **도메인 객체가 어떤 값을 갖고, 어떤 불변식을 지키며, 어떤 행위를 책임지는지**를 드러내는 것이다.
 Round 2 핵심 설계 범위는 브랜드/상품, 좋아요, 주문, 재고, 결제 기록이며, user 도메인은 인증과 패턴 레퍼런스로만 둔다.
 Round 4 핵심 설계 범위는 쿠폰 템플릿, 발급 쿠폰, 쿠폰 적용 주문의 원자성이다.
+Round 8 핵심 설계 범위는 `domain/waitingqueue` 아래 Redis-only 대기열 API, Redisson/Lua 원자 연산, scheduler admission, `LIMITED` 선착순 상품의 `X-Queue-Token` 주문 관문이다.
 Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구조다. Round 4 구현 이슈는 쿠폰/재고/주문 트랜잭션 정합성까지를 범위로 두며, 별도 이슈가 없으면 Payment 도메인 구현을 새로 추가하지 않는다.
 
 기준은 다음과 같다.
@@ -17,6 +18,7 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 - 도메인 간 협력은 Facade가 조합한다. Service끼리는 직접 의존하지 않는다.
 - 자기 도메인의 영속성/외부 협력은 port + adapter로 분리한다.
 - Round 7 이벤트 생산, routing, outbox 저장은 API 애플리케이션 경계가 담당하고, streamer 쪽 모델은 collector/projection 구조로만 둔다.
+- Round 8 대기열 설정은 `WaitingQueueProperties` 하나가 `commerce.waiting-queue` 단일 prefix를 바인딩하고, controller/service/scheduler/adapter의 산발적 `@Value`를 금지한다.
 - 클래스 다이어그램의 메서드는 구현 상세가 아니라 도메인 객체가 책임져야 할 행위와 규칙의 위치를 뜻한다.
 - Value Object 는 별도 클래스 박스로 그리지 않는 것을 기본으로 한다. 도메인 속성에 해당하는 VO 는 소속 모델의 필드 타입으로 표기해 시각적 잡음을 줄이고, 각 도메인 절 하단에 사용된 VO 목록과 책임을 정리한다.
 
@@ -60,11 +62,12 @@ Payment 모델과 주문 결제 FSM은 후속 결제 연동 단계의 목표 구
 | User | `UserModel` | `LoginId`, `Password`, `Name`, `Birthday`, `Email` | 로그인 ID 형식/유일성, 비밀번호 형식/생년월일 포함 금지/인코딩 보관, 생년월일 과거 날짜 | 회원가입, 인증, 비밀번호 변경 |
 | Admin | `AdminModel`, `AdminOperationLogModel` | `Ldap`, `AdminName`, `TargetType`, `OperationType` | 관리자 LDAP 유일성, 로그 대상은 브랜드/상품 변경 작업으로 제한 | 관리자 식별, 변경 작업 기록 |
 | Brand | `BrandModel` | `BrandName` | 브랜드명 유효성, 삭제된 브랜드는 상품 등록 기준이 될 수 없음 | 등록, 이름 변경, soft delete |
-| Product | `ProductModel`, `StockModel` | `ProductName`, `Money`, `Quantity`, `StockQuantity` | 상품은 존재하는 브랜드에 속함, 가격은 음수 불가, 재고는 음수 불가, 삭제된 상품은 주문 불가 | 상품 정보 변경, 삭제, 재고 초기화/차감 |
+| Product | `ProductModel`, `StockModel` | `ProductName`, `Money`, `Quantity`, `StockQuantity`, `ProductSaleType` | 상품은 존재하는 브랜드에 속함, 가격은 음수 불가, 재고는 음수 불가, 삭제된 상품은 주문 불가, `LIMITED`는 대기열 대상 | 상품 정보 변경, 삭제, 판매 유형 판별, 재고 초기화/차감 |
 | Like | `LikeModel`, `ProductMetricsModel` | `LikeKey` | 사용자-상품 쌍은 하나의 현재 상태만 가짐, 등록/취소는 멱등, 좋아요 수는 `LIKE_COUNT_CHANGED_V1` 기반 eventually consistent projection | 좋아요 생성, 좋아요 취소, 내 좋아요 조회, 상품 지표 projection 조회/재구성 |
 | Coupon | `CouponTemplateModel`, `IssuedCouponModel`, `CouponIssueRequestModel` | `CouponName`, `DiscountPolicy`, `IssuedCouponStatus`, `CouponIssueRequestStatus`, `Money` | 한 사용자-쿠폰 템플릿 조합은 한 번만 발급됨, 발급 요청은 비동기 상태를 가짐, 발급 쿠폰은 사용 가능 상태에서 한 번만 사용 가능, 만료 쿠폰은 사용 불가 | 쿠폰 템플릿 생성/수정/삭제, 쿠폰 발급 요청 접수, worker 발급, 상태 조회, 할인 계산, 쿠폰 사용/복구 |
-| Order | `OrderModel`, `OrderItemModel` | `Money`, `Quantity`, `OrderStatus` | 주문 항목 1개 이상, 수량 양수, 주문 시점 상품명/단가/할인 스냅샷 불변, 생성 상태는 `PAYMENT_PENDING`, 전이는 `PAYMENT_PENDING -> ORDERED/PAYMENT_FAILED`만 허용 | 주문 생성, 금액 계산, 쿠폰 할인 반영, 결제 결과 전이, 본인 주문 검증 |
+| Order | `OrderModel`, `OrderItemModel` | `Money`, `Quantity`, `OrderStatus` | 주문 항목 1개 이상, 수량 양수, 주문 시점 상품명/단가/할인 스냅샷 불변, `LIMITED` 하나 이상이면 주문 전체 gate 적용, 생성 상태는 `PAYMENT_PENDING` | gate 정책 판별, 주문 생성, 금액 계산, 쿠폰 할인 반영, 결제 결과 전이, 본인 주문 검증 |
 | Payment | `PaymentModel` | `PaymentMethod`, `PaymentStatus`, `Money` | 후속 결제 연동 설계에서 주문에 1:1로 속함, 결제 금액은 주문 결제 금액과 일치, 상태 전이는 요청 후 승인/실패 | 결제 요청 기록, 승인 기록, 실패 기록 |
+| WaitingQueue | `WaitingQueueEntryModel`, `AdmissionTokenCandidate` | `WaitingQueueStatus` | Redis가 유일한 권위 상태, 한 사용자 하나의 활성 대기/입장 상태, 필수 양수 `sequence`, token TTL 기본 5분, 주문 전 예약·성공 consume·실패 release | 대기열 진입, 순번 조회, batch admission, order gate token reserve/consume/release, Redis 장애 fail-closed |
 
 ## 1. User 패턴 레퍼런스
 
@@ -364,11 +367,13 @@ classDiagram
         Long brandId
         ProductName name
         Money price
+        ProductSaleType saleType
         DateTime deletedAtOrNull
         changeName(name) ProductModel
         changePrice(price) ProductModel
         delete() ProductModel
         requireOrderable() void
+        requiresWaitingQueue() Boolean
     }
 
     class StockModel {
@@ -450,12 +455,14 @@ classDiagram
 | `Money` | 가격 표현 — `OrderModel`/`OrderItemModel` 에서도 재사용 | 음수 불가, 단위 표준화 |
 | `Quantity` | 주문 요청 수량 | 자연수만 허용 |
 | `StockQuantity` | 재고 수량 | 0 이상 정수만 허용 |
+| `ProductSaleType` | 대기열 적용 판매 유형 | `NORMAL`은 일반 주문, `LIMITED`는 선착순 주문 |
 
 ### 객체 책임/불변식
 
 - `ProductModel`은 상품의 판매 정보와 삭제 상태를 보관하는 애그리거트 루트다.
 - `brandId`는 다른 애그리거트인 브랜드를 ID로 참조한다. 브랜드 존재 검증은 `ProductFacade`가 `BrandService`를 통해 수행한다.
 - 삭제된 상품은 주문 가능 상품으로 사용할 수 없다. `requireOrderable()`은 주문 생성 전 상품 상태 검증 지점이다.
+- `ProductModel.requiresWaitingQueue()`는 `saleType == LIMITED`를 판별한다. 주문 항목 중 하나라도 참이면 주문 전체를 대기열 관문 대상으로 본다.
 - `StockModel`은 상품 생명주기에 종속된 엔티티이며 재고 음수 방지 규칙을 직접 가진다.
 - 재고 차감 책임은 `StockService`와 `StockModel.decrease`에 둔다. `ProductService`가 재고 저장소를 직접 다루지 않게 해 상품 정보 변경과 재고 변경 책임을 분리한다.
 
@@ -1147,6 +1154,16 @@ classDiagram
     class OrderFacade {
         <<facade>>
     }
+    class OrderQueueGateFacade {
+        <<facade>>
+    }
+    class OrderQueueGatePolicy {
+        <<policy>>
+        requiresAdmission(command) Boolean
+    }
+    class WaitingQueueFacade {
+        <<facade>>
+    }
 
     class UserService {
         <<service>>
@@ -1175,6 +1192,9 @@ classDiagram
     class PaymentService {
         <<service>>
     }
+    class WaitingQueueService {
+        <<service>>
+    }
 
     UserFacade ..> UserService
     BrandFacade ..> BrandService
@@ -1192,6 +1212,11 @@ classDiagram
     OrderFacade ..> StockService
     OrderFacade ..> CouponService
     OrderFacade ..> PaymentService
+    OrderQueueGateFacade ..> WaitingQueueFacade
+    OrderQueueGateFacade ..> OrderFacade
+    OrderQueueGateFacade ..> OrderQueueGatePolicy
+    OrderQueueGatePolicy ..> ProductService
+    WaitingQueueFacade ..> WaitingQueueService
 ```
 
 해석:
@@ -1200,3 +1225,201 @@ classDiagram
 - 상품 존재 검증, 브랜드 존재 검증, 재고 차감처럼 다른 도메인이 필요한 협력은 Facade에서 조합한다.
 - 쿠폰 발급과 템플릿 관리는 `CouponFacade`가 담당하고, 쿠폰 적용 주문은 `OrderFacade`가 `CouponService`를 조합한다.
 - 다중 도메인 상태 변경은 Facade 트랜잭션으로 묶어 정합성을 보장한다.
+- `OrderQueueGatePolicy`가 상품 판매 유형을 조회해 `LIMITED`가 하나라도 있을 때만 대기열 관문을 적용한다. `NORMAL`-only 주문은 기존 `OrderFacade`로 바로 진행한다. 선착순 주문 예외 뒤에는 같은 멱등키 주문이 없을 때만 release하고, 커밋된 주문이 있으면 consume한다.
+
+
+## 11. Waiting Queue
+
+Round 8 대기열은 `com.loopers.domain.waitingqueue` package-by-feature 구조를 사용한다. Redis Sorted Set, 원자 sequence counter, TTL admission hash가 유일한 권위 상태이고, `WaitingQueuePort` 뒤에는 단일 `RedissonWaitingQueueAdapter`만 둔다.
+
+### 목표 패키지 구조
+
+```text
+domain/waitingqueue/
+├── application/
+│   ├── WaitingQueueFacade
+│   └── service/WaitingQueueService
+├── model/
+│   ├── AdmissionBatchResult
+│   ├── WaitingQueueEntryModel
+│   ├── WaitingQueueState
+│   ├── AdmissionTokenCandidate
+│   └── WaitingQueueStatus
+├── config/
+│   ├── WaitingQueueProperties
+│   ├── WaitingQueueRedisKeys
+│   └── constant/WaitingQueueConfigErrorMessages
+├── port/
+│   ├── WaitingQueuePort
+│   └── TokenValidationResult
+├── infrastructure/
+│   └── redis/
+│       ├── RedissonWaitingQueueAdapter
+│       └── constant/
+│           ├── WaitingQueueRedisConstants
+│           └── WaitingQueueRedisScripts
+├── presentation/
+│   ├── WaitingQueueApiSpec
+│   ├── WaitingQueueController
+│   └── WaitingQueueResponse
+├── scheduler/
+│   └── WaitingQueueScheduler
+└── constant/
+    └── WaitingQueueErrorMessages
+```
+
+구현 시 모든 Kotlin 파일은 1 파일 1 top-level 선언 원칙을 따른다. 대기열 관계형 테이블/JPA Entity/DB adapter는 만들지 않으며, 도메인 model과 Redis 구현 세부는 port 경계로 분리한다.
+
+```mermaid
+classDiagram
+    direction TB
+
+    class WaitingQueueController {
+        +enter(loginUser) WaitingQueueResponse
+        +position(loginUser) WaitingQueueResponse
+    }
+    class WaitingQueueFacade {
+        <<facade>>
+        +enter(userId) WaitingQueueState
+        +position(userId) WaitingQueueState
+        +admitBatch() AdmissionBatchResult
+        +validateForOrder(userId, token, idempotencyKey) TokenValidationResult
+        +consumeAfterOrderCreated(userId, token, idempotencyKey) void
+        +releaseAfterOrderFailed(userId, token, idempotencyKey) void
+    }
+    class WaitingQueueService {
+        <<service>>
+        +enter(userId) WaitingQueueState
+        +position(userId) WaitingQueueState
+        +admitBatch() AdmissionBatchResult
+        +validateForOrder(userId, token, idempotencyKey) TokenValidationResult
+        +consumeAfterOrderCreated(userId, token, idempotencyKey) void
+        +releaseAfterOrderFailed(userId, token, idempotencyKey) void
+    }
+    class WaitingQueuePort {
+        <<port>>
+        +findState(userId, now) WaitingQueueState
+        +findPosition(userId) Long?
+        +enqueueIfAbsent(userId, now) WaitingQueueEntryModel
+        +admitNext(candidates, tokenTtl, now) List~WaitingQueueEntryModel~
+        +validateToken(userId, token, idempotencyKey, now) TokenValidationResult
+        +consumeToken(userId, token, idempotencyKey) Boolean
+        +releaseToken(userId, token, idempotencyKey) Boolean
+    }
+    class RedissonWaitingQueueAdapter {
+        <<adapter>>
+        +findState(userId, now) WaitingQueueState
+        +findPosition(userId) Long?
+        +enqueueIfAbsent(userId, now) WaitingQueueEntryModel
+        +admitNext(candidates, tokenTtl, now) List~WaitingQueueEntryModel~
+        +validateToken(userId, token, idempotencyKey, now) TokenValidationResult
+        +consumeToken(userId, token, idempotencyKey) Boolean
+        +releaseToken(userId, token, idempotencyKey) Boolean
+    }
+    class WaitingQueueRedisScripts {
+        <<constant>>
+        +ENQUEUE String
+        +FIND_STATE String
+        +ADMIT String
+        +VALIDATE_AND_RESERVE_TOKEN String
+        +CONSUME_TOKEN String
+        +RELEASE_TOKEN String
+    }
+    class WaitingQueueScheduler {
+        +admitBatch() void
+    }
+    class WaitingQueueProperties {
+        <<configuration_properties>>
+        +schedulerEnabled Boolean
+        +tokenTtl Duration
+        +schedulerDelay Duration
+        +admissionBatchSize Int
+        +schedulerJitterMax Duration
+        +pollingInterval Duration
+        +tokenPrefix String
+        +redisKeyPrefix String
+        +redisKeys WaitingQueueRedisKeys
+    }
+    class WaitingQueueRedisKeys {
+        +entries String
+        +sequence String
+        +userAdmissionPrefix String
+        +tokenAdmissionPrefix String
+    }
+    class WaitingQueueEntryModel {
+        <<aggregate_root>>
+        +userId Long
+        +sequence Long
+        +status WaitingQueueStatus
+    }
+    class WaitingQueueState {
+        +status WaitingQueueStatus
+        +sequence Long
+        +position Long?
+        +totalWaiting Long
+        +estimatedWaitSeconds Long
+        +token String?
+        +tokenAvailableAt Instant?
+        +tokenExpiresAt Instant?
+    }
+
+    WaitingQueueController --> WaitingQueueFacade
+    WaitingQueueScheduler --> WaitingQueueFacade
+    WaitingQueueFacade --> WaitingQueueService
+    WaitingQueueService --> WaitingQueuePort
+    WaitingQueueService --> WaitingQueueProperties
+    WaitingQueueScheduler --> WaitingQueueProperties
+    WaitingQueueProperties *-- WaitingQueueRedisKeys
+    WaitingQueuePort <|.. RedissonWaitingQueueAdapter
+    RedissonWaitingQueueAdapter --> WaitingQueueProperties
+    RedissonWaitingQueueAdapter --> WaitingQueueRedisScripts
+    WaitingQueueService --> WaitingQueueEntryModel
+    WaitingQueueService --> WaitingQueueState
+```
+
+### 객체 책임/불변식
+
+- `WaitingQueueEntryModel`: 사용자별 활성 대기/입장 상태와 필수 `sequence`를 가진다. `sequence`는 Redis `INCR`가 발급하고 권위 Sorted Set score로 사용한다.
+- `WaitingQueueService`: 중복 진입 방지, batch admission, token reserve/consume/release 정책을 수행한다. Redis 접근 실패는 `503` 도메인 경계 예외로 변환한다.
+- `WaitingQueuePort`: application의 테스트 대역과 저장소 경계를 위한 계약이다. 운영 infrastructure 구현체는 `RedissonWaitingQueueAdapter` 하나뿐이다.
+- `RedissonWaitingQueueAdapter`: Redis Sorted Set, sequence counter, user/token admission hash의 유일한 권위 상태를 관리한다. 1-based position과 `ceil(position / batchSize) * schedulerDelay` 예상 시간을 계산하고, enqueue/admit/reserve/consume/release의 다중 command는 각각 Lua 한 번으로 원자 실행한다.
+- enqueue Lua는 기존 Sorted Set member/user admission을 확인한 뒤에만 `INCR + ZADD NX`를 수행한다. admit Lua는 후보 token 충돌을 pop 전에 검사하고, 정상 후보에 대해서만 `ZPOPMIN + 양방향 hash HSET + PEXPIRE`를 묶는다.
+- reserve Lua는 user/token binding과 `availableAt`을 검증해 `ACTIVE -> PROCESSING` 및 멱등키 기록을 묶는다. consume Lua는 같은 예약만 `CONSUMED`로 바꾸고 이미 같은 멱등키로 소비된 호출도 멱등 성공으로 처리하며, user hash를 삭제하고 token hash TTL은 consumed marker로 유지한다. release Lua는 주문 실패 시 같은 예약만 `ACTIVE`로 되돌리고 TTL을 연장하지 않는다.
+- `PROCESSING + same Idempotency-Key`는 새 mutation 허가가 아니다. 기존 주문이 있으면 consume으로 회복하고, 없으면 `409`로 거부한다. consume/release의 `Boolean` CAS 실패는 fail-closed한다.
+- `WaitingQueueScheduler`: 설정된 주기와 batch 크기로 `WaitingQueueFacade.admitBatch()`만 호출한다.
+- `WaitingQueueProperties`: `commerce.waiting-queue` 단일 prefix를 바인딩한다. 기존 Redis 연결 설정을 중복하지 않는다.
+
+### 설정 기준선
+
+`WaitingQueueProperties`는 대기열 도메인 특화 설정만 가진다.
+
+| 속성 | 의미 |
+| --- | --- |
+| `schedulerEnabled` | 입장 스케줄러 실행 여부. property name은 `scheduler-enabled`; 대기열 API나 주문 gate 전체 토글이 아니다. |
+| `tokenTtl` | 입장 토큰 TTL. 기본 5분 |
+| `schedulerDelay` | admission scheduler 주기. property name은 `scheduler-delay` |
+| `admissionBatchSize` | scheduler 1회 입장 batch 크기. property name은 `admission-batch-size` |
+| `schedulerJitterMax` | batch 내 token `availableAt` 분산 상한. property name은 `scheduler-jitter-max`; 기본 0으로 즉시 사용 가능하며 값을 늘리면 응답의 `tokenAvailableAt`을 따라야 한다. |
+| `pollingInterval` | API 응답의 권장 polling 주기. property name은 `polling-interval` |
+| `tokenPrefix` | 발급 token 문자열 prefix. property name은 `token-prefix`, 예: `q_` |
+| `redisKeyPrefix` | 공통 Redis key namespace. property name은 `redis-key-prefix`, 예: `waiting-queue` |
+| `redisKeys.entries` | 대기 Sorted Set logical key |
+| `redisKeys.sequence` | 원자 sequence counter logical key |
+| `redisKeys.userAdmissionPrefix` | 사용자별 admission hash key prefix |
+| `redisKeys.tokenAdmissionPrefix` | token별 admission/consumed-marker hash key prefix |
+
+파편화 방지 규칙:
+
+- prefix는 `commerce.waiting-queue` 하나만 사용한다.
+- Controller, Facade, Service, Scheduler, Adapter에 `@Value`를 흩뿌리지 않는다.
+- `spring.data.redis.*` 연결 설정은 기존 공통 설정을 사용하고 이 prefix에 복제하지 않는다.
+- 구현 중 `queue.*`, `waiting-queue.*`, `order-gate.*`, 별도 Redis key prefix 같은 경로를 발견하면 새 경로를 유지하지 말고 `commerce.waiting-queue`와 `WaitingQueueProperties`로 통합한다.
+- 배포별로 바뀔 수 있는 token prefix와 Redis key 이름은 `token-prefix`, `redis-key-prefix`, 중첩 `redis-keys`로 주입하고 코드에 문자열로 하드코딩하지 않는다.
+- Lua hash field/status/result code처럼 adapter 내부 프로토콜의 고정 값은 `infrastructure/redis/constant/WaitingQueueRedisConstants`, 도메인 예외 메시지는 `constant/WaitingQueueErrorMessages`에 계층별로 분리한다. 설정 가능성이 없는 값을 application 설정으로 올리지 않는다.
+
+### Domain values
+
+- `WaitingQueueEntryModel.sequence`: 0 또는 음수를 허용하지 않는 Redis `INCR` 단조 sequence 값이다.
+- `WaitingQueueStatus`: 외부 API 가시 상태인 `WAITING`, `ADMITTED`만 표현한다. Redis hash 예약 상태 `ACTIVE`, `PROCESSING`, `CONSUMED`는 adapter 프로토콜 상수로 관리한다.
+- `AdmissionTokenCandidate`: 빈 token을 허용하지 않고 `availableAt < expiresAt`을 보장하는 scheduler-adapter 경계 값이다.
+- `AdmissionBatchSize`, `PollingInterval`, `JitterWindow`: 설정값 검증이 필요하면 VO로 분리할 수 있으나, 별도 top-level 선언은 파일당 하나만 둔다.

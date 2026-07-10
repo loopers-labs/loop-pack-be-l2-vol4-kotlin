@@ -29,6 +29,7 @@
     - [5.6.5 쿠폰 할인 정책](#565-쿠폰-할인-정책)
     - [5.6.6 운영 감사 확장 후보](#566-운영-감사-확장-후보)
   - [5.7 이벤트 아키텍처와 상품 지표](#57-이벤트-아키텍처와-상품-지표)
+  - [5.8 대기열 (Waiting Queue)](#58-대기열-waiting-queue)
 - [6. 심화 과정](#6-심화-과정)
 
 ---
@@ -40,6 +41,7 @@
 > Round 2 핵심 설계 범위는 **브랜드/상품 조회, 좋아요, 주문, 재고, 결제 기록**이다.
 > Round 4 핵심 설계 범위는 **쿠폰 생성·발급·조회·사용과 주문 시 쿠폰/재고 동시 정합성 보장**이다.
 > Round 7 핵심 설계 범위는 **ApplicationEvent 기반 트랜잭션 이후 부가 처리, outbox/Kafka 이벤트 파이프라인, 상품 지표 projection, Kafka 기반 비동기 선착순 쿠폰 발급**이다.
+> Round 8 핵심 설계 범위는 **선착순(`LIMITED`) 상품 주문 앞단의 Redis-only 대기열, Redisson/Lua 원자 연산, 입장 토큰과 polling 기반 순번 조회**이다.
 > Payment 사가, 외부 결제 연동, 결제 실패 보상 회복은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 트랜잭션 정합성에 한정하며, 별도 이슈가 없으면 Payment 도메인과 결제 게이트웨이를 새로 구현하지 않는다.
 > 사용자 회원가입·내 정보 조회·비밀번호 변경은 현재 구현 패턴과 인증 전제를 설명하기 위한 레퍼런스로 포함한다.
 
@@ -89,6 +91,7 @@
 - 상품 식별자: 상품 상세 조회, 좋아요, 주문 항목에서 상품을 가리키는 식별 값이다.
 - 브랜드: 상품은 등록된 브랜드에 속해야 하며, 한 번 등록된 상품의 브랜드는 임의로 수정할 수 없다.
 - 상품명과 가격: 주문 시점에 주문 스냅샷으로 보관되어야 하는 대표 정보다. 상품명은 공백 문자열일 수 없다.
+- 판매 유형: `NORMAL`은 대기열 없이 주문할 수 있는 일반 상품이고, `LIMITED`는 입장 토큰이 필요한 선착순 상품이다. 주문 항목에 `LIMITED` 상품이 하나라도 포함되면 주문 전체에 대기열 관문을 적용한다.
 - 재고: 상품의 주문 가능 여부를 결정하는 수량이며, 주문 시점에 확인 및 차감되어야 한다.
 - 목록 조회 조건: 브랜드 식별자로 필터링할 수 있고, 최신순(`latest`) 정렬은 필수로 제공한다. 가격 낮은 순(`price_asc`)과 좋아요 많은 순(`likes_desc`)은 선택적으로 확장할 수 있다.
 - 페이지 조건: 상품 목록은 페이지 번호와 페이지당 상품 수를 기준으로 조회한다.
@@ -164,6 +167,7 @@
 - 주문 기간: 주문 목록 조회 시 시작일과 종료일을 기준으로 조회할 수 있다.
 - 주문 상세: 단일 주문의 결과와 포함된 주문 항목을 확인할 수 있는 정보다.
 - 재고 정합성: 주문 시점에 상품 재고를 확인하고 차감해야 한다.
+- 대기열 적용 범위: 주문 항목의 상품 판매 유형을 조회해 하나라도 `LIMITED`이면 선착순 주문으로 분류한다. `NORMAL` 상품으로만 구성된 주문은 대기열을 거치지 않고 기존 Round 7 주문 흐름으로 진행한다.
 - 적용 쿠폰: 주문 요청에는 사용자가 보유한 발급 쿠폰 식별자를 외부 필드명 `couponId`(내부 `issuedCouponId`로 매핑)로 선택적으로 포함할 수 있다. 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다.
 - 쿠폰 정합성: 발급 쿠폰은 소유자, 사용 가능 상태, 유효기간, 최소 주문 금액을 검증한 뒤 주문 생성과 같은 트랜잭션에서 사용 처리되어야 한다.
 - 할인 스냅샷: 주문에는 쿠폰 사용 결과로 확정된 할인 금액을 `discountPrice`로 저장한다. 이후 쿠폰 템플릿 정책이 변경되어도 과거 주문 금액은 바뀌지 않는다.
@@ -191,6 +195,28 @@
 - 주문 목록 조회: 로그인한 사용자가 자신의 주문 목록을 조회하는 행위다.
 - 주문 상세 조회: 로그인한 사용자가 자신의 특정 주문 상세를 조회하는 행위다.
 - 주문 관리자 조회: 관리자가 주문 목록 또는 단일 주문 상세를 조회하는 행위다.
+
+#### 대기열
+
+대기열은 선착순 상품 주문 API 앞단에서 트래픽을 일정 처리량으로 제한하면서 사용자에게 공정한 입장 순서와 현재 순번을 제공하는 주문 관문이다. Round 8에서는 Redis를 유일한 권위 저장소로 사용하고, `WaitingQueuePort` 뒤의 단일 `RedissonWaitingQueueAdapter`가 Sorted Set, 원자 sequence, TTL token hash를 관리한다.
+
+##### 값과 규칙
+
+- 대기열 항목: 주문을 시도하기 전 입장을 기다리는 사용자 상태다. Redis Sorted Set member인 `userId`는 한 번만 존재하므로 한 사용자는 동시에 하나의 활성 대기/입장 상태만 가진다.
+- 필수 sequence: 새 대기열 항목은 Redis `INCR`로 발급한 양의 단조 증가 `sequence`를 반드시 가진다. Sorted Set score는 이 값을 사용하며, 벽시계 시각만으로 순서를 정하지 않는다.
+- 입장 토큰: 스케줄러가 대기열에서 입장시킨 사용자에게 발급하는 주문 API 입장 자격이다. 기본 TTL은 5분이며, HTTP 요청 body나 query가 아니라 `X-Queue-Token` 헤더로만 전달한다.
+- 상태: API 가시 상태는 `WAITING`, `ADMITTED`를 기본으로 한다. 입장 token hash의 내부 상태는 `ACTIVE`, `PROCESSING`, `CONSUMED`이며, TTL 만료는 Redis key 만료로 표현한다.
+- Redis 권위 상태: Sorted Set은 member=`userId`, score=`sequence`로 대기 순서를 보관한다. 별도 Redis counter가 sequence를 발급하고, user/token 양방향 admission hash는 동일 token TTL을 가진다. key 이름과 token 문자열 prefix는 `commerce.waiting-queue` 설정으로 주입한다.
+- 저장소 경계: application은 `WaitingQueuePort`에만 의존하고 infrastructure에는 단일 `RedissonWaitingQueueAdapter`만 둔다. 관계형 DB 대기열 테이블이나 대체 저장소는 두지 않는다.
+- 적용 단위: 현재 구현은 모든 `LIMITED` 주문이 공유하는 사용자 단위 대기열 하나를 사용한다. 입장 토큰은 사용자에게 귀속되며 특정 상품이나 캠페인에는 귀속되지 않는다. 상품·행사별 독립 처리량이 필요해지면 queue scope를 key 구성과 token binding에 함께 추가한다.
+
+##### 행위 정의
+
+- 대기열 진입: 로그인 사용자가 `/queue/enter`로 대기열에 등록된다. 이미 대기 중이면 중복 등록하지 않고 기존 상태를 반환한다. 이미 유효한 입장 토큰이 있으면 재진입하지 않고 입장 상태를 반환한다.
+- 순번 조회: 로그인 사용자가 `/queue/position`으로 1-based 현재 순번, 전체 대기 인원, 예상 대기 시간, 권장 polling 주기를 조회한다. 입장된 사용자는 응답에서 토큰과 만료시각을 받는다.
+- 순차 입장: 스케줄러가 설정된 주기와 batch 크기로 `sequence`가 낮은 사용자부터 토큰을 발급한다. 동일 시각에 진입한 사용자도 sequence로 결정적 순서를 가진다.
+- 주문 관문: `OrderQueueGatePolicy`가 주문 항목의 판매 유형을 조회한다. `LIMITED` 상품이 하나라도 있으면 `X-Queue-Token`과 공백이 아닌 `Idempotency-Key`를 검증하고, `NORMAL` 상품만 있으면 기존 주문 흐름으로 바로 진행한다. 검증 실패는 재고/쿠폰/주문 변경 전에 거부한다.
+- 토큰 예약/종료: 선착순 주문 mutation 전 Lua가 유효 토큰을 `PROCESSING`으로 예약한다. 같은 멱등키로 이미 `PROCESSING`이면 기존 주문을 조회해 커밋된 주문이 있을 때만 회복하고, 아직 없으면 `409 Conflict`로 거부한다. 주문 처리 예외 뒤에는 같은 멱등키 주문의 커밋 여부를 조회해 주문이 없을 때만 `ACTIVE`로 release하고, 주문이 있으면 release하지 않고 `CONSUMED`로 consume한다. consume/release의 CAS 결과가 실패하면 성공으로 간주하지 않고 fail-closed한다.
 
 #### 쿠폰
 
@@ -492,6 +518,12 @@
 | **`X-Loopers-LoginId`** | 로그인 ID | `user123` |
 | **`X-Loopers-LoginPw`** | 비밀번호 | `securepass` |
 
+#### 선착순 주문 대기열 헤더 (`LIMITED` 상품 주문에 사용)
+| HTTP Header Key | Description | Example |
+| :--- | :--- | :--- |
+| **`X-Queue-Token`** | 대기열 스케줄러가 발급한 주문 입장 토큰. `LIMITED` 상품을 포함한 `POST /api/v1/orders`에서 필수이며 body/query로 받지 않는다. | `q_01H...` |
+| **`Idempotency-Key`** | 선착순 주문의 예약·커밋 회복·중복 방지를 연결하는 공백이 아닌 멱등키. `LIMITED` 상품 주문에서 필수다. | `order-01H...` |
+
 #### 어드민 기능 인증 헤더 (관리자 전용 API에 사용)
 | HTTP Header Key | Description | Example |
 | :--- | :--- | :--- |
@@ -510,11 +542,12 @@
 | 비동기 요청 접수 | `202 Accepted` | 쿠폰 발급 요청 접수 |
 | 자원 생성 성공 | `201 Created` | 회원가입, 주문 요청, 브랜드 등록, 상품 등록 |
 | 삭제 등 응답 본문 없는 성공 | `204 No Content` | 좋아요 취소, 브랜드 삭제, 상품 삭제 |
-| 요청 형식·필수값·필드 정책 위반 | `400 Bad Request` | JSON 파싱 실패, 타입 오류, 필수 필드 누락, 로그인 ID/비밀번호/이름 입력 규칙 위반, 미래 생년월일, 잘못된 이메일 형식, 잘못된 정렬 키, 현재 비밀번호와 동일한 신규 비밀번호 |
-| 인증 헤더 누락 또는 자격 불일치 | `401 Unauthorized` | 로그인 헤더 누락, 비밀번호 불일치, LDAP 헤더 누락 |
+| 요청 형식·필수값·필드 정책 위반 | `400 Bad Request` | JSON 파싱 실패, 타입 오류, 필수 필드 누락, 로그인 ID/비밀번호/이름 입력 규칙 위반, 미래 생년월일, 잘못된 이메일 형식, 잘못된 정렬 키, 현재 비밀번호와 동일한 신규 비밀번호, 선착순 주문의 공백 또는 누락된 `Idempotency-Key` |
+| 인증 헤더 누락 또는 자격 불일치 | `401 Unauthorized` | 로그인 헤더 누락, 비밀번호 불일치, LDAP 헤더 누락, 선착순 주문의 누락·무효 입장 토큰 |
 | 자원이 존재하지 않거나 본인 외 자원 접근 | `404 Not Found` | 존재하지 않는 `brandId`/`productId`/`orderId`, 타인의 좋아요 목록·주문 조회 시도 |
-| 시스템 상태와의 비즈니스 규칙 충돌 | `409 Conflict` | 로그인 ID 중복, 재고 부족, 쿠폰 중복 발급, 이미 사용된 쿠폰, 만료된 쿠폰, 쿠폰 최소 주문 금액 미달, 결제 승인 거절, 미등록 브랜드로 상품 등록, 등록된 상품의 브랜드 변경 시도 |
+| 시스템 상태와의 비즈니스 규칙 충돌 | `409 Conflict` | 로그인 ID 중복, 재고 부족, 쿠폰 중복 발급, 이미 사용된 쿠폰, 만료된 쿠폰, 쿠폰 최소 주문 금액 미달, 결제 승인 거절, 미등록 브랜드로 상품 등록, 등록된 상품의 브랜드 변경 시도, 같은 멱등키의 선착순 주문 처리 중, `tokenAvailableAt` 이전 입장 토큰 사용 |
 | 외부 시스템 연동 실패 | `502 Bad Gateway` | 결제 시스템 타임아웃, 결제 시스템 장애 |
+| 일시적으로 복구 불가능한 내부 의존성 장애 | `503 Service Unavailable` | 권위 저장소인 Redis에 접근할 수 없어 대기열 상태나 입장 토큰을 안전하게 판단할 수 없음 |
 | 서버 내부 오류 | `500 Internal Server Error` | 처리 중 예기치 못한 예외 |
 
 #### 운용 원칙
@@ -546,6 +579,8 @@
 | `GET` | `/api/v1/brands/{brandId}` | X | 브랜드 정보 조회 |
 | `GET` | `/api/v1/products` | X | 상품 목록 조회 |
 | `GET` | `/api/v1/products/{productId}` | X | 상품 정보 조회 |
+
+상품 목록과 상세 응답은 주문 전 대기열 필요 여부를 판단할 수 있도록 `saleType`(`NORMAL` 또는 `LIMITED`)을 포함한다.
 
 #### 상품 목록 조회 쿼리 파라미터 (Query Parameters)
 | Parameter | Example | Default Value | Description |
@@ -636,6 +671,8 @@
   "couponId": 42
 }
 ```
+
+Round 8 이후 `OrderQueueGatePolicy`는 주문 항목의 상품 판매 유형을 먼저 조회한다. `LIMITED` 상품이 하나라도 포함된 주문은 `X-Queue-Token`과 공백이 아닌 `Idempotency-Key` 헤더를 모두 필수로 포함하고, 검증은 `OrderFacade` 호출과 재고/쿠폰/주문 mutation 전에 수행한다. `NORMAL` 상품으로만 구성된 주문은 두 대기열 헤더 없이 기존 Round 7 주문 흐름으로 바로 진행한다. `X-Queue-Token`은 request body에 넣지 않는다.
 
 외부 API 요청 필드명은 Round 4 원문 계약인 `couponId`를 사용한다. 이 `couponId`는 사용자가 보유한 발급 쿠폰 식별자이며, 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다. 단 내부 command/domain/DB는 의미를 명확히 하기 위해 발급 쿠폰을 `issuedCouponId`(DB `issued_coupon_id`), 쿠폰 템플릿을 `couponTemplateId`로 분리해 표현한다. 즉 외부 `couponId` -> 내부 `issuedCouponId`로 매핑한다(`@JsonProperty("couponId") issuedCouponId`). 발급/관리자 경로 변수 `{couponId}`도 외부 표기일 뿐이며 내부에서는 쿠폰 템플릿 식별자(`couponTemplateId`)로 받는다(`@PathVariable("couponId") couponTemplateId`).
 
@@ -815,6 +852,140 @@ Round 7 이벤트 아키텍처는 로컬 트랜잭션 경계 분리와 시스템
 - 주요 topic은 `catalog-events`(상품 조회·좋아요·재고/카탈로그 지표, key=`productId`), `order-events`(주문·결제 결과, key=`orderId`), `coupon-issue-requests`(쿠폰 발급 command, key=`couponId`)다.
 - consumer는 manual ack를 사용하고, DB commit 이후에 ack한다. 같은 event id 재전달은 `processed_kafka_events` 또는 동일 목적의 `event_handled` 테이블로 멱등 처리한다.
 - `product_metrics(product_id, like_count, sales_count, view_count, last_event_at, last_like_event_at, last_sales_event_at, last_view_event_at, updated_at)`는 `product_like_counts`를 대체/흡수하는 상품 지표 projection이다. stale event는 지표별 마지막 발생시각 기준으로 방어한다.
+
+---
+
+
+### 5.8 대기열 (Waiting Queue)
+
+Round 8 대기열은 `LIMITED` 선착순 상품의 주문 처리량을 보호하는 주문 API 앞단 관문이다. Redis Sorted Set, 원자 sequence counter, TTL admission hash가 유일한 권위 상태이며, application은 `WaitingQueuePort`를 통해 단일 `RedissonWaitingQueueAdapter`만 사용한다.
+
+#### 5.8.1 사용자 대기열 API
+
+| Method | URI | User Required | 설명 |
+| :--- | :--- | :---: | :--- |
+| `POST` | `/queue/enter` | O | 대기열 진입 또는 기존 대기/입장 상태 반환 |
+| `GET` | `/queue/position` | O | 현재 순번, 예상 대기 시간, 입장 토큰 조회 |
+
+> [!IMPORTANT]
+> `/queue/*` 경로는 Round 8 과제 계약을 그대로 따른다. 기존 `/api/v1` prefix를 새로 붙이지 않는다.
+
+##### `POST /queue/enter`
+
+- 인증은 기존 사용자 헤더(`X-Loopers-LoginId`, `X-Loopers-LoginPw`)와 `@LoginUser` 패턴을 사용한다.
+- 사용자가 활성 대기열 항목도 유효 토큰도 없으면 enqueue Lua가 기존 Sorted Set member와 user admission hash를 확인하고, `INCR` sequence 발급과 `ZADD NX`를 한 원자 경계에서 수행한다.
+- 이미 `WAITING`이면 중복 member나 새 sequence를 만들지 않고 현재 상태와 1-based 순번을 반환한다.
+- 이미 `ADMITTED`이고 토큰이 유효하면 재진입하지 않고 토큰 상태를 반환한다.
+- Redis 읽기/쓰기 실패 시 상태를 추측하거나 다른 저장소로 우회하지 않고 `503 Service Unavailable`로 fail-closed한다.
+
+##### `GET /queue/position`
+
+- `WAITING` 사용자는 `position`, `totalWaiting`, `estimatedWaitSeconds`, `recommendedPollingIntervalSeconds`를 받는다.
+- `ADMITTED` 사용자는 `token`, `tokenAvailableAt`, `tokenExpiresAt`을 받으며, `position`은 `null`이다. 기본 jitter가 0이므로 발급 즉시 사용할 수 있고, jitter를 설정한 환경은 `tokenAvailableAt` 이후 주문한다.
+- 대기열에 진입한 적이 없고 유효 토큰도 없으면 도메인 메시지와 함께 `404 Not Found`를 반환한다.
+- 순번은 권위 Sorted Set의 `ZRANK + 1`로 계산하고 전체 대기 인원은 `ZCARD`로 조회한다.
+- 예상 대기 시간은 `ceil(position / admissionBatchSize) * schedulerDelay`로 입장 예정 batch 주기를 구한 뒤 응답 단위인 초로 올림한다. 따라서 다음 입장 batch에 속한 사용자도 0초가 아니라 다음 scheduler 실행까지의 한 주기를 안내하며, 1초 미만 delay도 최소 1초로 표현한다.
+
+##### 응답 필드 기준
+
+| 필드 | 의미 |
+| --- | --- |
+| `status` | `WAITING` 또는 `ADMITTED` |
+| `position` | 대기 중 1-based 순번, 입장 후 `null` |
+| `totalWaiting` | 현재 대기 인원 |
+| `estimatedWaitSeconds` | `ceil(position / batchSize) * schedulerDelay`를 초 단위로 올림한 예상 대기 시간 |
+| `recommendedPollingIntervalSeconds` | polling 권장 주기. 동적 조절은 확장 후보이며 기본 구현은 설정값을 사용한다. |
+| `token` | 입장된 사용자에게만 반환하는 주문 입장 토큰 |
+| `tokenAvailableAt` | 토큰 사용 가능 시각. 기본 jitter 0에서는 발급 시각과 같다. |
+| `tokenExpiresAt` | 토큰 만료 시각. 기본 TTL은 5분이다. |
+
+#### 5.8.2 주문 API 대기열 관문
+
+- `OrderQueueGatePolicy`는 주문 항목의 상품 판매 유형을 조회한다. `LIMITED` 상품이 하나라도 있으면 주문 전체에 대기열 관문을 적용하고, `NORMAL` 상품만 있으면 `OrderFacade.placeOrder`로 바로 보내 기존 Round 7 흐름을 유지한다.
+- 현재 정책 판별은 상품 저장소의 bulk read 1회를 먼저 사용하므로 토큰 없는 폭주도 이 읽기 쿼리까지는 도달한다. 대기열은 재고 lock·쿠폰·주문·outbox mutation 부하를 차단하며, 이 판별 read 자체가 병목이 되면 `ProductSaleType` 메타데이터를 local/Redis cache로 옮기되 상품 변경과 cache 정합성 정책을 함께 추가한다.
+- 주문 멱등성의 저장·조회·unique 범위는 `(orderedUserId, Idempotency-Key)`다. 서로 다른 사용자는 같은 문자열 키를 독립적으로 사용할 수 있고, 다른 사용자의 주문을 멱등 결과로 반환하지 않는다.
+- 선착순 주문은 `X-Queue-Token`과 공백이 아닌 `Idempotency-Key` 헤더를 모두 필수로 요구한다. missing/invalid/expired token은 `401`, 아직 `tokenAvailableAt` 전인 token은 `409`, 누락·공백 멱등키는 `400`으로 `OrderFacade.placeOrder` 호출 전, 재고/쿠폰/주문 mutation 전에 거부한다.
+- 주문 mutation 전 token reserve Lua가 사용자/토큰/가용 시각을 검증하고 `ACTIVE -> PROCESSING`과 `Idempotency-Key` 기록을 원자적으로 수행한다.
+- 이미 `PROCESSING`인 토큰을 같은 멱등키로 재시도하면 주문 저장소에서 그 멱등키의 본인 주문을 조회한다. 커밋된 주문이 있으면 token을 consume하는 회복 절차 뒤 기존 주문을 반환하고, 아직 주문이 없으면 진행 중인 최초 요청과 경쟁시키지 않고 `409 Conflict`로 거부한다.
+- 주문 생성이 성공하면 consume Lua가 같은 예약자만 `PROCESSING -> CONSUMED`로 전이하고 user admission hash를 삭제한다. consume CAS가 `false`이면 성공으로 간주하지 않고 `503 Service Unavailable`로 fail-closed한다.
+- `OrderFacade`가 예외를 던지면 같은 사용자·멱등키 주문의 커밋 여부를 조회한다. 주문이 없을 때만 release Lua로 `PROCESSING -> ACTIVE` 전이하고, 주문이 이미 커밋됐으면 release하지 않고 consume한다. 커밋 여부 조회 자체가 실패하면 자격을 다시 열지 않고 `PROCESSING`을 유지한다.
+- release Lua도 같은 예약자만 전이하며 CAS가 `false`이면 정상 해제로 간주하지 않고 fail-closed한다. release는 기존 TTL을 연장하지 않으므로 커밋되지 않은 실패 요청만 남은 TTL 안에서 재시도할 수 있다.
+- 성공 응답 유실 대응: consumed token hash는 남은 token TTL 동안 삭제하지 않고 같은 `Idempotency-Key`의 marker로 사용한다. 같은 사용자·토큰·멱등키 재시도는 저장된 기존 주문만 반환하고, 다른 멱등키나 다른 주문 시도는 거부한다.
+- 주문이 커밋된 뒤 consume 전에 token marker가 만료된 경계에서도, 인증된 사용자와 같은 `Idempotency-Key`의 커밋 주문이 확인되면 새 mutation 없이 기존 주문을 반환한다. 주문이 없으면 만료/무효 token 요청을 그대로 `401`로 거부한다.
+- 유효 토큰 뒤 기존 주문, 결제, 이벤트 발행, outbox/Kafka 파이프라인, Metrics 집계는 Round 7 흐름을 변경하지 않는다. reserve/consume/release 중 Redis에 접근할 수 없거나 CAS가 실패하면 주문 관문은 `503 Service Unavailable`로 fail-closed한다.
+
+#### 5.8.3 Redis 저장소와 원자 경계
+
+- Redis가 대기 순서, 입장 상태, 토큰 수명주기의 유일한 source of truth다. 관계형 대기열 테이블이나 DB adapter는 만들지 않는다.
+- `WaitingQueuePort`는 테스트 대역과 application 경계를 위한 인터페이스로 유지하되, 운영 구현체는 `RedissonWaitingQueueAdapter` 하나만 둔다.
+- enqueue Lua는 `ZSCORE`/user admission 존재 확인, `INCR`, `ZADD NX`를 한 번에 수행해 중복 진입과 sequence 경합을 막는다.
+- admit Lua는 사용할 후보 token key의 중복/기존 존재를 pop 전에 검사한다. 충돌하면 기존 binding을 덮어쓰지 않고 아무 member도 꺼내지 않으며, 정상 후보일 때만 `ZPOPMIN batchSize`, 양방향 admission hash 생성, `PEXPIRE tokenTtl`을 한 번에 수행한다. pop한 사용자에게 이미 admission이 있으면 원래 sequence로 ZSET에 복구한다.
+- token reserve Lua는 token/user hash binding과 `availableAt`을 검증하고 `ACTIVE -> PROCESSING` 및 멱등키 기록을 원자적으로 수행한다.
+- token consume Lua는 같은 멱등키의 `PROCESSING`을 `CONSUMED`로 바꾸고 user admission hash를 삭제한다. 이미 `CONSUMED`인 같은 멱등키 호출도 멱등 성공으로 반환한다. token hash의 기존 TTL은 유지해 같은 멱등키 consumed marker로 사용하며, adapter는 CAS 성공 여부를 `Boolean`으로 반환한다.
+- token release Lua는 같은 멱등키의 `PROCESSING`만 `ACTIVE`로 되돌리고 양쪽 hash의 예약 멱등키를 지운다. TTL은 최초 발급 시각 기준으로 계속 감소하며, adapter는 CAS 성공 여부를 `Boolean`으로 반환한다.
+- Redis 호출 실패는 저장소 가용성 실패로 변환하고 API에서 `503 Service Unavailable`로 매핑한다. application-level 대체 저장소, 장애 우회, 상태 재구축 흐름은 두지 않는다.
+- Redis 접근 timeout은 기존 공통 Redis 설정을 따른다. Redis persistence/replication과 장애 복구는 인프라 운영 책임이며, 복구 전 애플리케이션은 요청을 허용하지 않는다.
+- 현재 `RedissonConfig`의 지원 토폴로지는 single server와 master-replica다. Redis Cluster는 공통 hash tag를 포함한 key 설계와 cluster 설정 지원을 함께 추가하기 전까지 지원 범위에 포함하지 않는다.
+- 대기열 admission과 기존 outbox relay가 서로의 지연에 막히지 않도록 Spring scheduler pool은 최소 2개 thread를 사용한다. 이는 Round 7 outbox/Kafka 구조를 바꾸지 않고 예약 작업의 실행 자원만 분리한다.
+
+#### 5.8.4 설정 기준선
+
+대기열 도메인 특화 설정은 단일 prefix `commerce.waiting-queue` 아래에만 둔다. 아래 값은 운영 profile에 명시할 권고 기준선이며, `WaitingQueueProperties` 생성자 기본값이나 test override를 운영 sizing의 근거로 삼지 않는다.
+
+```yaml
+commerce:
+  waiting-queue:
+    scheduler-enabled: true
+    token-ttl: 5m
+    scheduler-delay: 10s
+    admission-batch-size: 100
+    scheduler-jitter-max: 0s
+    polling-interval: 2s
+    token-prefix: q_
+    redis-key-prefix: waiting-queue
+    redis-keys:
+      entries: entries
+      sequence: sequence
+      user-admission-prefix: admission:user
+      token-admission-prefix: admission:token
+```
+
+`scheduler-enabled`는 입장 스케줄러 실행만 제어한다. 대기열 API나 `LIMITED` 주문 gate 전체를 우회하는 feature toggle이 아니다. TTL과 scheduler delay는 Redis/Scheduler 해상도에 맞게 1ms 이상, polling interval은 응답 초 단위에 맞게 1초 이상이어야 하며, 정적 Redis key와 동적 admission prefix는 계층적으로 겹칠 수 없다.
+
+설정 파편화 방지 규칙:
+
+- 구현은 `WaitingQueueProperties` 한 클래스에 `commerce.waiting-queue`를 바인딩한다.
+- Controller, Facade, Service, Scheduler, Redisson adapter에 산발적인 `@Value`를 두지 않는다.
+- Redis host/port/database 같은 기존 공통 인프라 설정은 새 prefix에 중복 선언하지 않는다. 대기열 prefix에는 token TTL, scheduler, batch, jitter, token 문자열 prefix와 Redis logical key처럼 대기열 도메인 의미가 있는 값만 둔다.
+- 구현 중 `waiting-queue.*`, `queue.*`, `order-gate.*`, 별도 Redis key 설정 등 파편화된 경로를 발견하면 새 설정을 추가하지 말고 `commerce.waiting-queue`로 통합한다.
+- scheduler delay, batch size, jitter는 각각 `commerce.waiting-queue.scheduler-delay`, `commerce.waiting-queue.admission-batch-size`, `commerce.waiting-queue.scheduler-jitter-max`만 사용한다.
+- token 값의 `q_` 같은 prefix는 `commerce.waiting-queue.token-prefix`, Redis namespace와 logical key는 `redis-key-prefix` 및 중첩 `redis-keys`에서 주입한다. 배포 환경별로 바뀔 수 있는 중요 식별자를 코드 문자열로 하드코딩하지 않는다.
+- 반대로 Lua hash field/status/result code처럼 adapter 프로토콜에 속한 고정 값은 `infrastructure/redis/constant`, 도메인 예외 메시지는 `domain/waitingqueue/constant`에 계층별 상수로 둔다. 이를 운영 설정으로 노출하지 않는다.
+
+#### 5.8.5 Batch size 산정 근거
+
+아래 값은 local E2E benchmark evidence다. 운영 부하 테스트가 아니므로, 실제 운영에서는 같은 산식에 운영 환경의 성공 주문 평균 처리 시간과 Hikari max pool을 다시 대입한다.
+
+- 재실행 명령: `./gradlew :apps:commerce-api:test --tests '*OrderQueueGateApiE2ETest' --rerun-tasks`
+- 원자료: `apps/commerce-api/build/test-results/test/TEST-com.loopers.interfaces.api.OrderQueueGateApiE2ETest.xml`
+- 관측 snapshot(2026-07-10 14:11 KST): 12 tests, 0 failures, suite time 7.294s. 성공 mutation을 포함한 시나리오의 testcase elapsed 상한은 1.318s였다. 이는 context/fixture와 복수 HTTP 요청이 섞인 로컬 수치이므로 sizing 입력은 그보다 큰 2.0s로 올려 잡는다.
+- 산식: `floor((schedulerDelaySeconds / conservativeOrderSeconds) * hikariMaxPool * targetUtilization)`
+- 기본 profile 기준 추정: `floor((10 / 2.0) * 40 * 0.7) = 140` (`modules/jpa/src/main/resources/jpa.yml`의 기본 Hikari max pool 40 기준)
+- test profile의 pool 10을 같은 식에 넣으면 35지만, test pool은 운영 admission 기준이 아니다. 기본값 100은 기본 profile 추정 상한 140보다 낮게 잡은 시작점이며, 운영 배포 전에는 실제 성공 주문 p95/p99, pool wait, DB CPU, Redis latency를 함께 측정해 다시 산정한다.
+
+운영 권고:
+
+| 설정 | 권고값 | 근거/비고 |
+| --- | --- | --- |
+| `commerce.waiting-queue.admission-batch-size` | `100` | local E2E 상한보다 크게 올린 주문 2초와 기본 Hikari 40 기준 산정 상한 140보다 낮게 시작한다. 운영에서는 실제 p95/p99로 재산정한다. |
+| `commerce.waiting-queue.scheduler-delay` | `10s` | 현재 구현 기본값과 동일하다. batch 100 기준 이론 입장률은 10 req/s이며, token TTL 5분 안에 재시도 여유를 둔다. |
+| `commerce.waiting-queue.scheduler-jitter-max` | `0s` | scheduler가 꺼낸 즉시 주문 가능하도록 하는 기본값이다. 값을 늘리면 batch 내 `tokenAvailableAt`을 균등 분산하며, 클라이언트는 그 전의 `409` 응답과 사용 가능 시각을 따라 재시도한다. |
+
+#### 5.8.6 이번 범위에서 제외
+
+- SSE 기반 실시간 push와 UI 구현은 제외한다. 순번 확인은 polling API로 제공한다.
+- Multi-region/full HA hardening, 분산 락 운영 runbook, 고급 동적 polling 정책은 확장 후보로 둔다.
+- 대기열 이후 주문 성공 이벤트, Kafka/outbox, 상품 지표 projection은 Round 7 흐름을 재사용하고 재설계하지 않는다.
 
 ---
 

@@ -9,6 +9,7 @@
 따라서 API별 Controller 이름은 대부분 `CustomerAPI`, `AdminAPI` boundary로 추상화하고, 관련 endpoint는 각 다이어그램 아래에 별도로 남긴다.
 
 Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 정합성 검증에 한정하며, 별도 이슈가 없으면 Payment 도메인과 외부 결제 게이트웨이 구현을 새로 추가하지 않는다.
+Round 8 대기열 흐름은 Redis를 유일한 권위 저장소로 사용하고, `WaitingQueuePort` 뒤의 단일 `RedissonWaitingQueueAdapter`가 Lua 원자 연산으로 대기/입장/토큰 상태를 전이한다. 주문 항목에 `LIMITED` 상품이 하나라도 있을 때만 주문 mutation 전에 `X-Queue-Token`을 예약하며, `NORMAL` 상품만 있는 주문은 기존 Round 7 흐름으로 바로 진행한다.
 
 검증 관점은 다음과 같다.
 
@@ -18,6 +19,7 @@ Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 �
 - 좋아요 멱등성, 재고 부족 전체 거부, 쿠폰 중복 사용 방지, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
 - 좋아요·판매·조회 지표는 원천 상태와 이벤트에서 파생되는 `product_metrics` eventually consistent projection이며, 쿠폰 발급 요청은 비동기 command로 접수/처리/조회가 분리되는가?
 - 로컬 부가 처리는 `ApplicationEvent`와 `@TransactionalEventListener`로 커밋 이후에 실행되고, 시스템 간 전파는 outbox/Kafka로 분리되는가?
+- 대기열은 Redis `INCR` sequence와 Sorted Set을 권위 순서로 삼고, enqueue/admit/token reserve/consume/release가 각각 하나의 Lua 원자 경계인가?
 
 ## 표기 규칙
 
@@ -1029,3 +1031,346 @@ sequenceDiagram
 - 쿠폰 템플릿 삭제는 soft delete다.
 - 발급 쿠폰과 주문 할인 스냅샷은 템플릿 수정·삭제와 독립적으로 유지한다.
 - 관리자 쿠폰 변경 작업 로그가 필요해지면 `AdminOperationLog`의 대상 유형에 `COUPON_TEMPLATE`을 추가한다.
+
+
+## 15. Round 8 대기열과 주문 관문
+
+Round 8 대기열은 `/queue/enter`, `/queue/position`, scheduler admission, `LIMITED` 선착순 상품의 `X-Queue-Token` 주문 관문으로 구성된다. Redis Sorted Set, sequence counter, TTL admission hash가 유일한 권위 상태이고, application은 `WaitingQueuePort` 뒤의 단일 `RedissonWaitingQueueAdapter`에만 의존한다.
+
+### 15.1 대기열 진입 (`POST /queue/enter`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant QueueAPI as WaitingQueueController
+    participant Resolver as LoginUserArgumentResolver
+    participant QueueFacade as WaitingQueueFacade
+    participant QueueService as WaitingQueueService
+    participant QueuePort as WaitingQueuePort
+    participant Redisson as RedissonWaitingQueueAdapter
+    participant Redis
+    participant Advice as ApiControllerAdvice
+
+    Customer->>QueueAPI: POST /queue/enter + 로그인 헤더
+    QueueAPI->>Resolver: 고객 인증
+    Resolver-->>QueueAPI: userId
+    QueueAPI->>QueueFacade: 대기열 진입 요청
+    QueueFacade->>QueueService: enter(userId)
+    QueueService->>QueuePort: findState(userId)
+    QueuePort->>Redisson: 상태 조회
+    Redisson->>Redis: Lua(HGET/PTTL 또는 ZRANK/ZCARD)
+    alt 기존 WAITING 또는 유효 ADMITTED
+        Redis-->>Redisson: 기존 상태
+        Redisson-->>QueueService: WaitingQueueState
+        QueueService-->>QueueFacade: 기존 대기/입장 상태
+        QueueFacade-->>QueueAPI: WaitingQueueState
+        QueueAPI-->>Customer: 200 성공
+    else 활성 상태 없음
+        QueueService->>QueuePort: enqueueIfAbsent(userId)
+        QueuePort->>Redisson: enqueue
+        Redisson->>Redis: enqueue Lua
+        Note over Redisson,Redis: ZSCORE + user admission 확인 → INCR → ZADD NX 원자 실행
+        Redis-->>Redisson: sequence
+        Redisson-->>QueueService: WAITING 상태(position=ZRANK+1)
+        QueueService-->>QueueFacade: 신규 대기 상태
+        QueueFacade-->>QueueAPI: WaitingQueueState
+        QueueAPI-->>Customer: 200 성공
+    else Redis 접근 실패
+        Redis-->>Redisson: Redis 예외
+        Redisson-->>QueueService: 저장소 가용성 실패
+        QueueService-->>Advice: 예외(Service Unavailable)
+        Advice-->>Customer: 503 서비스 이용 불가
+    end
+
+    alt 인증 실패
+        Resolver-->>Advice: 예외(인증 실패)
+        Advice-->>Customer: 401 인증 실패
+    end
+```
+
+핵심 포인트:
+
+- 같은 사용자의 반복 진입은 enqueue Lua의 기존 member/admission 확인과 `ZADD NX`로 중복 member나 새 sequence를 만들지 않는다.
+- Redis `INCR`로 발급한 sequence가 Sorted Set score이며, `enteredAt`만으로 순서를 정하지 않는다.
+- 이미 유효 토큰을 가진 사용자는 재대기하지 않고 `ADMITTED` 상태와 토큰 정보를 받는다.
+- Redis 장애 시 상태를 추측하거나 다른 저장소를 사용하지 않고 `503`으로 fail-closed한다.
+
+### 15.2 순번 조회 (`GET /queue/position`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant QueueAPI as WaitingQueueController
+    participant QueueFacade as WaitingQueueFacade
+    participant QueueService as WaitingQueueService
+    participant QueuePort as WaitingQueuePort
+    participant Redisson as RedissonWaitingQueueAdapter
+    participant Redis
+    participant Advice as ApiControllerAdvice
+
+    Customer->>QueueAPI: GET /queue/position + 로그인 헤더
+    Note over QueueAPI: 고객 인증 (§1 참조)
+    QueueAPI->>QueueFacade: 순번 조회
+    QueueFacade->>QueueService: position(userId)
+    QueueService->>QueuePort: findState(userId, now)
+    QueuePort->>Redisson: 권위 상태 조회
+    Redisson->>Redis: Lua(HGET/PTTL 또는 ZRANK/ZCARD)
+    alt 사용자가 WAITING
+        Redis-->>Redisson: rank, totalWaiting, sequence
+        Redisson-->>QueueService: 권위 대기 상태
+        QueueService-->>QueueFacade: WAITING(position=rank+1, token 없음)
+        QueueFacade-->>QueueAPI: 대기 상태
+        QueueAPI-->>Customer: 200 성공
+    else 사용자가 ADMITTED
+        Redis-->>Redisson: token hash, remaining TTL
+        Redisson-->>QueueService: 권위 입장 상태
+        QueueService-->>QueueFacade: ADMITTED(token, tokenExpiresAt)
+        QueueFacade-->>QueueAPI: 입장 상태
+        QueueAPI-->>Customer: 200 성공(token 포함)
+    else 대기열 진입 이력 없음
+        Redis-->>Redisson: 상태 없음
+        Redisson-->>QueueService: null
+        QueueService-->>Advice: 예외(대기열 진입 없음)
+        Advice-->>Customer: 404 자원 없음
+    else Redis 접근 실패
+        Redis-->>Redisson: Redis 예외
+        Redisson-->>QueueService: 저장소 가용성 실패
+        QueueService-->>Advice: 예외(Service Unavailable)
+        Advice-->>Customer: 503 서비스 이용 불가
+    end
+```
+
+핵심 포인트:
+
+- 대기 순번은 1-based다.
+- 토큰은 입장된 사용자에게만 응답한다.
+- polling 주기는 설정값을 반환하며, 동적 조절은 Round 8 필수 범위가 아니다.
+- 조회의 유일한 원천은 Redis이며 응답에 별도 저하 모드 상태를 두지 않는다.
+
+### 15.3 스케줄러 입장 처리와 토큰 발급
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Scheduler as WaitingQueueScheduler
+    participant QueueFacade as WaitingQueueFacade
+    participant QueueService as WaitingQueueService
+    participant QueuePort as WaitingQueuePort
+    participant Redisson as RedissonWaitingQueueAdapter
+    participant Redis
+
+    Scheduler->>QueueFacade: admitBatch()
+    QueueFacade->>QueueService: admitBatch()
+    Note over QueueService: 설정된 token-prefix로 후보 token 생성<br/>기본 availableAt=now, jitter 설정 시 batch index별 분산
+    QueueService->>QueuePort: admitNext(candidates, tokenTtl, now)
+    QueuePort->>Redisson: batch admission
+    Redisson->>Redis: admit Lua
+    Note over Redisson,Redis: ZPOPMIN batchSize + user/token hash HSET + PEXPIRE 원자 실행
+    alt Redis admission 성공
+        Redis-->>Redisson: sequence 순 입장 사용자 목록
+        Redisson-->>QueueService: ADMITTED 목록
+        QueueService-->>QueueFacade: AdmissionBatchResult
+        QueueFacade-->>Scheduler: 처리 건수
+    else Redis 접근 실패
+        Redis-->>Redisson: Redis 예외
+        Redisson-->>QueueService: 저장소 가용성 실패
+        QueueService-->>QueueFacade: 입장 처리 실패
+        QueueFacade-->>Scheduler: 이번 주기 종료(추가 token 발급 없음)
+    end
+```
+
+핵심 포인트:
+
+- scheduler 실행 여부(`scheduler-enabled`), fixed delay, batch size, jitter, token TTL은 `commerce.waiting-queue` 단일 설정에서 읽는다. `scheduler-enabled`는 API/gate 전체 토글이 아니다.
+- 토큰 TTL 기본값은 5분이다.
+- token 문자열 prefix와 Redis logical key도 같은 설정의 `token-prefix`, `redis-key-prefix`, 중첩 `redis-keys`에서 읽는다.
+- 여러 scheduler instance가 있어도 하나의 admit Lua가 pop과 token hash 생성을 묶으므로 같은 사용자를 중복 입장시키지 않는다.
+- admit은 후보 token key의 중복/기존 존재를 pop 전에 검사한다. 충돌 시 기존 binding을 덮어쓰거나 대기자를 유실하지 않고 이번 batch를 비운다.
+
+### 15.4 주문 API 관문과 토큰 소비 (`POST /api/v1/orders`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant OrderAPI as OrderController
+    participant Gate as OrderQueueGateFacade
+    participant GatePolicy as OrderQueueGatePolicy
+    participant ProductService
+    participant QueueFacade as WaitingQueueFacade
+    participant OrderFacade
+    participant QueueStore as WaitingQueuePort
+    participant Redisson as RedissonWaitingQueueAdapter
+    participant Redis
+    participant Advice as ApiControllerAdvice
+
+    Customer->>OrderAPI: POST /api/v1/orders (대기열 헤더는 LIMITED 주문에서만 필수)
+    Note over OrderAPI: 고객 인증 (§1 참조)
+    OrderAPI->>Gate: 주문 요청
+    Gate->>GatePolicy: requiresAdmission(command)
+    GatePolicy->>ProductService: requiresWaitingQueue(productIds)
+    ProductService-->>GatePolicy: 상품별 ProductSaleType
+    GatePolicy-->>Gate: LIMITED 포함 여부
+    alt NORMAL 상품으로만 구성
+        Gate->>OrderFacade: 주문 생성 처리
+        Note over OrderFacade: 기존 Round 7 트랜잭션·이벤트·outbox 흐름
+        OrderFacade-->>Gate: 주문 결과
+        Gate-->>OrderAPI: 주문 결과
+        OrderAPI-->>Customer: 201 생성됨
+    else LIMITED 상품 하나 이상 포함
+        Note over Gate: X-Queue-Token과 공백이 아닌 Idempotency-Key 필수
+        alt 필수 헤더 누락 또는 공백
+            Gate-->>Advice: 400 멱등키 오류 또는 401 토큰 오류
+            Advice-->>Customer: mutation 전 거부
+        else 헤더 형식 유효
+            Gate->>QueueFacade: validateForOrder(userId, token, idempotencyKey)
+            QueueFacade->>QueueStore: validateToken(...)
+            QueueStore->>Redisson: token 검증과 예약
+            Redisson->>Redis: reserve Lua
+            Note over Redisson,Redis: binding·availableAt 검증<br/>ACTIVE → PROCESSING + Idempotency-Key
+            alt 토큰 무효/만료/다른 멱등키
+                Redis-->>Redisson: 검증 실패
+                Redisson-->>Gate: TokenValidationResult(거부)
+                Gate->>OrderFacade: findByIdempotencyKeyOrNull(userId, key)
+                alt 같은 사용자·키의 커밋 주문 있음
+                    OrderFacade-->>Gate: 기존 주문
+                    Note over Gate: token marker 만료 후에도 새 mutation 없이 회복
+                    Gate-->>OrderAPI: 기존 주문 결과
+                    OrderAPI-->>Customer: 기존 계약 응답
+                else 커밋 주문 없음
+                    OrderFacade-->>Gate: null
+                    Gate-->>Advice: 대기열 토큰 검증 실패
+                    Advice-->>Customer: 401 인증 실패
+                end
+            else not-yet-available
+                Redis-->>Redisson: NOT_YET_AVAILABLE
+                Redisson-->>QueueFacade: TokenValidationResult(사용 시각 전)
+                QueueFacade-->>Advice: tokenAvailableAt 전 요청
+                Advice-->>Customer: 409 Conflict
+            else PROCESSING + 같은 Idempotency-Key
+                Redis-->>Gate: PROCESSING_BY_SAME_IDEMPOTENCY_KEY
+                Gate->>OrderFacade: findByIdempotencyKeyOrNull(userId, key)
+                alt 커밋된 본인 주문 있음
+                    OrderFacade-->>Gate: 기존 주문
+                    Gate->>QueueFacade: consumeAfterOrderCreated(...)
+                    QueueFacade->>QueueStore: consumeToken(...)
+                    QueueStore->>Redisson: consume Lua
+                    Redisson->>Redis: PROCESSING → CONSUMED CAS
+                    Redis-->>Gate: true
+                    Gate-->>OrderAPI: 기존 주문 결과
+                    OrderAPI-->>Customer: 기존 계약 응답
+                else 아직 주문 없음
+                    OrderFacade-->>Gate: null
+                    Gate-->>Advice: 같은 요청 처리 중
+                    Advice-->>Customer: 409 Conflict
+                end
+            else CONSUMED + 같은 Idempotency-Key
+                Redis-->>Gate: CONSUMED_BY_SAME_IDEMPOTENCY_KEY
+                Gate->>OrderFacade: findByIdempotencyKeyOrNull(userId, key)
+                alt 기존 주문 있음
+                    OrderFacade-->>Gate: 기존 주문
+                    Gate-->>OrderAPI: 기존 주문 결과
+                    OrderAPI-->>Customer: 기존 계약 응답
+                else 기존 주문 없음
+                    OrderFacade-->>Gate: null
+                    Gate-->>Advice: 멱등 주문 상태 불일치
+                    Advice-->>Customer: 503 Service Unavailable
+                end
+            else 유효 ACTIVE 토큰 예약 성공
+                Redis-->>Gate: VALID(PROCESSING 예약 완료)
+                Gate->>OrderFacade: 주문 생성 처리
+                alt 주문 처리 정상 반환
+                    OrderFacade-->>Gate: 주문 결과
+                    Gate->>QueueFacade: consumeAfterOrderCreated(...)
+                    QueueFacade->>QueueStore: consumeToken(...)
+                    QueueStore->>Redisson: consume Lua
+                    Redisson->>Redis: PROCESSING → CONSUMED CAS
+                    alt CAS true
+                        Redis-->>Gate: true
+                        Gate-->>OrderAPI: 주문 결과
+                        OrderAPI-->>Customer: 201 생성됨
+                    else CAS false 또는 Redis 실패
+                        Redis-->>Advice: token 전이 실패
+                        Advice-->>Customer: 503 Service Unavailable
+                    end
+                else OrderFacade 예외
+                    OrderFacade-->>Gate: 예외
+                    Gate->>OrderFacade: findByIdempotencyKeyOrNull(userId, key)
+                    alt 같은 키 주문이 커밋됨
+                        OrderFacade-->>Gate: 기존 주문
+                        Note over Gate: release 금지
+                        Gate->>QueueFacade: consumeAfterOrderCreated(...)
+                        QueueFacade->>QueueStore: consumeToken(...) Boolean CAS
+                        alt CAS true
+                            Gate-->>Advice: 원래 주문 예외
+                            Advice-->>Customer: 표준 오류 응답
+                        else CAS false 또는 Redis 실패
+                            QueueStore-->>Advice: token 전이 실패
+                            Advice-->>Customer: 503 Service Unavailable
+                        end
+                    else 같은 키 주문 없음
+                        OrderFacade-->>Gate: null
+                        Gate->>QueueFacade: releaseAfterOrderFailed(...)
+                        QueueFacade->>QueueStore: releaseToken(...) Boolean CAS
+                        alt CAS true
+                            Gate-->>Advice: 원래 주문 예외
+                            Advice-->>Customer: 표준 오류 응답
+                        else CAS false 또는 Redis 실패
+                            QueueStore-->>Advice: token 전이 실패
+                            Advice-->>Customer: 503 Service Unavailable
+                        end
+                    else 커밋 여부 조회 실패
+                        Note over Gate: PROCESSING 유지, release 금지
+                        Gate-->>Advice: fail-closed
+                        Advice-->>Customer: 503 Service Unavailable
+                    end
+                end
+            else Redis 접근 실패
+                Redis-->>QueueFacade: 저장소 가용성 실패
+                QueueFacade-->>Advice: Service Unavailable
+                Advice-->>Customer: 503 서비스 이용 불가
+            end
+        end
+    end
+```
+
+핵심 포인트:
+
+- `OrderQueueGatePolicy`는 주문 항목 중 하나라도 `LIMITED`이면 주문 전체를 관문 대상으로 판단한다. `NORMAL`-only 주문은 Redis에 의존하지 않는다.
+- 선착순 주문의 `X-Queue-Token`은 header-only 계약이고, 공백이 아닌 `Idempotency-Key`와 함께 필수다.
+- `PROCESSING + same key`는 두 번째 mutation을 허용하지 않는다. 기존 주문이 확인되면 consume으로 회복하고, 없으면 `409`로 진행 중 상태를 알린다.
+- `OrderFacade` 예외만으로 release하지 않는다. 같은 멱등키 주문이 없을 때만 release하고, 커밋된 주문이 있으면 consume하며, 커밋 여부를 판단할 수 없으면 `PROCESSING`을 유지한다.
+- consume/release의 `Boolean` CAS 실패는 정상 전이로 취급하지 않고 fail-closed한다. 토큰 관문 이후 주문 이벤트 발행, outbox/Kafka 파이프라인, Metrics 집계는 Round 7 흐름을 그대로 사용한다.
+
+### 15.5 Redis 장애 시 fail-closed
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant API as Queue/Order API
+    participant QueueService as WaitingQueueService
+    participant QueuePort as WaitingQueuePort
+    participant Redisson as RedissonWaitingQueueAdapter
+    participant Redis
+    participant Advice as ApiControllerAdvice
+
+    Customer->>API: enter/position 또는 LIMITED 상품 주문 요청
+    API->>QueueService: 대기열 작업
+    QueueService->>QueuePort: 권위 상태 읽기/변경
+    QueuePort->>Redisson: Redis command 또는 Lua
+    Redisson->>Redis: 실행
+    Redis-->>Redisson: timeout/connection failure
+    Redisson-->>QueueService: 저장소 가용성 실패
+    QueueService-->>Advice: Service Unavailable
+    Advice-->>Customer: 503 서비스 이용 불가
+```
+
+핵심 포인트:
+
+- Redis가 유일한 source of truth이므로 application-level 대체 저장소나 상태 재구축 경로는 두지 않는다.
+- Redis 장애 중에는 대기 순서와 토큰 자격을 추측하지 않고 대기열 API와 `LIMITED` 상품 주문을 `503 Service Unavailable`로 거부한다. `NORMAL`-only 주문은 Redis 대기열에 의존하지 않는다.
+- Redis persistence/replication/복구는 인프라 운영 책임이다. Redis가 다시 권위 상태를 제공할 수 있을 때 별도 application reconcile 없이 정상 요청을 재개한다.
+- 주문 mutation 후 consume 시점에 Redis가 실패하면 응답은 `503`이 될 수 있다. 같은 멱등키 재시도는 기존 주문을 조회해 consume을 회복하며, 새 주문 mutation을 반복하지 않는다.

@@ -75,6 +75,21 @@ class OrderQueueRepositoryIntegrationTest @Autowired constructor(
         )
     }
 
+    @DisplayName("유효한 토큰을 보유한 사용자가 다시 입장 처리돼도 기존 토큰이 유지된다. (SET NX 멱등 발급)")
+    @Test
+    fun keepsExistingToken_whenAdmittedAgainWhileHoldingToken() {
+        orderQueueRepository.enter(userId = 1L, enteredAtMillis = 1)
+        orderQueueRepository.admitNextBatch(batchSize = 1, tokenTtlSeconds = 300, tokens = listOf("tk-1"))
+        orderQueueRepository.enter(userId = 1L, enteredAtMillis = 2)
+
+        val admitted = orderQueueRepository.admitNextBatch(batchSize = 1, tokenTtlSeconds = 300, tokens = listOf("tk-2"))
+
+        assertAll(
+            { assertThat(admitted).containsExactly(1L) },
+            { assertThat(orderQueueRepository.findToken(1L)).isEqualTo("tk-1") },
+        )
+    }
+
     @DisplayName("입장 토큰은 TTL이 지나면 무효화된다.")
     @Test
     fun expiresToken_afterTtl() {

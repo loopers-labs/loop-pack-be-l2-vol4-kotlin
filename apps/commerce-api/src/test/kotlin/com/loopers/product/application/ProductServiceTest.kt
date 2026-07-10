@@ -36,7 +36,9 @@ class ProductServiceTest {
     private val brandRepository: BrandRepository = mock()
     private val inventoryRepository: InventoryRepository = mock()
     private val eventPublisher: ApplicationEventPublisher = mock()
-    private val productService = ProductService(productRepository, brandRepository, inventoryRepository, eventPublisher)
+    private val productDetailReader = ProductDetailReader(productRepository, brandRepository)
+    private val productService =
+        ProductService(productRepository, brandRepository, inventoryRepository, eventPublisher, productDetailReader)
 
     private fun product() = Product(brandId = 1L, name = ProductName("에어맥스"), price = Money(100_000))
 

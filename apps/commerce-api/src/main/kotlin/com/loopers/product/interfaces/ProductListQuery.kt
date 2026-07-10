@@ -9,9 +9,13 @@ import org.springframework.stereotype.Component
 class ProductListQuery(
     private val productService: ProductService,
 ) {
-    @Cacheable(cacheNames = ["productListFirstPage"], key = "#sort.name() + ':' + #size", sync = true)
+    @Cacheable(cacheNames = [CACHE_NAME], key = "#sort.name() + ':' + #size", sync = true)
     fun firstPage(sort: ProductSort, size: Int): ProductListResponse {
         val page = productService.list(sort, null, null, size)
         return ProductListResponse.from(sort, page)
+    }
+
+    companion object {
+        const val CACHE_NAME = "productListFirstPage"
     }
 }

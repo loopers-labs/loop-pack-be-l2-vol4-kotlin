@@ -79,6 +79,17 @@ resilience4j:
           - java.util.concurrent.ExecutionException
           - java.util.concurrent.TimeoutException
         ignore-exceptions: []
+      redis-queue:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        # 접속·타임아웃 계열만 서킷 실패로 집계 — 비즈니스 예외가 실패율에 섞이지 않도록
+        record-exceptions:
+          - org.springframework.data.redis.RedisConnectionFailureException
+          - org.springframework.dao.QueryTimeoutException
     instances:
       pg-a:
         base-config: default
@@ -86,6 +97,8 @@ resilience4j:
         base-config: default
       kafka-relay:
         base-config: kafka-relay
+      order-queue:
+        base-config: redis-queue
 
 ---
 spring:

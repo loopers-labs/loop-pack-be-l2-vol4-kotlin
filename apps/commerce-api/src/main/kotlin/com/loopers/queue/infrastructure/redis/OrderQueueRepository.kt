@@ -1,6 +1,7 @@
 package com.loopers.queue.infrastructure.redis
 
 import com.loopers.config.redis.RedisConfig
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.core.script.DefaultRedisScript
@@ -10,19 +11,25 @@ import org.springframework.stereotype.Component
 class OrderQueueRepository(
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER) private val redisTemplate: RedisTemplate<String, String>,
 ) {
+    @CircuitBreaker(name = "order-queue")
     fun enter(userId: Long, enteredAtMillis: Long): Boolean =
         redisTemplate.opsForZSet().addIfAbsent(QUEUE_KEY, userId.toString(), enteredAtMillis.toDouble()) ?: false
 
+    @CircuitBreaker(name = "order-queue")
     fun rank(userId: Long): Long? = redisTemplate.opsForZSet().rank(QUEUE_KEY, userId.toString())
 
+    @CircuitBreaker(name = "order-queue")
     fun totalWaiting(): Long = redisTemplate.opsForZSet().size(QUEUE_KEY) ?: 0
 
+    @CircuitBreaker(name = "order-queue")
     fun findToken(userId: Long): String? = redisTemplate.opsForValue().get(tokenKey(userId))
 
+    @CircuitBreaker(name = "order-queue")
     fun deleteToken(userId: Long) {
         redisTemplate.delete(tokenKey(userId))
     }
 
+    @CircuitBreaker(name = "order-queue")
     fun admitNextBatch(batchSize: Int, tokenTtlSeconds: Long, tokens: List<String>): List<Long> {
         require(tokens.size == batchSize) { "토큰 개수(${tokens.size})와 배치 크기($batchSize)가 일치해야 합니다." }
         val admitted = redisTemplate.execute(
@@ -47,7 +54,7 @@ class OrderQueueRepository(
             local popped = redis.call('ZPOPMIN', KEYS[1], tonumber(ARGV[1]))
             local admitted = {}
             for i = 1, #popped, 2 do
-                redis.call('SET', ARGV[3] .. popped[i], ARGV[3 + (i + 1) / 2], 'EX', tonumber(ARGV[2]))
+                redis.call('SET', ARGV[3] .. popped[i], ARGV[3 + (i + 1) / 2], 'NX', 'EX', tonumber(ARGV[2]))
                 admitted[#admitted + 1] = popped[i]
             end
             return admitted

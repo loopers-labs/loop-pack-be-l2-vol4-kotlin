@@ -131,7 +131,7 @@ class OrderQueueServiceIntegrationTest @Autowired constructor(
         (1L..10L).forEach { orderQueueService.enter(userId = it) }
         val scheduler = OrderQueueAdmissionScheduler(
             orderQueueRepository,
-            OrderQueueProperties(batchSize = 3, fixedDelayMillis = 100, tokenTtlSeconds = 300),
+            OrderQueueProperties(scheduler = OrderQueueProperties.Scheduler(batchSize = 3)),
         )
 
         scheduler.admit()

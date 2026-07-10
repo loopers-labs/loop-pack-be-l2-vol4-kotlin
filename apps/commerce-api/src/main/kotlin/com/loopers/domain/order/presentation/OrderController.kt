@@ -1,6 +1,8 @@
 package com.loopers.domain.order.presentation
 
 import com.loopers.domain.order.application.OrderFacade
+import com.loopers.domain.order.application.OrderQueueGateFacade
+import com.loopers.domain.order.presentation.constant.OrderApiHeaders
 import com.loopers.domain.order.presentation.request.OrderCreateRequest
 import com.loopers.domain.order.presentation.response.OrderResponse
 import com.loopers.domain.user.application.info.UserInfo
@@ -26,19 +28,28 @@ import java.time.LocalDate
 @Validated
 class OrderController(
     private val orderFacade: OrderFacade,
+    private val orderQueueGateFacade: OrderQueueGateFacade,
 ) : OrderApiSpec {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     override fun placeOrder(
         @Parameter(hidden = true) @LoginUser user: UserInfo,
         @Parameter(hidden = true)
-        @RequestHeader(name = IDEMPOTENCY_KEY_HEADER, required = false)
+        @RequestHeader(name = OrderApiHeaders.IDEMPOTENCY_KEY, required = false)
         idempotencyKey: String?,
+        @Parameter(hidden = true)
+        @RequestHeader(name = OrderApiHeaders.QUEUE_TOKEN, required = false)
+        queueToken: String?,
         @Valid @RequestBody request: OrderCreateRequest,
-    ): ApiResponse<OrderResponse> =
-        orderFacade.placeOrder(request.toCommand(user.id, idempotencyKey))
-            .let { OrderResponse.from(it) }
-            .let { ApiResponse.success(it) }
+    ): ApiResponse<OrderResponse> {
+        val order = orderQueueGateFacade.placeOrder(
+            command = request.toCommand(user.id, idempotencyKey),
+            queueToken = queueToken,
+            queueIdempotencyKey = idempotencyKey,
+        )
+        val response = OrderResponse.from(order)
+        return ApiResponse.success(response)
+    }
 
     @GetMapping
     override fun findMyOrders(
@@ -58,8 +69,4 @@ class OrderController(
         orderFacade.findMyOrder(user.id, orderId)
             .let { OrderResponse.from(it) }
             .let { ApiResponse.success(it) }
-
-    companion object {
-        private const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
-    }
 }

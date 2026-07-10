@@ -10,4 +10,6 @@ object OrderErrorMessages {
     const val ORDER_MUST_HAVE_ITEMS = "주문은 하나 이상의 상품을 포함해야 합니다."
     const val DISCOUNT_EXCEEDS_TOTAL = "할인 금액은 주문 총액을 초과할 수 없습니다."
     const val INVALID_STATUS_TRANSITION = "주문 상태 전이는 결제 대기 상태에서만 가능합니다."
+    const val SAME_IDEMPOTENCY_ORDER_IN_PROGRESS = "같은 멱등키의 주문이 처리 중입니다."
+    const val IDEMPOTENT_ORDER_NOT_FOUND = "소모된 입장 토큰에 대응하는 주문을 찾을 수 없습니다."
 }

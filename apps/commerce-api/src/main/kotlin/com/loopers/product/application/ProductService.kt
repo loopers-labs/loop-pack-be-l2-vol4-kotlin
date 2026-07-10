@@ -88,9 +88,9 @@ class ProductService(
     }
 
     @Transactional(readOnly = true)
-    fun getDetail(id: Long, userId: Long? = null): ProductDetailInfo {
+    fun getDetail(id: Long): ProductDetailInfo {
         val detail = productDetailReader.read(id)
-        eventPublisher.publishEvent(ProductViewedEvent(productId = detail.id, userId = userId))
+        eventPublisher.publishEvent(ProductViewedEvent(productId = detail.id))
         return detail
     }
 
@@ -120,7 +120,7 @@ class ProductDetailReader(
     }
 
     companion object {
-        const val CACHE_NAME = "product-detail"
+        const val CACHE_NAME = "productDetail"
     }
 }
 

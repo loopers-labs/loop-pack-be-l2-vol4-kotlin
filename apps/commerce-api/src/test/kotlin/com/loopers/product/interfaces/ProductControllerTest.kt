@@ -6,6 +6,7 @@ import com.loopers.brand.application.BrandService
 import com.loopers.product.application.ProductCreateCommand
 import com.loopers.product.application.ProductService
 import com.loopers.support.DatabaseCleanup
+import com.loopers.utils.RedisCleanUp
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -26,10 +27,12 @@ class ProductControllerTest @Autowired constructor(
     private val brandService: BrandService,
     private val productService: ProductService,
     private val databaseCleanup: DatabaseCleanup,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     @BeforeEach
     fun cleanup() {
         databaseCleanup.execute()
+        redisCleanUp.truncateAll()
     }
 
     @DisplayName("GET /api/v1/products")

@@ -69,14 +69,14 @@ class ProductDetailCacheIntegrationTest @Autowired constructor(
         )
     }
 
-    @DisplayName("상세 캐시는 product-detail 네임스페이스 키로 저장되고 TTL 1분이 걸린다.")
+    @DisplayName("상세 캐시는 productDetail 네임스페이스 키로 저장되고 TTL 1분이 걸린다.")
     @Test
     fun storesEntry_withNamespacedKeyAndTtl() {
         val product = seedProduct()
 
         productService.getDetail(product.id)
 
-        val cacheKey = "product-detail::${product.id}"
+        val cacheKey = "productDetail::${product.id}"
         assertAll(
             { assertThat(redisTemplate.hasKey(cacheKey)).isTrue() },
             { assertThat(redisTemplate.getExpire(cacheKey)).isBetween(1L, 60L) },

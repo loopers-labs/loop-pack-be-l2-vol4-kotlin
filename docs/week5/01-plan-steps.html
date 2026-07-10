@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 5 · 실행 플랜 (Step별 Todolist)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 46px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;display:inline-block;margin-left:8px;vertical-align:middle}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .step-meta{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 22px}
+  .step-meta .m{font-family:var(--mono);font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:100px;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g600)}
+  .step-meta .m b{color:var(--g900)}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Week 5 · Execution Plan</span>
+      <h1 class="title">실행 플랜<br><span class="hl">Step 0 → 9 Todolist</span></h1>
+      <p class="lede">"무엇을 여는지"까지 명시한 체크 항목. <b>환경 → 시딩 → 베이스라인 → 인덱스 → 집계비교 → 캐시 → 재측정 → 문서 → 테스트</b> 순으로, 측정이 처방을 앞뒤로 감싼다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">측정 시나리오</span><span class="v">S1 인기 · S2 대형브랜드 · S3 소형브랜드</span></div>
+        <div class="chip"><span class="k">도구</span><span class="v">EXPLAIN ANALYZE · k6 · mysql CLI</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a class="cur" href="01-plan-steps.html"><span class="n">01</span>실행 플랜</a>
+    <a href="02-api-inventory.html"><span class="n">02</span>API 인벤토리</a>
+    <a href="03-data-distribution.html"><span class="n">03</span>데이터 분포</a>
+    <a href="04-index-explain.html"><span class="n">04</span>인덱스·EXPLAIN</a>
+    <a href="05-like-count-abc.html"><span class="n">05</span>집계 A/B/C</a>
+    <a href="06-cache-design.html"><span class="n">06</span>캐시 설계</a>
+    <a href="07-pagination-benchmark.html"><span class="n">07</span>벤치마크 결과</a>
+  </div>
+
+  <nav class="toc">
+    <h2>STEP 목차</h2>
+    <ol>
+      <li><a href="#s0">환경 구성</a></li>
+      <li><a href="#s1">측정 엔드포인트</a></li>
+      <li><a href="#s2">데이터 시딩</a></li>
+      <li><a href="#s3">베이스라인 측정</a></li>
+      <li><a href="#s4">인덱스 + 재측정</a></li>
+      <li><a href="#s5">집계 A/B/C 비교</a></li>
+      <li><a href="#s6">캐시 적용</a></li>
+      <li><a href="#s7">캐시 후 측정</a></li>
+      <li><a href="#s8">문서화</a></li>
+      <li><a href="#s9">테스트</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s0" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">0</div>
+      <div><p class="sec-eyebrow">SETUP</p><h2 class="sec">로컬 환경 구성</h2></div>
+    </div>
+    <p class="lead">측정은 사용자 로컬 PC에서 진행한다. MySQL과 Redis를 띄우고, 서버가 붙는지 먼저 확인한다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> 없음</span><span class="m"><b>산출</b> 측정 가능한 로컬 환경</span></div>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>인프라 기동</b> — <span class="term">docker compose -f docker/infra-compose.yml up -d</span> (MySQL+Redis master/replica+kafka). <span class="term">compose.yaml</span>은 MySQL만이라 Redis 위해 infra-compose 사용</li>
+      <li class="done"><span class="box"></span><b>서버 부팅 확인</b> — <span class="term">./gradlew :apps:commerce-api:bootRun --args='--spring.profiles.active=local'</span> (프로파일 미지정 시 기동 실패)</li>
+      <li class="done"><span class="box"></span><b>MySQL 접속 확인</b> — <span class="term">mysql -h127.0.0.1 -uapplication -papplication loopers</span></li>
+      <li class="done"><span class="box"></span><b>측정 도구 확인</b> — k6 설치(<span class="term">k6 version</span>), redis-cli 접속(<span class="term">redis-cli -p 6379 ping</span>)</li>
+    </ul>
+    <div class="note warn"><span class="tag">주의</span><span class="term">ddl-auto=create</span>라 부팅마다 스키마가 새로 생성된다. <strong>시딩은 부팅 이후</strong>에 하고, 부팅으로 데이터가 날아가지 않게 측정 세션 동안 서버를 재시작하지 않는다.</div>
+  </section>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">ENDPOINT</p><h2 class="sec">측정 엔드포인트 확보</h2></div>
+    </div>
+    <p class="lead">k6는 HTTP를 친다. 부하·EXPLAIN을 하려면 조회 엔드포인트가 필요한데 현재 컨트롤러가 없다. 목록·상세 2개만 최소로 만든다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 0</span><span class="m"><b>산출</b> GET /api/v1/products, /{id}</span></div>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>ProductV1Controller 신규</b> — <span class="term">product/interfaces/</span>. <span class="term">GET /api/v1/products</span>(sort, brandId, cursor, size) + <span class="term">GET /api/v1/products/{id}</span></li>
+      <li class="done"><span class="box"></span><b>커서 인코딩</b> — base64 opaque 인코딩/디코딩은 interfaces 레이어 책임(<span class="term">CursorPage</span> 주석 규약). 도메인 커서를 노출하지 않는다</li>
+      <li class="done"><span class="box"></span><b>security permitAll</b> — <span class="term">AccountSecurityConfig</span>에 <span class="term">GET /api/v1/products/**</span> 추가(인증 없이 부하 가능). 앱 소유 config라 허용</li>
+      <li class="done"><span class="box"></span><b>응답 DTO</b> — 목록은 <span class="term">id, brandId, name, price, like_count</span>. brandName은 N+1 회피 위해 초기 미포함. <span class="term">ApiResponse</span> 래핑 규약 준수</li>
+      <li class="done"><span class="box"></span><b>요청 검증</b> — sort enum 파싱, size 상한(예: 100) 가드. 잘못된 값은 경계에서 fail fast</li>
+    </ul>
+    <div class="note"><span class="tag">범위 제한</span>인기 상품 전용 엔드포인트는 만들지 않는다. <span class="term">?sort=LIKES_DESC</span> 첫 페이지가 곧 인기 상품 조회 — YAGNI.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">SEED</p><h2 class="sec">데이터 분포 시딩</h2></div>
+    </div>
+    <p class="lead">10만 상품을 균등하게 넣으면 현실과 다르다. 빅테크처럼 소수 브랜드에 상품이 쏠리고, 좋아요도 롱테일이어야 인덱스 선택성이 드러난다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 0</span><span class="m"><b>산출</b> load-test/perf-seed-l5.sql</span></div>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>브랜드 500 + 상품 10만 시딩</b> — 멱법칙 4티어(메가 5×8k / 대형 20×1.5k / 중형 75×250 / 소형 400×28). 상세 수치는 <b>03-데이터 분포</b> 참조</li>
+      <li class="done"><span class="box"></span><b>like_count 롱테일</b> — ~1%(1천개) 10k~500k · ~9% 100~10k · ~90% 0~100. price 로그분포(1k~2M)</li>
+      <li class="done"><span class="box"></span><b>방식 A용 product_like 실제 행</b> — 핫 상품 한정, 총 <b>300만~500만 행 캡</b>(전체 like_count 합만큼 풀시딩하면 수천만 행 → 캡으로 부담 제거, 측정 의미 유지)</li>
+      <li><span class="box"></span><b>분포 검증</b> — 브랜드별 상품수 분포 쿼리, like_count 히스토그램으로 의도대로 들어갔는지 확인</li>
+    </ul>
+    <div class="note"><span class="tag">시딩 방식</span><strong>SQL(INSERT…SELECT…숫자생성기)</strong>을 기본으로 한다. 10만 건이 수초~수십 초, 재현성 높고 like_count를 컬럼에 직접 박아 B/C 초기상태 세팅이 쉽다. 코드 시더는 분포 검증용 보조.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">BASELINE</p><h2 class="sec">베이스라인 측정 (인덱스 전)</h2></div>
+    </div>
+    <p class="lead">처방 전 숫자를 먼저 박제한다. 인덱스 없는 상태의 filesort·rows examined·p95가 "before"다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 1·2</span><span class="m"><b>산출</b> before 수치(EXPLAIN+k6)</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>S1/S2/S3 EXPLAIN ANALYZE</b> — 인덱스 없는 상태에서 세 시나리오 실측. <span class="term">Using filesort</span> · <span class="term">Using temporary</span> · rows examined 기록</li>
+      <li><span class="box"></span><b>k6 베이스라인</b> — 목록·상세 처리량/p95. <span class="term">load-test/k6/products-read.js</span> 신규(constant-arrival-rate)</li>
+      <li><span class="box"></span><b>수치 기록</b> — 표로 정리(시나리오 × 지표). 이후 모든 비교의 기준선</li>
+    </ul>
+    <div class="note key"><span class="tag">측정 원칙</span>EXPLAIN은 <strong>raw SQL을 MySQL에 직접</strong> 날려 수집한다(JPA 로그가 아니라). 같은 쿼리를 인덱스 전/후로 비교해야 처방 효과가 분리된다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">INDEX</p><h2 class="sec">인덱스 적용 + 재측정</h2></div>
+    </div>
+    <p class="lead">정렬 키 순서와 정확히 일치하는 복합 인덱스를 붙여 filesort를 없앤다. 어노테이션이 아니라 수동 SQL로 붙였다 뗐다 하며 비교한다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 3</span><span class="m"><b>산출</b> after 수치 + 전후 비교표</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>복합 인덱스 생성</b> — <span class="term">(status, like_count, id)</span> 인기상품 · <span class="term">(brand_id, like_count, id)</span> 브랜드+좋아요순 · <span class="term">product_like(product_id)</span> A용. 상세는 <b>04-인덱스</b> 참조</li>
+      <li><span class="box"></span><b>비교 실험</b> — status 선두 vs 비선두(카디널리티 낮음), 커버링 vs 비커버링(<span class="term">name</span> VARCHAR라 커버링 비용↑). <span class="term">Using index condition</span> vs <span class="term">Using index</span> 관측</li>
+      <li><span class="box"></span><b>동일 시나리오 재측정</b> — S1/S2/S3 EXPLAIN+k6 재실행. filesort 제거·rows≈LIMIT 확인 → <b>전후 비교표</b> 작성</li>
+      <li><span class="box"></span><b>확정 인덱스 코드화</b> — 최종 선택분만 <span class="term">@Table(indexes=...)</span>로 <span class="term">ProductJpaRepository</span>/엔티티에 반영</li>
+    </ul>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">STRUCTURE</p><h2 class="sec">집계 A/B/C 구조 비교</h2></div>
+    </div>
+    <p class="lead">좋아요 집계를 한 방식으로 고르지 않는다. 세 방식을 직접 구현해 같은 측정 틀로 돌려, 읽기·쓰기·정합성의 트레이드오프를 몸으로 본다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 4</span><span class="m"><b>산출</b> A/B/C 비교표 + 재집계 배치</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>B (현행) 측정</b> — 비정규화 <span class="term">like_count</span> + Step4 인덱스 경로. 읽기 최선 / 정합성 갭 확인</li>
+      <li><span class="box"></span><b>A 구현·측정</b> — <span class="term">product_like</span> LEFT JOIN + GROUP BY + ORDER BY cnt. <span class="term">ProductRepository</span>에 집계 조회 추가. <span class="term">Using temporary; filesort</span> · rows 폭증 관측. 정합성 완벽 / 쓰기비용 0</li>
+      <li><span class="box"></span><b>A vs B 비교표</b> — 읽기비용·쓰기비용·정합성·운영복잡도 4축. 상세는 <b>05-집계 A/B/C</b></li>
+      <li><span class="box"></span><b>정합성 갭 보강</b> — <span class="term">like_event</span>/<span class="term">product_like</span>를 소스로 <span class="term">like_count</span> 재계산 UPDATE하는 <b>재집계 배치</b>(<span class="term">commerce-batch</span>). 비동기 핸들러 실패 드리프트를 결과적으로 치유</li>
+      <li><span class="box"></span><b>C (탐색)</b> — 재집계 배치가 사실상 "집계 테이블 없는 MV 갱신"임을 인지. <span class="term">product_like_summary</span> 전용 테이블 분리 시 구조·트레이드오프(배치 vs 트리거)를 <b>문서로 정리</b>, 시간 여유 시 배치 방식으로 시도. 필수 아님 <span class="tag">탐색</span></li>
+    </ul>
+    <div class="note"><span class="tag">동기화 갭 보강 옵션</span>(1) 재집계 배치 <em>권장</em> — C 인프라와 시너지 · (2) 이벤트 재시도/아웃박스 — 복잡도↑ · (3) 동기 UPDATE 전환 — 강한 정합성이나 핫 상품 행 경합(주차 주제와 충돌). <strong>A는 갭 자체가 없다</strong>(항상 실시간) — 이 대비가 좋은 결론이 된다.</div>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">CACHE</p><h2 class="sec">Redis 캐시 적용</h2></div>
+    </div>
+    <p class="lead">인덱스로 빨라진 쿼리도 반복되면 DB를 때린다. 가장 핫한 상세·목록 첫 페이지를 Redis로 가린다. 미스에도 서비스는 정상이어야 한다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 4·5</span><span class="m"><b>산출</b> 캐시 계층</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>캐시 인프라 구성</b> — <span class="term">spring-boot-starter-cache</span> + <span class="term">@EnableCaching</span> + JSON(Jackson) 직렬화 <span class="term">RedisCacheManager</span>. 현재 <span class="term">RedisConfig</span>가 출발점</li>
+      <li><span class="box"></span><b>상세 @Cacheable</b> — key=<span class="term">product:detail:{id}</span>, TTL 60s~5m</li>
+      <li><span class="box"></span><b>목록 RedisTemplate 직접</b> — <b>첫 페이지만</b> 캐싱 <span class="term">products:list:{sort}:{brandId|all}:p1:{size}</span>. 커서 들어가면 키 카디널리티 무한 → 딥페이지는 미스→DB. TTL 30~60s + 지터(stampede 완화)</li>
+      <li><span class="box"></span><b>무효화</b> — 좋아요 변경 시 해당 상세 키 evict. 목록은 TTL 자연 만료(약한 일관성 수용)</li>
+      <li><span class="box"></span><b>penetration 방어</b> — 없는 id negative caching(짧은 TTL 빈값 마커) 또는 존재 가드</li>
+      <li><span class="box"></span><b>미스 fallback</b> — Redis 장애/미스 시 DB로 정상 응답. 캐시는 가속이지 의존이 아니다</li>
+    </ul>
+    <div class="note key"><span class="tag">캐시키 설계 핵심</span>목록은 <strong>정렬+브랜드+커서</strong> 조합이라 전부 캐싱하면 적중률↓·메모리 폭증. <strong>가장 핫한 "커서 없는 첫 페이지"만</strong> 캐싱하는 게 적중률 대비 효과 최적이다. 상세는 <b>06-캐시 설계</b> 참조.</div>
+  </section>
+
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">RE-MEASURE</p><h2 class="sec">캐시 후 측정</h2></div>
+    </div>
+    <p class="lead">캐시가 실제로 부하를 줄였는지, 미스에도 안 죽는지 마지막으로 확인한다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 6</span><span class="m"><b>산출</b> cache 수치</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>적중/미스 처리량 비교</b> — 동일 시나리오로 캐시 전후 처리량·p95, 적중률 관측</li>
+      <li><span class="box"></span><b>미스 정상 응답 확인</b> — Redis 컨테이너를 내린 상태에서도 목록·상세가 정상 응답하는지 검증</li>
+    </ul>
+  </section>
+
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">DOCS</p><h2 class="sec">문서화</h2></div>
+    </div>
+    <p class="lead">측정 수치와 트레이드오프를 HTML 다파일로 정리한다(week4 방식). 이미 골격은 이 문서 세트가 잡혀 있고, 측정 후 수치를 채운다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 3~7</span><span class="m"><b>산출</b> docs/week5/*.html</span></div>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>00-overview</b> · <b>01-plan-steps</b> 골격 작성 완료 <span class="tag">DONE</span></li>
+      <li><span class="box"></span><b>02-api-inventory</b> — 조회 API·발생 쿼리·병목 후보 (골격 → 측정값 보강)</li>
+      <li><span class="box"></span><b>03-data-distribution</b> — 빅테크 롱테일 시딩 설계 (골격 → 실측 분포 보강)</li>
+      <li><span class="box"></span><b>04-index-explain</b> — EXPLAIN 전후 비교·인덱스 전략 (측정 후 수치 채움)</li>
+      <li><span class="box"></span><b>05-like-count-abc</b> — A/B/C 비교표·정합성 (측정 후 수치 채움)</li>
+      <li><span class="box"></span><b>06-cache-design</b> — 캐시키·TTL·무효화·측정 (측정 후 수치 채움)</li>
+    </ul>
+  </section>
+
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">TEST</p><h2 class="sec">테스트</h2></div>
+    </div>
+    <p class="lead">측정과 별개로, 추가한 코드는 테스트로 잠근다. 컨트롤러·집계 정확성·캐시·배치를 검증한다.</p>
+    <div class="step-meta"><span class="m"><b>의존</b> Step 1·5·6</span><span class="m"><b>산출</b> green</span></div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>컨트롤러 슬라이스</b> — <span class="term">@WebMvcTest</span>로 매핑·파라미터 바인딩·커서 인코딩 검증</li>
+      <li><span class="box"></span><b>집계 정확성 통합</b> — Testcontainers MySQL. A 집계 결과 == B like_count == 실제 product_like COUNT 일치 검증</li>
+      <li><span class="box"></span><b>캐시 적중/무효화/미스</b> — Testcontainers Redis. 적중 시 DB 미조회, evict 후 재조회, Redis 다운 시 fallback</li>
+      <li><span class="box"></span><b>재집계 배치 정확성</b> — 드리프트 만든 뒤 배치 실행 → like_count 복구 검증</li>
+      <li><span class="box"></span><b>규약 준수</b> — <span class="term">DatabaseCleanup</span> 패턴, 테스트 클래스 <span class="term">@Transactional</span> 미부착</li>
+    </ul>
+    <div class="note"><span class="tag">실행</span><span class="term">./gradlew :apps:commerce-api:test</span> — 컨트롤러·통합·캐시 그린 확인. 배치는 <span class="term">:apps:commerce-batch:test</span>.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 5 — 실행 플랜 · Step 0~9<br>
+    측정이 처방을 앞뒤로 감싼다 · before → 처방 → after
+  </footer>
+
+</div>
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

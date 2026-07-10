@@ -1,0 +1,16 @@
+# Mac 에서 실행. N100(175.208.203.10) 3개 타깃 원격 스크랩.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'commerce-api'        # 앱 JVM/HTTP 지표
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['175.208.203.10:8081']
+
+  # cadvisor 제거: Docker 29 containerd 스냅샷터로 컨테이너 디스커버리 실패.
+  # 컨테이너별 CPU/메모리는 sample-cgroup.sh 로 cgroup v2 직접 샘플링.
+  - job_name: 'node-exporter'       # 호스트 CPU/메모리/PSI
+    static_configs:
+      - targets: ['175.208.203.10:9100']

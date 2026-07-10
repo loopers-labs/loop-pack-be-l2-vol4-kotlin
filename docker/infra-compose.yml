@@ -3,7 +3,7 @@ services:
   mysql:
     image: mysql:8.0
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"   # 로컬 전용 바인딩 — 외부 노출 차단(2026-06-17 랜섬 사고 후). DB 포트는 인터넷에 열지 말 것
     environment:
       - MYSQL_ROOT_PASSWORD=root
       - MYSQL_USER=application

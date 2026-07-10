@@ -1,0 +1,78 @@
+{
+  "run_id": "indexing-100-warm",
+  "state": "indexing",
+  "tps": 100,
+  "warmup": "warm",
+  "duration_s": 180.3,
+  "start_epoch": 1781846272,
+  "end_epoch": 1781846453,
+  "k6": {
+    "reqs": 18000,
+    "achieved_rps": 99.99535299373449,
+    "fail_rate": 0,
+    "dropped": null,
+    "dur_avg": 11.185720499999995,
+    "dur_med": 10.707,
+    "dur_p90": 12.957,
+    "dur_p95": 13.909099999999999,
+    "dur_p99": 18.52175999999999,
+    "dur_max": 132.934
+  },
+  "cgroup": {
+    "perf-app": {
+      "cpu_sec": 85.18,
+      "avg_cores": 0.472,
+      "mem_mb": 1221.1,
+      "nr_throttled": 0
+    },
+    "perf-mysql": {
+      "cpu_sec": 31.45,
+      "avg_cores": 0.174,
+      "mem_mb": 3195.2,
+      "nr_throttled": 0
+    },
+    "perf-redis-master": {
+      "cpu_sec": 1.55,
+      "avg_cores": 0.009,
+      "mem_mb": 3.4,
+      "nr_throttled": 0
+    },
+    "perf-redis-readonly": {
+      "cpu_sec": 1.53,
+      "avg_cores": 0.009,
+      "mem_mb": 3.3,
+      "nr_throttled": 0
+    }
+  },
+  "host": {
+    "cpu_busy": {
+      "avg": 0.2076,
+      "max": 0.262,
+      "first": 0.2576,
+      "last": 0.1629,
+      "delta": -0.0947
+    },
+    "iowait": {
+      "avg": 0.0009,
+      "max": 0.0012,
+      "first": 0.001,
+      "last": 0.0009,
+      "delta": -0.0001
+    },
+    "psi_cpu_waiting_delta_s": 1.1093,
+    "psi_io_waiting_delta_s": 0.1973
+  },
+  "jvm": {
+    "process_cpu": {
+      "avg": 0.1203,
+      "max": 0.2167,
+      "first": 0.1749,
+      "last": 0.0859,
+      "delta": -0.089
+    },
+    "jit_compile_ms_delta": 17816.0,
+    "gc_pause_s_delta": 0.0,
+    "hikari_pending_max": 0.0,
+    "hikari_active_max": 1.0
+  }
+}

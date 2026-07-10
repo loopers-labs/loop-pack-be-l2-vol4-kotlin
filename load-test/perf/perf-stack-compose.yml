@@ -1,0 +1,109 @@
+# Week5 L5 부하측정 스택 (N100 홈서버 전용)
+# commerce-api + mysql + redis(master/readonly) + cAdvisor + node_exporter
+# kafka 제외(commerce-api 미사용). 모든 컨테이너 동일 4코어 공유 → 자원경쟁 관찰 대상.
+# 사용: scp 후 N100 ~/perf/ 에서 `docker compose -f perf-stack-compose.yml up -d`
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: perf-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: application
+      MYSQL_PASSWORD: application
+      MYSQL_DATABASE: loopers
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=2G   # 양 조건 동일. 데이터 캐싱으로 filesort CPU 비용을 디스크I/O 잡음과 분리
+      - --innodb-flush-log-at-trx-commit=2
+    volumes:
+      - perf-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis-master:
+    image: redis:7.0
+    container_name: perf-redis-master
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  redis-readonly:
+    image: redis:7.0
+    container_name: perf-redis-readonly
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    command: ["redis-server", "--appendonly", "no", "--save", "", "--replicaof", "redis-master", "6379", "--replica-read-only", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
+  commerce-api:
+    image: eclipse-temurin:21-jre
+    container_name: perf-app
+    working_dir: /app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: perf
+      SPRING_CACHE_TYPE: ${SPRING_CACHE_TYPE:-none}   # 측정 토글: none(off) / redis(on)
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: application
+      MYSQL_PWD: application
+      REDIS_MASTER_HOST: redis-master
+      REDIS_MASTER_PORT: "6379"
+      REDIS_REPLICA_1_HOST: redis-readonly
+      REDIS_REPLICA_1_PORT: "6379"
+      # JVM: 컨테이너 인지 + 힙 고정(측정 재현성). 4코어 공유라 ActiveProcessorCount 명시.
+      JAVA_TOOL_OPTIONS: >-
+        -XX:+UseContainerSupport
+        -Xms1g -Xmx1g
+        -XX:ActiveProcessorCount=4
+    volumes:
+      - ./app.jar:/app/app.jar:ro
+    command: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "8080:8080"   # API
+      - "8081:8081"   # actuator/prometheus
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: perf-cadvisor
+    privileged: true
+    cgroup: host          # cgroup v2 + cgroupns=private 환경에서 호스트 전체 컨테이너 cgroup 가시화 (필수)
+    ports:
+      - "8082:8080"   # 앱 8080 과 충돌 회피 → 호스트 8082
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: perf-node-exporter
+    pid: host
+    command:
+      - --path.rootfs=/host
+    ports:
+      - "9100:9100"
+    volumes:
+      - /:/host:ro,rslave
+
+volumes:
+  perf-mysql-data:

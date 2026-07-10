@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 5 · 페이지네이션 벤치마크 결과</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.ok{background:var(--green-bg);border-color:#c5efdc}
+  .note.ok .tag{color:var(--green-deep)} .note.ok strong{color:var(--green-deep)}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  pre .hot{color:#FF8B8B;font-weight:700} pre .cool{color:#7BE3B0;font-weight:700}
+  code{font-family:var(--mono);font-size:.86em}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:13px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:12px 16px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  .fast{color:var(--green-deep);font-weight:700} .slow{color:var(--red-deep);font-weight:700}
+  .mono{font-family:var(--mono);font-size:13px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--red-bg);border-color:#f8d4d4}
+  .col.o{background:var(--green-bg);border-color:#c5efdc}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.x h4{color:var(--red-deep)} .col.o h4{color:var(--green-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;flex:none}
+  .col.x h4 .mk{background:var(--red);color:#fff} .col.o h4 .mk{background:var(--green);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers · Week 5 · Benchmark</span>
+      <h1 class="title">OFFSET은 무너지고,<br><span class="hl">Keyset은 평평하다</span></h1>
+      <p class="lede">100,750 상품 · 681만 좋아요에 <b>EXPLAIN ANALYZE</b>로 직접 측정했다. OFFSET vs Keyset, 방식 B(컬럼) vs A(집계), 인덱스 전/후 — 모든 조합의 실측 결과와 실행계획.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">데이터</span><span class="v">상품 100,750 · 좋아요 681만</span></div>
+        <div class="chip"><span class="k">측정</span><span class="v">EXPLAIN ANALYZE · 워밍업 후 측정</span></div>
+        <div class="chip"><span class="k">환경</span><span class="v">로컬 MySQL 8.0 · page=10</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-overview.html"><span class="n">00</span>개요</a>
+    <a href="01-plan-steps.html"><span class="n">01</span>실행 플랜</a>
+    <a href="02-api-inventory.html"><span class="n">02</span>API 인벤토리</a>
+    <a href="03-data-distribution.html"><span class="n">03</span>데이터 분포</a>
+    <a href="04-index-explain.html"><span class="n">04</span>인덱스·EXPLAIN</a>
+    <a href="05-like-count-abc.html"><span class="n">05</span>집계 A/B/C</a>
+    <a href="06-cache-design.html"><span class="n">06</span>캐시 설계</a>
+    <a class="cur" href="07-pagination-benchmark.html"><span class="n">07</span>벤치마크 결과</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">측정 설계</a></li>
+      <li><a href="#s2">결과 ① 전체 목록 (S1)</a></li>
+      <li><a href="#s3">결과 ② 브랜드 필터 (S2·S3)</a></li>
+      <li><a href="#s4">결과 ③ 방식 A — 정렬용·표시용</a></li>
+      <li><a href="#s5">실행계획 읽기</a></li>
+      <li><a href="#s6">결론·인덱스 권장</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">SETUP</p><h2 class="sec">측정 설계</h2></div>
+    </div>
+    <p class="lead">쿼리는 실제 코드(<span class="term">ScrollPosition.keyset()</span>)와 동일한 모양. 정렬 <span class="term">like_count DESC, id DESC</span>, 필터 <span class="term">status &lt;&gt; 'DELETED'</span>, 페이지 크기 10.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>축</th><th>값</th></tr></thead>
+        <tbody>
+          <tr><td>방식</td><td>B(like_count 컬럼) · A-정렬용(COUNT로 정렬) · A-표시용(페이지 10개만 COUNT)</td></tr>
+          <tr><td>페이지네이션</td><td>OFFSET <span class="mono">LIMIT 10 OFFSET N</span> vs Keyset <span class="mono">WHERE (lc,id)&lt;(?,?)</span></td></tr>
+          <tr><td>깊이</td><td>depth = 0 / 1,000 / 10,000 / 100,000</td></tr>
+          <tr><td>시나리오</td><td>S1 전체(100,750) · S2 대형 brand1(8,000) · S3 소형 brand500(30)</td></tr>
+          <tr><td>인덱스</td><td>없음 → <span class="mono">(like_count,id)</span> → <span class="mono">(brand_id,like_count,id)</span> → <span class="mono">product_like(product_id)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">측정 방법</span>각 쿼리 <strong>워밍업 1회 후 측정</strong>. 표의 수치는 <span class="term">EXPLAIN ANALYZE</span> 루트 노드 actual time(ms, 마지막 행까지). 시드는 CRC32 결정적이라 재현 가능. 베이스라인 인덱스는 PK뿐.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">RESULT 1</p><h2 class="sec">결과 ① 전체 목록 (S1)</h2></div>
+    </div>
+    <p class="lead">핵심 그림. 인덱스 <span class="term">(like_count, id)</span>를 걸면 <strong>Keyset은 깊이와 무관하게 sub-ms로 평평</strong>한데, OFFSET은 깊은 페이지에서 옵티마이저가 인덱스를 버리고 풀스캔으로 회귀한다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>depth</th><th>OFFSET·인덱스X</th><th>OFFSET·+(lc,id)</th><th>KEYSET·인덱스X</th><th>KEYSET·+(lc,id)</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="mono">26.8 ms</td><td class="mono fast">0.033 ms</td><td class="mono">26.6 ms</td><td class="mono fast">0.035 ms</td></tr>
+          <tr><td>1,000</td><td class="mono">31.2 ms</td><td class="mono">1.28 ms</td><td class="mono">28.0 ms</td><td class="mono fast">0.249 ms</td></tr>
+          <tr><td>10,000</td><td class="mono">37.2 ms</td><td class="mono slow">36.6 ms</td><td class="mono">27.1 ms</td><td class="mono fast">0.059 ms</td></tr>
+          <tr><td>100,000</td><td class="mono">48.1 ms</td><td class="mono slow">46.6 ms</td><td class="mono">21.6 ms</td><td class="mono fast">0.069 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 250" role="img" aria-label="S1 전체 목록에서 인덱스(like_count,id) 적용 후 깊이별 쿼리 시간. OFFSET은 0.033ms에서 46.6ms로 가파르게 상승, Keyset은 0.03~0.25ms로 평평. 세로축은 로그 스케일 밀리초.">
+          <!-- y gridlines: 100/10/1/0.1/0.01 ms at y=30/75/120/165/210 -->
+          <line x1="70" y1="30" x2="660" y2="30" stroke="#E5E8EB" stroke-width="1"/>
+          <line x1="70" y1="75" x2="660" y2="75" stroke="#E5E8EB" stroke-width="1"/>
+          <line x1="70" y1="120" x2="660" y2="120" stroke="#E5E8EB" stroke-width="1"/>
+          <line x1="70" y1="165" x2="660" y2="165" stroke="#E5E8EB" stroke-width="1"/>
+          <line x1="70" y1="210" x2="660" y2="210" stroke="#D1D6DB" stroke-width="1.3"/>
+          <text class="svg-s" x="62" y="34" text-anchor="end" fill="#8B95A1">100</text>
+          <text class="svg-s" x="62" y="79" text-anchor="end" fill="#8B95A1">10</text>
+          <text class="svg-s" x="62" y="124" text-anchor="end" fill="#8B95A1">1</text>
+          <text class="svg-s" x="62" y="169" text-anchor="end" fill="#8B95A1">0.1</text>
+          <text class="svg-s" x="62" y="214" text-anchor="end" fill="#8B95A1">0.01</text>
+          <text class="svg-s" x="20" y="125" text-anchor="middle" fill="#6B7684" transform="rotate(-90 20 125)">ms (log)</text>
+          <!-- OFFSET (red): (110,186.6)(290,115.2)(470,49.7)(640,44.9) -->
+          <polyline points="110,186.6 290,115.2 470,49.7 640,44.9" fill="none" stroke="#F04452" stroke-width="2.5"/>
+          <circle cx="110" cy="186.6" r="4" fill="#F04452"/><circle cx="290" cy="115.2" r="4" fill="#F04452"/>
+          <circle cx="470" cy="49.7" r="4" fill="#F04452"/><circle cx="640" cy="44.9" r="4" fill="#F04452"/>
+          <text class="svg-s" x="470" y="42" text-anchor="middle" fill="#C9303C">36.6</text>
+          <text class="svg-s" x="640" y="38" text-anchor="middle" fill="#C9303C">46.6</text>
+          <!-- KEYSET (green): (110,185.5)(290,147.2)(470,175.3)(640,172.2) -->
+          <polyline points="110,185.5 290,147.2 470,175.3 640,172.2" fill="none" stroke="#15C47E" stroke-width="2.5"/>
+          <circle cx="110" cy="185.5" r="4" fill="#15C47E"/><circle cx="290" cy="147.2" r="4" fill="#15C47E"/>
+          <circle cx="470" cy="175.3" r="4" fill="#15C47E"/><circle cx="640" cy="172.2" r="4" fill="#15C47E"/>
+          <text class="svg-s" x="640" y="190" text-anchor="middle" fill="#0A8F5B">0.07</text>
+          <!-- x labels -->
+          <text class="svg-s" x="110" y="230" text-anchor="middle" fill="#6B7684">0</text>
+          <text class="svg-s" x="290" y="230" text-anchor="middle" fill="#6B7684">1,000</text>
+          <text class="svg-s" x="470" y="230" text-anchor="middle" fill="#6B7684">10,000</text>
+          <text class="svg-s" x="640" y="230" text-anchor="middle" fill="#6B7684">100,000</text>
+          <text class="svg-s" x="365" y="246" text-anchor="middle" fill="#8B95A1">depth (offset)</text>
+          <!-- legend -->
+          <rect x="80" y="20" width="12" height="3" fill="#F04452"/><text class="svg-l" x="98" y="24" fill="#C9303C">OFFSET</text>
+          <rect x="170" y="20" width="12" height="3" fill="#15C47E"/><text class="svg-l" x="188" y="24" fill="#0A8F5B">KEYSET</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 둘 다 같은 <span style="font-family:var(--mono)">(like_count,id)</span> 인덱스를 가졌는데도, OFFSET은 깊이 10,000 부근에서 인덱스를 버리고 풀스캔(36~46ms)으로 회귀한다. Keyset은 어느 깊이든 0.03~0.25ms.</figcaption>
+    </figure>
+    <div class="note key"><span class="tag">왜 OFFSET이 인덱스를 버리나</span><span class="term">LIMIT 10 OFFSET 100000</span>은 인덱스로 풀어도 <strong>100,010행을 읽고 100,000행을 버려야</strong> 한다. 옵티마이저는 "그럴 바엔 풀스캔+정렬이 싸다"고 판단해 인덱스를 포기한다. Keyset은 <span class="term">WHERE (lc,id)&lt;(?,?)</span>로 <strong>읽을 위치를 바로 찾아</strong> 딱 10행만 본다 — 그래서 평평하다.</div>
+    <div class="note"><span class="tag">인덱스가 없으면?</span>OFFSET이든 Keyset이든 <strong>둘 다 풀스캔+정렬(~20~48ms)로 똑같다</strong>. Keyset 자체가 마법이 아니라, <strong>정렬키 인덱스가 있어야</strong> 빛난다. 인덱스 없는 Keyset은 WHERE 조건을 평가할 정렬 구조가 없어 매번 전체를 훑는다.</div>
+    <h3>EXPLAIN 요약 (S1)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>케이스</th><th>type</th><th>key</th><th>rows(추정)</th><th>Extra</th></tr></thead>
+        <tbody>
+          <tr><td>인덱스X · 전 depth (OFFSET·KEYSET)</td><td class="mono slow">ALL</td><td class="mono">–</td><td class="mono">99,826</td><td class="mono slow">Using filesort</td></tr>
+          <tr><td>+(lc,id) OFFSET 0</td><td class="mono fast">index</td><td class="mono">idx_p_lc_id</td><td class="mono">10</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>+(lc,id) OFFSET 1,000</td><td class="mono fast">index</td><td class="mono">idx_p_lc_id</td><td class="mono">1,010</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>+(lc,id) OFFSET 10,000</td><td class="mono slow">ALL</td><td class="mono slow">–</td><td class="mono">99,826</td><td class="mono slow">Using filesort ← 인덱스 버림</td></tr>
+          <tr><td>+(lc,id) OFFSET 100,000</td><td class="mono slow">ALL</td><td class="mono slow">–</td><td class="mono">99,826</td><td class="mono slow">Using filesort</td></tr>
+          <tr><td>+(lc,id) KEYSET 0</td><td class="mono fast">index</td><td class="mono">idx_p_lc_id</td><td class="mono">10</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>+(lc,id) KEYSET 1,000</td><td class="mono fast">range</td><td class="mono">idx_p_lc_id</td><td class="mono">49,914*</td><td class="mono">Using index condition</td></tr>
+          <tr><td>+(lc,id) KEYSET 10,000</td><td class="mono fast">range</td><td class="mono">idx_p_lc_id</td><td class="mono">49,955*</td><td class="mono">Using index condition</td></tr>
+          <tr><td>+(lc,id) KEYSET 100,000</td><td class="mono fast">range</td><td class="mono">idx_p_lc_id</td><td class="mono">750*</td><td class="mono">Using index condition</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">읽는 법</span><span class="term">type</span>: <strong>ALL</strong>=풀 테이블 스캔(최악) · <strong>index</strong>=인덱스 풀스캔 · <strong>range</strong>=인덱스 레인지 스캔 · <strong>ref</strong>=동등 매칭. OFFSET은 depth 10,000부터 <span class="term">type</span>이 <strong>index→ALL</strong>로 떨어지고 <span class="term">Using filesort</span>가 붙는다(인덱스 포기). *Keyset의 <span class="term">rows</span> 추정치는 크게 잡히지만 <strong>LIMIT 10으로 실제 읽는 행은 10개</strong>(EXPLAIN ANALYZE actual rows=10). 추정 rows와 실제 비용은 다르다.</div>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">RESULT 2</p><h2 class="sec">결과 ② 브랜드 필터 (S2·S3)</h2></div>
+    </div>
+    <p class="lead">브랜드 필터엔 <span class="term">(brand_id, like_count, id)</span> 복합 인덱스. 대형 브랜드(8,000)에서도 Keyset은 0.1~0.2ms, OFFSET은 깊이 5,000에서 3ms로 우상향.</p>
+    <h3>S2 대형 brand1 (모집단 8,000)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>depth</th><th>OFFSET·인덱스X</th><th>OFFSET·+(brand,lc,id)</th><th>KEYSET·인덱스X</th><th>KEYSET·+(brand,lc,id)</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="mono">19.8 ms</td><td class="mono fast">0.245 ms</td><td class="mono">19.8 ms</td><td class="mono fast">0.253 ms</td></tr>
+          <tr><td>1,000</td><td class="mono">20.5 ms</td><td class="mono">0.879 ms</td><td class="mono">19.7 ms</td><td class="mono fast">0.145 ms</td></tr>
+          <tr><td>5,000</td><td class="mono">20.8 ms</td><td class="mono slow">3.07 ms</td><td class="mono">18.7 ms</td><td class="mono fast">0.206 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>S3 소형 brand500 (모집단 30) — 대조군</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>depth</th><th>OFFSET·인덱스X</th><th>OFFSET·+(brand,lc,id)</th><th>KEYSET·인덱스X</th><th>KEYSET·+(brand,lc,id)</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="mono">19.0 ms</td><td class="mono fast">0.024 ms</td><td class="mono">18.7 ms</td><td class="mono fast">0.024 ms</td></tr>
+          <tr><td>20</td><td class="mono">19.4 ms</td><td class="mono fast">0.039 ms</td><td class="mono">18.5 ms</td><td class="mono fast">0.022 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">대조군의 의미</span>소형 브랜드(30건)는 인덱스만 걸면 OFFSET·Keyset 차이가 안 보인다(둘 다 0.02~0.04ms) — <strong>모집단이 작으면 페이지네이션 방식은 무의미</strong>. 방식 선택이 갈리는 건 <strong>모집단이 큰 S1·S2</strong>다. 분포를 멱법칙으로 쏠리게 만든 이유가 여기서 증명된다.</div>
+    <div class="note warn"><span class="tag">인덱스 분리 필요</span><span class="term">(brand_id, like_count, id)</span>는 brand_id 동등이 없는 <strong>S1(전체)에는 못 쓴다</strong>(선두 컬럼 미고정). 반대로 <span class="term">(like_count, id)</span>는 브랜드 필터를 못 탄다. 두 쿼리 패턴이 다 있으면 <strong>인덱스도 둘 다</strong> 필요하다.</div>
+    <h3>EXPLAIN 요약 (S2·S3)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>케이스</th><th>type</th><th>key</th><th>rows(추정)</th><th>Extra</th></tr></thead>
+        <tbody>
+          <tr><td>S2·S3 인덱스X · 전 depth</td><td class="mono slow">ALL</td><td class="mono">–</td><td class="mono">99,826</td><td class="mono slow">Using filesort</td></tr>
+          <tr><td>S2 +brand OFFSET (0·1k·5k 모두)</td><td class="mono fast">ref</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">15,076</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>S2 +brand KEYSET 0</td><td class="mono fast">ref</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">15,076</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>S2 +brand KEYSET 1,000</td><td class="mono fast">range</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">12,802*</td><td class="mono">Using index condition</td></tr>
+          <tr><td>S2 +brand KEYSET 5,000</td><td class="mono fast">range</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">2,999*</td><td class="mono">Using index condition</td></tr>
+          <tr><td>S3 +brand OFFSET·KEYSET 0</td><td class="mono fast">ref</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">30</td><td class="mono">Backward index scan</td></tr>
+          <tr><td>S3 +brand KEYSET 20</td><td class="mono fast">range</td><td class="mono">idx_p_brand_lc_id</td><td class="mono">9*</td><td class="mono">Using index condition</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">S1과 다른 점</span>S2 OFFSET은 depth 5,000까지도 <span class="term">ref</span>(인덱스)를 유지한다 — brand1 모집단이 8,000뿐이라 S1처럼 인덱스를 버릴 만큼 깊지 않기 때문. <strong>OFFSET의 인덱스 포기는 "전체 대비 OFFSET이 얼마나 깊은가"에 달렸다.</strong> <span class="term">ref</span>는 brand_id 동등 매칭 진입을 뜻한다. *rows 추정치, LIMIT로 실제는 10행.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">RESULT 3</p><h2 class="sec">결과 ③ 방식 A — 정렬용·표시용</h2></div>
+    </div>
+    <p class="lead">like_count 컬럼 없이 <span class="term">product_like</span>를 COUNT로 푸는 방식 A. 정렬에 쓰면 재앙, 표시에만 쓰면 페이지 내용에 따라 복불복.</p>
+    <h3>A-정렬용 — <span class="term">ORDER BY COUNT(*)</span> (LIMIT 단축 불가)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>depth</th><th>인덱스X</th><th>+ product_like(product_id)</th><th>방식 B 동급</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td class="mono slow">1,835 ms</td><td class="mono slow">1,032 ms</td><td class="mono fast">0.033 ms</td></tr>
+          <tr><td>1,000</td><td class="mono slow">1,838 ms</td><td class="mono slow">1,042 ms</td><td class="mono fast">1.28 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn"><span class="tag">왜 1초+인가</span>상위 10개를 알려면 <strong>10만 상품 전부의 COUNT를 먼저 다 구하고</strong>(681만 행 조인) → 정렬 → 그제서야 LIMIT. <span class="term">LIMIT 10</span> 단축이 안 먹어서 1페이지든 어디든 매번 풀 집계다. product_id 인덱스로 hash join → nested loop이 되며 1.8s→1.0s로 줄지만, <strong>방식 B 대비 약 30,000배</strong> 느리다. 게다가 집계값은 인덱스로 비교 불가라 <strong>Keyset 커서도 불가능</strong>.</div>
+    <h3>A-표시용 — 페이지 10개 id만 COUNT (정렬엔 안 씀)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>페이지 종류</th><th>COUNT 대상 행</th><th>인덱스X</th><th>+ product_like(product_id)</th></tr></thead>
+        <tbody>
+          <tr><td>핫 10개</td><td class="mono">576,581</td><td class="mono slow">840 ms</td><td class="mono slow">108 ms</td></tr>
+          <tr><td>롱테일 10개</td><td class="mono">120</td><td class="mono slow">768 ms</td><td class="mono fast">0.082 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><span class="tag">표시용은 복불복</span>인덱스가 없으면 표시용도 681만 행 풀스캔(768~840ms). product_id 인덱스를 걸면 <strong>롱테일 페이지는 0.08ms로 빨라지지만, 핫 상품 페이지(좋아요순 1페이지)는 57만 행을 COUNT해 108ms</strong>. 방식 B는 컬럼 읽기라 페이지 내용과 무관하게 항상 즉시. 표시용도 결국 B가 안전하다.</div>
+    <h3>EXPLAIN 요약 (방식 A)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>케이스</th><th>단계(table)</th><th>type</th><th>key</th><th>rows</th><th>Extra</th></tr></thead>
+        <tbody>
+          <tr><td>A정렬 인덱스X</td><td class="mono">product p</td><td class="mono slow">ALL</td><td class="mono">–</td><td class="mono">99,826</td><td class="mono slow">Using temporary; Using filesort</td></tr>
+          <tr><td></td><td class="mono">product_like pl</td><td class="mono">index</td><td class="mono">uk_user_product</td><td class="mono slow">6,328,936</td><td class="mono slow">hash join</td></tr>
+          <tr><td>A정렬 +pl_pid</td><td class="mono">product p</td><td class="mono">index</td><td class="mono">PRIMARY</td><td class="mono">99,826</td><td class="mono slow">Using temporary; Using filesort</td></tr>
+          <tr><td></td><td class="mono">product_like pl</td><td class="mono fast">ref</td><td class="mono">idx_pl_pid</td><td class="mono">48</td><td class="mono">Using index (행당)</td></tr>
+          <tr><td>A표시 +pl_pid</td><td class="mono">product_like pl</td><td class="mono fast">ref</td><td class="mono">idx_pl_pid</td><td class="mono">48</td><td class="mono">Using index</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn"><span class="tag">A정렬이 못 빠져나오는 이유</span>pl_pid 인덱스로 조인은 <span class="term">index/6.3M(hash join)</span> → <span class="term">ref/48(행당 lookup)</span>으로 개선된다. 하지만 product 쪽엔 여전히 <strong><span class="term">Using temporary; Using filesort</span></strong>가 남는다 — <strong>10만 상품 전부를 GROUP BY로 집계해 임시 테이블에 쌓고 COUNT로 정렬</strong>해야 하므로 인덱스로 못 없앤다. 이게 1초+의 근원이고, 방식 B(<span class="term">like_count</span> 컬럼 정렬)에선 임시테이블·filesort가 통째로 사라진다.</div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">PLANS</p><h2 class="sec">실행계획 읽기</h2></div>
+    </div>
+    <p class="lead">숫자 뒤의 실행계획. 같은 인덱스인데 OFFSET은 풀스캔, Keyset은 인덱스 레인지 스캔으로 갈린다.</p>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">OFFSET depth=100000 · 인덱스 있어도 버림</span></div>
+<pre><span class="cm">-- 같은 (like_count,id) 인덱스가 있는데도 Table scan 선택</span>
+-&gt; <span class="hot">Limit/Offset: 10/100000</span>  (actual time=<span class="hot">46.6..46.6</span> rows=10)
+    -&gt; <span class="hot">Sort</span>: like_count DESC, id DESC, limit input to 100010 row(s)
+        -&gt; Filter: (status &lt;&gt; 'DELETED')  (rows=100750)
+            -&gt; <span class="hot">Table scan on product</span>  (rows=100750)</pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">KEYSET depth=100000 · 인덱스 레인지 스캔, 딱 10행</span></div>
+<pre>-&gt; Limit: 10 row(s)  (actual time=<span class="cool">0.067..0.069</span> rows=10)
+    -&gt; Filter: (status &lt;&gt; 'DELETED')
+        -&gt; <span class="cool">Index range scan on product using idx_p_lc_id</span> (reverse)
+           over (like_count &lt; @lc) OR (like_count = @lc AND id &lt; @id)
+           (actual time=0.066..0.067 <span class="cool">rows=10</span>)</pre>
+    </div>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span><span class="fn">A-정렬용 · 681만 행 조인 후 임시테이블 집계</span></div>
+<pre>-&gt; Limit: 10 row(s)  (actual time=<span class="hot">1835..1835</span> rows=10)
+    -&gt; <span class="hot">Sort</span>: lc DESC, p.id DESC
+        -&gt; Table scan on &lt;temporary&gt;  (rows=100750)
+            -&gt; <span class="hot">Aggregate using temporary table</span>  (rows=100750)
+                -&gt; <span class="hot">Left hash join</span> (pl.product_id = p.id)
+                   (actual time=832..1297 <span class="hot">rows=6.82e+6</span>)
+                    -&gt; Table scan on p  (rows=100750)
+                    -&gt; Covering index scan on pl  (rows=6.81e+6)</pre>
+    </div>
+    <div class="note key"><span class="tag">읽는 법</span>핵심은 <strong>rows= 와 Sort/Table scan의 유무</strong>. OFFSET 깊은 페이지는 <span class="term">rows=100750</span> + <span class="term">Sort</span>(filesort), Keyset은 <span class="term">Index range scan ... rows=10</span>. A-정렬용은 <span class="term">rows=6.82e+6</span> 조인 + <span class="term">Aggregate using temporary table</span> — 단축 불가의 증거.</div>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">VERDICT</p><h2 class="sec">결론·인덱스 권장</h2></div>
+    </div>
+    <p class="lead">데이터가 가리키는 답은 분명하다.</p>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">채택</span> Keyset + 복합 인덱스 + 방식 B</h4><p>정렬키 컬럼을 비정규화(B)하고 <span class="term">(정렬키, id)</span> 인덱스 + Keyset 커서. 깊이 무관 sub-ms. 좋아요순 정렬엔 사실상 유일한 답.</p></div>
+      <div class="col x"><h4><span class="mk">탈락</span> OFFSET / 방식 A 정렬</h4><p>OFFSET은 깊은 페이지에서 인덱스를 버려 풀스캔. 방식 A 정렬은 전체 집계로 1초+, Keyset 자체가 불가능.</p></div>
+    </div>
+    <h3>권장 인덱스</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>인덱스</th><th>대상 쿼리</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">product(like_count, id)</td><td>S1 전체 좋아요순</td><td class="fast">필수</td></tr>
+          <tr><td class="mono">product(brand_id, like_count, id)</td><td>S2·S3 브랜드+좋아요순</td><td class="fast">필수</td></tr>
+          <tr><td class="mono">product_like(product_id)</td><td>방식 A를 쓸 때만</td><td>방식 B로 가면 불필요</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note ok"><span class="tag">한 줄 결론</span>좋아요순 페이지네이션 = <strong>비정규화 like_count 컬럼(B) + <span class="term">(brand_id?, like_count, id)</span> 복합 인덱스 + Keyset 커서</strong>. OFFSET과 방식 A 정렬은 큰 모집단에서 무너진다. 소형 모집단은 어느 쪽이든 무방하나, 코드 일관성을 위해 Keyset 단일화.</div>
+    <div class="note"><span class="tag">남은 검증 (다음)</span>① <span class="term">status</span> 선두 인덱스 vs 후필터 비교(04 문서 가설) · ② 커버링 인덱스(name 제외) 효과 · ③ 가격순 정렬도 같은 패턴인지 · ④ 캐시 계층(06) 적용 후 재측정.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 5 — 페이지네이션 벤치마크 · OFFSET vs Keyset<br>
+    EXPLAIN ANALYZE 실측 · 상품 100,750 · 좋아요 681만 · 로컬 MySQL 8.0
+  </footer>
+
+</div>
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

@@ -9,10 +9,17 @@ import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import jakarta.persistence.Index
 import jakarta.persistence.Table
 
 @Entity
-@Table(name = "product")
+@Table(
+    name = "product",
+    indexes = [
+        Index(name = "idx_p_lc_id", columnList = "like_count, id"),
+        Index(name = "idx_p_brand_lc_id", columnList = "brand_id, like_count, id"),
+    ],
+)
 class Product(
     brandId: Long,
     name: ProductName,

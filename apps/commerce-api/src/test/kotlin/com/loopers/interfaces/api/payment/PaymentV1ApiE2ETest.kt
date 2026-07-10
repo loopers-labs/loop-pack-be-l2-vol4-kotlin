@@ -13,6 +13,7 @@ import com.loopers.domain.payment.PgTransactionStatus
 import com.loopers.domain.payment.PgUnavailableException
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductStatus
+import com.loopers.domain.queue.EntryTokenService
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.order.OrderV1Dto
 import com.loopers.utils.DatabaseCleanUp
@@ -42,6 +43,9 @@ class PaymentV1ApiE2ETest {
     lateinit var userFacade: UserFacade
 
     @Autowired
+    lateinit var entryTokenService: EntryTokenService
+
+    @Autowired
     lateinit var brandService: BrandService
 
     @Autowired
@@ -62,6 +66,7 @@ class PaymentV1ApiE2ETest {
     private val loginId = "user123"
     private val rawPassword = "Valid1!pw"
     private val cardNo = "1234-5678-9814-1451"
+    private var userId: Long = 0L
 
     @AfterEach
     fun tearDown() {
@@ -69,12 +74,17 @@ class PaymentV1ApiE2ETest {
     }
 
     private fun signUp() {
-        userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com")
+        userId = userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com").id
     }
 
     private fun authHeaders() = HttpHeaders().apply {
         set("X-Loopers-LoginId", loginId)
         set("X-Loopers-LoginPw", rawPassword)
+    }
+
+    /** 유효한 입장 토큰을 실은 주문용 헤더. (게이트 통과용) */
+    private fun orderHeaders() = authHeaders().apply {
+        set("X-Entry-Token", entryTokenService.issue(userId))
     }
 
     /** 주문을 하나 생성하고 orderId 를 돌려준다. */
@@ -86,7 +96,7 @@ class PaymentV1ApiE2ETest {
         )
         val type = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
         val response =
-            testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), type)
+            testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, orderHeaders()), type)
         return response.body!!.data!!.id
     }
 

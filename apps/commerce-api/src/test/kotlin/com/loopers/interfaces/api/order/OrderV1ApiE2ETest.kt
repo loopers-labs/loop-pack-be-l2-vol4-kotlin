@@ -5,6 +5,7 @@ import com.loopers.domain.brand.BrandService
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductStatus
+import com.loopers.domain.queue.EntryTokenService
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
@@ -31,10 +32,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
     private val brandService: BrandService,
     private val productService: ProductService,
     private val productJpaRepository: ProductJpaRepository,
+    private val entryTokenService: EntryTokenService,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     private val loginId = "user123"
     private val rawPassword = "Valid1!pw"
+    private var userId: Long = 0L
 
     @AfterEach
     fun tearDown() {
@@ -42,12 +45,17 @@ class OrderV1ApiE2ETest @Autowired constructor(
     }
 
     private fun signUp() {
-        userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com")
+        userId = userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com").id
     }
 
     private fun authHeaders(id: String = loginId, pw: String = rawPassword) = HttpHeaders().apply {
         set("X-Loopers-LoginId", id)
         set("X-Loopers-LoginPw", pw)
+    }
+
+    /** 유효한 입장 토큰을 발급해 실은 주문용 헤더. (게이트 통과용) */
+    private fun orderHeaders() = authHeaders().apply {
+        set("X-Entry-Token", entryTokenService.issue(userId))
     }
 
     @DisplayName("POST /api/v1/orders")
@@ -66,7 +74,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
             // act
             val responseType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(request, orderHeaders()),
+                responseType,
+            )
 
             // assert
             val reloaded = productJpaRepository.findById(product.id).orElseThrow()
@@ -92,7 +105,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
             // act
             val responseType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(request, orderHeaders()),
+                responseType,
+            )
 
             // assert
             val reloaded = productJpaRepository.findById(product.id).orElseThrow()
@@ -115,7 +133,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
             // act
             val responseType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(request, orderHeaders()),
+                responseType,
+            )
 
             // assert
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
@@ -130,9 +153,15 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val product = productService.register(brand.id, "P", 1_000, 10, ProductStatus.ON_SALE)
             val request = OrderV1Dto.PlaceOrderRequest(items = listOf(OrderV1Dto.OrderLineRequest(product.id, 1)))
 
-            // act
+            // act : 인증이 토큰 검증보다 먼저이므로, 토큰 헤더는 있으나 비밀번호가 틀리면 401
+            val headers = authHeaders(pw = "WrongPw1!").apply { set("X-Entry-Token", "any-token") }
             val responseType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders(pw = "WrongPw1!")), responseType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(request, headers),
+                responseType,
+            )
 
             // assert
             assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
@@ -151,11 +180,21 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val product = productService.register(brand.id, "P", 1_000, 10, ProductStatus.ON_SALE)
             val placeReq = OrderV1Dto.PlaceOrderRequest(items = listOf(OrderV1Dto.OrderLineRequest(product.id, 2)))
             val placeType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val placed = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(placeReq, authHeaders()), placeType)
+            val placed = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(placeReq, orderHeaders()),
+                placeType,
+            )
             val orderId = placed.body?.data?.id ?: error("주문 생성 실패")
 
             // act
-            val response = testRestTemplate.exchange("/api/v1/orders/$orderId", HttpMethod.GET, HttpEntity<Any>(authHeaders()), placeType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders/$orderId",
+                HttpMethod.GET,
+                HttpEntity<Any>(authHeaders()),
+                placeType,
+            )
 
             // assert
             assertAll(
@@ -172,7 +211,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
 
             // act
             val responseType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            val response = testRestTemplate.exchange("/api/v1/orders/999", HttpMethod.GET, HttpEntity<Any>(authHeaders()), responseType)
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders/999",
+                HttpMethod.GET,
+                HttpEntity<Any>(authHeaders()),
+                responseType,
+            )
 
             // assert
             assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
@@ -191,7 +235,12 @@ class OrderV1ApiE2ETest @Autowired constructor(
             val product = productService.register(brand.id, "P", 1_000, 10, ProductStatus.ON_SALE)
             val placeReq = OrderV1Dto.PlaceOrderRequest(items = listOf(OrderV1Dto.OrderLineRequest(product.id, 1)))
             val placeType = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
-            testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(placeReq, authHeaders()), placeType)
+            testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(placeReq, orderHeaders()),
+                placeType,
+            )
 
             val today = LocalDate.now()
             val url = "/api/v1/orders?startAt=${today.minusDays(1)}&endAt=${today.plusDays(1)}"

@@ -12,10 +12,11 @@ import java.time.LocalDate
 
 @Tag(name = "Order V1", description = "주문 API")
 interface OrderV1ApiSpec {
-    @Operation(summary = "주문 생성 (재고 차감 + PENDING 주문 생성)")
+    @Operation(summary = "주문 생성 (입장 토큰 검증 + 재고 차감 + PENDING 주문 생성)")
     fun place(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") loginPw: String,
+        @RequestHeader("X-Entry-Token") entryToken: String,
         @RequestBody request: OrderV1Dto.PlaceOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse>
 

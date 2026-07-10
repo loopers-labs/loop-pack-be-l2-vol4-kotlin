@@ -25,10 +25,11 @@ class OrderV1Controller(
     override fun place(
         @RequestHeader("X-Loopers-LoginId") loginId: String,
         @RequestHeader("X-Loopers-LoginPw") loginPw: String,
+        @RequestHeader("X-Entry-Token") entryToken: String,
         @RequestBody request: OrderV1Dto.PlaceOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
         val requestLines = request.items.map { OrderFacade.PlaceOrderLine(it.productId, it.quantity) }
-        return orderFacade.place(loginId, loginPw, requestLines, request.couponId)
+        return orderFacade.place(loginId, loginPw, entryToken, requestLines, request.couponId)
             .let { OrderV1Dto.OrderResponse.from(it) }
             .let { ApiResponse.success(it) }
     }

@@ -1,13 +1,13 @@
 package com.loopers.interfaces.api.order
 
 import com.loopers.application.user.UserFacade
+import com.loopers.domain.brand.BrandService
 import com.loopers.domain.coupon.CouponService
 import com.loopers.domain.coupon.DiscountType
 import com.loopers.domain.coupon.UserCouponService
-import com.loopers.domain.brand.BrandService
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductStatus
-import com.loopers.domain.user.UserService
+import com.loopers.domain.queue.EntryTokenService
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.utils.DatabaseCleanUp
@@ -31,12 +31,12 @@ import java.time.ZonedDateTime
 class OrderCouponV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val userFacade: UserFacade,
-    private val userService: UserService,
     private val brandService: BrandService,
     private val productService: ProductService,
     private val couponService: CouponService,
     private val userCouponService: UserCouponService,
     private val productJpaRepository: ProductJpaRepository,
+    private val entryTokenService: EntryTokenService,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     private val loginId = "user123"
@@ -47,14 +47,17 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
         databaseCleanUp.truncateAllTables()
     }
 
-    private fun signUp(): Long {
-        userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com")
-        return userService.authenticate(loginId, rawPassword).id
-    }
+    private fun signUp(): Long =
+        userFacade.signUp(loginId, rawPassword, "홍길동", LocalDate.of(1994, 7, 14), "hong@example.com").id
 
     private fun authHeaders() = HttpHeaders().apply {
         set("X-Loopers-LoginId", loginId)
         set("X-Loopers-LoginPw", rawPassword)
+    }
+
+    /** 유효한 입장 토큰을 발급해 실은 주문용 헤더. (게이트 통과용) */
+    private fun orderHeaders(userId: Long) = authHeaders().apply {
+        set("X-Entry-Token", entryTokenService.issue(userId))
     }
 
     private fun rateCoupon() = couponService.register(
@@ -83,7 +86,12 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
         )
 
         // act
-        val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+        val response = testRestTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            HttpEntity(request, orderHeaders(userId)),
+            responseType,
+        )
 
         // assert
         assertAll(
@@ -102,7 +110,7 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
     @Test
     fun placesWithoutCoupon() {
         // arrange
-        signUp()
+        val userId = signUp()
         val brand = brandService.register("Nike")
         val product = productService.register(brand.id, "Air Max", 1_000, 100, ProductStatus.ON_SALE)
         val request = OrderV1Dto.PlaceOrderRequest(
@@ -111,7 +119,12 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
         )
 
         // act
-        val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+        val response = testRestTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            HttpEntity(request, orderHeaders(userId)),
+            responseType,
+        )
 
         // assert
         assertAll(
@@ -138,7 +151,12 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
         )
 
         // act
-        val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+        val response = testRestTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            HttpEntity(request, orderHeaders(userId)),
+            responseType,
+        )
 
         // assert
         // 재고가 차감되지 않고 그대로 유지되어야 한다 (롤백)
@@ -153,7 +171,7 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
     @Test
     fun returnsNotFound_whenCouponNotOwned() {
         // arrange
-        signUp()
+        val userId = signUp()
         val brand = brandService.register("Nike")
         val product = productService.register(brand.id, "Air Max", 1_000, 100, ProductStatus.ON_SALE)
         val coupon = rateCoupon()
@@ -165,7 +183,12 @@ class OrderCouponV1ApiE2ETest @Autowired constructor(
         )
 
         // act
-        val response = testRestTemplate.exchange("/api/v1/orders", HttpMethod.POST, HttpEntity(request, authHeaders()), responseType)
+        val response = testRestTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            HttpEntity(request, orderHeaders(userId)),
+            responseType,
+        )
 
         // assert
         assertThat(response.statusCode).isEqualTo(HttpStatus.NOT_FOUND)

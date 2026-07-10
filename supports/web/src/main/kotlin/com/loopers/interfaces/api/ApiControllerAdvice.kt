@@ -10,6 +10,8 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ForbiddenException
 import com.loopers.support.error.InternalServerException
 import com.loopers.support.error.NotFoundException
+import com.loopers.support.error.ServiceUnavailableException
+import com.loopers.support.error.TooManyRequestsException
 import com.loopers.support.error.UnauthorizedException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
@@ -43,7 +45,13 @@ class ApiControllerAdvice {
     fun handle(e: ConflictException) = handleClientError(e, HttpStatus.CONFLICT)
 
     @ExceptionHandler
+    fun handle(e: TooManyRequestsException) = handleClientError(e, HttpStatus.TOO_MANY_REQUESTS)
+
+    @ExceptionHandler
     fun handle(e: InternalServerException) = handleServerError(e, HttpStatus.INTERNAL_SERVER_ERROR)
+
+    @ExceptionHandler
+    fun handle(e: ServiceUnavailableException) = handleServerError(e, HttpStatus.SERVICE_UNAVAILABLE)
 
     @ExceptionHandler
     fun handleBadRequest(e: MethodArgumentTypeMismatchException): ResponseEntity<ApiResponse<*>> {

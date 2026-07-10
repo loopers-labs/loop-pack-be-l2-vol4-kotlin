@@ -30,7 +30,17 @@ open class ConflictException(
     customMessage: String? = null,
 ) : CoreException(errorCode, customMessage)
 
+open class TooManyRequestsException(
+    errorCode: ErrorCode,
+    customMessage: String? = null,
+) : CoreException(errorCode, customMessage)
+
 open class InternalServerException(
     errorCode: ErrorCode = CommonErrorCode.INTERNAL_ERROR,
+    customMessage: String? = null,
+) : CoreException(errorCode, customMessage)
+
+open class ServiceUnavailableException(
+    errorCode: ErrorCode,
     customMessage: String? = null,
 ) : CoreException(errorCode, customMessage)

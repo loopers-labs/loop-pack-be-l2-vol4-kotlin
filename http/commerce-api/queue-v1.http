@@ -8,6 +8,8 @@ GET http://localhost:8080/api/v1/queue/position
 X-Loopers-LoginId: tester
 X-Loopers-LoginPw: Password1!
 
+> {% client.global.set("entryToken", response.body.data.token); %}
+
 ### 주문 생성 (입장 토큰 필요, position 조회 응답의 token을 X-Entry-Token으로 전달)
 POST http://localhost:8080/api/v1/orders
 Content-Type: application/json

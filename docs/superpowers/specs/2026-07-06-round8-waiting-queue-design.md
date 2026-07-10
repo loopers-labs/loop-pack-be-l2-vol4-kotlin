@@ -4,6 +4,7 @@
 - 브랜치: `volume-8` (volume-7 위에서 시작, PR #107 병합 후 base=yeonjoo7로 PR 예정)
 - 범위: 대기열(Step 1) + 입장 토큰·스케줄러(Step 2) + 실시간 순번 조회(Step 3) + Graceful Degradation. 통합 설계 1개.
 - 변경 이력: 2026-07-10 — 입장 제어를 leaky bucket(고정 배치/tick)에서 **token bucket(refill+burst)** 으로 전환(D4). 리뷰 Q&A 반영: 평균 입장률은 동일하게 유지하면서 한산한 구간 뒤 일시적 급증을 burst로 흡수. capacity 하드 실링은 유지.
+- 변경 이력: 2026-07-10 — PR 리뷰 반영: 게이트 검증/소비를 **claim(compare-and-delete Lua)으로 원자화**(TOCTOU 차단, 동일 토큰 동시 요청 1개만 통과). 주문 실패 시 **토큰 복원(restore)** 으로 재시도 보장, 주문 성공 시 complete(ZREM)로 capacity 회복. degradation catch는 `DataAccessException`으로 한정(코드 버그 오진 방지), refill rate 양수 가드 추가.
 
 ---
 
@@ -48,7 +49,9 @@
 POST /api/v1/queue/enter    (auth)                → ZADD waiting {ts}{userId}(중복방지) → 순번 응답
 GET  /api/v1/queue/position (auth)                → ZRANK → 순번+예상대기 (+토큰있으면 토큰 동봉)
 [QueuePromoteScheduler @100ms]  → 프룬+active산정 → admit=min(18, C−active) → ZPOPMIN admit → 토큰 발급+processing 등록
-POST /api/v1/orders         (auth + X-Entry-Token)→ EntryTokenGate.validate → CreateOrderUsecase(R7) → EntryTokenGate.consume(DEL+ZREM)
+POST /api/v1/orders         (auth + X-Entry-Token)→ EntryTokenGate.claim(원자적 검증=소비) → CreateOrderUsecase(R7)
+                                                    ├ 성공 → complete(ZREM, capacity 회복)
+                                                    └ 실패 → restore(같은 토큰 재발급, 재시도 보장)
 Redis 장애                                         → 토큰검증 bypass(fail-open) + 경보 로그
 ```
 
@@ -90,7 +93,7 @@ Redis 장애                                         → 토큰검증 bypass(fai
 - `application/queue`: `EnterQueueUsecase`(auth→enter→순번), `GetQueuePositionUsecase`(auth→rank/token→순번·예상대기·토큰), `PromoteQueueUsecase`(스케줄러 호출, token bucket), `EntryTokenGate`(validate/consume).
 - `infrastructure/queue/QueuePromoteScheduler`: `@Scheduled(fixedDelay=100)` → `PromoteQueueUsecase.promoteOnce()`.
 - `interfaces/api/queue/QueueV1Controller`+`QueueV1Dto`: `POST /enter`, `GET /position`.
-- 주문 게이트: `OrderV1Controller.order`에 `@RequestHeader("X-Entry-Token")` 추가 → `entryTokenGate.validate(loginId,pw,token)` → `createOrderUsecase.execute(...)` → `entryTokenGate.consume(userId)`.
+- 주문 게이트: `OrderV1Controller.order`에 `@RequestHeader("X-Entry-Token")` 추가 → `entryTokenGate.claim(loginId,pw,token)`(compare-and-delete Lua로 검증=소비 원자화) → `createOrderUsecase.execute(...)` → 성공 시 `complete(userId)`(ZREM) / 실패 시 `restore(userId, token)`(동일 토큰 재발급).
 
 ## 8. 예상 대기시간 · 용량/배치 산정 (문서화 요구)
 
@@ -112,14 +115,15 @@ burst                     → 50 (= C; capacity 실링이 어차피 동시 처�
 
 ## 10. Graceful Degradation (Fail-open)
 
-- **토큰 검증(게이트)**: `runCatching`, Redis 실패 → `log.warn`(경보) + **bypass(주문 허용)**. 서비스 유지 우선.
-- enter/position: Redis 실패 → degrade. enter 실패해도 게이트 bypass로 주문은 계속 가능.
+- **토큰 검증(게이트)**: Redis 실패(`DataAccessException`) → `log.warn`(경보) + **bypass(주문 허용)**. 서비스 유지 우선. 그 외 예외는 전파해 코드 버그가 장애로 위장되지 않게 한다.
+- enter/position: Redis 실패(`DataAccessException`) → degrade. enter 실패해도 게이트 bypass로 주문은 계속 가능.
 - 정책은 프로퍼티/문서로 명시("Redis 장애 시 우리 서비스는 어떻게 동작하는가"를 사전 정의 — 문서 강조점).
 
 ## 11. 에러 / 동시성
 
 - 게이트 차단(토큰 없음/불일치, Redis 정상): `CoreException` + 신규 `ErrorType`(예: `TOO_MANY_REQUESTS` 또는 `FORBIDDEN`) → `ApiControllerAdvice`가 `ApiResponse.fail` 렌더. (신규 ErrorType 추가 필요 여부는 구현 시 기존 enum 확인)
 - 원자성: `ZADD/ZRANK/ZPOPMIN/ZREMRANGEBYSCORE` 각각 atomic. 스케줄러 tick은 단일 스레드 순차. `ZPOPMIN N`이 원자적이라 다중 인스턴스여도 이중 발급 없음(단일 인스턴스 전제).
+- 게이트 TOCTOU: 검증(GET)과 소비(DEL)가 분리되면 동일 토큰 동시 요청이 모두 통과 가능 → **compare-and-delete Lua**(`GET==token → DEL`)로 claim을 원자화해 정확히 1개만 통과. 불일치 요청은 유효 토큰을 파괴하지 않음. 주문 실패 시 restore로 동일 토큰 재발급(재시도 보장).
 - 중복 진입: member=userId + `ZADD NX`로 멱등(기존 순번 보존).
 
 ## 12. 테스트 전략

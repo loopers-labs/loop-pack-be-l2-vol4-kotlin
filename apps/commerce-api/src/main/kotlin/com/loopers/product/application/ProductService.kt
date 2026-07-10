@@ -15,7 +15,9 @@ import com.loopers.shared.domain.Cursor
 import com.loopers.shared.domain.CursorPage
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.NotFoundException
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -25,6 +27,7 @@ class ProductService(
     private val brandRepository: BrandRepository,
     private val inventoryRepository: InventoryRepository,
     private val eventPublisher: ApplicationEventPublisher,
+    private val productDetailReader: ProductDetailReader,
 ) {
     @Transactional
     fun register(command: ProductCreateCommand): ProductInfo {
@@ -85,13 +88,10 @@ class ProductService(
     }
 
     @Transactional(readOnly = true)
-    fun getDetail(id: Long): ProductDetailInfo {
-        val product = productRepository.findActiveById(id)
-            ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
-        val brand = brandRepository.findActiveById(product.brandId)
-            ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
-        eventPublisher.publishEvent(ProductViewedEvent(productId = product.id))
-        return ProductDetailInfo.of(product, brand.name.value)
+    fun getDetail(id: Long, userId: Long? = null): ProductDetailInfo {
+        val detail = productDetailReader.read(id)
+        eventPublisher.publishEvent(ProductViewedEvent(productId = detail.id, userId = userId))
+        return detail
     }
 
     @Transactional(readOnly = true)
@@ -102,6 +102,25 @@ class ProductService(
             product.verifyPrice(price)
         }
         return products
+    }
+}
+
+@Component
+class ProductDetailReader(
+    private val productRepository: ProductRepository,
+    private val brandRepository: BrandRepository,
+) {
+    @Cacheable(cacheNames = [CACHE_NAME], key = "#id", sync = true)
+    fun read(id: Long): ProductDetailInfo {
+        val product = productRepository.findActiveById(id)
+            ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+        val brand = brandRepository.findActiveById(product.brandId)
+            ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
+        return ProductDetailInfo.of(product, brand.name.value)
+    }
+
+    companion object {
+        const val CACHE_NAME = "product-detail"
     }
 }
 

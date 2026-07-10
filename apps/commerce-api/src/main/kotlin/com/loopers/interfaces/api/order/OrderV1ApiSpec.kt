@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 
 @Tag(name = "Order V1 API", description = "Loopers 주문 API 입니다.")
 interface OrderV1ApiSpec {
@@ -13,7 +14,11 @@ interface OrderV1ApiSpec {
     fun getOrder(user: User, orderId: Long): ApiResponse<OrderV1Dto.OrderResponse>
 
     @Operation(summary = "주문창 접근", description = "주문 스냅샷과 재고 예약을 생성합니다.")
-    fun checkout(user: User, request: OrderV1Dto.CheckoutRequest): ApiResponse<OrderV1Dto.OrderResponse>
+    fun checkout(
+        user: User,
+        @RequestHeader(name = "X-Waiting-Queue-Token", required = false) waitingQueueToken: String?,
+        @RequestBody @Valid request: OrderV1Dto.CheckoutRequest,
+    ): ApiResponse<*>
 
     /**
      * Starts a PG simulator payment transaction for the order; completion is handled later by callback.

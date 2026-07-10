@@ -13,7 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestPropertySource
 import java.time.LocalDate
 
-@TestPropertySource(properties = ["queue.throughput-per-second=50"])
+@TestPropertySource(properties = ["queue.refill-per-second=50"])
 @SpringBootTest
 class QueuePositionEnrichTest {
     @Autowired lateinit var getPosition: GetQueuePositionUsecase

@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component
 class GetQueuePositionUsecase(
     private val userService: UserService,
     private val queueRepository: OrderQueueRepository,
-    @Value("\${queue.throughput-per-second:175}") private val throughputPerSecond: Long,
+    // 입장률 = token bucket refill rate — 예상 대기시간도 같은 값을 써야 드리프트가 없다.
+    @Value("\${queue.refill-per-second:175}") private val refillPerSecond: Long,
 ) {
     private val log = LoggerFactory.getLogger(GetQueuePositionUsecase::class.java)
 
@@ -23,7 +24,7 @@ class GetQueuePositionUsecase(
                 QueuePosition(
                     position = rank + 1,
                     waiting = true,
-                    estimatedWaitSeconds = rank / throughputPerSecond,
+                    estimatedWaitSeconds = rank / refillPerSecond,
                     token = null,
                 )
             } else {

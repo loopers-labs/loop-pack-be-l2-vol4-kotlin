@@ -28,6 +28,7 @@ class ProductService(
                     brandId = command.brandId,
                     name = ProductName.of(command.name),
                     price = Money.of(command.price),
+                    saleType = command.saleType,
                 ),
             )
         } catch (e: InvalidProductException) {
@@ -75,14 +76,7 @@ class ProductService(
 
     @Transactional(readOnly = true)
     fun getOrderableSnapshots(productIds: List<Long>): List<ProductSnapshotInfo> {
-        val productsById = productRepository.findAllByIds(productIds).associateBy { it.id }
-        return productIds.map { productId ->
-            val product = productsById[productId] ?: throwNotFound()
-            try {
-                product.requireOrderable()
-            } catch (e: ProductNotOrderableException) {
-                throw CoreException(ErrorType.NOT_FOUND, e.message, e)
-            }
+        return findOrderableProducts(productIds).map { product ->
             ProductSnapshotInfo(
                 productId = product.id,
                 productName = product.name.value,
@@ -90,6 +84,10 @@ class ProductService(
             )
         }
     }
+
+    @Transactional(readOnly = true)
+    fun requiresWaitingQueue(productIds: Collection<Long>): Boolean =
+        findOrderableProducts(productIds.toList()).any { it.requiresWaitingQueue() }
 
     @Transactional(readOnly = true)
     fun findProducts(command: ProductSearchCommand): List<ProductModel> {
@@ -105,5 +103,19 @@ class ProductService(
 
     private fun throwNotFound(): Nothing {
         throw CoreException(ErrorType.NOT_FOUND)
+    }
+
+    private fun findOrderableProducts(productIds: List<Long>): List<ProductModel> {
+        val distinctProductIds = productIds.distinct()
+        val productsById = productRepository.findAllByIds(distinctProductIds).associateBy { it.id }
+        return distinctProductIds.map { productId ->
+            val product = productsById[productId] ?: throwNotFound()
+            try {
+                product.requireOrderable()
+                product
+            } catch (e: ProductNotOrderableException) {
+                throw CoreException(ErrorType.NOT_FOUND, e.message, e)
+            }
+        }
     }
 }

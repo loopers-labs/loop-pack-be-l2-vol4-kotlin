@@ -8,6 +8,7 @@ data class ProductInfo(
     val brandId: Long,
     val name: String,
     val price: Long,
+    val saleType: String,
     val deletedAt: ZonedDateTime?,
 ) {
     companion object {
@@ -16,6 +17,7 @@ data class ProductInfo(
             brandId = product.brandId,
             name = product.name.value,
             price = product.price.value,
+            saleType = product.saleType.name,
             deletedAt = product.deletedAt,
         )
     }

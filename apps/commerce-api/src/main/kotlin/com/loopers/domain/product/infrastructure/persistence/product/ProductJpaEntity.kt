@@ -2,10 +2,13 @@ package com.loopers.domain.product.infrastructure.persistence.product
 
 import com.loopers.domain.BaseEntity
 import com.loopers.domain.product.model.ProductModel
+import com.loopers.domain.product.model.ProductSaleType
 import com.loopers.domain.product.vo.Money
 import com.loopers.domain.product.vo.ProductName
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 
 @Entity
@@ -17,11 +20,15 @@ class ProductJpaEntity(
     var productName: String,
     @Column(nullable = false)
     var price: Long,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sale_type", nullable = false)
+    var saleType: ProductSaleType = ProductSaleType.NORMAL,
 ) : BaseEntity() {
     fun updateFrom(product: ProductModel) {
         brandId = product.brandId
         productName = product.name.value
         price = product.price.value
+        saleType = product.saleType
         if (product.deletedAt == null) {
             restore()
         } else {
@@ -34,6 +41,7 @@ class ProductJpaEntity(
         brandId = brandId,
         name = ProductName.of(productName),
         price = Money.of(price),
+        saleType = saleType,
         deletedAt = deletedAt,
     )
 
@@ -42,6 +50,7 @@ class ProductJpaEntity(
             brandId = product.brandId,
             productName = product.name.value,
             price = product.price.value,
+            saleType = product.saleType,
         )
     }
 }

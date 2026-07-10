@@ -4,6 +4,7 @@ import com.loopers.domain.product.application.command.ProductRegisterCommand
 import com.loopers.domain.product.application.command.ProductUpdateCommand
 import com.loopers.domain.product.application.command.StockDecreaseCommand
 import com.loopers.domain.product.model.ProductModel
+import com.loopers.domain.product.model.ProductSaleType
 import com.loopers.domain.product.model.StockModel
 import com.loopers.domain.product.vo.Money
 import com.loopers.domain.product.vo.ProductName
@@ -45,11 +46,13 @@ class ProductSteps {
             name: String = 기본_상품명,
             price: Long = 기본_가격,
             initialStock: Long = 기본_재고,
+            saleType: ProductSaleType = ProductSaleType.NORMAL,
         ): ProductRegisterCommand = ProductRegisterCommand(
             brandId = brandId,
             name = name,
             price = price,
             initialStock = initialStock,
+            saleType = saleType,
         )
 
         fun 상품_수정_커맨드(

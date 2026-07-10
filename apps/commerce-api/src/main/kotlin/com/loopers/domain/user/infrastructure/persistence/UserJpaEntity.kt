@@ -1,6 +1,7 @@
 package com.loopers.domain.user.infrastructure.persistence
 
 import com.loopers.domain.BaseEntity
+import com.loopers.domain.user.infrastructure.persistence.tableConstraints.UserJpaConstraints.USER_LOGIN_ID_UNIQUE_CONSTRAINT
 import com.loopers.domain.user.model.UserModel
 import com.loopers.domain.user.vo.Birthday
 import com.loopers.domain.user.vo.Email
@@ -12,8 +13,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.LocalDate
-
-const val USER_LOGIN_ID_UNIQUE_CONSTRAINT = "uk_users_login_id"
 
 @Entity
 @Table(

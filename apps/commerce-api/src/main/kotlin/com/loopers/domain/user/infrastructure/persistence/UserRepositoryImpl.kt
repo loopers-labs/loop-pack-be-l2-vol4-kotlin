@@ -1,6 +1,7 @@
 package com.loopers.domain.user.infrastructure.persistence
 
 import com.loopers.domain.user.exception.DuplicateLoginIdException
+import com.loopers.domain.user.infrastructure.persistence.tableConstraints.UserJpaConstraints.USER_LOGIN_ID_UNIQUE_CONSTRAINT
 import com.loopers.domain.user.model.UserModel
 import com.loopers.domain.user.port.UserRepository
 import com.loopers.domain.user.vo.Password

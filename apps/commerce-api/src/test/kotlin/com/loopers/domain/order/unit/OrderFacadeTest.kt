@@ -115,7 +115,9 @@ class OrderFacadeTest {
         val orderFacade = OrderFacade(userService, productService, stockService, orderService, couponService)
         val command = 주문_생성_커맨드(idempotencyKey = "order-key-1")
         every { userService.getById(1L) } returns 회원_도메인_생성(id = 1L)
-        every { orderService.findByIdempotencyKeyOrNull("order-key-1") } returns 주문_도메인_생성(id = 100L)
+        every {
+            orderService.findByOrderedUserIdAndIdempotencyKeyOrNull(1L, "order-key-1")
+        } returns 주문_도메인_생성(id = 100L)
 
         val info = orderFacade.placeOrder(command)
 

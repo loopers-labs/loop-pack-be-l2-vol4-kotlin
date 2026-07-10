@@ -7,7 +7,10 @@ import org.springframework.data.repository.query.Param
 import java.time.ZonedDateTime
 
 interface OrderJpaRepository : JpaRepository<OrderJpaEntity, Long> {
-    fun findByIdempotencyKey(idempotencyKey: String): OrderJpaEntity?
+    fun findByOrderedUserIdAndIdempotencyKey(
+        orderedUserId: Long,
+        idempotencyKey: String,
+    ): OrderJpaEntity?
 
     @Query(
         """

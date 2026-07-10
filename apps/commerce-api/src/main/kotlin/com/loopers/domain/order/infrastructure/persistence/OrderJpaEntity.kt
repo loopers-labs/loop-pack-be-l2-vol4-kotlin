@@ -9,13 +9,22 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 
 @Entity
-@Table(name = "orders")
+@Table(
+    name = "orders",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_orders_ordered_user_id_idempotency_key",
+            columnNames = ["ordered_user_id", "idempotency_key"],
+        ),
+    ],
+)
 class OrderJpaEntity(
     @Column(name = "ordered_user_id", nullable = false)
     var orderedUserId: Long,
-    @Column(name = "idempotency_key", unique = true)
+    @Column(name = "idempotency_key")
     var idempotencyKey: String? = null,
     @Column(name = "issued_coupon_id")
     var issuedCouponId: Long? = null,

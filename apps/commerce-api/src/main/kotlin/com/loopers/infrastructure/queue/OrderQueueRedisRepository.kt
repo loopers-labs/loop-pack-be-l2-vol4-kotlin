@@ -4,6 +4,7 @@ import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.queue.OrderQueueRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.core.script.RedisScript
 import org.springframework.stereotype.Component
 import java.time.Duration
 
@@ -44,8 +45,10 @@ class OrderQueueRedisRepository(
 
     override fun findToken(userId: Long): String? = redisTemplate.opsForValue().get(tokenKey(userId))
 
-    override fun consume(userId: Long) {
-        redisTemplate.delete(tokenKey(userId))
+    override fun claimToken(userId: Long, token: String): Boolean =
+        redisTemplate.execute(CLAIM_SCRIPT, listOf(tokenKey(userId)), token) == 1L
+
+    override fun release(userId: Long) {
         zset.remove(PROCESSING_KEY, userId.toString())
     }
 
@@ -53,5 +56,12 @@ class OrderQueueRedisRepository(
         const val WAITING_KEY = "commerce-api:queue:order:waiting:v1"
         const val PROCESSING_KEY = "commerce-api:queue:order:processing:v1"
         fun tokenKey(userId: Long) = "commerce-api:queue:order:token:v1:$userId"
+
+        // 검증=소비 원자화: 저장 토큰이 일치할 때만 삭제해, 동시 중복 요청 중 1개만 통과시키고
+        // 불일치 요청이 유효 토큰을 파괴하지 않도록 한다.
+        private val CLAIM_SCRIPT = RedisScript.of<Long>(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
+            Long::class.java,
+        )
     }
 }

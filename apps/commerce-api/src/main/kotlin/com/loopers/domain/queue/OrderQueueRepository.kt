@@ -25,6 +25,9 @@ interface OrderQueueRepository {
     /** 발급된 입장 토큰을 조회한다. 없으면 null. */
     fun findToken(userId: Long): String?
 
-    /** 입장 토큰을 소비(삭제)하고 processing에서 제거한다. */
-    fun consume(userId: Long)
+    /** 저장된 토큰과 일치할 때만 원자적으로 소비한다(compare-and-delete). 성공 시 true. */
+    fun claimToken(userId: Long, token: String): Boolean
+
+    /** 주문 완료 후 processing에서 제거해 capacity를 회복한다. */
+    fun release(userId: Long)
 }

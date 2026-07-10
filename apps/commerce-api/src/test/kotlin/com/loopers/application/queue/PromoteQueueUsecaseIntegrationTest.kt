@@ -61,7 +61,18 @@ class PromoteQueueUsecaseIntegrationTest {
         promote.promoteOnce(2100) // refill 1 → min(1, 5-3)=1 (active=4)
         promote.promoteOnce(2200) // refill 1 → min(1, 5-4)=1 (active=5)
         assertThat(promote.promoteOnce(2300)).isEqualTo(0) // refill 1 있어도 capacity full → 0 (버킷 잔량 보존)
-        repository.consume(1L) // active=4
+        repository.release(1L) // 주문 완료 → active=4
         assertThat(promote.promoteOnce(2400)).isEqualTo(1) // min(버킷 2, free 1) = 1
+    }
+
+    @DisplayName("토큰 TTL 만료분은 프룬으로 capacity가 회복되어 다음 유저가 발급받는다.")
+    @Test
+    fun expiredProcessingRestoresCapacity() {
+        val promote = promoteUsecase()
+        (1L..10L).forEach { repository.enter(it, 1000 + it) }
+        promote.promoteOnce(2000) // burst 3 발급 (active=3, score=2000)
+        val afterTtl = 2000 + 300 * 1000 + 500L // TTL(300s) 경과
+        assertThat(promote.promoteOnce(afterTtl)).isEqualTo(3) // 프룬으로 active=0 → burst만큼 재발급
+        assertThat(repository.countActive()).isEqualTo(3L)
     }
 }

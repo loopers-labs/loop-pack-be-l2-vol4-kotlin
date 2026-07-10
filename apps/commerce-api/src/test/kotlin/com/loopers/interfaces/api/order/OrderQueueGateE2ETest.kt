@@ -94,6 +94,21 @@ class OrderQueueGateE2ETest @Autowired constructor(
         )
     }
 
+    @DisplayName("POST /api/v1/orders — 소비된 토큰을 재사용하면 429 TOO_MANY_REQUESTS를 반환한다.")
+    @Test
+    fun blocksReuse_whenTokenIsAlreadyConsumed() {
+        // arrange
+        orderQueueRepository.issueToken(userId, "tok-e2e", 300, System.currentTimeMillis())
+        val first = order(entryToken = "tok-e2e")
+        assertThat(first.statusCode).isEqualTo(HttpStatus.OK)
+
+        // act: 같은 토큰으로 재주문
+        val second = order(entryToken = "tok-e2e")
+
+        // assert
+        assertThat(second.statusCode).isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
+    }
+
     @DisplayName("POST /api/v1/orders — 잘못된 X-Entry-Token이면 429 TOO_MANY_REQUESTS를 반환한다.")
     @Test
     fun returnsTooManyRequests_whenEntryTokenIsWrong() {

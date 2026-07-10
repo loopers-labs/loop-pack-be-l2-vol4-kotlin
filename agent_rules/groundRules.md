@@ -121,6 +121,7 @@ domain/<aggregate>/
 ### 파일 구성 (1 클래스 1 파일)
 - 하나의 파일에는 하나의 top-level 선언만 둔다. 파일명은 그 선언명과 일치시킨다(예: `PaymentService.kt` 에는 `PaymentService` 만).
 - 예외 계층(base + 하위 예외), sealed 계층(sealed class/interface + 하위 타입), 포트+계약 타입, DTO/command 묶음도 예외 없이 각각 파일로 분리한다. sealed 하위 타입은 같은 패키지에 두면 언어상 문제없다.
+- 예외: Spring Boot 진입점 파일(`*Application.kt`)의 `class + fun main` 조합은 표준 관용구로 허용한다.
 - 이 원칙은 현재 정적 검증 도구(ktlint standard 룰에는 strict 룰이 없다)로 강제하지 않고 코드 리뷰로 확인한다. 도구 도입은 후속 논의 대상이다.
 
 ### 예외 메시지 상수화

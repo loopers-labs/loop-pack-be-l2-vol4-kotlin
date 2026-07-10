@@ -40,6 +40,20 @@ class QueueUsecaseIntegrationTest {
         assertThat(getPosition.execute(a.loginId, a.rawPassword).waiting).isTrue()
     }
 
+    @DisplayName("같은 유저가 재진입해도 순번과 대기 인원은 유지된다(중복 진입 방지).")
+    @Test
+    fun reentryKeepsPosition() {
+        val a = signUp("queueUserD")
+        val b = signUp("queueUserE")
+        val first = enterQueue.execute(a.loginId, a.rawPassword)
+        enterQueue.execute(b.loginId, b.rawPassword)
+
+        val reentered = enterQueue.execute(a.loginId, a.rawPassword)
+
+        assertThat(reentered).isEqualTo(first)
+        assertThat(getPosition.execute(a.loginId, a.rawPassword).position).isEqualTo(first)
+    }
+
     @DisplayName("미진입 유저의 순번 조회는 waiting=false, position=null.")
     @Test
     fun positionWhenNotEntered() {

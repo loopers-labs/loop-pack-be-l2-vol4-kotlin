@@ -9,8 +9,3 @@ data class LikeCountProjectionResult(
         fun duplicate(): LikeCountProjectionResult = LikeCountProjectionResult(LikeCountProjectionStatus.DUPLICATE)
     }
 }
-
-enum class LikeCountProjectionStatus {
-    APPLIED,
-    DUPLICATE,
-}

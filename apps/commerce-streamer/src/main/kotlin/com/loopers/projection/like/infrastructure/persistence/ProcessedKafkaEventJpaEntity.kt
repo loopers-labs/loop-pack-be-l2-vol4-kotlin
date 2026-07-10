@@ -1,22 +1,11 @@
 package com.loopers.projection.like.infrastructure.persistence
 
 import jakarta.persistence.Column
-import jakarta.persistence.Embeddable
 import jakarta.persistence.EmbeddedId
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
-import java.io.Serializable
 import java.time.Instant
-import java.util.UUID
-
-@Embeddable
-data class ProcessedKafkaEventJpaId(
-    @Column(name = "event_id", nullable = false, columnDefinition = "BINARY(16)")
-    var eventId: UUID = UUID(0L, 0L),
-    @Column(name = "consumer_group", nullable = false, length = 128)
-    var consumerGroup: String = "",
-) : Serializable
 
 @Entity
 @Table(

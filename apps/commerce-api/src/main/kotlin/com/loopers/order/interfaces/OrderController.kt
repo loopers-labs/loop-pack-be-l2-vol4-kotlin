@@ -22,7 +22,7 @@ class OrderController(
         @RequestAttribute(ACCOUNT_ID) userId: Long,
         @RequestBody request: OrderCreateRequest,
     ): OrderCreateResponse =
-        OrderCreateResponse.from(orderFacade.place(userId, request.toCommand()))
+        OrderCreateResponse.from(orderFacade.place(request.toCommand(userId)))
 }
 
 data class OrderCreateRequest(
@@ -30,24 +30,24 @@ data class OrderCreateRequest(
     val couponId: Long?,
     val expectedOriginalAmount: Long,
     val expectedDiscountAmount: Long,
-    val expectedTotalAmount: Long,
 ) {
-    fun toCommand(): OrderCreateCommand = OrderCreateCommand(
-        items = items.map { OrderLineCommand(productId = it.productId, quantity = it.quantity) },
+    fun toCommand(userId: Long): OrderCreateCommand = OrderCreateCommand(
+        userId = userId,
+        items = items.map { OrderLineCommand(productId = it.productId, quantity = it.quantity, price = it.price) },
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
         expectedDiscountAmount = expectedDiscountAmount,
-        expectedTotalAmount = expectedTotalAmount,
     )
 }
 
 data class OrderLineRequest(
     val productId: Long,
     val quantity: Int,
+    val price: Long,
 )
 
 data class OrderCreateResponse(
-    val orderId: Long,
+    val orderKey: String,
     val status: OrderStatus,
     val originalAmount: Long,
     val discountAmount: Long,
@@ -55,7 +55,7 @@ data class OrderCreateResponse(
 ) {
     companion object {
         fun from(info: OrderInfo): OrderCreateResponse = OrderCreateResponse(
-            orderId = info.id,
+            orderKey = info.orderKey,
             status = info.status,
             originalAmount = info.originalAmount,
             discountAmount = info.discountAmount,

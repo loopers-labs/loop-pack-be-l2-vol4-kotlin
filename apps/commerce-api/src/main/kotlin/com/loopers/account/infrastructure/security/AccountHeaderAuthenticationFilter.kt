@@ -19,6 +19,7 @@ class AccountHeaderAuthenticationFilter(
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val path = requestPath(request)
         return (request.method == HttpMethod.POST.name() && path == USERS_PATH) ||
+            (request.method == HttpMethod.POST.name() && path == PAYMENT_CALLBACK_PATH) ||
             path.startsWith(ACTUATOR_PATH_PREFIX) ||
             path.startsWith(SWAGGER_UI_PATH_PREFIX) ||
             path.startsWith(API_DOCS_PATH_PREFIX) ||
@@ -90,6 +91,7 @@ class AccountHeaderAuthenticationFilter(
 
     private companion object {
         private const val USERS_PATH = "/api/v1/users"
+        private const val PAYMENT_CALLBACK_PATH = "/api/v1/payments/callback"
         private const val ACTUATOR_PATH_PREFIX = "/actuator"
         private const val SWAGGER_UI_PATH_PREFIX = "/swagger-ui"
         private const val API_DOCS_PATH_PREFIX = "/v3/api-docs"

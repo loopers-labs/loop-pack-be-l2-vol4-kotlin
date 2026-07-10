@@ -41,18 +41,18 @@ class InventoryLockHoldMeasurementTest @Autowired constructor(
         val product = productRepository.save(Product(brandId = 1L, name = ProductName("측정용"), price = Money(10_000)))
         inventoryRepository.save(Inventory.createFor(product.id, 10_000_000))
         val command = OrderCreateCommand(
-            items = listOf(OrderLineCommand(productId = product.id, quantity = 1)),
+            userId = 1L,
+            items = listOf(OrderLineCommand(productId = product.id, quantity = 1, price = 10_000)),
             expectedOriginalAmount = 10_000,
             expectedDiscountAmount = 0,
-            expectedTotalAmount = 10_000,
         )
         val lockSegment = TransactionTemplate(transactionManager)
         val snapshot = OrderItemSnapshot(product.id, 1L, "측정용", null, Money(10_000), 1)
 
-        repeat(100) { orderFacade.place(1L, command) }
+        repeat(100) { orderFacade.place(command) }
         repeat(100) { runLockSegment(lockSegment, product.id, snapshot) }
 
-        val totalNanos = LongArray(300) { measureNanos { orderFacade.place(1L, command) } }
+        val totalNanos = LongArray(300) { measureNanos { orderFacade.place(command) } }
         val lockNanos = LongArray(300) { measureNanos { runLockSegment(lockSegment, product.id, snapshot) } }
 
         printStats("place() 전체 (①~⑦+커밋)", totalNanos)
@@ -70,19 +70,19 @@ class InventoryLockHoldMeasurementTest @Autowired constructor(
             p
         }
         fun command(productId: Long) = OrderCreateCommand(
-            items = listOf(OrderLineCommand(productId = productId, quantity = 1)),
+            userId = 1L,
+            items = listOf(OrderLineCommand(productId = productId, quantity = 1, price = 10_000)),
             expectedOriginalAmount = 10_000,
             expectedDiscountAmount = 0,
-            expectedTotalAmount = 10_000,
         )
 
-        repeat(100) { orderFacade.place(1L, command(sameProduct.id)) }
+        repeat(100) { orderFacade.place(command(sameProduct.id)) }
 
         val sameWall = measureNanos {
-            runConcurrently(threadCount = 10) { orderFacade.place(1L, command(sameProduct.id)) }
+            runConcurrently(threadCount = 10) { orderFacade.place(command(sameProduct.id)) }
         }
         val distinctWall = measureNanos {
-            runConcurrently(threadCount = 10) { index -> orderFacade.place(1L, command(distinctProducts[index].id)) }
+            runConcurrently(threadCount = 10) { index -> orderFacade.place(command(distinctProducts[index].id)) }
         }
 
         println("[측정] 같은 상품 10건 동시 주문 벽시계: %.2f ms".format(sameWall / 1_000_000.0))

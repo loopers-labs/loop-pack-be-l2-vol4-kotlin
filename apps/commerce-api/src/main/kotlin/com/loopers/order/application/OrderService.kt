@@ -9,18 +9,18 @@ import com.loopers.order.domain.OrderStatus
 import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.shared.domain.Money
-import com.loopers.support.error.ConflictException
+import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.NotFoundException
+import java.time.LocalDateTime
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.LocalDateTime
 
 @Service
 class OrderService(
     private val orderRepository: OrderRepository,
 ) {
     @Transactional
-    fun create(userId: Long, command: OrderCreateCommand, products: Map<Long, Product>, discountAmount: Money): OrderInfo {
+    fun create(command: OrderCreateCommand, products: Map<Long, Product>, discountAmount: Money): OrderInfo {
         val snapshots = command.items.map { line ->
             val product = products[line.productId]
                 ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
@@ -33,17 +33,8 @@ class OrderService(
                 quantity = line.quantity,
             )
         }
-        val originalAmount = Money(snapshots.sumOf { it.unitPrice.amount * it.quantity })
-        val totalAmount = Money(originalAmount.amount - discountAmount.amount)
 
-        if (command.expectedOriginalAmount != originalAmount.amount ||
-            command.expectedDiscountAmount != discountAmount.amount ||
-            command.expectedTotalAmount != totalAmount.amount
-        ) {
-            throw ConflictException(OrderErrorCode.PRICE_CHANGED)
-        }
-
-        val order = orderRepository.save(Order.create(userId, snapshots, command.couponId, discountAmount))
+        val order = orderRepository.save(Order.create(command.userId, snapshots, command.couponId, discountAmount))
         return OrderInfo.from(order)
     }
 
@@ -63,20 +54,35 @@ class OrderService(
 }
 
 data class OrderCreateCommand(
+    val userId: Long,
     val items: List<OrderLineCommand>,
     val couponId: Long? = null,
     val expectedOriginalAmount: Long,
     val expectedDiscountAmount: Long,
-    val expectedTotalAmount: Long,
-)
+) {
+    init {
+        if (items.isEmpty()) {
+            throw BadRequestException(OrderErrorCode.EMPTY_ORDER_ITEMS)
+        }
+        val total = items.sumOf { it.price * it.quantity }
+        if (total != expectedOriginalAmount) {
+            throw BadRequestException(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
+        }
+        if (couponId == null && expectedDiscountAmount != 0L) {
+            throw BadRequestException(OrderErrorCode.ORDER_PRICE_NOT_MATCHED)
+        }
+    }
+}
 
 data class OrderLineCommand(
     val productId: Long,
     val quantity: Int,
+    val price: Long,
 )
 
 data class OrderInfo(
     val id: Long,
+    val orderKey: String,
     val userId: Long,
     val orderedAt: LocalDateTime,
     val originalAmount: Long,
@@ -90,6 +96,7 @@ data class OrderInfo(
         fun from(order: Order): OrderInfo =
             OrderInfo(
                 id = order.id,
+                orderKey = order.orderKey,
                 userId = order.userId,
                 orderedAt = order.orderedAt,
                 originalAmount = order.originalAmount.amount,

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Round 7 — 이벤트 기반 아키텍처 + Kafka, 우리 코드베이스 적용 지점</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 7 · 코드베이스 적용</span>
+      <h1 class="title">이벤트 기반 아키텍처 + Kafka<br><span class="hl">우리 코드에 어떻게 녹일 것인가</span></h1>
+      <p class="lede">이 문서는 개념(01)·요구사항(00)을 반복하지 않습니다. <b>현재 commerce 코드의 어디를</b> <b>어떻게 손대 이벤트·Kafka 파이프라인으로 확장할지</b>, 그 <b>적용 지점과 고민 포인트</b>만 정리합니다. 출발점은 이미 production 수준으로 구현된 <span class="term">like</span> 도메인의 이벤트 분리 패턴입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">SCOPE</span><span class="v">ApplicationEvent → Outbox → Kafka → 집계</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · JPA · Kafka</span></div>
+        <div class="chip"><span class="k">SOURCE</span><span class="v">commerce-api · commerce-streamer 현재 코드</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-concepts.html"><span class="n">01</span>개념</a>
+    <a class="cur" href="02-codebase-application.html"><span class="n">02</span>코드베이스 적용</a>
+    <a href="03-delivery-guarantees.html"><span class="n">03</span>전달 보장</a>
+    <a href="04-like-count-consistency.html"><span class="n">04</span>좋아요 정합성</a>
+    <a href="05-transactional-outbox-pattern.html"><span class="n">05</span>Outbox 패턴</a>
+    <a href="06-eventlistener-transaction-semantics.html"><span class="n">06</span>리스너 트랜잭션</a>
+    <a href="07-implementation-plan.html"><span class="n">07</span>구현 계획</a>
+    <a href="08-coupon-issue-experiment-plan.html"><span class="n">08</span>쿠폰 실험</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">현재 상태 스냅샷 — 있는 것 vs 만들 것</a></li>
+      <li><a href="#s2">Step 1 — ApplicationEvent 경계 분리</a></li>
+      <li><a href="#s3">Step 2 — Outbox · Kafka 파이프라인</a></li>
+      <li><a href="#s4">Step 3 — 선착순 쿠폰 발급</a></li>
+      <li><a href="#s5">고민 포인트 · 트레이드오프</a></li>
+      <li><a href="#s6">권장 작업 순서</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">SNAPSHOT</p><h2 class="sec">현재 상태 — 있는 것 vs 만들 것</h2></div>
+    </div>
+
+    <p class="lead">Round 7은 백지에서 시작하지 않습니다. <strong>like 도메인이 이미 "동기 처리 + 커밋 후 비동기 부가처리"의 모범 사례</strong>이고, Kafka 인프라(<span class="term">modules:kafka</span>)와 consumer 앱(<span class="term">commerce-streamer</span>)도 배선돼 있습니다. 빠진 것은 <strong>영속 보장(Outbox)·이벤트 멱등·실제 producer 연결·집계 consumer</strong>입니다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">있음</span> 재사용·참고 대상</h4>
+        <p><strong>like 이벤트 분리</strong> — <span class="term">LikeService</span>가 좋아요를 저장하며 <span class="term">ProductLikedEvent</span> 발행, <span class="term">LikeEventHandler</span>·<span class="term">ProductLikeCountEventHandler</span>가 <strong>AFTER_COMMIT + @Async</strong>로 이력 적재·like_count 비정규화. 실패는 로깅만(결과적 일관성). <span class="term">@EnableAsync</span> 설정 완료.<br><br><strong>Kafka 인프라</strong> — <span class="term">KafkaConfig</span>에 KafkaTemplate·MANUAL ack 배치 리스너 준비. <span class="term">commerce-streamer</span>에 <span class="term">DemoKafkaConsumer</span> 예시. docker infra에 kafka:9092·kafka-ui:9099.<br><br><strong>결제 멱등</strong> — <span class="term">PaymentService.resolve()</span>가 상태머신 기반 멱등(이미 terminal이면 no-op).</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">없음</span> 새로 만들 것</h4>
+        <p><strong>Transactional Outbox</strong> 테이블 + 릴레이(폴링) 워커.<br><br><strong>event_handled(event_id PK)</strong> 멱등 테이블 — 이벤트 레벨 dedup(payment 상태머신과 별개).<br><br><strong>commerce-api → Kafka producer</strong> — KafkaTemplate은 <span class="term">modules:kafka</span>에 있으나 commerce-api는 아직 <strong>그 의존성을 import하지 않음</strong>(build.gradle.kts에 추가 필요).<br><br><strong>데이터플랫폼 전송</strong> — 주문정보 외부 전송은 동기·비동기 모두 미구현.<br><br><strong>product_metrics 집계 테이블</strong> + commerce-streamer의 집계 consumer.</p>
+      </div>
+    </div>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="MODULES">
+        <svg viewBox="0 0 1120 470" role="img" aria-label="모듈 구조: commerce-api와 commerce-streamer 두 앱이 modules:kafka·jpa·redis 공유 모듈 위에 있고 docker infra-compose가 kafka·mysql·redis를 띄운다. commerce-streamer는 modules:kafka에 연결돼 있으나 commerce-api는 아직 연결되지 않았다.">
+          <defs>
+            <marker id="m1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- apps -->
+          <rect x="60" y="40" width="430" height="96" rx="18" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="60" y="40" width="430" height="96"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">commerce-api</div><div class="s">도메인 · ApplicationEvent 발행 · REST API</div></div></foreignObject>
+
+          <rect x="630" y="40" width="430" height="96" rx="18" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <foreignObject x="630" y="40" width="430" height="96"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">commerce-streamer</div><div class="s">Kafka consumer 앱 · DemoKafkaConsumer (집계 확장 예정)</div></div></foreignObject>
+
+          <!-- modules row -->
+          <rect x="60" y="216" width="430" height="92" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="60" y="216" width="430" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">modules:kafka</div><div class="s">KafkaTemplate · BATCH_LISTENER · MANUAL ack · concurrency 3</div></div></foreignObject>
+
+          <rect x="630" y="216" width="205" height="92" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="630" y="216" width="205" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">modules:jpa</div><div class="s">JPA · Testcontainers</div></div></foreignObject>
+
+          <rect x="855" y="216" width="205" height="92" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="855" y="216" width="205" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">modules:redis</div><div class="s">master · readonly</div></div></foreignObject>
+
+          <!-- infra -->
+          <rect x="60" y="372" width="1000" height="78" rx="16" fill="#F9FAFB" stroke="#D1D6DB" stroke-width="1.2"/>
+          <foreignObject x="60" y="372" width="1000" height="78"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">docker / infra-compose.yml</div><div class="s">kafka:9092 · kafka-ui:9099 · mysql · redis-master / redis-readonly</div></div></foreignObject>
+
+          <!-- arrows: streamer -> kafka (solid), api -> kafka (dashed red, gap) -->
+          <line x1="845" y1="136" x2="430" y2="216" stroke="#15C47E" stroke-width="2" marker-end="url(#m1)"/>
+          <text class="svg-l" x="690" y="182" text-anchor="middle" fill="#0A8F5B">사용 중</text>
+
+          <line x1="220" y1="136" x2="220" y2="216" stroke="#F04452" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#m1)"/>
+          <text class="svg-l" x="232" y="182" text-anchor="start" fill="#C9303C">아직 미연결 — build.gradle.kts에 의존성 추가</text>
+
+          <line x1="270" y1="308" x2="270" y2="372" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#m1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 앱·모듈·인프라 구조. <b>초록 실선</b>=연결됨(<span class="term">commerce-streamer</span>→<span class="term">modules:kafka</span>), <b>빨간 점선</b>=Round 7에서 이어야 할 첫 단추(<span class="term">commerce-api</span>가 Kafka 의존성을 아직 갖지 않음). 공유 모듈·docker infra는 그대로 재사용한다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">consumer 앱 명칭</span>과제 원문은 집계 consumer 앱을 <strong>commerce-collector</strong>로 부르지만, 우리 레포엔 이미 Kafka로 배선된 <strong>commerce-streamer</strong>가 있습니다. 신규 모듈 생성 비용을 피하려 <strong>commerce-streamer를 재사용</strong>합니다. 이후 문서 전반에서 commerce-streamer로 표기합니다(이 각주에서만 원문 명칭을 병기). 재사용 결정의 한계는 §5에서 다룹니다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">STEP 1</p><h2 class="sec">ApplicationEvent 경계 분리</h2></div>
+    </div>
+
+    <p class="lead">현재 <span class="term">OrderFacade.place()</span>는 <strong>단일 @Transactional</strong> 안에서 상품 검증 → 쿠폰 사용 → 주문 저장 → 재고 차감을 모두 처리합니다. 여기에 데이터플랫폼 전송·유저행동 로깅·알림 같은 <strong>부가 로직을 직접 호출로 끼워넣지 말고</strong>, like 도메인이 이미 쓰는 <strong>AFTER_COMMIT 이벤트</strong>로 빼냅니다.</p>
+
+    <h3>현재 코드 — 단일 트랜잭션</h3>
+    <p>핵심 주석이 이미 다음 단계를 예고합니다(코드 그대로 인용).</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">order/application/OrderFacade.kt</span>
+      </div>
+<pre><span class="cm">// PG 연동(O-F1) 시 이 메서드의 Tx 구간을 안쪽 메서드로 분리한다 — 외부 호출은 Tx 밖에 둔다</span>
+<span class="kw">@Transactional</span>
+<span class="kw">fun</span> <span class="fn">place</span>(command: <span class="ty">OrderCreateCommand</span>): <span class="ty">OrderInfo</span> {
+    <span class="kw">val</span> products = productService.getActiveProducts(...)
+    <span class="kw">val</span> discountAmount = command.couponId?.let { couponService.use(...) } ?: <span class="ty">Money</span>(<span class="st">0</span>)
+    <span class="kw">val</span> info = orderService.create(command, products, discountAmount)
+    inventoryService.decreaseStock(...)
+    <span class="kw">return</span> info
+}</pre>
+    </div>
+
+    <h3>적용 후 — 부가 로직을 이벤트로 (예시)</h3>
+    <p>주문 저장이 끝나면 <span class="term">OrderCreatedEvent</span>를 발행만 하고, 외부 전송·로깅은 커밋 후 별도 핸들러가 처리합니다. <strong>like 도메인의 발행 코드를 그대로 본뜬 형태</strong>입니다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">OrderFacade.kt — 예시 (eventPublisher 주입 후)</span>
+      </div>
+<pre>    <span class="kw">val</span> info = orderService.create(command, products, discountAmount)
+    inventoryService.decreaseStock(...)
+    eventPublisher.publishEvent(<span class="ty">OrderCreatedEvent</span>(info.orderId, command.userId)) <span class="cm">// 발행만</span>
+    <span class="kw">return</span> info</pre>
+    </div>
+    <p>핸들러는 like 도메인과 동일한 애너테이션 3종(<span class="term">@Async</span> · <span class="term">@Transactional(REQUIRES_NEW)</span> · <span class="term">@TransactionalEventListener(AFTER_COMMIT)</span>)을 그대로 사용합니다. 검증된 패턴이라 새로 설계할 게 없습니다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">like/application/LikeEventHandler.kt — 재사용할 패턴 (실제 코드)</span>
+      </div>
+<pre><span class="kw">@Async</span>
+<span class="kw">@Transactional</span>(propagation = <span class="ty">Propagation</span>.REQUIRES_NEW)
+<span class="kw">@TransactionalEventListener</span>(phase = <span class="ty">TransactionPhase</span>.AFTER_COMMIT)
+<span class="kw">fun</span> <span class="fn">onLiked</span>(event: <span class="ty">ProductLikedEvent</span>) = append(event.userId, event.productId, <span class="ty">LikeAction</span>.LIKE)</pre>
+    </div>
+
+    <h3>이벤트로 뺄 것 vs 트랜잭션에 남길 것</h3>
+    <p>판단 기준은 단순합니다. <strong>주문의 정합성에 직접 관여하면 트랜잭션</strong>, <strong>틀어져도 결과적 일관성으로 보정 가능하면 이벤트</strong>입니다.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>작업</th><th>현재 위치</th><th>판단</th></tr></thead>
+      <tbody>
+        <tr><td>재고 차감</td><td>place() 내부</td><td>트랜잭션 — 핵심 정합성(오버셀링 금지)</td></tr>
+        <tr><td>쿠폰 사용</td><td>place() 내부</td><td>트랜잭션 — 중복 사용·할인액 검증</td></tr>
+        <tr><td>주문 저장</td><td>place() 내부</td><td>트랜잭션 — aggregate 본체</td></tr>
+        <tr><td>포인트 차감(미도입)</td><td>—</td><td>트랜잭션 — 도입 시 핵심 정합성</td></tr>
+        <tr><td>데이터플랫폼 전송</td><td>미구현</td><td>이벤트 — 외부 전송, 실패해도 재전송</td></tr>
+        <tr><td>유저행동 로깅</td><td>미구현</td><td>이벤트 — like_event 적재와 동형</td></tr>
+        <tr><td>알림</td><td>미구현</td><td>이벤트 — 부가, 실패 허용</td></tr>
+        <tr><td>랭킹·집계</td><td>like_count만 존재</td><td>이벤트 — like_count 비정규화와 동형</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note"><span class="tag">동기 vs 비동기</span>like가 보여준 분리를 주문에 그대로 적용: <strong>동기</strong>(좋아요 저장 ↔ 주문 저장·재고·쿠폰)는 트랜잭션 안, <strong>비동기</strong>(이력 적재·like_count ↔ 데이터플랫폼·로깅·집계)는 AFTER_COMMIT. 동기 처리가 실패하면 전체 롤백, 비동기가 실패하면 <strong>로깅만 하고 본 트랜잭션은 보존</strong>(<span class="term">ProductLikeCountEventHandler</span>의 "결과적 일관성" 주석과 동일 정책).</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">STEP 2</p><h2 class="sec">Outbox · Kafka 파이프라인</h2></div>
+    </div>
+
+    <p class="lead">§2의 메모리 이벤트(<span class="term">@TransactionalEventListener</span>)는 <strong>앱이 죽으면 유실</strong>됩니다. 서비스 경계를 넘는 이벤트(집계·외부 전송)는 <strong>Transactional Outbox</strong>로 영속화한 뒤 릴레이가 Kafka로 흘려보냅니다. producer 쪽은 <strong>commerce-api에 Kafka 의존성을 먼저 추가</strong>해야 시작할 수 있습니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="PIPELINE">
+        <svg viewBox="0 0 1120 480" role="img" aria-label="Outbox 파이프라인: commerce-api에서 도메인 이벤트가 같은 트랜잭션으로 outbox에 INSERT되고, 릴레이 워커가 폴링해 KafkaTemplate으로 Kafka 3개 토픽에 발행한다. commerce-streamer가 수신해 event_handled로 멱등 체크 후 product_metrics에 집계 upsert하고 MANUAL ack한다.">
+          <defs>
+            <marker id="p1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- commerce-api container -->
+          <rect x="20" y="36" width="330" height="416" rx="20" fill="#F4F9FF" stroke="#3182F6" stroke-width="1.4"/>
+          <text class="svg-t" x="40" y="64" fill="#1B64DA">commerce-api</text>
+          <rect x="40" y="84" width="290" height="92" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="40" y="84" width="290" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① 도메인 이벤트</div><div class="s">OrderCreated · 좋아요/주문 행동</div></div></foreignObject>
+          <line x1="185" y1="176" x2="185" y2="212" stroke="#15C47E" stroke-width="2" marker-end="url(#p1)"/>
+          <rect x="40" y="212" width="290" height="92" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <foreignObject x="40" y="212" width="290" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">② outbox INSERT</div><div class="s">같은 Tx · status=PENDING</div></div></foreignObject>
+          <line x1="185" y1="304" x2="185" y2="340" stroke="#3182F6" stroke-width="2" marker-end="url(#p1)"/>
+          <rect x="40" y="340" width="290" height="92" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="40" y="340" width="290" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">③ 릴레이 워커</div><div class="s">폴링 → KafkaTemplate.send → SENT</div></div></foreignObject>
+
+          <!-- Kafka container -->
+          <rect x="400" y="36" width="300" height="416" rx="20" fill="#F9FAFB" stroke="#D1D6DB" stroke-width="1.4"/>
+          <text class="svg-t" x="420" y="64" fill="#333D4B">Kafka (3 topics)</text>
+          <rect x="420" y="92" width="260" height="92" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="420" y="92" width="260" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">catalog-events</div><div class="s">key = productId</div></div></foreignObject>
+          <rect x="420" y="200" width="260" height="92" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="420" y="200" width="260" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">order-events</div><div class="s">key = orderId</div></div></foreignObject>
+          <rect x="420" y="308" width="260" height="92" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <foreignObject x="420" y="308" width="260" height="92"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">coupon-issue-requests</div><div class="s">key = couponId</div></div></foreignObject>
+
+          <line x1="330" y1="386" x2="420" y2="240" stroke="#3182F6" stroke-width="2" marker-end="url(#p1)"/>
+          <text class="svg-l" x="375" y="300" text-anchor="middle" fill="#1B64DA">send</text>
+
+          <!-- streamer container -->
+          <rect x="750" y="36" width="350" height="416" rx="20" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.4"/>
+          <text class="svg-t" x="770" y="64" fill="#0A8F5B">commerce-streamer</text>
+          <rect x="770" y="84" width="310" height="86" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <foreignObject x="770" y="84" width="310" height="86"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">④ @KafkaListener 수신</div><div class="s">BATCH_LISTENER · MANUAL ack</div></div></foreignObject>
+          <line x1="925" y1="170" x2="925" y2="206" stroke="#15C47E" stroke-width="2" marker-end="url(#p1)"/>
+          <rect x="770" y="206" width="310" height="86" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2"/>
+          <foreignObject x="770" y="206" width="310" height="86"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">⑤ 멱등 체크</div><div class="s">event_handled(event_id PK) — 중복이면 skip</div></div></foreignObject>
+          <line x1="925" y1="292" x2="925" y2="328" stroke="#15C47E" stroke-width="2" marker-end="url(#p1)"/>
+          <rect x="770" y="328" width="310" height="104" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <foreignObject x="770" y="328" width="310" height="104"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">⑥ 집계 upsert</div><div class="s">product_metrics · version/updated_at 최신성 → ack</div></div></foreignObject>
+
+          <line x1="700" y1="138" x2="770" y2="127" stroke="#15C47E" stroke-width="2" marker-end="url(#p1)"/>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 좌→우 파이프라인. <b>commerce-api</b>는 도메인 이벤트를 같은 트랜잭션으로 <span class="term">outbox</span>에 적재(②)하고 릴레이가 Kafka로 발행(③). <b>commerce-streamer</b>는 수신(④) → <span class="term">event_handled</span> 멱등 체크(⑤) → <span class="term">product_metrics</span> upsert(⑥) 후 <b>MANUAL ack</b>. 멱등 테이블이 at-least-once 재전송을 흡수한다.</figcaption>
+    </figure>
+
+    <h3>Outbox 테이블 (예시 스키마)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>컬럼</th><th>타입</th><th>용도</th></tr></thead>
+      <tbody>
+        <tr><td>id</td><td>BIGINT PK</td><td>outbox 행 식별 · event_id로도 사용</td></tr>
+        <tr><td>aggregate_type</td><td>VARCHAR</td><td>order · product · coupon</td></tr>
+        <tr><td>aggregate_id</td><td>BIGINT</td><td>파티션 키 산출 근거(orderId 등)</td></tr>
+        <tr><td>event_type</td><td>VARCHAR</td><td>OrderCreated · ProductLiked …</td></tr>
+        <tr><td>payload</td><td>JSON</td><td>직렬화된 이벤트 본문</td></tr>
+        <tr><td>status</td><td>VARCHAR</td><td>PENDING → SENT (릴레이가 전이)</td></tr>
+        <tr><td>created_at</td><td>DATETIME</td><td>폴링 정렬·재시도 기준</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note"><span class="tag">왜 outbox인가</span>"이벤트 발행 + 비즈니스 데이터 저장"을 <strong>하나의 DB 트랜잭션</strong>으로 묶어야 둘이 원자적이다. 메모리 <span class="term">@TransactionalEventListener</span>는 커밋 후 발행이라 그 사이 앱이 죽으면 이벤트만 유실된다. outbox는 같은 트랜잭션에 INSERT되므로 "주문은 저장됐는데 이벤트는 안 나간" 상태가 불가능하다.</div>
+
+    <h3>Producer 추가 지점</h3>
+    <p>현재 <span class="term">commerce-api/build.gradle.kts</span>는 <span class="term">persistence-core·jpa·redis·supports</span>만 의존하고 <strong>:modules:kafka는 import하지 않습니다.</strong> 릴레이가 KafkaTemplate을 쓰려면 의존성 추가가 첫 작업입니다(예시).</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">apps/commerce-api/build.gradle.kts — 추가 (예시)</span>
+      </div>
+<pre>dependencies {
+    implementation(project(<span class="st">":modules:persistence-core"</span>))
+    implementation(project(<span class="st">":modules:jpa"</span>))
+    implementation(project(<span class="st">":modules:redis"</span>))
+    implementation(project(<span class="st">":modules:kafka"</span>)) <span class="cm">// 추가 — KafkaTemplate·KafkaConfig 사용</span>
+    ...
+}</pre>
+    </div>
+    <div class="note key"><span class="tag">정확성 설정 위치</span><span class="term">acks=all</span> · <span class="term">enable.idempotence=true</span>는 <span class="term">KafkaConfig.producerFactory</span>가 <span class="term">kafkaProperties.buildProducerProperties()</span>로 읽으므로, commerce-api의 <strong>application.yml의 <span class="term">spring.kafka.producer</span></strong>에 선언하면 그대로 반영된다. 별도 Java config를 새로 만들 필요 없음 — 기존 modules:kafka 빈을 재사용한다.</div>
+
+    <h3>commerce-streamer 확장</h3>
+    <p>출발점은 <span class="term">DemoKafkaConsumer</span>입니다. 토픽을 실제 토픽으로 바꾸고, <strong>집계 전 멱등 체크 → upsert → ack</strong> 순서만 채우면 됩니다.</p>
+    <div class="fn-card">
+      <div class="fn-sig"><span class="fn">demoListener</span>(<span class="pa">messages</span>, <span class="pa">acknowledgment</span>) <span class="rt">→ Unit</span><span class="mut">현재: println 후 ack</span></div>
+      <div class="tbl-wrap"><table><tbody>
+        <tr><td>현재</td><td><span class="term">DemoKafkaConsumer</span> — 토픽 수신 후 <span class="term">println</span>, <span class="term">acknowledgment.acknowledge()</span>(MANUAL)</td></tr>
+        <tr><td>확장</td><td>event_id로 <span class="term">event_handled</span> 조회 → 이미 있으면 skip, 없으면 <span class="term">product_metrics</span> upsert + event_handled INSERT</td></tr>
+        <tr><td>최신성</td><td>이벤트의 version/updated_at이 더 오래면 덮어쓰지 않음(out-of-order 방어)</td></tr>
+        <tr><td>ack</td><td>처리 성공 후에만 <span class="term">acknowledge()</span> — 실패 시 재전송(at-least-once)</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="note"><span class="tag">멱등 위치</span>at-least-once 전송에서 <strong>중복은 정상</strong>이다. ⑤ event_handled가 그 중복을 흡수한다. 이건 §2의 비동기 핸들러(메모리)와 다른 층위의 멱등 — payment 상태머신 멱등과의 관계는 §5에서 구분한다.</div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">STEP 3</p><h2 class="sec">선착순 쿠폰 발급</h2></div>
+    </div>
+
+    <p class="lead">현재 <span class="term">CouponService</span>에는 <strong>관리자 발급(grant)</strong>만 있습니다(<span class="term">UserCouponGrantedType.ADMIN</span>). 선착순은 사용자가 직접 요청하는 흐름이라, <strong>요청을 Kafka로 직렬화해 단일 컨슈머가 수량을 순차 제어</strong>하는 모델을 새로 얹습니다.</p>
+
+    <h3>현재 coupon 도메인</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>메서드</th><th>현재 동작</th><th>선착순에서 재사용</th></tr></thead>
+      <tbody>
+        <tr><td>create</td><td>관리자 쿠폰 생성(<span class="term">/api-admin/v1/coupons</span>)</td><td>그대로</td></tr>
+        <tr><td>grant</td><td>관리자 지급 · <span class="term">existsByUserIdAndCouponId</span>로 중복 차단 → <span class="term">ALREADY_GRANTED</span></td><td>중복 방지 로직 재사용</td></tr>
+        <tr><td>use / cancelUse</td><td>주문 시 사용 · 보상 시 취소</td><td>변경 없음</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note"><span class="tag">없는 것</span>사용자용 <span class="term">POST /api/v1/coupons/issue</span> 발급 요청, 요청 결과 조회, 선착순 수량 제어, <span class="term">UserCouponGrantedType.FIRST_COME</span>(가칭) 구분. grant의 <span class="term">existsByUserIdAndCouponId</span> 중복 차단은 <strong>그대로 살려</strong> userId 중복 발급을 막는다.</div>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="COUPON">
+        <svg viewBox="0 0 1120 300" role="img" aria-label="선착순 쿠폰 흐름: 사용자가 POST /api/v1/coupons/issue로 발급 요청하면 commerce-api가 coupon-issue-requests 토픽에 발행하고 requestId를 즉시 응답한다. 단일 컨슈머가 순차로 수량을 제어하고 userId 중복을 막아 결과를 저장하면 사용자가 GET으로 결과를 polling한다.">
+          <defs>
+            <marker id="c1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <rect x="20" y="100" width="190" height="100" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="20" y="100" width="190" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">사용자</div><div class="s">POST issue → polling GET</div></div></foreignObject>
+
+          <rect x="270" y="100" width="210" height="100" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="270" y="100" width="210" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">commerce-api</div><div class="s">요청 발행 · requestId 즉시 응답</div></div></foreignObject>
+
+          <rect x="540" y="100" width="210" height="100" rx="16" fill="#F9FAFB" stroke="#D1D6DB" stroke-width="1.3"/>
+          <foreignObject x="540" y="100" width="210" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">coupon-issue-requests</div><div class="s">파티션 1 · 순서 보장</div></div></foreignObject>
+
+          <rect x="810" y="100" width="290" height="100" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="810" y="100" width="290" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">commerce-streamer · 단일 컨슈머</div><div class="s">순차 수량 제어 · userId unique · 결과 저장</div></div></foreignObject>
+
+          <line x1="210" y1="138" x2="270" y2="138" stroke="#4E5968" stroke-width="2" marker-end="url(#c1)"/>
+          <line x1="480" y1="150" x2="540" y2="150" stroke="#3182F6" stroke-width="2" marker-end="url(#c1)"/>
+          <text class="svg-l" x="510" y="138" text-anchor="middle" fill="#1B64DA">발행</text>
+          <line x1="750" y1="150" x2="810" y2="150" stroke="#15C47E" stroke-width="2" marker-end="url(#c1)"/>
+
+          <!-- polling back -->
+          <line x1="270" y1="182" x2="210" y2="182" stroke="#15C47E" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#c1)"/>
+          <text class="svg-l" x="240" y="222" text-anchor="middle" fill="#0A8F5B">결과 조회</text>
+          <line x1="955" y1="200" x2="955" y2="250" stroke="#8B95A1" stroke-width="2" stroke-dasharray="5 4"/>
+          <text class="svg-l" x="955" y="270" text-anchor="middle" fill="#6B7684">coupon_issue_result 저장 → API가 읽음</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> 선착순 발급. <span class="term">POST /api/v1/coupons/issue</span> → <span class="term">coupon-issue-requests</span>(key=couponId) 발행 후 <span class="term">requestId</span> 즉시 응답. <b>단일 컨슈머</b>(파티션 1)가 순차로 수량을 깎고 <span class="term">userId</span> 중복을 막아 결과를 저장하면, 사용자는 <span class="term">GET /api/v1/coupons/issue/{requestId}</span>로 polling한다.</figcaption>
+    </figure>
+
+    <h3>왜 단일 컨슈머인가 · 동시성 테스트 지점</h3>
+    <p>수량 제어는 <strong>경합이 핵심</strong>입니다. 파티션 키를 <span class="term">couponId</span>로 두면 같은 쿠폰의 요청은 한 파티션에 모이고, <strong>단일 컨슈머가 순서대로</strong> 처리하므로 "1000개를 1001명이 받는" lost update가 원천 차단됩니다. userId 중복은 <span class="term">coupon_issue</span> unique(userId, couponId) 또는 grant의 기존 중복 차단으로 막습니다.</p>
+    <div class="note"><span class="tag">검증</span>수량 초과 미발급은 기존 <span class="term">runConcurrently(threadCount) { ... }</span> 유틸(<span class="term">support/ConcurrencyTesting.kt</span>)로 검증한다. N개 한정 쿠폰에 N+M 동시 요청을 던지고, <strong>정확히 N건만 발급 + 중복 0건</strong>을 단언한다. 통합 테스트는 <span class="term">DatabaseCleanup</span> + <span class="term">@BeforeEach</span> 패턴을 따르고, 클래스에 <span class="term">@Transactional</span>을 붙이지 않는다(REQUIRES_NEW·@Async와 충돌).</div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">TRADE-OFFS</p><h2 class="sec">고민 포인트 · 트레이드오프</h2></div>
+    </div>
+
+    <p class="lead">회의적 리뷰어 관점에서, 적용 과정에서 <strong>깨질 수 있는 곳</strong>과 <strong>의식적으로 결정해야 할 곳</strong>을 짚습니다.</p>
+
+    <h3>① 이중 발행 — 메모리 이벤트와 Outbox 병행</h3>
+    <p>지금 like는 메모리 <span class="term">@TransactionalEventListener</span>로 like_count를 갱신합니다. 여기에 Outbox→Kafka까지 더하면 <strong>같은 좋아요가 두 경로로 두 번</strong> 집계될 위험이 있습니다. 판단: <strong>같은 앱 내부 부가처리(like_count 비정규화)는 메모리 이벤트로 유지</strong>하고, <strong>서비스 경계를 넘는 집계·외부 전송만 Outbox로 승격</strong>합니다. 둘의 책임을 겹치지 않게 자르는 게 핵심입니다.</p>
+
+    <h3>② 멱등 — event_handled vs payment 상태머신</h3>
+    <p>둘 다 멱등이지만 층위가 다릅니다. 중복이 아니라 <strong>보완</strong> 관계입니다.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>구분</th><th>payment 상태머신</th><th>event_handled 테이블</th></tr></thead>
+      <tbody>
+        <tr><td>대상</td><td>결제 상태 전이(SUCCESS/FAILED terminal)</td><td>Kafka 메시지 처리 1회 보장</td></tr>
+        <tr><td>방식</td><td><span class="term">resolve()</span>에서 isTerminal이면 no-op</td><td>event_id PK 존재 여부로 skip</td></tr>
+        <tr><td>층위</td><td>도메인 불변식</td><td>인프라(at-least-once 흡수)</td></tr>
+      </tbody>
+    </table></div>
+    <p>"핸들링 테이블 vs 로그 테이블 분리" 질문에 대한 우리 답: <strong>event_handled(처리 사실, PK=event_id)와 like_event(행동 이력)는 목적이 달라 분리</strong>합니다. 전자는 dedup 키, 후자는 재집계 소스입니다.</p>
+
+    <h3>③ @Async TaskExecutor 기본값</h3>
+    <p><span class="term">@EnableAsync</span>만 켜고 별도 <span class="term">TaskExecutor</span> 빈을 두지 않아 Spring Boot 기본 풀에 의존 중입니다. 핸들러가 늘면 <strong>무한 큐에 작업이 쌓여</strong> 백프레셔가 안 걸립니다. 이벤트 핸들러를 늘리기 전에 <strong>명시적 풀 크기·큐 한계·거부 정책</strong>을 설정해야 합니다.</p>
+
+    <h3>④ Testcontainers Kafka 미사용</h3>
+    <p>현재 testFixtures에 MySQL·Redis Testcontainers는 있으나 <strong>Kafka 통합 테스트 예시는 없습니다.</strong> consumer 테스트를 추가할 때 <span class="term">@EmbeddedKafka</span>(가볍고 빠름) vs Testcontainers Kafka(실제 브로커에 가까움) 중 택해야 합니다. 단위 흐름 검증은 EmbeddedKafka, 직렬화·파티셔닝까지 보려면 Testcontainers가 적합합니다.</p>
+
+    <h3>⑤ commerce-streamer 재사용의 한계</h3>
+    <p>신규 모듈을 안 만드는 대신, streamer가 <strong>집계·선착순·이력 적재를 한 앱에 겸하게</strong> 됩니다. 단기엔 비용이 낮지만, consumer group·스케일 단위가 섞여 <strong>한 종류 부하가 다른 처리를 지연</strong>시킬 수 있습니다. 부하가 갈리는 시점에 토픽별로 앱을 분리하면 됩니다(컨텍스트 패키지를 그대로 추출하는 기존 전략과 정합).</p>
+
+    <div class="note warn"><span class="tag">놓치기 쉬운 것</span>Outbox 릴레이는 <strong>발행 후 status=SENT 전이</strong>가 또 하나의 트랜잭션이다. 발행은 됐는데 SENT 전이 전에 죽으면 같은 메시지가 재발행된다 → consumer의 event_handled가 반드시 있어야 안전하다. Outbox와 멱등 테이블은 <strong>세트</strong>다.</div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">SEQUENCE</p><h2 class="sec">권장 작업 순서</h2></div>
+    </div>
+
+    <p class="lead">의존성이 적고 검증된 패턴부터, 위험이 큰 인프라 변경은 뒤로 미룹니다.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>단계</th><th>작업</th><th>산출물 / 근거</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>OrderCreatedEvent + AFTER_COMMIT 핸들러로 부가 로직 분리</td><td>like 패턴 복제 — 인프라 변경 0</td></tr>
+        <tr><td>2</td><td>commerce-api에 :modules:kafka 의존성 추가 + producer 설정(acks=all)</td><td>build.gradle.kts · application.yml</td></tr>
+        <tr><td>3</td><td>outbox 테이블 + 릴레이 워커 + event_handled 멱등 테이블</td><td>Outbox·멱등은 세트로</td></tr>
+        <tr><td>4</td><td>commerce-streamer 집계 consumer(product_metrics upsert)</td><td>DemoKafkaConsumer 확장</td></tr>
+        <tr><td>5</td><td>선착순 쿠폰(issue API + 단일 컨슈머 + 동시성 테스트)</td><td>ConcurrencyTesting 활용</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note key"><span class="tag">한 문장</span>가장 안전한 시작은 <strong>§2(메모리 이벤트 분리)</strong>다 — 인프라를 건드리지 않고 like 패턴을 그대로 옮기면 되므로 즉시 가능하고, 그 위에 Outbox·Kafka를 점진적으로 얹는다.</div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 7 — 이벤트 기반 아키텍처 + Kafka · 코드베이스 적용 지점<br>
+    commerce-api · commerce-streamer 현재 코드 기준 · 개념/요구사항은 01·00 참조
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -15,6 +15,7 @@ import com.loopers.product.domain.ProductSort
 import com.loopers.product.domain.ProductStatus
 import com.loopers.shared.domain.CursorPage
 import com.loopers.shared.domain.Money
+import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -28,12 +29,14 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.context.ApplicationEventPublisher
 
 class ProductServiceTest {
     private val productRepository: ProductRepository = mock()
     private val brandRepository: BrandRepository = mock()
     private val inventoryRepository: InventoryRepository = mock()
-    private val productService = ProductService(productRepository, brandRepository, inventoryRepository)
+    private val eventPublisher: ApplicationEventPublisher = mock()
+    private val productService = ProductService(productRepository, brandRepository, inventoryRepository, eventPublisher)
 
     private fun product() = Product(brandId = 1L, name = ProductName("에어맥스"), price = Money(100_000))
 
@@ -189,13 +192,13 @@ class ProductServiceTest {
         assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
     }
 
-    @DisplayName("요청한 ID가 전부 활성 상품이면, ID를 키로 한 맵을 반환한다.")
+    @DisplayName("요청한 ID가 전부 활성 상품이고 가격도 일치하면, ID를 키로 한 맵을 반환한다.")
     @Test
     fun returnsActiveProductsMap() {
         val product = product()
         whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
 
-        val result = productService.getActiveProducts(listOf(product.id))
+        val result = productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000)))
 
         assertThat(result).containsEntry(product.id, product)
     }
@@ -207,8 +210,22 @@ class ProductServiceTest {
         whenever(productRepository.findAllActiveByIdIn(listOf(product.id, 99L))).thenReturn(listOf(product))
 
         val result = assertThrows<NotFoundException> {
-            productService.getActiveProducts(listOf(product.id, 99L))
+            productService.getActiveProducts(
+                listOf(ProductCheckCommand(product.id, 100_000), ProductCheckCommand(99L, 100_000)),
+            )
         }
         assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND)
+    }
+
+    @DisplayName("요청한 가격이 상품의 등록 가격과 다르면, CONFLICT 예외(PRODUCT_PRICE_NOT_MATCHED)가 발생한다.")
+    @Test
+    fun throwsConflict_whenRequestedPriceDoesNotMatch() {
+        val product = product()
+        whenever(productRepository.findAllActiveByIdIn(listOf(product.id))).thenReturn(listOf(product))
+
+        val result = assertThrows<ConflictException> {
+            productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 99_999)))
+        }
+        assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_PRICE_NOT_MATCHED)
     }
 }

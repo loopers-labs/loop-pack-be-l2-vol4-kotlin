@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PG 결제 usecase 플로우 — 요청이 들어오면 어떻게 되는가</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 10px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:13px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:10px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.amber .t{color:#78350f} svg foreignObject>.fo.amber .s{color:#92520a}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week6 · PG 결제 연동</span>
+      <h1 class="title">결제 요청이 들어오면<br><span class="hl">어떤 케이스로 어떻게 흐르는가</span></h1>
+      <p class="lede">commerce-api 가 pg-simulator 로 결제를 보낼 때 발생할 수 있는 <b>모든 경로</b>를 usecase 별 타임라인으로 본다. 핵심은 정상 경로가 아니라 <b>실패·미확정 경로</b>를 안전하게 처리하는 것.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">PG 결제 · Resilience</span></div>
+        <div class="chip"><span class="k">SYSTEM</span><span class="v">commerce-api ↔ pg-simulator</span></div>
+        <div class="chip"><span class="k">SOURCE</span><span class="v">레포 실제 소스</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-plan.html"><span class="n">00</span>계획</a>
+    <a href="03-order-flow-current.html"><span class="n">03</span>주문 플로우</a>
+    <a class="cur" href="05-payment-usecases.html"><span class="n">05</span>결제 usecase</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">3단계 모델 — 응답·콜백·조회</a></li>
+      <li><a href="#s2">전체 파이프라인</a></li>
+      <li><a href="#s3">U1 정상 결제 (happy path)</a></li>
+      <li><a href="#s4">U2 콜백 유실 → 조회로 구제</a></li>
+      <li><a href="#s5">U3 한도초과·카드오류 → 실패</a></li>
+      <li><a href="#s6">U4 제출 타임아웃 → 미확정</a></li>
+      <li><a href="#s7">U5 500 반복 → 서킷 오픈</a></li>
+      <li><a href="#s8">U6 400 → 우리 버그</a></li>
+      <li><a href="#s9">전체 케이스 표</a></li>
+      <li><a href="#s10">이게 정석인가 — 공식 출처</a></li>
+      <li><a href="#refs">참고 (레포 소스 · 공식 문서)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">MENTAL MODEL</p><h2 class="sec">응답 = 접수 / 콜백 = 확정 / 조회 = 안전망</h2></div>
+    </div>
+    <p class="lead">흔한 오해 — "응답으로 성공 처리하고, 콜백으로 2차 확인한다"는 <strong>틀렸다.</strong></p>
+    <p>pg-simulator 의 POST 응답은 <strong>접수(PENDING)일 뿐</strong> 승인 결과가 아니다. 게다가 <em>40% 확률로 500</em> 이 나고 타임아웃도 난다. 실제 성공/실패는 <strong>콜백(또는 조회)</strong> 에서만 온다.</p>
+    <div class="note key"><span class="tag">3단계</span><strong>① 응답</strong> = 접수(PENDING). 못 받으면 UNKNOWN. → <strong>② 콜백</strong> = 결과 1차 확정(SUCCESS→PAID / FAILED→FAILED). 단 <strong>유실 가능</strong>. → <strong>③ GET 조회</strong> = 2차 안전망. 콜백 유실·UNKNOWN 을 조회로 해소.</div>
+    <div class="note warn"><span class="tag">콜백의 함정</span>pg-simulator 의 콜백 송신은 <span class="term">runCatching</span> 으로 실패를 삼키고 <strong>타임아웃도 없다 → 콜백은 유실될 수 있다.</strong> 그래서 콜백만 믿으면 PENDING 에 영영 갇히는 주문이 생긴다. <strong>조회 reconcile 이 진짜 안전망</strong>이다.</div>
+  </section>
+
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">BIG PICTURE</p><h2 class="sec">전체 파이프라인</h2></div>
+    </div>
+    <p>요청 한 건이 거치는 세 국면과, 최종으로 수렴하는 세 상태(<strong>PAID · FAILED · UNKNOWN</strong>).</p>
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="OVERVIEW">
+        <svg viewBox="0 0 1120 360" role="img" aria-label="결제 전체 파이프라인: 제출 동기 단계에서 PENDING 또는 UNKNOWN, 콜백 비동기 단계에서 PAID 또는 FAILED, 조회 안전망으로 UNKNOWN 해소">
+          <defs>
+            <marker id="ovA" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- client -->
+          <rect x="24" y="150" width="130" height="66" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="24" y="150" width="130" height="66"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">클라이언트</div><div class="s">결제 요청</div></div></foreignObject>
+          <line x1="154" y1="183" x2="194" y2="183" stroke="#6B7684" stroke-width="2" marker-end="url(#ovA)"/>
+          <!-- submit -->
+          <rect x="198" y="138" width="206" height="90" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="198" y="138" width="206" height="90"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">① 제출 (동기)</div><div class="s">@Tx 접수 + PG 호출</div><div class="s">@CircuitBreaker · timeout</div></div></foreignObject>
+          <!-- submit -> pending (up) -->
+          <line x1="404" y1="166" x2="456" y2="98" stroke="#f59e0b" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="460" y="66" width="196" height="60" rx="14" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="460" y="66" width="196" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">접수 200 → PENDING</div><div class="s">transactionKey 저장</div></div></foreignObject>
+          <!-- submit -> unknown (down) -->
+          <line x1="404" y1="200" x2="456" y2="276" stroke="#f59e0b" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="460" y="250" width="244" height="66" rx="14" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="460" y="250" width="244" height="66"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">타임아웃·500·CB open → UNKNOWN</div><div class="s">Order.markUnknown()</div></div></foreignObject>
+          <!-- pending -> callback -->
+          <line x1="656" y1="96" x2="700" y2="96" stroke="#0ea5e9" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="704" y="56" width="190" height="80" rx="15" fill="#e8f6fe" stroke="#0ea5e9" stroke-width="1.4"/>
+          <foreignObject x="704" y="56" width="190" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo"><div class="t" style="color:#0c4a6e">② 콜백 (비동기)</div><div class="s" style="color:#0ea5e9">1~5s 뒤 SUCCESS/FAILED</div><div class="s" style="color:#0ea5e9">유실 가능</div></div></foreignObject>
+          <!-- callback -> paid / failed -->
+          <line x1="894" y1="82" x2="950" y2="70" stroke="#15C47E" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="954" y="44" width="140" height="54" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="954" y="44" width="140" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">PAID</div><div class="s">confirmPayment()</div></div></foreignObject>
+          <line x1="894" y1="110" x2="950" y2="140" stroke="#F04452" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="954" y="118" width="140" height="54" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="954" y="118" width="140" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">FAILED</div><div class="s">failPayment()</div></div></foreignObject>
+          <!-- unknown -> reconcile -->
+          <line x1="704" y1="283" x2="716" y2="283" stroke="#3182F6" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="720" y="252" width="180" height="62" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.4"/>
+          <foreignObject x="720" y="252" width="180" height="62"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">③ 조회 reconcile</div><div class="s">GET /payments</div></div></foreignObject>
+          <line x1="900" y1="283" x2="950" y2="283" stroke="#3182F6" stroke-width="2" marker-end="url(#ovA)"/>
+          <rect x="954" y="253" width="150" height="60" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="954" y="253" width="150" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PAID·FAILED 확정</div><div class="s">UNKNOWN 해소</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 제출(동기) → 콜백(비동기) → 조회(안전망). 콜백이 유실되면 PENDING 도 ③ 조회로 흘러 확정된다.</figcaption>
+    </figure>
+  </section>
+
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">USECASE · 약 60% × 70%</p><h2 class="sec">U1 — 정상 결제 (happy path)</h2></div>
+    </div>
+    <p class="lead">제출 접수 성공 → 콜백 승인 → PAID. 가장 흔한 경로.</p>
+    <figure>
+      <div class="fig-box" data-fig="U1">
+        <svg viewBox="0 0 720 142" role="img" aria-label="정상 결제: 요청, 제출 200 PENDING, 콜백 SUCCESS, 주문 PAID">
+          <defs><marker id="u1A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="12" y="34" width="150" height="74" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="12" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">결제 요청</div><div class="s">POST /payments</div></div></foreignObject>
+          <line x1="162" y1="71" x2="188" y2="71" stroke="#3182F6" stroke-width="2" marker-end="url(#u1A)"/>
+          <rect x="190" y="34" width="150" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="190" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">제출 200</div><div class="s">PENDING 저장</div></div></foreignObject>
+          <line x1="340" y1="71" x2="366" y2="71" stroke="#15C47E" stroke-width="2" marker-end="url(#u1A)"/>
+          <rect x="368" y="34" width="150" height="74" rx="15" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="368" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">콜백 SUCCESS</div><div class="s">approve 70%</div></div></foreignObject>
+          <line x1="518" y1="71" x2="544" y2="71" stroke="#15C47E" stroke-width="2" marker-end="url(#u1A)"/>
+          <rect x="546" y="34" width="150" height="74" rx="15" fill="#E7F9F1" stroke="#0A8F5B" stroke-width="1.6"/>
+          <foreignObject x="546" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">Order → PAID</div><div class="s">confirmPayment()</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U1.</b> 클라이언트는 제출 직후 <b>PENDING</b> 응답을 받고, 1~5s 뒤 콜백으로 PAID 가 확정된다.</figcaption>
+    </figure>
+    <div class="note"><span class="tag">포인트</span>제출 응답(PENDING)으로 <strong>성공 처리하지 않는다.</strong> PAID 확정은 콜백에서. 클라이언트는 그동안 PENDING 을 보거나 상태 폴링으로 갱신을 받는다.</div>
+  </section>
+
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">USECASE · 콜백 유실</p><h2 class="sec">U2 — 콜백이 안 왔다 → 조회로 구제</h2></div>
+    </div>
+    <p class="lead">승인은 됐는데 콜백이 유실. 콜백만 믿으면 PENDING 에 갇힌다.</p>
+    <figure>
+      <div class="fig-box" data-fig="U2">
+        <svg viewBox="0 0 720 142" role="img" aria-label="콜백 유실: 제출 200 PENDING, 콜백 유실, 조회 reconcile, 주문 PAID">
+          <defs><marker id="u2A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="12" y="34" width="150" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="12" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">제출 200</div><div class="s">PENDING 저장</div></div></foreignObject>
+          <line x1="162" y1="71" x2="188" y2="71" stroke="#F04452" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#u2A)"/>
+          <rect x="190" y="34" width="150" height="74" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="190" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">콜백 유실 ✕</div><div class="s">no timeout</div></div></foreignObject>
+          <line x1="340" y1="71" x2="366" y2="71" stroke="#3182F6" stroke-width="2" marker-end="url(#u2A)"/>
+          <rect x="368" y="34" width="150" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="368" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">조회 reconcile</div><div class="s">GET /payments</div></div></foreignObject>
+          <line x1="518" y1="71" x2="544" y2="71" stroke="#15C47E" stroke-width="2" marker-end="url(#u2A)"/>
+          <rect x="546" y="34" width="150" height="74" rx="15" fill="#E7F9F1" stroke="#0A8F5B" stroke-width="1.6"/>
+          <foreignObject x="546" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">Order → PAID</div><div class="s">조회 SUCCESS</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U2.</b> 콜백 유실(빨간 점선) → 주문은 PENDING 잔존 → <b>조회 reconcile</b> 이 실제 상태를 읽어 PAID 로 확정.</figcaption>
+    </figure>
+    <div class="note warn"><span class="tag">왜 필요한가</span>pg-simulator 콜백은 <span class="term">runCatching</span> + 타임아웃 없음 → <strong>유실 가능</strong>. 그래서 PENDING 백로그를 주기적으로 <strong>GET 조회</strong>해 확정하는 reconcile 이 없으면, 성공한 결제가 영영 PENDING 으로 남는다.</div>
+  </section>
+
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">USECASE · 한도 20% + 카드 10%</p><h2 class="sec">U3 — 결제 거절 → FAILED</h2></div>
+    </div>
+    <p class="lead">접수는 됐지만 승인 단계에서 한도초과/카드오류로 거절.</p>
+    <figure>
+      <div class="fig-box" data-fig="U3">
+        <svg viewBox="0 0 720 142" role="img" aria-label="결제 거절: 제출 200 PENDING, 콜백 FAILED 한도초과 또는 카드오류, 주문 FAILED">
+          <defs><marker id="u3A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="56" y="34" width="166" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="56" y="34" width="166" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">제출 200</div><div class="s">PENDING 저장</div></div></foreignObject>
+          <line x1="222" y1="71" x2="276" y2="71" stroke="#F04452" stroke-width="2" marker-end="url(#u3A)"/>
+          <rect x="278" y="34" width="166" height="74" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="278" y="34" width="166" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">콜백 FAILED</div><div class="s">한도초과 / 카드오류</div></div></foreignObject>
+          <line x1="444" y1="71" x2="498" y2="71" stroke="#F04452" stroke-width="2" marker-end="url(#u3A)"/>
+          <rect x="500" y="34" width="166" height="74" rx="15" fill="#FEEFEF" stroke="#C9303C" stroke-width="1.6"/>
+          <foreignObject x="500" y="34" width="166" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">Order → FAILED</div><div class="s">failPayment()</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U3.</b> 명시적 거절(reason 포함)이다. 결과가 확실하므로 재시도하지 않고 FAILED 로 끝낸다.</figcaption>
+    </figure>
+    <div class="note"><span class="tag">포인트</span>이건 <strong>명확한 실패</strong>(reason: 한도초과/잘못된 카드)다. UNKNOWN 과 달리 "됐을 수도 있음"이 아니므로 <strong>재시도·재조회 불필요</strong>, 바로 FAILED 확정.</div>
+  </section>
+
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">USECASE · in-doubt</p><h2 class="sec">U4 — 제출 타임아웃 → 미확정(UNKNOWN)</h2></div>
+    </div>
+    <p class="lead">PG 가 응답을 안 준다. <strong>됐는지 안 됐는지 모른다.</strong></p>
+    <figure>
+      <div class="fig-box" data-fig="U4">
+        <svg viewBox="0 0 720 142" role="img" aria-label="제출 타임아웃: 응답 없음, Fallback markUnknown, 조회 reconcile, PAID 또는 FAILED 확정">
+          <defs><marker id="u4A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="12" y="34" width="150" height="74" rx="15" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="12" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">제출 호출</div><div class="s">응답 없음 (timeout)</div></div></foreignObject>
+          <line x1="162" y1="71" x2="188" y2="71" stroke="#f59e0b" stroke-width="2" marker-end="url(#u4A)"/>
+          <rect x="190" y="34" width="150" height="74" rx="15" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="190" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">Fallback</div><div class="s">markUnknown()</div></div></foreignObject>
+          <line x1="340" y1="71" x2="366" y2="71" stroke="#3182F6" stroke-width="2" marker-end="url(#u4A)"/>
+          <rect x="368" y="34" width="150" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="368" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">조회 reconcile</div><div class="s">GET /payments</div></div></foreignObject>
+          <line x1="518" y1="71" x2="544" y2="71" stroke="#6B7684" stroke-width="2" marker-end="url(#u4A)"/>
+          <rect x="546" y="34" width="150" height="74" rx="15" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="546" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">PAID 또는 FAILED</div><div class="s">조회로 확정</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U4.</b> 타임아웃 = "실패"가 아니라 <b>미확정(in-doubt)</b>. 우선 UNKNOWN 으로 두고, 조회로 진짜 상태를 확정한다.</figcaption>
+    </figure>
+    <div class="note warn"><span class="tag">절대 금지</span>타임아웃이라고 <strong>새 결제를 다시 보내면 이중 결제</strong>가 된다(PG 에선 됐을 수 있음). 무조건 <strong>조회로 실제 상태 확인</strong> 후 PAID/FAILED 확정. 클라이언트에는 그동안 PENDING 응답.</div>
+  </section>
+
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">USECASE · 40% 인위적 실패</p><h2 class="sec">U5 — 500 반복 → 서킷 오픈 → 미확정</h2></div>
+    </div>
+    <p class="lead">제출이 5xx 로 계속 실패. 제한 재시도 후 CircuitBreaker 가 연다.</p>
+    <figure>
+      <div class="fig-box" data-fig="U5">
+        <svg viewBox="0 0 720 142" role="img" aria-label="500 반복: 제출 500, CB open, Fallback markUnknown, 조회로 확정">
+          <defs><marker id="u5A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="12" y="34" width="150" height="74" rx="15" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="12" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">제출 500 ×N</div><div class="s">제한 재시도(멱등)</div></div></foreignObject>
+          <line x1="162" y1="71" x2="188" y2="71" stroke="#F04452" stroke-width="2" marker-end="url(#u5A)"/>
+          <rect x="190" y="34" width="150" height="74" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="190" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">CircuitBreaker OPEN</div><div class="s">PG 장애 차단</div></div></foreignObject>
+          <line x1="340" y1="71" x2="366" y2="71" stroke="#f59e0b" stroke-width="2" marker-end="url(#u5A)"/>
+          <rect x="368" y="34" width="150" height="74" rx="15" fill="#fef6e6" stroke="#f59e0b" stroke-width="1.3"/>
+          <foreignObject x="368" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo amber"><div class="t">Fallback</div><div class="s">markUnknown()</div></div></foreignObject>
+          <line x1="518" y1="71" x2="544" y2="71" stroke="#3182F6" stroke-width="2" marker-end="url(#u5A)"/>
+          <rect x="546" y="34" width="150" height="74" rx="15" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="546" y="34" width="150" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">조회로 확정</div><div class="s">reconcile</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U5.</b> 5xx 는 재시도 가능하지만 <b>멱등 전제</b>(주문당 1건 가드/멱등키). 계속 실패하면 CB 가 열려 장애 전파를 끊고 UNKNOWN 으로 빠진다.</figcaption>
+    </figure>
+    <div class="note"><span class="tag">포인트</span>500·타임아웃·콜백유실은 전부 <strong>"미확정"</strong> 한 바구니다. 공통 출구는 <strong>UNKNOWN → 조회 reconcile</strong>. CB 는 PG 장애가 commerce 전체로 번지는 것을 막는 차단기.</div>
+  </section>
+
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">USECASE · 우리 잘못</p><h2 class="sec">U6 — 400 → 재시도해도 소용없다</h2></div>
+    </div>
+    <p class="lead">헤더 누락·본문 검증 실패·직렬화 오류. PG 가 아니라 <strong>우리 요청이 틀렸다.</strong></p>
+    <figure>
+      <div class="fig-box" data-fig="U6">
+        <svg viewBox="0 0 720 142" role="img" aria-label="400 우리 버그: 제출 400, 즉시 실패 처리 재시도 무의미">
+          <defs><marker id="u6A" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+          <rect x="78" y="34" width="240" height="74" rx="15" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="78" y="34" width="240" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">제출 400</div><div class="s">헤더 누락 · 본문검증 · 직렬화</div></div></foreignObject>
+          <line x1="318" y1="71" x2="398" y2="71" stroke="#C9303C" stroke-width="2" marker-end="url(#u6A)"/>
+          <rect x="400" y="34" width="240" height="74" rx="15" fill="#FEEFEF" stroke="#C9303C" stroke-width="1.6"/>
+          <foreignObject x="400" y="34" width="240" height="74"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">즉시 실패 + 알림</div><div class="s">재시도 무의미 (고쳐야 풀림)</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>U6.</b> 400 은 입력이 틀린 것이라 <b>재시도해도 똑같이 400</b>. CB 대상도 아니다 — 즉시 실패 처리 + 로깅/알림.</figcaption>
+    </figure>
+    <div class="note warn"><span class="tag">구분</span><strong>400 = 우리 버그</strong>(재시도 X) vs <strong>500/타임아웃 = PG 미확정</strong>(조회로 확인). 같은 "실패"로 뭉뚱그리면, 고쳐야 풀릴 버그를 무의미하게 재시도하거나 미확정 건을 막 재결제하는 사고가 난다.</div>
+  </section>
+
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">MECE</p><h2 class="sec">전체 케이스 표</h2></div>
+    </div>
+    <h3>제출(POST) 응답</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>응답</th><th>발생 조건</th><th>대응 / 주문 상태</th></tr></thead>
+      <tbody>
+        <tr><td>200 PENDING</td><td>접수 성공 (~60%)</td><td>transactionKey 저장, 결과 대기 · PENDING</td></tr>
+        <tr><td>400</td><td>헤더 누락 / 본문검증 / 직렬화</td><td>우리 버그 — 재시도 X, 즉시 실패+알림 · FAILED</td></tr>
+        <tr><td>500</td><td>40% 인위적 / 예상외 오류</td><td>제한 재시도 → CB open → UNKNOWN</td></tr>
+        <tr><td>무응답</td><td>타임아웃 · 커넥션 실패</td><td>in-doubt → markUnknown · UNKNOWN</td></tr>
+        <tr><td>CB OPEN</td><td>CallNotPermitted</td><td>Fallback → markUnknown · UNKNOWN</td></tr>
+      </tbody>
+    </table></div>
+    <h3>비동기 결과 (콜백 / 조회 공통)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>분기</th><th>확률 · reason</th><th>우리 매핑</th></tr></thead>
+      <tbody>
+        <tr><td>approve</td><td>70%</td><td>→ PAID (confirmPayment)</td></tr>
+        <tr><td>limitExceeded</td><td>20% · 한도초과</td><td>→ FAILED</td></tr>
+        <tr><td>invalidCard</td><td>10% · 잘못된 카드</td><td>→ FAILED</td></tr>
+        <tr><td>콜백 유실</td><td>no timeout · runCatching</td><td>조회 reconcile 로 해소</td></tr>
+      </tbody>
+    </table></div>
+    <h3>GET 조회 (reconcile)</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>응답</th><th>의미</th><th>대응</th></tr></thead>
+      <tbody>
+        <tr><td>200 SUCCESS</td><td>승인 확정</td><td>→ PAID (멱등)</td></tr>
+        <tr><td>200 FAILED</td><td>실패 확정</td><td>→ FAILED</td></tr>
+        <tr><td>200 PENDING</td><td>처리 중</td><td>잠시 후 재조회</td></tr>
+        <tr><td>404</td><td>미접수(접수 자체 실패)</td><td>FAILED 확정 (재결제는 멱등키로 별도)</td></tr>
+      </tbody>
+    </table></div>
+    <blockquote>
+      <p>400 = 고쳐라(재시도 X) · 404 = 조회 타이밍 · 500·타임아웃·콜백유실 = 미확정이니 조회로 확인(막 재결제 X)</p>
+      <cite>— 주문 상태는 결국 PAID · FAILED · UNKNOWN 세 가지로 수렴한다</cite>
+    </blockquote>
+  </section>
+
+  <section id="s10" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">10</div>
+      <div><p class="sec-eyebrow">STANDARD? · 공식 출처 검증</p><h2 class="sec">이게 정석인가 — 토스페이먼츠 공식 문서</h2></div>
+    </div>
+    <p class="lead">위 3단계 모델(<strong>응답=접수 · 콜백=확정 · 조회=안전망</strong>)은 임의 관례가 아니다. PG 사업자가 <strong>공식 문서에서 그렇게 설계하라고 명시</strong>한 구조다.</p>
+
+    <blockquote>
+      <p>"데이터 정합성과 연동 편의를 위해서 <strong>요청과 승인을 따로 하는 방식</strong>으로 요청과 승인 과정을 만들었습니다."</p>
+      <cite>— 토스페이먼츠 개발자센터, 결제 흐름 이해하기 <a class="cite" href="#refs">[5]</a></cite>
+    </blockquote>
+
+    <div class="note key"><span class="tag">비동기 + 웹훅 필수</span>"결제 인증과 승인이 <strong>비동기적으로 일어나기 때문에</strong> 결제의 결과를 받으려면 <strong>반드시 웹훅을 연동</strong>해야 됩니다."<a class="cite" href="#refs">[5]</a> 결제 상태도 단일 액션이 아니라 <span class="term">READY → IN_PROGRESS → DONE</span> 으로 흐른다.</div>
+
+    <div class="note warn"><span class="tag">웹훅 유실 = 불일치 (→ 조회 reconcile 의 근거)</span>"사용자가 결제를 중단하거나, 서버에 트래픽이 몰려서 <strong>웹훅을 받지 못했다면</strong> 상점의 시스템과 토스페이먼츠 결제 결과와 <strong>불일치 데이터가 생길 수도 있어요.</strong>"<a class="cite" href="#refs">[5]</a> — 이 한 문장이 본 문서 <strong>③ GET 조회 reconcile</strong> 이 왜 선택이 아닌 필수인지를 그대로 뒷받침한다.</div>
+
+    <h3>공식 문서 ↔ 본 문서 매핑</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>토스페이먼츠 공식이 말하는 것</th><th>근거</th><th>본 문서의 단계</th></tr></thead>
+      <tbody>
+        <tr><td>요청과 승인을 분리</td><td>결제 흐름 이해하기 <a class="cite" href="#refs">[5]</a></td><td>① 응답=접수 / ② 콜백=확정</td></tr>
+        <tr><td>비동기 → 웹훅 필수</td><td>결제 흐름 이해하기 <a class="cite" href="#refs">[5]</a></td><td>② 콜백으로만 확정</td></tr>
+        <tr><td>웹훅 유실 시 불일치 발생</td><td>웹훅 이벤트 <a class="cite" href="#refs">[6]</a></td><td>③ GET 조회 reconcile (안전망)</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="note"><span class="tag">정직한 한계</span><strong>"외부 PG 호출을 DB 트랜잭션 밖에 둔다"</strong>는 점은 공식 문서·빅테크 공식 블로그에서 깔끔한 1차 출처를 <strong>확인하지 못했다</strong>(검색 결과가 개인 블로그뿐) — 일반 원칙으로만 둔다. 우아한형제들도 결제를 <strong>비동기 시스템으로 전환</strong>했다고 작업 항목에 명시는 하나<a class="cite" href="#refs">[7]</a>, 동기→비동기 전환의 <em>구체적 이유</em>는 해당 글에 상세히 나오지 않아 인용을 이 한 줄로 제한한다.</div>
+
+    <div class="note key"><span class="tag">결론</span>"주문 따로, 결제 따로(요청/승인 분리) + 비동기 콜백 + 조회 보정"은 <strong>PG 사업자가 자기 시스템을 그렇게 설계해 그렇게 붙일 수밖에 없는 정석</strong>이다. 반대로 결제를 주문 생성 한 동기 트랜잭션에 욱여넣는 방식은 PG 의 비동기 모델과 충돌한다.</div>
+  </section>
+
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고 (레포 소스 · 공식 문서)</h2></div>
+    </div>
+    <div class="ref primary"><span class="n">1</span><span class="b"><b>pg-simulator PaymentApi / PaymentDto</b> — 엔드포인트·요청(callbackUrl 필수)·40% 500·지연.<span class="src">apps/pg-simulator/.../interfaces/api/payment/</span></span></div>
+    <div class="ref primary"><span class="n">2</span><span class="b"><b>pg-simulator PaymentCoreRelay</b> — 콜백 송신(RestTemplate, runCatching, 타임아웃 없음 → 유실 가능).<span class="src">apps/pg-simulator/.../infrastructure/payment/PaymentCoreRelay.kt</span></span></div>
+    <div class="ref"><span class="n">3</span><span class="b"><b>pg-simulator 응답 케이스 분석 (MECE)</b> — 본 문서의 케이스 표 출처.<span class="src">docs/pg-simulator-responses.md</span></span></div>
+    <div class="ref"><span class="n">4</span><span class="b"><b>결제 플로우 모델 · 상태기계</b> — 접수·확정·안전망 모델 + 주문 상태기계 (06 문서 §6).<span class="src">docs/week6/06-pg-feign-sequence.html</span></span></div>
+    <a class="ref primary" href="https://docs.tosspayments.com/guides/v2/get-started/payment-flow" target="_blank" rel="noopener"><span class="n">5</span><span class="b"><b>결제 흐름 이해하기 — 토스페이먼츠 개발자센터 (공식)</b> — 요청/승인 분리, 비동기, 웹훅 필수, 웹훅 유실 시 불일치. 본 섹션 10 인용 출처.<span class="src">docs.tosspayments.com/guides/v2/get-started/payment-flow</span></span></a>
+    <a class="ref primary" href="https://docs.tosspayments.com/reference/using-api/webhook-events" target="_blank" rel="noopener"><span class="n">6</span><span class="b"><b>웹훅 이벤트 — 토스페이먼츠 개발자센터 (공식)</b> — 결제 결과 비동기 통지·재전송 정책 안내.<span class="src">docs.tosspayments.com/reference/using-api/webhook-events</span></span></a>
+    <a class="ref" href="https://techblog.woowahan.com/2572/" target="_blank" rel="noopener"><span class="n">7</span><span class="b"><b>결제 시스템 성능·부하·스트레스 테스트 — 우아한형제들 기술블로그</b> — 결제 API 단순화·비동기 결제 시스템 개발을 작업 항목으로 명시(상세 이유는 미기재).<span class="src">techblog.woowahan.com/2572/</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week6 · PG 결제 usecase 플로우<br>
+    출처: 레포 apps/pg-simulator 실제 소스 + docs/pg-simulator-responses.md + 토스페이먼츠 공식 문서
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POST /api-admin/v1/coupons — commerce-api</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s}
+  .ref:hover{border-color:var(--blue);transform:translateX(3px)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+
+  /* checklist */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:13px;align-items:flex-start;padding:14px 18px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    flex:none;margin-top:1px;position:relative;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;margin-left:auto;flex:none;align-self:center}
+
+  /* docnav — 문서 시리즈 네비게이션. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>쿠폰 · REST API (Admin)</span>
+      <h1 class="title">POST<br><span class="hl">/api-admin/v1/coupons</span></h1>
+      <p class="lede">관리자가 새 <b>쿠폰 정책</b>(이름 · 만료일 · 할인 타입 · 할인 값 · 최소 주문 금액)을 등록합니다. <b>발급 가능한 쿠폰 템플릿</b>을 만드는 단계입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">AUTH</span><span class="v">ACCOUNT_ID (admin)</span></div>
+        <div class="chip"><span class="k">REQUEST</span><span class="v">CouponCreateRequest</span></div>
+        <div class="chip"><span class="k">RESPONSE</span><span class="v">생성 결과 (no body)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="index.html"><span class="n">◆</span>인덱스</a>
+    <a href="account-register.html"><span class="n">01</span>회원가입</a>
+    <a href="account-me.html"><span class="n">02</span>내 정보</a>
+    <a href="account-change-password.html"><span class="n">03</span>비밀번호 변경</a>
+    <a href="product-list.html"><span class="n">04</span>상품 목록</a>
+    <a href="product-detail.html"><span class="n">05</span>상품 상세</a>
+    <a href="order-create.html"><span class="n">06</span>주문 생성</a>
+    <a class="cur" href="coupon-create.html"><span class="n">07</span>쿠폰 생성</a>
+    <a href="coupon-grant.html"><span class="n">08</span>쿠폰 발급</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">개요</a></li>
+      <li><a href="#s2">요청 · 응답</a></li>
+      <li><a href="#s3">시퀀스 다이어그램</a></li>
+      <li><a href="#s4">비즈니스 로직</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ===================== S1 개요 ===================== -->
+    <section id="s1" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">01</div>
+        <div>
+          <p class="sec-eyebrow">OVERVIEW</p>
+          <h2 class="sec">개요</h2>
+        </div>
+      </div>
+
+      <p class="lead">관리자가 쿠폰 정책을 생성하는 관리용 엔드포인트입니다.</p>
+
+      <p>이 API 는 실제 사용자에게 쿠폰을 지급하지 않습니다. <strong>발급 가능한 쿠폰의 정의(템플릿)</strong>를 만들 뿐입니다. 여기서 만든 쿠폰을 개별 사용자에게 지급하는 작업은 별도의 <span class="term">POST /api-admin/v1/coupons/{couponId}/grant</span> (쿠폰 발급) 에서 처리합니다.</p>
+
+      <div class="note key"><span class="tag">핵심</span>경로 프리픽스 <strong>/api-admin</strong> 은 일반 사용자용 <span class="term">/api/v1</span> 과 구분되는 <strong>관리용 영역</strong>입니다. 보안 설정에서 <span class="term">/api-admin/v1/**</span> 전 경로가 인증을 요구하며, 별도의 관리자 인증 필터가 앞단에 붙어 ADMIN 권한을 검증합니다 (4번 섹션 참조).</p></div>
+
+      <p>생성되는 쿠폰은 두 가지 할인 타입을 가질 수 있습니다 — <strong>정액(FIXED)</strong> 과 <strong>정률(RATE)</strong>. 할인 값(<span class="term">value</span>)의 의미와 검증 규칙은 타입에 따라 달라지며, 자세한 내용은 다음 섹션에서 다룹니다.</p>
+    </section>
+
+    <!-- ===================== S2 요청 · 응답 ===================== -->
+    <section id="s2" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">02</div>
+        <div>
+          <p class="sec-eyebrow">REQUEST &amp; RESPONSE</p>
+          <h2 class="sec">요청 · 응답</h2>
+        </div>
+      </div>
+
+      <h3>엔드포인트 시그니처</h3>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">CouponController.kt</span>
+        </div>
+<pre><span class="cm">// 요청 본문 + 인증 attribute(ACCOUNT_ID) 를 받아 생성 커맨드로 변환</span>
+<span class="kw">@PostMapping</span>(<span class="st">"/api-admin/v1/coupons"</span>)
+<span class="kw">fun</span> <span class="fn">createCoupon</span>(
+    <span class="kw">@RequestBody</span> couponCreateRequest: <span class="ty">CouponCreateRequest</span>,
+    <span class="kw">@RequestAttribute</span>(ACCOUNT_ID) requestAccountId: <span class="ty">Long</span>,
+) = couponService.<span class="fn">create</span>(couponCreateRequest.<span class="fn">toCommand</span>(requestAccountId))</pre>
+      </div>
+
+      <h3>요청 본문 — CouponCreateRequest</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>couponName</td><td>String</td><td>쿠폰 이름. 엔티티 <span class="term">name</span> 으로 저장 (생성 후 변경 불가)</td></tr>
+            <tr><td>expiredAt</td><td>LocalDateTime</td><td>쿠폰 만료 일시. 현재 시각 이후여야 함</td></tr>
+            <tr><td>couponType</td><td>CouponType</td><td>할인 타입 enum — <span class="term">FIXED</span> 또는 <span class="term">RATE</span></td></tr>
+            <tr><td>value</td><td>Long</td><td>할인 값. 타입별 의미가 다름 (아래 표 참조). 0보다 커야 함</td></tr>
+            <tr><td>minOrderAmount</td><td>Long</td><td>최소 주문 금액. 엔티티에서 <span class="term">Money</span> VO 로 래핑 저장. 쿠폰 사용 시 이 금액 이상이어야 적용</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>CouponType — 할인 타입</h3>
+      <p>도메인 enum <span class="term">CouponType</span> 은 두 값만 정의되어 있습니다. <span class="term">value</span> 의 해석과 검증 규칙이 타입에 따라 달라집니다.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>값</th><th>의미</th><th>value 해석 · 검증</th></tr></thead>
+          <tbody>
+            <tr><td>FIXED</td><td>정액 할인</td><td><span class="term">value</span> 원만큼 할인. <span class="term">value &gt; 0</span> 이면 충분</td></tr>
+            <tr><td>RATE</td><td>정률 할인</td><td><span class="term">value</span> % 할인. <span class="term">0 &lt; value &lt;= 100</span> 범위여야 함</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note"><span class="tag">참고</span>할인 금액 계산(<span class="term">DiscountPolicy.calculateDiscount</span>)은 <strong>이 생성 API 가 아니라 쿠폰 사용 시점</strong>에 일어납니다. 정률은 <span class="term">주문금액 × value / 100</span>, 정액은 <span class="term">value</span> 이며, 어느 쪽이든 <strong>주문 금액을 넘지 않도록 캡(cap)</strong>이 걸립니다.</div>
+
+      <h3>요청 예시</h3>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">request.http</span>
+        </div>
+<pre><span class="kw">POST</span> /api-admin/v1/coupons
+<span class="ty">X-Loopers-Ldap</span>: loopers.admin
+<span class="ty">X-Loopers-LoginId</span>: admin-login-id
+<span class="ty">X-Loopers-LoginPw</span>: ********
+<span class="ty">Content-Type</span>: application/json
+
+{
+  <span class="st">"couponName"</span>: <span class="st">"여름 정률 10% 쿠폰"</span>,
+  <span class="st">"expiredAt"</span>: <span class="st">"2026-12-31T23:59:59"</span>,
+  <span class="st">"couponType"</span>: <span class="st">"RATE"</span>,
+  <span class="st">"value"</span>: <span class="ty">10</span>,
+  <span class="st">"minOrderAmount"</span>: <span class="ty">10000</span>
+}</pre>
+      </div>
+
+      <h3>응답</h3>
+      <p>서비스의 <span class="term">create</span> 는 반환값이 없습니다(<span class="term">Unit</span>). 컨트롤러도 별도 payload DTO 를 만들지 않고, 공통 <span class="term">ResponseBodyAdvice</span> 가 성공 응답을 <span class="term">ApiResponse</span> 로 래핑합니다. 프로젝트 규약상 payload 가 없을 때는 placeholder DTO 를 만들지 않으므로 <span class="term">data</span> 는 비어 있습니다 (Jackson <span class="term">NON_NULL</span> 정책으로 생략 가능).</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>meta.result</td><td>String</td><td>성공 시 <span class="term">SUCCESS</span></td></tr>
+            <tr><td>meta.errorCode</td><td>String?</td><td>성공 시 null (생략)</td></tr>
+            <tr><td>meta.message</td><td>String?</td><td>성공 시 null (생략)</td></tr>
+            <tr><td>data</td><td>—</td><td>본문 없음. 생성된 식별자도 반환하지 않음</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">response.json</span>
+        </div>
+<pre>{
+  <span class="st">"meta"</span>: { <span class="st">"result"</span>: <span class="st">"SUCCESS"</span> }
+}</pre>
+      </div>
+    </section>
+
+    <!-- ===================== S3 시퀀스 ===================== -->
+    <section id="s3" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">03</div>
+        <div>
+          <p class="sec-eyebrow">SEQUENCE</p>
+          <h2 class="sec">시퀀스 다이어그램</h2>
+        </div>
+      </div>
+
+      <p>관리자 요청이 컨트롤러 → 애플리케이션 → 도메인 → 리포지토리를 거쳐 DB 에 저장되기까지의 흐름입니다. 만료일 검증은 애플리케이션에서, 할인 값 검증은 도메인(Coupon <span class="term">init</span>) 에서 일어납니다. 점선 박스는 <span class="term">@Transactional</span> 경계입니다.</p>
+
+      <figure class="fig-wide">
+        <div class="fig-box" data-fig="SEQUENCE">
+          <svg viewBox="0 0 1120 560" role="img" aria-label="관리자 쿠폰 생성 요청이 CouponController, CouponService, Coupon 도메인, CouponRepository, DB 를 거쳐 처리되는 시퀀스 다이어그램">
+            <defs>
+              <marker id="cc1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+                <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </marker>
+            </defs>
+
+            <!-- ===== 라이프라인 헤더 박스 ===== -->
+            <!-- Client(admin) -->
+            <rect x="20" y="20" width="170" height="52" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <text class="svg-t" x="105" y="42" text-anchor="middle" fill="#1B64DA">Client</text>
+            <text class="svg-s" x="105" y="60" text-anchor="middle" fill="#3182F6">관리자</text>
+
+            <!-- CouponController -->
+            <rect x="230" y="20" width="180" height="52" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="320" y="42" text-anchor="middle" fill="#4E5968">CouponController</text>
+            <text class="svg-s" x="320" y="60" text-anchor="middle" fill="#6B7684">interfaces</text>
+
+            <!-- CouponService -->
+            <rect x="450" y="20" width="180" height="52" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="540" y="42" text-anchor="middle" fill="#4E5968">CouponService</text>
+            <text class="svg-s" x="540" y="60" text-anchor="middle" fill="#6B7684">application</text>
+
+            <!-- Coupon (domain) -->
+            <rect x="670" y="20" width="170" height="52" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="755" y="42" text-anchor="middle" fill="#4E5968">Coupon</text>
+            <text class="svg-s" x="755" y="60" text-anchor="middle" fill="#6B7684">domain</text>
+
+            <!-- CouponRepository -->
+            <rect x="880" y="20" width="160" height="52" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <text class="svg-t" x="960" y="40" text-anchor="middle" fill="#4E5968">Coupon</text>
+            <text class="svg-t" x="960" y="56" text-anchor="middle" fill="#4E5968">Repository</text>
+
+            <!-- ===== 라이프라인 세로선 ===== -->
+            <line x1="105" y1="72" x2="105" y2="520" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="320" y1="72" x2="320" y2="520" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="540" y1="72" x2="540" y2="520" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="755" y1="72" x2="755" y2="520" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+            <line x1="960" y1="72" x2="960" y2="520" stroke="#D1D6DB" stroke-width="1.3" stroke-dasharray="4 4"/>
+
+            <!-- ===== 트랜잭션 경계 점선 박스 (@Transactional) ===== -->
+            <rect x="455" y="150" width="600" height="320" rx="14" fill="none" stroke="#8B95A1" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text class="svg-l" x="465" y="168" fill="#6B7684">@Transactional</text>
+
+            <!-- ===== 화살표 1: Client → Controller ===== -->
+            <line x1="105" y1="100" x2="318" y2="100" stroke="#3182F6" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="212" y="92" text-anchor="middle" fill="#1B64DA">1. POST /coupons</text>
+
+            <!-- ===== 화살표 2: Controller → Service (create) ===== -->
+            <line x1="320" y1="200" x2="538" y2="200" stroke="#3182F6" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="429" y="192" text-anchor="middle" fill="#1B64DA">2. create(command)</text>
+
+            <!-- ===== 라벨 3: Service 자기호출 (만료일 검증) ===== -->
+            <rect x="450" y="222" width="180" height="40" rx="10" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.1"/>
+            <text class="svg-s" x="540" y="240" text-anchor="middle" fill="#1B64DA">3. expiredAt 검증</text>
+            <text class="svg-s" x="540" y="255" text-anchor="middle" fill="#3182F6">과거면 400</text>
+
+            <!-- ===== 화살표 4: Service → Coupon (생성·할인값 검증) ===== -->
+            <line x1="540" y1="300" x2="753" y2="300" stroke="#3182F6" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="646" y="292" text-anchor="middle" fill="#1B64DA">4. new Coupon(...)</text>
+            <rect x="668" y="316" width="178" height="40" rx="10" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.1"/>
+            <text class="svg-s" x="757" y="334" text-anchor="middle" fill="#1B64DA">init: value 검증</text>
+            <text class="svg-s" x="757" y="349" text-anchor="middle" fill="#3182F6">RATE면 1~100</text>
+
+            <!-- ===== 화살표 5: Service → Repository (save) ===== -->
+            <line x1="540" y1="400" x2="958" y2="400" stroke="#15C47E" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="749" y="392" text-anchor="middle" fill="#0A8F5B">5. save(coupon) → INSERT</text>
+
+            <!-- ===== 화살표 6: 응답 반환 (Service → Controller → Client) ===== -->
+            <line x1="538" y1="445" x2="322" y2="445" stroke="#15C47E" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="430" y="437" text-anchor="middle" fill="#0A8F5B">6. Unit (no body)</text>
+
+            <!-- ===== 화살표 7: Controller → Client (ApiResponse SUCCESS) ===== -->
+            <line x1="318" y1="500" x2="107" y2="500" stroke="#15C47E" stroke-width="2" marker-end="url(#cc1)"/>
+            <text class="svg-l" x="212" y="492" text-anchor="middle" fill="#0A8F5B">7. ApiResponse SUCCESS</text>
+          </svg>
+        </div>
+        <figcaption><b>그림 1.</b> 쿠폰 생성 흐름. <b>만료일 검증</b>은 애플리케이션 레이어, <b>할인 값 검증</b>은 도메인(Coupon init)에서 수행되며 모두 <b>@Transactional</b> 경계 안에서 일어납니다.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===================== S4 비즈니스 로직 ===================== -->
+    <section id="s4" class="fade">
+      <div class="sec-head">
+        <div class="sec-num">04</div>
+        <div>
+          <p class="sec-eyebrow">BUSINESS LOGIC</p>
+          <h2 class="sec">비즈니스 로직</h2>
+        </div>
+      </div>
+
+      <p class="lead">검증은 두 레이어로 나뉩니다 — 만료일은 애플리케이션, 할인 값은 도메인.</p>
+
+      <h3>① 만료일 검증 (애플리케이션)</h3>
+      <p><span class="term">CouponService.create</span> 가 가장 먼저 만료일을 검사합니다. 만료일이 현재 시각보다 과거이면 생성을 거부합니다.</p>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">CouponService.kt</span>
+        </div>
+<pre><span class="kw">@Transactional</span>
+<span class="kw">fun</span> <span class="fn">create</span>(couponCreateCommand: <span class="ty">CouponCreateCommand</span>) {
+    <span class="kw">if</span> (couponCreateCommand.expiredAt &lt; <span class="ty">LocalDateTime</span>.<span class="fn">now</span>()) {
+        <span class="kw">throw</span> <span class="ty">BadRequestException</span>(CouponErrorCode.EXPIRED_AT_IN_PAST)
+    }
+    <span class="kw">val</span> coupon = <span class="ty">Coupon</span>(
+        type = couponCreateCommand.couponType,
+        name = couponCreateCommand.couponName,
+        value = couponCreateCommand.value,
+        minOrderAmount = <span class="ty">Money</span>(couponCreateCommand.minOrderAmount),
+        expiredAt = couponCreateCommand.expiredAt,
+        createdBy = couponCreateCommand.requestAccountId,
+    )
+    couponRepository.<span class="fn">save</span>(coupon)
+}</pre>
+      </div>
+
+      <h3>② 할인 값 검증 (도메인 init)</h3>
+      <p>할인 값 검증은 <span class="term">Coupon</span> 엔티티 생성자의 <span class="term">init</span> 블록에 fail-fast 로 들어 있습니다 — 잘못된 값이 DB 까지 내려가 500 으로 떨어지지 않도록 도메인 invariant 로 강제합니다.</p>
+      <div class="code">
+        <div class="code-bar">
+          <span class="dot" style="background:#F04452"></span>
+          <span class="dot" style="background:#FFB836"></span>
+          <span class="dot" style="background:#15C47E"></span>
+          <span class="fn">Coupon.kt</span>
+        </div>
+<pre><span class="kw">init</span> {
+    <span class="kw">if</span> (value &lt;= <span class="ty">0</span>) {
+        <span class="kw">throw</span> <span class="ty">BadRequestException</span>(CouponErrorCode.INVALID_DISCOUNT_VALUE)
+    }
+    <span class="kw">if</span> (type == CouponType.RATE &amp;&amp; value &gt; <span class="ty">100</span>) {
+        <span class="kw">throw</span> <span class="ty">BadRequestException</span>(CouponErrorCode.RATE_DISCOUNT_OUT_OF_RANGE)
+    }
+}</pre>
+      </div>
+      <ul class="checklist">
+        <li><span class="box"></span><b>value &gt; 0</b> — 모든 타입 공통. 0 이하면 <span class="term">INVALID_DISCOUNT_VALUE</span></li>
+        <li><span class="box"></span><b>RATE 이면 value ≤ 100</b> — 정률은 100% 초과 불가. 위반 시 <span class="term">RATE_DISCOUNT_OUT_OF_RANGE</span></li>
+        <li><span class="box"></span><b>FIXED 상한 없음</b> — 정액은 value &gt; 0 만 검사 (사용 시점 캡으로 주문금액 초과 방지)</li>
+      </ul>
+
+      <h3>③ 저장 · 트랜잭션</h3>
+      <p>검증을 통과하면 <span class="term">couponRepository.save(coupon)</span> 로 영속화합니다. 메서드 전체가 <span class="term">@Transactional</span> 경계 안에 있어, 검증 실패 시 예외가 던져져 트랜잭션이 롤백됩니다 (저장 전 단계라 실제 커밋되는 변경은 없습니다).</p>
+
+      <h3>④ 예외 — 에러 코드</h3>
+      <p>비즈니스 실패는 <span class="term">CoreException</span> 서브클래스로 던져지고 <span class="term">ApiControllerAdvice</span> 가 HTTP 상태로 매핑합니다. 이 생성 API 에서 직접 발생할 수 있는 에러 코드는 다음과 같습니다.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>code</th><th>발생 조건</th><th>예외 · 상태</th></tr></thead>
+          <tbody>
+            <tr><td>COUPON:EXPIRED_AT_IN_PAST</td><td>만료일이 현재 시각보다 과거</td><td>BadRequestException · 400</td></tr>
+            <tr><td>COUPON:INVALID_DISCOUNT_VALUE</td><td>할인 값이 0 이하</td><td>BadRequestException · 400</td></tr>
+            <tr><td>COUPON:RATE_DISCOUNT_OUT_OF_RANGE</td><td>RATE 인데 value &gt; 100</td><td>BadRequestException · 400</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note"><span class="tag">참고</span><span class="term">CouponErrorCode</span> 에는 <span class="term">COUPON_NOT_FOUND</span> · <span class="term">ALREADY_GRANTED</span> · <span class="term">MIN_ORDER_NOT_MET</span> · <span class="term">EXPIRED</span> · <span class="term">ALREADY_USED</span> 도 정의되어 있으나, 이들은 <strong>발급/사용 시점</strong>의 코드이며 생성 API 와는 무관합니다.</div>
+
+      <!-- ===== S5 주의 (admin 인가 / 값 검증) ===== -->
+      <h3>⑤ 관리자 인가 — 주의</h3>
+      <div class="note warn"><span class="tag">주의 · 인가</span>컨트롤러는 <span class="term">@RequestAttribute(ACCOUNT_ID)</span> 만 받지만, 인가는 컨트롤러가 아니라 <strong>SecurityFilterChain + AdminLdapAuthenticationFilter</strong> 에서 처리됩니다. <span class="term">/api-admin/v1/**</span> 은 <strong>authenticated()</strong> 로 보호되고, <span class="term">AdminLdapAuthenticationFilter</span> 가 ① <span class="term">X-Loopers-Ldap: loopers.admin</span> 헤더 ② <span class="term">X-Loopers-LoginId</span>/<span class="term">X-Loopers-LoginPw</span> 자격 증명 ③ 인증된 계정의 <strong>role == ADMIN</strong> 을 모두 검증합니다. 하나라도 실패하면 <strong>401 Unauthorized</strong>. 즉 단순 인증만이 아니라 <strong>관리자 권한까지 실제로 검사</strong>합니다.</div>
+
+      <div class="note warn"><span class="tag">주의 · 값 검증</span><strong>정액(FIXED)에는 상한 검증이 없습니다.</strong> <span class="term">value &gt; 0</span> 만 보장되므로, 비정상적으로 큰 정액 쿠폰도 생성 자체는 성공합니다. 실제 과다 할인은 사용 시점의 <span class="term">DiscountPolicy</span> 캡(할인 ≤ 주문 금액)으로만 방어됩니다. <strong>정률(RATE)만</strong> 생성 단계에서 1~100 범위로 제한됩니다.</div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    commerce-api · REST API 문서<br>
+    Clean Architecture 레이어 흐름 · toss-design
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

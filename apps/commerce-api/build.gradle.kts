@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":modules:persistence-core"))
     implementation(project(":modules:jpa"))
     implementation(project(":modules:redis"))
+    implementation(project(":modules:kafka"))
     implementation(project(":supports:error"))
     implementation(project(":supports:jackson"))
     implementation(project(":supports:logging"))
@@ -21,8 +22,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:${project.properties["springDocOpenApiVersion"]}")
 
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("io.github.resilience4j:resilience4j-spring-boot3")
+
+    developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+
     // querydsl
     kapt("com.querydsl:querydsl-apt::jakarta")
 
     testRuntimeOnly("com.h2database:h2")
+    testImplementation(testFixtures(project(":modules:redis")))
 }

@@ -36,7 +36,7 @@ class CouponTest {
         val coupon = coupon(minOrderAmount = Money(10000))
 
         val result = assertThrows<BadRequestException> {
-            coupon.validateUsable(orderAmount = Money(9999), now = NOW)
+            coupon.validateUsable(orderAmount = 9999, now = NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.MIN_ORDER_NOT_MET)
@@ -48,7 +48,7 @@ class CouponTest {
         val coupon = coupon(expiredAt = NOW.minusDays(1))
 
         val result = assertThrows<BadRequestException> {
-            coupon.validateUsable(orderAmount = Money(10000), now = NOW)
+            coupon.validateUsable(orderAmount = 10000, now = NOW)
         }
 
         assertThat(result.errorCode).isEqualTo(CouponErrorCode.EXPIRED)
@@ -60,7 +60,62 @@ class CouponTest {
         val coupon = coupon(minOrderAmount = Money(10000), expiredAt = NOW.plusDays(1))
 
         assertThatCode {
-            coupon.validateUsable(orderAmount = Money(10000), now = NOW)
+            coupon.validateUsable(orderAmount = 10000, now = NOW)
+        }.doesNotThrowAnyException()
+    }
+
+    @DisplayName("발급 수량이 0 이하이면 BAD_REQUEST 예외가 발생한다.")
+    @Test
+    fun throwsBadRequest_whenTotalQuantityIsNotPositive() {
+        listOf(0L, -1L).forEach { totalQuantity ->
+            val result = assertThrows<BadRequestException> {
+                coupon(totalQuantity = totalQuantity)
+            }
+
+            assertThat(result.errorCode).isEqualTo(CouponErrorCode.INVALID_TOTAL_QUANTITY)
+        }
+    }
+
+    @DisplayName("발급 수량이 양수이거나 미설정(null)이면 쿠폰 생성에 성공한다.")
+    @Test
+    fun createsCoupon_whenTotalQuantityIsPositiveOrNull() {
+        assertThatCode {
+            coupon(totalQuantity = 1)
+            coupon(totalQuantity = null)
+        }.doesNotThrowAnyException()
+    }
+
+    @DisplayName("발급 수량이 설정되지 않은 쿠폰은 발급 검증에서 BAD_REQUEST(NOT_ISSUABLE) 예외가 발생한다.")
+    @Test
+    fun throwsBadRequest_whenValidatingIssuableWithoutTotalQuantity() {
+        val coupon = coupon(totalQuantity = null)
+
+        val result = assertThrows<BadRequestException> {
+            coupon.validateIssuable(NOW)
+        }
+
+        assertThat(result.errorCode).isEqualTo(CouponErrorCode.NOT_ISSUABLE)
+    }
+
+    @DisplayName("만료된 쿠폰은 발급 검증에서 BAD_REQUEST(EXPIRED) 예외가 발생한다.")
+    @Test
+    fun throwsBadRequest_whenValidatingIssuableExpiredCoupon() {
+        val coupon = coupon(totalQuantity = 10, expiredAt = NOW.minusDays(1))
+
+        val result = assertThrows<BadRequestException> {
+            coupon.validateIssuable(NOW)
+        }
+
+        assertThat(result.errorCode).isEqualTo(CouponErrorCode.EXPIRED)
+    }
+
+    @DisplayName("발급 수량이 설정되고 만료되지 않았으면 발급 검증을 통과한다.")
+    @Test
+    fun passesIssuableValidation_whenTotalQuantitySetAndNotExpired() {
+        val coupon = coupon(totalQuantity = 10, expiredAt = NOW.plusDays(1))
+
+        assertThatCode {
+            coupon.validateIssuable(NOW)
         }.doesNotThrowAnyException()
     }
 
@@ -69,6 +124,7 @@ class CouponTest {
         value: Long = 1000,
         minOrderAmount: Money = Money(0),
         expiredAt: LocalDateTime = NOW.plusDays(1),
+        totalQuantity: Long? = null,
     ): Coupon = Coupon(
         type = type,
         name = "테스트쿠폰",
@@ -76,6 +132,7 @@ class CouponTest {
         minOrderAmount = minOrderAmount,
         expiredAt = expiredAt,
         createdBy = 1L,
+        totalQuantity = totalQuantity,
     )
 
     private companion object {

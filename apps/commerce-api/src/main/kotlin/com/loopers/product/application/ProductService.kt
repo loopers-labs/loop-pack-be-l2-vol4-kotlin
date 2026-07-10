@@ -10,10 +10,12 @@ import com.loopers.product.domain.ProductName
 import com.loopers.product.domain.ProductRepository
 import com.loopers.product.domain.ProductSort
 import com.loopers.product.domain.ProductStatus
+import com.loopers.product.domain.event.ProductViewedEvent
 import com.loopers.shared.domain.Cursor
 import com.loopers.shared.domain.CursorPage
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.NotFoundException
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -22,6 +24,7 @@ class ProductService(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
     private val inventoryRepository: InventoryRepository,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun register(command: ProductCreateCommand): ProductInfo {
@@ -87,18 +90,25 @@ class ProductService(
             ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
         val brand = brandRepository.findActiveById(product.brandId)
             ?: throw NotFoundException(BrandErrorCode.BRAND_NOT_FOUND)
+        eventPublisher.publishEvent(ProductViewedEvent(productId = product.id))
         return ProductDetailInfo.of(product, brand.name.value)
     }
 
     @Transactional(readOnly = true)
-    fun getActiveProducts(ids: List<Long>): Map<Long, Product> {
-        val products = productRepository.findAllActiveByIdIn(ids).associateBy { it.id }
-        if (ids.any { it !in products }) {
-            throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+    fun getActiveProducts(productsCommands: List<ProductCheckCommand>): Map<Long, Product> {
+        val products = productRepository.findAllActiveByIdIn(productsCommands.map { (id, _) -> id }).associateBy { it.id }
+        productsCommands.forEach { (id, price) ->
+            val product = products[id] ?: throw NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND)
+            product.verifyPrice(price)
         }
         return products
     }
 }
+
+data class ProductCheckCommand(
+    val id: Long,
+    val price: Long,
+)
 
 data class ProductCreateCommand(
     val brandId: Long,

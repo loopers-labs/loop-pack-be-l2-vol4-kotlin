@@ -67,4 +67,8 @@ class Product(
             delete()
         }
     }
+
+    fun verifyPrice(price: Long) {
+        if (this.price != Money(price)) throw ConflictException(ProductErrorCode.PRODUCT_PRICE_NOT_MATCHED)
+    }
 }

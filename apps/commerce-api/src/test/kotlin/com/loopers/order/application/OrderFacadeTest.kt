@@ -3,14 +3,21 @@ package com.loopers.order.application
 import com.loopers.coupon.application.CouponService
 import com.loopers.inventory.application.InventoryService
 import com.loopers.inventory.application.StockDecreaseLine
+import com.loopers.inventory.application.StockRestoreLine
+import com.loopers.inventory.domain.InventoryErrorCode
+import com.loopers.order.domain.Order
 import com.loopers.order.domain.OrderErrorCode
+import com.loopers.order.domain.OrderItemSnapshot
 import com.loopers.order.domain.OrderStatus
+import com.loopers.order.domain.event.OrderCreatedEvent
+import com.loopers.product.application.ProductCheckCommand
 import com.loopers.product.application.ProductService
 import com.loopers.product.domain.Product
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.product.domain.ProductName
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
+import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -18,6 +25,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
@@ -25,6 +33,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
+import org.springframework.context.ApplicationEventPublisher
 import java.time.LocalDateTime
 
 class OrderFacadeTest {
@@ -32,7 +41,8 @@ class OrderFacadeTest {
     private val couponService: CouponService = mock()
     private val inventoryService: InventoryService = mock()
     private val orderService: OrderService = mock()
-    private val orderFacade = OrderFacade(productService, couponService, inventoryService, orderService)
+    private val eventPublisher: ApplicationEventPublisher = mock()
+    private val orderFacade = OrderFacade(productService, couponService, inventoryService, orderService, eventPublisher)
 
     private fun product() = Product(brandId = 10L, name = ProductName("에어맥스"), price = Money(100_000))
 
@@ -41,16 +51,18 @@ class OrderFacadeTest {
         couponId: Long? = null,
         expectedOriginalAmount: Long,
         expectedDiscountAmount: Long = 0,
+        userId: Long = 1L,
     ) = OrderCreateCommand(
+        userId = userId,
         items = items,
         couponId = couponId,
         expectedOriginalAmount = expectedOriginalAmount,
         expectedDiscountAmount = expectedDiscountAmount,
-        expectedTotalAmount = expectedOriginalAmount - expectedDiscountAmount,
     )
 
     private fun orderInfo(discountAmount: Long = 0, couponId: Long? = null) = OrderInfo(
         id = 1L,
+        orderKey = "test-order-key",
         userId = 1L,
         orderedAt = LocalDateTime.of(2026, 6, 12, 17, 0),
         originalAmount = 200_000,
@@ -65,7 +77,7 @@ class OrderFacadeTest {
     @Test
     fun throwsBadRequest_whenItemsEmpty() {
         val result = assertThrows<BadRequestException> {
-            orderFacade.place(userId = 1L, command = command(items = emptyList(), expectedOriginalAmount = 0))
+            orderFacade.place(command = command(items = emptyList(), expectedOriginalAmount = 0))
         }
 
         assertAll(
@@ -78,13 +90,13 @@ class OrderFacadeTest {
     @Test
     fun placesOrder_withoutCoupon() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(0)))).thenReturn(orderInfo())
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(orderService.create(any(), any(), eq(Money(0)))).thenReturn(orderInfo())
 
         val info = orderFacade.place(
-            userId = 1L,
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 expectedOriginalAmount = 200_000,
             ),
         )
@@ -100,15 +112,15 @@ class OrderFacadeTest {
     @Test
     fun placesOrder_withCoupon_passesDiscountToCreate() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(10_000))))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(couponService.use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())).thenReturn(Money(10_000))
+        whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         val info = orderFacade.place(
-            userId = 1L,
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 couponId = 5L,
                 expectedOriginalAmount = 200_000,
                 expectedDiscountAmount = 10_000,
@@ -117,8 +129,8 @@ class OrderFacadeTest {
 
         assertAll(
             { assertThat(info.discountAmount).isEqualTo(10_000) },
-            { verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any()) },
-            { verify(orderService).create(eq(1L), any(), any(), eq(Money(10_000))) },
+            { verify(couponService).use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any()) },
+            { verify(orderService).create(any(), any(), eq(Money(10_000))) },
         )
     }
 
@@ -126,15 +138,15 @@ class OrderFacadeTest {
     @Test
     fun orchestratesInOrder_couponThenCreateThenInventory() {
         val product = product()
-        whenever(productService.getActiveProducts(listOf(product.id))).thenReturn(mapOf(product.id to product))
-        whenever(couponService.use(eq(1L), eq(5L), eq(Money(200_000)), any())).thenReturn(Money(10_000))
-        whenever(orderService.create(eq(1L), any(), any(), eq(Money(10_000))))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(couponService.use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())).thenReturn(Money(10_000))
+        whenever(orderService.create(any(), any(), eq(Money(10_000))))
             .thenReturn(orderInfo(discountAmount = 10_000, couponId = 5L))
 
         orderFacade.place(
-            userId = 1L,
             command = command(
-                items = listOf(OrderLineCommand(productId = product.id, quantity = 2)),
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
                 couponId = 5L,
                 expectedOriginalAmount = 200_000,
                 expectedDiscountAmount = 10_000,
@@ -142,8 +154,8 @@ class OrderFacadeTest {
         )
 
         inOrder(couponService, orderService, inventoryService) {
-            verify(couponService).use(eq(1L), eq(5L), eq(Money(200_000)), any())
-            verify(orderService).create(eq(1L), any(), any(), eq(Money(10_000)))
+            verify(couponService).use(eq(1L), eq(5L), eq(200_000L), eq(10_000L), any())
+            verify(orderService).create(any(), any(), eq(Money(10_000)))
             verify(inventoryService).decreaseStock(any())
         }
     }
@@ -151,14 +163,13 @@ class OrderFacadeTest {
     @DisplayName("존재하지 않는 상품이 포함되면, NOT_FOUND가 전파되고 쿠폰·재고·주문을 호출하지 않는다.")
     @Test
     fun propagatesNotFound_whenProductMissing() {
-        whenever(productService.getActiveProducts(listOf(99L)))
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(99L, 100_000))))
             .thenThrow(NotFoundException(ProductErrorCode.PRODUCT_NOT_FOUND))
 
         val result = assertThrows<NotFoundException> {
             orderFacade.place(
-                userId = 1L,
                 command = command(
-                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1)),
+                    items = listOf(OrderLineCommand(productId = 99L, quantity = 1, price = 100_000)),
                     expectedOriginalAmount = 100_000,
                 ),
             )
@@ -168,7 +179,104 @@ class OrderFacadeTest {
             { assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_NOT_FOUND) },
             { verifyNoInteractions(couponService) },
             { verify(inventoryService, never()).decreaseStock(any()) },
-            { verify(orderService, never()).create(any(), any(), any(), any()) },
+            { verify(orderService, never()).create(any(), any(), any()) },
+        )
+    }
+
+    @DisplayName("주문이 생성되면, 주문 정보를 담은 OrderCreatedEvent 를 발행한다.")
+    @Test
+    fun publishesOrderCreatedEvent_whenOrderPlaced() {
+        val product = product()
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(orderService.create(any(), any(), eq(Money(0)))).thenReturn(orderInfo())
+
+        orderFacade.place(
+            command = command(
+                items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
+                expectedOriginalAmount = 200_000,
+            ),
+        )
+
+        val captor = argumentCaptor<OrderCreatedEvent>()
+        verify(eventPublisher).publishEvent(captor.capture())
+        assertAll(
+            { assertThat(captor.firstValue.orderId).isEqualTo(1L) },
+            { assertThat(captor.firstValue.orderKey).isEqualTo("test-order-key") },
+            { assertThat(captor.firstValue.userId).isEqualTo(1L) },
+            { assertThat(captor.firstValue.totalAmount).isEqualTo(200_000) },
+            { assertThat(captor.firstValue.eventId).isNotBlank() },
+        )
+    }
+
+    @DisplayName("재고 차감이 실패하면, OrderCreatedEvent 를 발행하지 않는다.")
+    @Test
+    fun doesNotPublishEvent_whenStockDecreaseFails() {
+        val product = product()
+        whenever(productService.getActiveProducts(listOf(ProductCheckCommand(product.id, 100_000))))
+            .thenReturn(mapOf(product.id to product))
+        whenever(orderService.create(any(), any(), eq(Money(0)))).thenReturn(orderInfo())
+        whenever(inventoryService.decreaseStock(any()))
+            .thenThrow(ConflictException(InventoryErrorCode.STOCK_INSUFFICIENT))
+
+        assertThrows<ConflictException> {
+            orderFacade.place(
+                command = command(
+                    items = listOf(OrderLineCommand(productId = product.id, quantity = 2, price = 100_000)),
+                    expectedOriginalAmount = 200_000,
+                ),
+            )
+        }
+
+        verify(eventPublisher, never()).publishEvent(any<OrderCreatedEvent>())
+    }
+
+    private fun snapshot(productId: Long, quantity: Int) = OrderItemSnapshot(
+        productId = productId,
+        brandId = null,
+        productName = "상품-$productId",
+        brandName = null,
+        unitPrice = Money(1_000),
+        quantity = quantity,
+    )
+
+    @DisplayName("주문 취소 보상: 주문을 실패로 돌리고 재고를 복구하며 쿠폰 사용을 취소한다.")
+    @Test
+    fun cancelAndCompensate_restoresStockAndCancelsCoupon() {
+        val order = Order.create(
+            userId = 1L,
+            snapshots = listOf(snapshot(productId = 100L, quantity = 2), snapshot(productId = 200L, quantity = 3)),
+            couponId = 5L,
+        )
+
+        orderFacade.cancelAndCompensate(order)
+
+        assertAll(
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            {
+                verify(inventoryService).increaseStock(
+                    listOf(StockRestoreLine(productId = 100L, quantity = 2), StockRestoreLine(productId = 200L, quantity = 3)),
+                )
+            },
+            { verify(couponService).cancelUse(1L, 5L) },
+        )
+    }
+
+    @DisplayName("주문 취소 보상: 쿠폰이 없으면 쿠폰 취소는 호출하지 않는다.")
+    @Test
+    fun cancelAndCompensate_withoutCoupon_skipsCouponCancel() {
+        val order = Order.create(
+            userId = 1L,
+            snapshots = listOf(snapshot(productId = 100L, quantity = 2)),
+            couponId = null,
+        )
+
+        orderFacade.cancelAndCompensate(order)
+
+        assertAll(
+            { assertThat(order.status).isEqualTo(OrderStatus.FAILED) },
+            { verify(inventoryService).increaseStock(listOf(StockRestoreLine(productId = 100L, quantity = 2))) },
+            { verify(couponService, never()).cancelUse(any(), any()) },
         )
     }
 }

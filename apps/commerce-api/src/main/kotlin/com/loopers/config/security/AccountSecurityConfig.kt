@@ -29,6 +29,7 @@ class AccountSecurityConfig(
                 it
                     .requestMatchers(HttpMethod.POST, USERS_PATH).permitAll()
                     .requestMatchers(HttpMethod.GET, PRODUCTS_PATH, PRODUCTS_DETAIL_PATH).permitAll()
+                    .requestMatchers(HttpMethod.POST, PAYMENT_CALLBACK_PATH).permitAll()
                     .requestMatchers(ACTUATOR_PATH, SWAGGER_UI_PATH, API_DOCS_PATH).permitAll()
                     .requestMatchers(ADMIN_PATH).authenticated()
                     .anyRequest().authenticated()
@@ -47,6 +48,7 @@ class AccountSecurityConfig(
         private const val USERS_PATH = "/api/v1/users"
         private const val PRODUCTS_PATH = "/api/v1/products"
         private const val PRODUCTS_DETAIL_PATH = "/api/v1/products/*"
+        private const val PAYMENT_CALLBACK_PATH = "/api/v1/payments/callback"
         private const val ACTUATOR_PATH = "/actuator/**"
         private const val SWAGGER_UI_PATH = "/swagger-ui/**"
         private const val API_DOCS_PATH = "/v3/api-docs/**"

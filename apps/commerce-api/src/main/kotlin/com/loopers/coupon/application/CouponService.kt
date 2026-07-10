@@ -4,17 +4,24 @@ import com.loopers.account.domain.error.AccountErrorCode
 import com.loopers.account.infrastructure.AccountRepository
 import com.loopers.coupon.domain.Coupon
 import com.loopers.coupon.domain.CouponErrorCode
+import com.loopers.coupon.domain.CouponIssueResult
+import com.loopers.coupon.domain.CouponIssueResultRepository
+import com.loopers.coupon.domain.CouponIssueResultStatus
 import com.loopers.coupon.domain.CouponRepository
 import com.loopers.coupon.domain.CouponType
 import com.loopers.coupon.domain.DiscountPolicy
 import com.loopers.coupon.domain.UserCoupon
 import com.loopers.coupon.domain.UserCouponGrantedType
 import com.loopers.coupon.domain.UserCouponRepository
+import com.loopers.coupon.infrastructure.messaging.CouponIssueRequestEvent
+import com.loopers.coupon.infrastructure.messaging.CouponIssueRequestKafkaPublisher
+import com.loopers.coupon.infrastructure.redis.CouponIssueGatekeeper
 import com.loopers.shared.domain.Money
 import com.loopers.support.error.BadRequestException
 import com.loopers.support.error.ConflictException
 import com.loopers.support.error.NotFoundException
 import java.time.LocalDateTime
+import java.util.UUID
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -23,6 +30,9 @@ class CouponService(
     val couponRepository: CouponRepository,
     val userCouponRepository: UserCouponRepository,
     val accountRepository: AccountRepository,
+    val couponIssueResultRepository: CouponIssueResultRepository,
+    val couponIssueGatekeeper: CouponIssueGatekeeper,
+    val couponIssueRequestPublisher: CouponIssueRequestKafkaPublisher,
 ) {
     @Transactional
     fun create(couponCreateCommand: CouponCreateCommand) {
@@ -36,9 +46,69 @@ class CouponService(
             minOrderAmount = Money(couponCreateCommand.minOrderAmount),
             expiredAt = couponCreateCommand.expiredAt,
             createdBy = couponCreateCommand.requestAccountId,
+            totalQuantity = couponCreateCommand.totalQuantity,
         )
 
         couponRepository.save(coupon)
+        if (coupon.totalQuantity != null) {
+            couponIssueGatekeeper.initialize(coupon.id, coupon.totalQuantity, coupon.issuedQuantity, coupon.expiredAt)
+        }
+    }
+
+    fun requestIssue(couponIssueCommand: CouponIssueCommand): CouponIssueAcceptedInfo {
+        couponIssueGatekeeper.tryPass(couponIssueCommand.couponId, couponIssueCommand.userId)
+        val requestId = UUID.randomUUID().toString()
+        couponIssueRequestPublisher.publish(
+            CouponIssueRequestEvent(
+                requestId = requestId,
+                couponId = couponIssueCommand.couponId,
+                userId = couponIssueCommand.userId,
+                requestedAt = LocalDateTime.now(),
+            ),
+        )
+        return CouponIssueAcceptedInfo(requestId)
+    }
+
+    @Transactional(readOnly = true)
+    fun getIssueResult(requestId: String): CouponIssueResultInfo =
+        couponIssueResultRepository.findById(requestId)
+            ?.let { CouponIssueResultInfo.from(it) }
+            ?: CouponIssueResultInfo(
+                requestId = requestId,
+                status = CouponIssueResultStatus.PENDING,
+                userCouponId = null,
+                rejectReason = null,
+                requestedAt = null,
+                decidedAt = null,
+            )
+
+    @Transactional
+    fun issue(couponIssueCommand: CouponIssueCommand): CouponIssueInfo {
+        val coupon = couponRepository.findById(couponIssueCommand.couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        coupon.validateIssuable(LocalDateTime.now())
+        if (userCouponRepository.existsByUserIdAndCouponId(couponIssueCommand.userId, couponIssueCommand.couponId)) {
+            throw ConflictException(CouponErrorCode.ALREADY_ISSUED)
+        }
+        if (couponRepository.incrementIssuedQuantityIfAvailable(couponIssueCommand.couponId) == 0) {
+            throw ConflictException(CouponErrorCode.SOLD_OUT)
+        }
+
+        val userCoupon = userCouponRepository.save(
+            UserCoupon(
+                userId = couponIssueCommand.userId,
+                couponId = couponIssueCommand.couponId,
+                grantedType = UserCouponGrantedType.FIRST_COME,
+                grantedBy = UserCoupon.SYSTEM_GRANTED,
+            ),
+        )
+
+        return CouponIssueInfo(
+            userCouponId = userCoupon.id,
+            couponId = coupon.id,
+            couponName = coupon.name,
+            expiredAt = coupon.expiredAt,
+        )
     }
 
     @Transactional
@@ -65,16 +135,27 @@ class CouponService(
     }
 
     @Transactional
-    fun use(userId: Long, couponId: Long, orderAmount: Money, now: LocalDateTime): Money {
+    fun use(userId: Long, couponId: Long, orderAmount: Long, expectedDiscount: Long, now: LocalDateTime): Money {
         val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
             ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
         val coupon = couponRepository.findById(couponId)
             ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
 
         coupon.validateUsable(orderAmount, now)
+        val discount = DiscountPolicy.calculateDiscount(coupon.type, coupon.value, orderAmount)
+        if (discount.amount != expectedDiscount) {
+            throw ConflictException(CouponErrorCode.DISCOUNT_NOT_MATCHED)
+        }
         userCoupon.use(now)
 
-        return DiscountPolicy.calculateDiscount(coupon.type, coupon.value, orderAmount)
+        return discount
+    }
+
+    @Transactional
+    fun cancelUse(userId: Long, couponId: Long) {
+        val userCoupon = userCouponRepository.findByUserIdAndCouponId(userId, couponId)
+            ?: throw NotFoundException(CouponErrorCode.COUPON_NOT_FOUND)
+        userCoupon.cancelUse()
     }
 }
 
@@ -85,4 +166,42 @@ data class CouponCreateCommand(
     val value: Long,
     val minOrderAmount: Long,
     val requestAccountId: Long,
+    val totalQuantity: Long? = null,
 )
+
+data class CouponIssueCommand(
+    val couponId: Long,
+    val userId: Long,
+)
+
+data class CouponIssueInfo(
+    val userCouponId: Long,
+    val couponId: Long,
+    val couponName: String,
+    val expiredAt: LocalDateTime,
+)
+
+data class CouponIssueAcceptedInfo(
+    val requestId: String,
+    val status: CouponIssueResultStatus = CouponIssueResultStatus.PENDING,
+)
+
+data class CouponIssueResultInfo(
+    val requestId: String,
+    val status: CouponIssueResultStatus,
+    val userCouponId: Long?,
+    val rejectReason: String?,
+    val requestedAt: LocalDateTime?,
+    val decidedAt: LocalDateTime?,
+) {
+    companion object {
+        fun from(couponIssueResult: CouponIssueResult): CouponIssueResultInfo = CouponIssueResultInfo(
+            requestId = couponIssueResult.requestId,
+            status = couponIssueResult.status,
+            userCouponId = couponIssueResult.userCouponId,
+            rejectReason = couponIssueResult.rejectReason,
+            requestedAt = couponIssueResult.requestedAt,
+            decidedAt = couponIssueResult.decidedAt,
+        )
+    }
+}

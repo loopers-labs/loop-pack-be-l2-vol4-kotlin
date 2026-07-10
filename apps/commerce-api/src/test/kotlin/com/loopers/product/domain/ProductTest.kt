@@ -66,4 +66,19 @@ class ProductTest {
         }
         assertThat(result.errorCode).isEqualTo(ProductErrorCode.INVALID_PRODUCT_STATUS_TRANSITION)
     }
+
+    @DisplayName("요청한 가격이 등록 가격과 일치하면, verifyPrice는 예외 없이 통과한다.")
+    @Test
+    fun verifyPrice_passes_whenPriceMatches() {
+        product().verifyPrice(100_000)
+    }
+
+    @DisplayName("요청한 가격이 등록 가격과 다르면, CONFLICT 예외(PRODUCT_PRICE_NOT_MATCHED)가 발생한다.")
+    @Test
+    fun verifyPrice_throwsConflict_whenPriceDoesNotMatch() {
+        val result = assertThrows<ConflictException> {
+            product().verifyPrice(99_999)
+        }
+        assertThat(result.errorCode).isEqualTo(ProductErrorCode.PRODUCT_PRICE_NOT_MATCHED)
+    }
 }

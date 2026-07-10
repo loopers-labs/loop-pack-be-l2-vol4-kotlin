@@ -22,9 +22,26 @@ class InventoryService(
             inventory.decrease(line.quantity)
         }
     }
+
+    @Transactional
+    fun increaseStock(lines: List<StockRestoreLine>) {
+        val inventories = inventoryRepository
+            .findAllByProductIdInForUpdate(lines.map { it.productId }.distinct().sorted())
+            .associateBy { it.productId }
+        lines.forEach { line ->
+            val inventory = inventories[line.productId]
+                ?: throw NotFoundException(InventoryErrorCode.INVENTORY_NOT_FOUND)
+            inventory.increase(line.quantity)
+        }
+    }
 }
 
 data class StockDecreaseLine(
+    val productId: Long,
+    val quantity: Long,
+)
+
+data class StockRestoreLine(
     val productId: Long,
     val quantity: Long,
 )

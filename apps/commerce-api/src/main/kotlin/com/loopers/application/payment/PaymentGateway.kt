@@ -36,6 +36,7 @@ data class PaymentTransactionInfo(
 )
 
 enum class PaymentStatus {
+    REQUESTED,
     PENDING,
     SUCCESS,
     FAILED,

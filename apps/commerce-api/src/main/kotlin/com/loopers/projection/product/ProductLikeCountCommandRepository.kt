@@ -26,4 +26,18 @@ class ProductLikeCountCommandRepository(
             productId,
         )
     }
+
+    fun increment(productId: Long) {
+        jdbcTemplate.update(
+            "UPDATE product_like_counts SET like_count = like_count + 1 WHERE product_id = ?",
+            productId,
+        )
+    }
+
+    fun decrement(productId: Long) {
+        jdbcTemplate.update(
+            "UPDATE product_like_counts SET like_count = GREATEST(like_count - 1, 0) WHERE product_id = ?",
+            productId,
+        )
+    }
 }

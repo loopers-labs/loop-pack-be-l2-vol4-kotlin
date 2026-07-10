@@ -7,6 +7,7 @@ class Coupon(
     val id: Long? = null,
     name: String,
     val policy: DiscountPolicy,
+    val maxIssueCount: Int? = null,
 ) {
     var name: String = name
         private set
@@ -16,6 +17,10 @@ class Coupon(
     }
 
     fun discountOf(targetAmount: DiscountAmount): DiscountAmount = policy.discountOf(targetAmount)
+
+    fun canIssue(issuedCount: Long): Boolean {
+        return maxIssueCount?.let { issuedCount <= it } ?: true
+    }
 
     fun rename(newName: String) {
         validateName(newName)

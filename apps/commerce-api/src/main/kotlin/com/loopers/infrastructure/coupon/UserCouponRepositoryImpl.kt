@@ -13,6 +13,10 @@ class UserCouponRepositoryImpl(
         return userCouponJpaRepository.save(UserCouponJpaEntity.from(userCoupon)).toDomain()
     }
 
+    override fun saveIssued(userCoupon: UserCoupon): UserCoupon {
+        return userCouponJpaRepository.saveAndFlush(UserCouponJpaEntity.from(userCoupon)).toDomain()
+    }
+
     override fun findById(id: Long): UserCoupon? {
         return userCouponJpaRepository.findByIdAndDeletedAtIsNull(id)?.toDomain()
     }

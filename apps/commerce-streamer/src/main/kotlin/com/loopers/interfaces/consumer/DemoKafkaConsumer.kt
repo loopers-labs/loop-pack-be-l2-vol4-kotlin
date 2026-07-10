@@ -11,12 +11,13 @@ class DemoKafkaConsumer {
     @KafkaListener(
         topics = ["\${demo-kafka.test.topic-name}"],
         containerFactory = KafkaConfig.BATCH_LISTENER,
+        autoStartup = "false",
     )
     fun demoListener(
         messages: List<ConsumerRecord<Any, Any>>,
         acknowledgment: Acknowledgment,
     ) {
         println(messages)
-        acknowledgment.acknowledge() // manual ack
+        acknowledgment.acknowledge()
     }
 }

@@ -19,6 +19,10 @@ class PaymentRepositoryImpl(
         return paymentJpaRepository.save(entity).toDomain()
     }
 
+    override fun findById(id: Long): Payment? {
+        return paymentJpaRepository.findById(id).orElse(null)?.toDomain()
+    }
+
     override fun findByTransactionKey(transactionKey: String): Payment? {
         return paymentJpaRepository.findByTransactionKeyAndDeletedAtIsNull(transactionKey)
             ?.toDomain()

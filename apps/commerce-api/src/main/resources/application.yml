@@ -21,6 +21,7 @@ spring:
     import:
       - jpa.yml
       - redis.yml
+      - kafka.yml
       - logging.yml
       - monitoring.yml
 
@@ -32,7 +33,7 @@ springdoc:
 product:
   cache:
     enabled: true
-    ttl-seconds: 302
+    ttl-seconds: 30
 
 ---
 spring:

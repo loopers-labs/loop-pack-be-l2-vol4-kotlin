@@ -1,6 +1,7 @@
 package com.loopers.application.product
 
 import com.loopers.application.brand.BrandApplicationService
+import com.loopers.application.event.ProductViewedEvent
 import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.product.ProductPrice
 import com.loopers.domain.product.ProductSearchCondition
@@ -9,6 +10,7 @@ import com.loopers.projection.product.ProductLikeCountQueryRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.paging.PageResult
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,6 +23,7 @@ class ProductFacade(
     private val productLikeCountQueryRepository: ProductLikeCountQueryRepository,
     private val productLikeCountCommandRepository: ProductLikeCountCommandRepository,
     private val productCacheService: ProductCacheService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun createProduct(
@@ -46,12 +49,15 @@ class ProductFacade(
         return ProductInfo.from(product, brand.name, stock, likeCount = 0)
     }
 
+    @Transactional
     fun getProductDetail(productId: Long): ProductInfo {
-        productCacheService.getProductDetail(productId)?.let { return it }
+        val info = productCacheService.getProductDetail(productId)
+            ?: loadProductDetail(productId).also {
+                productCacheService.setProductDetail(productId, it)
+            }
 
-        return loadProductDetail(productId).also {
-            productCacheService.setProductDetail(productId, it)
-        }
+        eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
+        return info
     }
 
     private fun loadProductDetail(productId: Long): ProductInfo {

@@ -33,6 +33,7 @@ import java.time.ZonedDateTime
 class PendingPaymentRecoverySchedulerIntegrationTest @Autowired constructor(
     private val scheduler: PendingPaymentRecoveryScheduler,
     private val paymentFacade: PaymentFacade,
+    private val paymentRequestProcessor: PaymentRequestProcessor,
     private val orderFacade: OrderFacade,
     private val paymentRepository: PaymentRepository,
     private val orderRepository: OrderRepository,
@@ -198,8 +199,13 @@ class PendingPaymentRecoverySchedulerIntegrationTest @Autowired constructor(
                 cardNo = "1234-5678-9012-3456",
             ),
         )
+        paymentRequestProcessor.process(
+            paymentId = paymentInfo.id,
+            callbackUrl = "http://localhost:8080/api/v1/payments/callback",
+        )
+        val processedPayment = paymentRepository.findByOrderId(order.id)!!
 
-        return order to paymentInfo
+        return order to PaymentInfo.from(processedPayment)
     }
 
     private fun saveProductWithStock(

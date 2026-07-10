@@ -1,7 +1,10 @@
 package com.loopers.application.like
 
+import com.loopers.application.event.ProductLikeMetricDecreasedEvent
+import com.loopers.application.event.ProductLikeMetricIncreasedEvent
 import com.loopers.application.product.ProductApplicationService
 import com.loopers.application.user.UserApplicationService
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -10,6 +13,7 @@ class LikeFacade(
     private val likeApplicationService: LikeApplicationService,
     private val productApplicationService: ProductApplicationService,
     private val userApplicationService: UserApplicationService,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
     fun addLike(userId: Long, productId: Long): LikeResultInfo {
@@ -17,6 +21,11 @@ class LikeFacade(
         productApplicationService.getProduct(productId)
 
         val changed = likeApplicationService.activate(userId = userId, productId = productId)
+
+        if (changed) {
+            eventPublisher.publishEvent(ProductLikeCountProjectionIncreasedEvent(userId = userId, productId = productId))
+            eventPublisher.publishEvent(ProductLikeMetricIncreasedEvent(userId = userId, productId = productId))
+        }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)
     }
@@ -27,6 +36,11 @@ class LikeFacade(
         productApplicationService.getProduct(productId)
 
         val changed = likeApplicationService.cancel(userId = userId, productId = productId)
+
+        if (changed) {
+            eventPublisher.publishEvent(ProductLikeCountProjectionDecreasedEvent(userId = userId, productId = productId))
+            eventPublisher.publishEvent(ProductLikeMetricDecreasedEvent(userId = userId, productId = productId))
+        }
 
         return LikeResultInfo(userId = userId, productId = productId, changed = changed)
     }

@@ -6,6 +6,8 @@ import java.time.ZonedDateTime
 interface PaymentRepository {
     fun save(payment: Payment): Payment
 
+    fun findById(id: Long): Payment?
+
     fun findByTransactionKey(transactionKey: String): Payment?
 
     fun findByOrderId(orderId: Long): Payment?

@@ -15,6 +15,7 @@ class CouponJpaEntity(
     name: String,
     policyType: DiscountPolicy.Type,
     policyValue: Long,
+    maxIssueCount: Int? = null,
 ) : BaseEntity() {
     @Column(name = "name", nullable = false)
     var name: String = name
@@ -27,6 +28,9 @@ class CouponJpaEntity(
     @Column(name = "policy_value", nullable = false)
     val policyValue: Long = policyValue
 
+    @Column(name = "max_issue_count")
+    val maxIssueCount: Int? = maxIssueCount
+
     fun toDomain(): Coupon = Coupon(
         id = id,
         name = name,
@@ -34,6 +38,7 @@ class CouponJpaEntity(
             DiscountPolicy.Type.FIXED_AMOUNT -> DiscountPolicy.FixedAmount(policyValue)
             DiscountPolicy.Type.RATE -> DiscountPolicy.Rate(policyValue.toInt())
         },
+        maxIssueCount = maxIssueCount,
     )
 
     fun updateFrom(coupon: Coupon) {
@@ -46,11 +51,13 @@ class CouponJpaEntity(
                 name = coupon.name,
                 policyType = policy.type,
                 policyValue = policy.amount,
+                maxIssueCount = coupon.maxIssueCount,
             )
             is DiscountPolicy.Rate -> CouponJpaEntity(
                 name = coupon.name,
                 policyType = policy.type,
                 policyValue = policy.percent.toLong(),
+                maxIssueCount = coupon.maxIssueCount,
             )
         }
     }

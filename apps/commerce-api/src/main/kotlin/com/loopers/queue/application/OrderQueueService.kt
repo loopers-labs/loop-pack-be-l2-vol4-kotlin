@@ -7,6 +7,7 @@ import com.loopers.support.error.ServiceUnavailableException
 import com.loopers.support.error.TooManyRequestsException
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import kotlin.math.ceil
+import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.dao.DataAccessException
 import org.springframework.stereotype.Component
@@ -16,6 +17,8 @@ class OrderQueueService(
     private val orderQueueRepository: OrderQueueRepository,
     private val properties: OrderQueueProperties,
 ) {
+    private val logger = LoggerFactory.getLogger(OrderQueueService::class.java)
+
     fun enter(userId: Long): QueuePositionInfo = failClose {
         if (orderQueueRepository.findToken(userId) != null) {
             throw ConflictException(QueueErrorCode.ALREADY_ADMITTED)
@@ -51,7 +54,13 @@ class OrderQueueService(
     }
 
     fun completeOrder(userId: Long) {
-        orderQueueRepository.deleteToken(userId)
+        try {
+            orderQueueRepository.deleteToken(userId)
+        } catch (e: CallNotPermittedException) {
+            logger.warn("입장 토큰 삭제 실패 — TTL 만료로 소멸. userId={}, cause={}", userId, e.javaClass.simpleName)
+        } catch (e: DataAccessException) {
+            logger.warn("입장 토큰 삭제 실패 — TTL 만료로 소멸. userId={}, cause={}", userId, e.javaClass.simpleName)
+        }
     }
 
     private fun nextPollSeconds(estimatedWaitSeconds: Long): Long = (estimatedWaitSeconds / 10).coerceIn(1, 10)

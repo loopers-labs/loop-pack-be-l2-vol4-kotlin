@@ -59,6 +59,12 @@ class OrderQueueFailCloseIntegrationTest @Autowired constructor(
         assertThat(result.errorCode).isEqualTo(QueueErrorCode.QUEUE_UNAVAILABLE)
     }
 
+    @DisplayName("서킷이 OPEN이어도 주문 완료의 토큰 삭제는 예외를 전파하지 않는다. (성공한 주문을 실패로 뒤집지 않음)")
+    @Test
+    fun swallowsTokenDeletion_whenCircuitIsOpen() {
+        assertThatCode { orderQueueService.completeOrder(userId = 1L) }.doesNotThrowAnyException()
+    }
+
     @DisplayName("서킷이 OPEN이어도 입장 스케줄러는 예외 없이 해당 주기를 건너뛴다.")
     @Test
     fun skipsSchedulerTick_whenCircuitIsOpen() {

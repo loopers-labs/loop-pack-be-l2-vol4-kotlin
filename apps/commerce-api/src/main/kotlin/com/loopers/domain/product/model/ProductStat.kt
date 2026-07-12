@@ -36,17 +36,6 @@ class ProductStat(
         }
     }
 
-    fun increaseLikeCount() {
-        likeCount += 1
-    }
-
-    fun decreaseLikeCount() {
-        if (likeCount == 0L) {
-            throw CoreException(ErrorType.BAD_REQUEST, "Like count must not be negative.")
-        }
-        likeCount -= 1
-    }
-
     companion object {
         fun empty(productId: Long, brandId: Long): ProductStat {
             return ProductStat(

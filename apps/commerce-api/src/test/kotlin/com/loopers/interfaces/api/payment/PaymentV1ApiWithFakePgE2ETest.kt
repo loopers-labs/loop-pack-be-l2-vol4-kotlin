@@ -6,6 +6,7 @@ import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.payment.CardType
 import com.loopers.domain.payment.PaymentStatus
 import com.loopers.domain.payment.PgTransactionStatus
+import com.loopers.domain.waitingqueue.EntryTokenRepository
 import com.loopers.domain.user.PasswordEncoder
 import com.loopers.infrastructure.brand.entity.BrandEntity
 import com.loopers.infrastructure.brand.repository.BrandJpaRepository
@@ -21,6 +22,7 @@ import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.order.dto.OrderV1Dto
 import com.loopers.interfaces.api.payment.dto.PaymentV1Dto
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import org.assertj.core.api.Assertions.assertThat
@@ -41,6 +43,8 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.utility.DockerImageName
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.URI
@@ -71,7 +75,9 @@ class PaymentV1ApiWithFakePgE2ETest @Autowired constructor(
     private val inventoryJpaRepository: InventoryJpaRepository,
     private val orderJpaRepository: OrderJpaRepository,
     private val paymentJpaRepository: PaymentJpaRepository,
+    private val entryTokenRepository: EntryTokenRepository,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     @BeforeEach
     fun setUp() {
@@ -81,6 +87,7 @@ class PaymentV1ApiWithFakePgE2ETest @Autowired constructor(
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     @AfterAll
@@ -296,9 +303,16 @@ class PaymentV1ApiWithFakePgE2ETest @Autowired constructor(
     }
 
     private fun createAuthHeaders(): HttpHeaders {
+        val entryToken = "entry-token-$LOGIN_ID"
+        memberJpaRepository.findByLoginId(LOGIN_ID)
+            ?.let { member ->
+                entryTokenRepository.issue(memberId = member.id, token = entryToken, ttl = Duration.ofMinutes(5))
+            }
+
         return HttpHeaders().apply {
             set("X-Loopers-LoginId", LOGIN_ID)
             set("X-Loopers-LoginPw", RAW_PASSWORD)
+            set("X-Entry-Token", entryToken)
         }
     }
 
@@ -309,17 +323,29 @@ class PaymentV1ApiWithFakePgE2ETest @Autowired constructor(
     )
 
     private companion object {
+        private val redisContainer = GenericContainer(DockerImageName.parse("redis:latest"))
+            .withExposedPorts(REDIS_PORT)
+            .apply {
+                start()
+            }
+
         private const val LOGIN_ID = "loopers123"
         private const val RAW_PASSWORD = "Loopers123!"
         private val CALLBACK_WAIT_TIMEOUT: Duration = Duration.ofSeconds(3)
         private val POLL_INTERVAL: Duration = Duration.ofMillis(100)
         private val fakePgServer = FakePgServer()
+        private const val REDIS_PORT = 6379
 
         @JvmStatic
         @DynamicPropertySource
         fun registerPgProperties(registry: DynamicPropertyRegistry) {
             fakePgServer.start()
             registry.add("pg.payment.base-url", fakePgServer::baseUrl)
+            registry.add("datasource.redis.database") { "0" }
+            registry.add("datasource.redis.master.host") { redisContainer.host }
+            registry.add("datasource.redis.master.port") { redisContainer.getMappedPort(REDIS_PORT).toString() }
+            registry.add("datasource.redis.replicas[0].host") { redisContainer.host }
+            registry.add("datasource.redis.replicas[0].port") { redisContainer.getMappedPort(REDIS_PORT).toString() }
         }
     }
 }

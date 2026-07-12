@@ -9,6 +9,7 @@ object LoopersHeaders {
     const val LOGIN_ID = "X-Loopers-LoginId"
     const val LOGIN_PW = "X-Loopers-LoginPw"
     const val IDEMPOTENCY_KEY = "Idempotency-Key"
+    const val ENTRY_TOKEN = "X-Entry-Token"
 
     fun validateAdmin(adminId: String) {
         if (adminId != ADMIN_LDAP_VALUE) {

@@ -26,15 +26,19 @@ class OrderV1Controller(
     override fun placeOrder(
         @RequestHeader(LoopersHeaders.LOGIN_ID) loginId: String,
         @RequestHeader(LoopersHeaders.LOGIN_PW) password: String,
+        @RequestHeader(name = LoopersHeaders.ENTRY_TOKEN, required = false) entryToken: String?,
         @RequestBody request: OrderV1Dto.CreateOrderRequest,
     ): ApiResponse<OrderV1Dto.OrderResponse> {
         LoopersHeaders.validateUser(loginId = loginId, password = password)
-
-        return orderFacade.placeOrder(
+        val order = orderFacade.placeOrder(
             loginId = loginId,
             rawPassword = password,
+            entryToken,
             command = request.toCommand(),
-        ).let(OrderV1Dto.OrderResponse::from)
+        )
+
+        return order
+            .let(OrderV1Dto.OrderResponse::from)
             .let(ApiResponse.Companion::success)
     }
 

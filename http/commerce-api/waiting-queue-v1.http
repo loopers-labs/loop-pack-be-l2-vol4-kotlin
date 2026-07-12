@@ -1,0 +1,9 @@
+### 대기열 진입
+POST {{commerce-api}}/api/v1/queue/enter
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!
+
+### 대기열 순번 조회
+GET {{commerce-api}}/api/v1/queue/position
+X-Loopers-LoginId: loopers123
+X-Loopers-LoginPw: Loopers123!

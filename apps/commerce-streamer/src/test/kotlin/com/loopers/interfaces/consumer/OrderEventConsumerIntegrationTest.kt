@@ -5,7 +5,7 @@ import com.loopers.event.OrderEventItemMessage
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
 import com.loopers.infrastructure.event.repository.EventHandledJpaRepository
-import com.loopers.infrastructure.product.repository.ProductStatProjectionJpaRepository
+import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
 import com.loopers.infrastructure.useraction.repository.UserActionLogJpaRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.utils.DatabaseCleanUp
@@ -51,7 +51,7 @@ class OrderEventConsumerIntegrationTest
         private val databaseCleanUp: DatabaseCleanUp,
         private val userActionLogJpaRepository: UserActionLogJpaRepository,
         private val eventHandledJpaRepository: EventHandledJpaRepository,
-        private val productStatProjectionJpaRepository: ProductStatProjectionJpaRepository,
+        private val productStatJpaRepository: ProductStatJpaRepository,
     ) {
         @BeforeEach
         fun setUp() {
@@ -72,7 +72,7 @@ class OrderEventConsumerIntegrationTest
             eventually {
                 val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
                 val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
-                val productStat = productStatProjectionJpaRepository.findByProductId(10L)
+                val productStat = productStatJpaRepository.findByProductId(10L)
 
                 assertAll(
                     { assertThat(userActionLog?.eventId).isEqualTo(message.eventId) },

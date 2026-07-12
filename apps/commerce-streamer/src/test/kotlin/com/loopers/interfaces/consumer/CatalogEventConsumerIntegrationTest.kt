@@ -3,7 +3,7 @@ package com.loopers.interfaces.consumer
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
 import com.loopers.infrastructure.event.repository.EventHandledJpaRepository
-import com.loopers.infrastructure.product.repository.ProductStatProjectionJpaRepository
+import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
 import com.loopers.infrastructure.useraction.repository.UserActionLogJpaRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.utils.DatabaseCleanUp
@@ -47,7 +47,7 @@ class CatalogEventConsumerIntegrationTest
     constructor(
     private val kafkaTemplate: KafkaTemplate<Any, Any>,
     private val databaseCleanUp: DatabaseCleanUp,
-    private val productStatProjectionJpaRepository: ProductStatProjectionJpaRepository,
+    private val productStatJpaRepository: ProductStatJpaRepository,
     private val userActionLogJpaRepository: UserActionLogJpaRepository,
     private val eventHandledJpaRepository: EventHandledJpaRepository,
     ) {
@@ -66,7 +66,7 @@ class CatalogEventConsumerIntegrationTest
         publish(message)
 
         eventually {
-            val productStat = productStatProjectionJpaRepository.findByProductId(message.productId)
+            val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
             val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
 
@@ -89,7 +89,7 @@ class CatalogEventConsumerIntegrationTest
         publish(message)
 
         eventually {
-            val productStat = productStatProjectionJpaRepository.findByProductId(message.productId)
+            val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
             val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
 

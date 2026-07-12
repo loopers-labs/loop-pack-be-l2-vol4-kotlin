@@ -1,7 +1,7 @@
 package com.loopers.infrastructure.product.entity
 
 import com.loopers.domain.BaseEntity
-import com.loopers.domain.product.ProductStatProjection
+import com.loopers.domain.product.ProductStat
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Index
@@ -15,7 +15,7 @@ import jakarta.persistence.Table
         Index(name = "idx_product_stat_like_count_product_id", columnList = "like_count, product_id"),
     ],
 )
-class ProductStatProjectionEntity(
+class ProductStatEntity(
     @Column(name = "product_id", nullable = false, unique = true)
     var productId: Long,
 
@@ -34,7 +34,7 @@ class ProductStatProjectionEntity(
     @Column(name = "latest_event_version", nullable = false)
     var latestEventVersion: Long = 0L,
 ) : BaseEntity() {
-    fun update(domain: ProductStatProjection) {
+    fun update(domain: ProductStat) {
         productId = domain.productId
         brandId = domain.brandId
         likeCount = domain.likeCount
@@ -43,8 +43,8 @@ class ProductStatProjectionEntity(
         latestEventVersion = domain.latestEventVersion
     }
 
-    fun toDomain(): ProductStatProjection {
-        return ProductStatProjection(
+    fun toDomain(): ProductStat {
+        return ProductStat(
             id = id,
             productId = productId,
             brandId = brandId,

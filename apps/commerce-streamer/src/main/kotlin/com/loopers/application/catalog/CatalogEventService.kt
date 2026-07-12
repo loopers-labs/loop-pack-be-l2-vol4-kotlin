@@ -2,8 +2,8 @@ package com.loopers.application.catalog
 
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
-import com.loopers.domain.product.ProductStatProjection
-import com.loopers.domain.product.ProductStatProjectionRepository
+import com.loopers.domain.product.ProductStat
+import com.loopers.domain.product.ProductStatRepository
 import com.loopers.domain.useraction.UserActionLog
 import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
@@ -13,9 +13,9 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 @Component
-class CatalogEventProjectionService(
+class CatalogEventService(
     private val eventHandledRepository: EventHandledRepository,
-    private val productStatProjectionRepository: ProductStatProjectionRepository,
+    private val productStatRepository: ProductStatRepository,
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
@@ -35,7 +35,7 @@ class CatalogEventProjectionService(
     }
 
     private fun updateProductStat(message: CatalogEventMessage) {
-        val current = productStatProjectionRepository.findByProductIdForUpdate(message.productId)
+        val current = productStatRepository.findByProductIdForUpdate(message.productId)
 
         if (message.eventType != CatalogEventType.PRODUCT_VIEWED &&
             current != null &&
@@ -44,7 +44,7 @@ class CatalogEventProjectionService(
             return
         }
 
-        val productStat = current ?: ProductStatProjection(
+        val productStat = current ?: ProductStat(
             productId = message.productId,
             brandId = message.brandId ?: 0L,
             likeCount = 0L,
@@ -66,7 +66,7 @@ class CatalogEventProjectionService(
         if (message.eventType != CatalogEventType.PRODUCT_VIEWED) {
             productStat.latestEventVersion = message.version
         }
-        productStatProjectionRepository.save(productStat)
+        productStatRepository.save(productStat)
     }
 
     private fun recordUserAction(message: CatalogEventMessage) {

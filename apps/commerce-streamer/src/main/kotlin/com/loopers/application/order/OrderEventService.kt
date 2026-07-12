@@ -2,8 +2,8 @@ package com.loopers.application.order
 
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
-import com.loopers.domain.product.ProductStatProjection
-import com.loopers.domain.product.ProductStatProjectionRepository
+import com.loopers.domain.product.ProductStat
+import com.loopers.domain.product.ProductStatRepository
 import com.loopers.domain.useraction.UserActionLog
 import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
@@ -13,9 +13,9 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 @Component
-class OrderEventProjectionService(
+class OrderEventService(
     private val eventHandledRepository: EventHandledRepository,
-    private val productStatProjectionRepository: ProductStatProjectionRepository,
+    private val productStatRepository: ProductStatRepository,
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
@@ -49,8 +49,8 @@ class OrderEventProjectionService(
         }
 
         message.items.forEach { item ->
-            val current = productStatProjectionRepository.findByProductIdForUpdate(item.productId)
-            val productStat = current ?: ProductStatProjection(
+            val current = productStatRepository.findByProductIdForUpdate(item.productId)
+            val productStat = current ?: ProductStat(
                 productId = item.productId,
                 brandId = 0L,
                 likeCount = 0L,
@@ -60,7 +60,7 @@ class OrderEventProjectionService(
             )
 
             productStat.salesCount += item.quantity
-            productStatProjectionRepository.save(productStat)
+            productStatRepository.save(productStat)
         }
     }
 

@@ -36,6 +36,9 @@ class ProductStatEntity(
 
     @Column(nullable = false)
     var viewCount: Long = 0L,
+
+    @Column(name = "latest_event_version", nullable = false)
+    var latestEventVersion: Long = 0L,
 ) : BaseEntity() {
     fun update(domain: ProductStat) {
         productId = domain.productId

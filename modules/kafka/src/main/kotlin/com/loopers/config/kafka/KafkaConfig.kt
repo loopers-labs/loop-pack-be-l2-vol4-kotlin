@@ -1,6 +1,7 @@
 package com.loopers.config.kafka
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.loopers.event.NonRetryableEventException
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.TopicPartition
@@ -134,6 +135,8 @@ class KafkaConfig {
         val recoverer = DeadLetterPublishingRecoverer(dltKafkaTemplate) { record, _ ->
             TopicPartition(record.topic() + DLT_SUFFIX, record.partition())
         }
-        return DefaultErrorHandler(recoverer, FixedBackOff(DLT_RETRY_INTERVAL_MS, DLT_RETRY_ATTEMPTS))
+        return DefaultErrorHandler(recoverer, FixedBackOff(DLT_RETRY_INTERVAL_MS, DLT_RETRY_ATTEMPTS)).apply {
+            addNotRetryableExceptions(NonRetryableEventException::class.java)
+        }
     }
 }

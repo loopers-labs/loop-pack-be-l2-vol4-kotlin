@@ -1,6 +1,7 @@
 package com.loopers.interfaces.consumer.ranking
 
 import com.loopers.application.ranking.RankingProjectionService
+import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
 import com.loopers.event.NonRetryableEventException
@@ -32,7 +33,7 @@ class RankingEventConsumerTest {
         every { service.projectCatalog(any()) } just Runs
         every { acknowledgment.acknowledge() } just Runs
 
-        CatalogRankingEventConsumer(service).handle(messages, acknowledgment)
+        CatalogRankingEventConsumer(service, RankingRedisProperties()).handle(messages, acknowledgment)
 
         verifyOrder {
             service.projectCatalog(messages[0])
@@ -51,7 +52,7 @@ class RankingEventConsumerTest {
         every { service.projectOrder(messages[1]) } throws NonRetryableEventException("invalid item")
 
         val exception = assertThrows<BatchListenerFailedException> {
-            OrderRankingEventConsumer(service).handle(messages, acknowledgment)
+            OrderRankingEventConsumer(service, RankingRedisProperties()).handle(messages, acknowledgment)
         }
 
         assertThat(exception.index).isEqualTo(1)

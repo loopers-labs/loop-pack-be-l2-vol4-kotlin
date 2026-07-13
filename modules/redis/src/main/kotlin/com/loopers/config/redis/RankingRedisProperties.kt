@@ -31,5 +31,7 @@ data class RankingRedisProperties(
         val topN: Long = 100,
         val factor: Double = 0.1,
         val lockTtlSeconds: Long = 60,
+        val cron: String = "0 50 23 * * *",
+        val zone: String = "Asia/Seoul",
     )
 }

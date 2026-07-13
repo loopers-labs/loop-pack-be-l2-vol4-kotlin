@@ -26,6 +26,17 @@ spring:
       - monitoring.yml
 
 commerce:
+  ranking:
+    zone: Asia/Seoul
+    view-weight: 0.05
+    like-weight: 0.4
+    sales-weight: 1.0
+    carry-over:
+      top-n: 100
+      factor: 0.1
+      lock-ttl-seconds: 60
+      cron: "0 50 23 * * *"
+      zone: Asia/Seoul
   queue:
     scheduler:
       fixed-delay-millis: 1000

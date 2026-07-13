@@ -8,6 +8,7 @@ import com.loopers.domain.ranking.RankingCarryOverRepository
 import com.loopers.domain.ranking.RankingWeights
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -66,11 +67,11 @@ class RedisRankingCarryOverRepositoryTest @Autowired constructor(
             { assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(tomorrow), "1") == null).isTrue() },
             {
                 assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(tomorrow), "101") ?: Double.NaN)
-                    .isEqualTo(10.1)
+                    .isCloseTo(10.1, within(1e-12))
             },
             {
                 assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.all(tomorrow), "101") ?: Double.NaN)
-                    .isEqualTo(10.1)
+                    .isCloseTo(10.1, within(1e-12))
             },
             { assertThat(redisTemplate.getExpire(RankingRedisKeys.carry(tomorrow))).isPositive() },
             { assertThat(redisTemplate.getExpire(RankingRedisKeys.all(tomorrow))).isPositive() },

@@ -9,6 +9,7 @@ object PaymentEvent {
     data class Item(
         val productId: Long,
         val quantity: Long,
+        val unitPrice: Long,
     )
 
     data class Requested(
@@ -55,6 +56,7 @@ object PaymentEvent {
                         Item(
                             productId = item.productId,
                             quantity = item.quantity,
+                            unitPrice = item.unitPrice,
                         )
                     },
                 )

@@ -43,7 +43,7 @@ class OrderEventServiceTest {
         val message = createMessage(
             eventId = "event-1",
             eventType = OrderEventType.PAYMENT_SUCCEEDED,
-            items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L)),
+            items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L, unitPrice = 1_000L)),
         )
 
         fixture.service.project(message)
@@ -61,8 +61,8 @@ class OrderEventServiceTest {
             eventId = "event-1",
             eventType = OrderEventType.PAYMENT_SUCCEEDED,
             items = listOf(
-                OrderEventItemMessage(productId = 10L, quantity = 2L),
-                OrderEventItemMessage(productId = 20L, quantity = 3L),
+                OrderEventItemMessage(productId = 10L, quantity = 2L, unitPrice = 1_000L),
+                OrderEventItemMessage(productId = 20L, quantity = 3L, unitPrice = 2_000L),
             ),
         )
 

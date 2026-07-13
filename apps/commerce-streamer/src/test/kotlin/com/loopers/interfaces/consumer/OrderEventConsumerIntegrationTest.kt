@@ -96,7 +96,7 @@ class OrderEventConsumerIntegrationTest
                 memberId = 1L,
                 paymentId = orderId + 1,
                 amount = 10_000L,
-                items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L)),
+                items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L, unitPrice = 1_000L)),
                 occurredAt = ZonedDateTime.parse("2026-07-02T10:00:00+09:00"),
             )
         }

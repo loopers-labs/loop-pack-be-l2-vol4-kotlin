@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.product.dto
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.interfaces.api.brand.dto.BrandV1Dto
@@ -37,6 +38,8 @@ class ProductV1Dto {
         val imageUrl: String,
         val brand: BrandV1Dto.BrandResponse,
         val likeCount: Long,
+        @field:JsonInclude(JsonInclude.Include.ALWAYS)
+        val rank: Long?,
     ) {
         companion object {
             fun from(info: ProductDetailInfo): ProductDetailResponse {
@@ -48,6 +51,7 @@ class ProductV1Dto {
                     imageUrl = info.imageUrl,
                     brand = BrandV1Dto.BrandResponse.from(info.brand),
                     likeCount = info.likeCount,
+                    rank = info.rank,
                 )
             }
         }

@@ -9,6 +9,8 @@ import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.application.productstat.ProductStatService
+import com.loopers.application.ranking.RankingQueryService
+import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.domain.brand.model.Brand
 import com.loopers.domain.brand.repository.BrandRepository
 import com.loopers.domain.inventory.model.Inventory
@@ -22,6 +24,8 @@ import com.loopers.domain.product.event.ProductEventPublisher
 import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.domain.product.repository.ProductStatRepository
 import com.loopers.domain.product.service.ProductCatalogService
+import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingRepository
 import com.loopers.fixture.product.ProductBrandFixture
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -32,6 +36,9 @@ import org.springframework.core.task.SyncTaskExecutor
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import java.time.Clock
+import java.time.LocalDate
 
 class ProductFacadeTest {
     @DisplayName("상품 목록 조회")
@@ -360,7 +367,19 @@ class ProductFacadeTest {
             productCatalogService = ProductCatalogService(),
             productCacheService = productCacheService,
             productEventPublisher = productEventPublisher,
+            rankingQueryService = RankingQueryService(
+                rankingRepository = EmptyRankingRepository(),
+                meterRegistry = SimpleMeterRegistry(),
+                properties = RankingRedisProperties(),
+                clock = Clock.systemUTC(),
+            ),
         )
+    }
+
+    private class EmptyRankingRepository : RankingRepository {
+        override fun findPage(date: LocalDate, page: Int, size: Int): RankingPage = RankingPage(emptyList(), 0L)
+
+        override fun findRank(date: LocalDate, productId: Long): Long? = null
     }
 
     private class FakeProductEventPublisher : ProductEventPublisher {

@@ -1,0 +1,11 @@
+### 오늘 랭킹 가중치 변경
+PUT {{commerce-api}}/api-admin/v1/rankings/weights
+X-Loopers-Ldap: loopers.admin
+Content-Type: application/json
+
+{
+  "viewWeight": 0.05,
+  "likeWeight": 0.4,
+  "salesWeight": 1.0
+}
+

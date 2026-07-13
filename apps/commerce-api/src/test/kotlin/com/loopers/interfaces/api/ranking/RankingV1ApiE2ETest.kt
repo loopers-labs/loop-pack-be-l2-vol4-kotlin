@@ -10,6 +10,7 @@ import com.loopers.infrastructure.product.repository.ProductJpaRepository
 import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
+import com.loopers.interfaces.api.product.dto.ProductV1Dto
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
@@ -81,6 +82,28 @@ class RankingV1ApiE2ETest @Autowired constructor(
             { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
             { assertThat(response.body?.data?.data).isEmpty() },
             { assertThat(response.body?.data?.meta?.totalElements).isZero() },
+        )
+    }
+
+    @DisplayName("랭킹 API와 상품 상세는 같은 오늘의 1-based rank를 반환한다")
+    @Test
+    fun returnsSameRankFromRankingAndProductDetail() {
+        val today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
+        val brand = createBrand("rank-consistency")
+        val product = createProduct(brand.id, "ranked-product", likeCount = 1L)
+        redisTemplate.opsForZSet().add(RankingRedisKeys.all(today), product.id.toString(), 12.3)
+
+        val rankingResponse = getRankings(date = today, page = 0, size = 20)
+        val detailResponse = testRestTemplate.exchange(
+            "/api/v1/products/${product.id}",
+            HttpMethod.GET,
+            null,
+            object : ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductDetailResponse>>() {},
+        )
+
+        assertAll(
+            { assertThat(rankingResponse.body?.data?.data?.single()?.rank).isEqualTo(1L) },
+            { assertThat(detailResponse.body?.data?.rank).isEqualTo(1L) },
         )
     }
 

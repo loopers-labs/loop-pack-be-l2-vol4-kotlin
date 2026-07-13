@@ -175,6 +175,7 @@ class EventRecordServiceTest {
             { assertThat(payload.paymentId).isEqualTo(30L) },
             { assertThat(payload.items.single().productId).isEqualTo(10L) },
             { assertThat(payload.items.single().quantity).isEqualTo(2L) },
+            { assertThat(outbox.payload).contains("\"unitPrice\":1000") },
         )
     }
 

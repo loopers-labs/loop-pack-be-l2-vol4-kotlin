@@ -18,6 +18,7 @@ interface OrderApiSpec {
     fun placeOrder(
         user: UserInfo,
         idempotencyKey: String?,
+        queueToken: String?,
         @Valid request: OrderCreateRequest,
     ): ApiResponse<OrderResponse>
 

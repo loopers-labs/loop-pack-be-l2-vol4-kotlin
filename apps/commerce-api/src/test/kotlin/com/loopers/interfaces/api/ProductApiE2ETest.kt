@@ -6,6 +6,7 @@ import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_�
 import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaEntity
 import com.loopers.domain.like.infrastructure.persistence.ProductLikeCountJpaRepository
 import com.loopers.domain.product.application.service.ProductService
+import com.loopers.domain.product.model.ProductSaleType
 import com.loopers.domain.product.presentation.response.ProductResponse
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
 import org.assertj.core.api.Assertions.assertThat
@@ -53,6 +54,24 @@ class ProductApiE2ETest
             assertThat(response.body?.data?.price).isEqualTo(10_000)
             assertThat(response.body?.data?.brandName).isEqualTo("기본 브랜드")
             assertThat(response.body?.data?.likeCount).isEqualTo(2L)
+        }
+
+        @Test
+        fun `선착순_상품_상세는_대기열_진입_판단을_위해_LIMITED_saleType을_반환한다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val product = productService.register(
+                상품_등록_커맨드(brandId = brand.id, saleType = ProductSaleType.LIMITED),
+            )
+
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/${product.id}",
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                productResponseType,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body?.data?.saleType).isEqualTo("LIMITED")
         }
 
         @Test

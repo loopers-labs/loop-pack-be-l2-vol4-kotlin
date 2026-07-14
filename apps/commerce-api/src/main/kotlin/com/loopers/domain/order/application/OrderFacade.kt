@@ -39,7 +39,7 @@ class OrderFacade(
         userService.getById(command.userId)
         val idempotencyKey = command.idempotencyKey?.takeIf { it.isNotBlank() }
         idempotencyKey
-            ?.let { orderService.findByIdempotencyKeyOrNull(it) }
+            ?.let { orderService.findByOrderedUserIdAndIdempotencyKeyOrNull(command.userId, it) }
             ?.let { return OrderInfo.from(it) }
 
         val orderItems = aggregateItems(command.items)
@@ -103,6 +103,13 @@ class OrderFacade(
             throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
     }
+
+    @Transactional(readOnly = true)
+    fun findByIdempotencyKeyOrNull(
+        userId: Long,
+        idempotencyKey: String,
+    ): OrderInfo? = orderService.findByOrderedUserIdAndIdempotencyKeyOrNull(userId, idempotencyKey)
+        ?.let { OrderInfo.from(it) }
 
     @Transactional(readOnly = true)
     fun findMyOrders(

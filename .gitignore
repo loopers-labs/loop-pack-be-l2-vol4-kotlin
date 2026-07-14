@@ -42,9 +42,10 @@ out/
 ### macOS ###
 .DS_Store
 
-### OMC/OMO ###
+### OMC/OMO/OMX ###
 .omc
 .omo
+.omx
 
 ### Local working docs ###
 docs/todo-list.md

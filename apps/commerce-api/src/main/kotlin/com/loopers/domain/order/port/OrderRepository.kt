@@ -7,7 +7,10 @@ interface OrderRepository {
     fun save(order: OrderModel): OrderModel
     fun update(order: OrderModel): OrderModel
     fun findByIdOrNull(orderId: Long): OrderModel?
-    fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel?
+    fun findByOrderedUserIdAndIdempotencyKeyOrNull(
+        orderedUserId: Long,
+        idempotencyKey: String,
+    ): OrderModel?
     fun findByOrderedUserId(
         orderedUserId: Long,
         startAt: ZonedDateTime?,

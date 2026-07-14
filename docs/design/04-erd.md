@@ -16,6 +16,7 @@
 - 결제 기록은 주문과 연결되어 결제 수단, 금액, 상태, 외부 거래 식별자를 추적할 수 있는가?
 - 쿠폰 발급 API가 요청 접수와 실제 발급을 분리하고, 요청 상태 polling과 worker 멱등 처리를 영속성으로 보장할 수 있는가?
 - DB FK와 카디널리티를 명확히 하되, JPA 객체 연관은 불필요하게 양방향으로 열지 않을 수 있는가?
+- Round 8 대기열이 Redis-only source of truth라는 결정을 관계형 테이블로 잘못 중복 모델링하지 않았는가?
 
 ## 기본 정책
 
@@ -33,6 +34,8 @@
 - 결제는 결제수단별 상세 정책을 확정하지 않더라도 주문별 결제 상태 추적을 위해 `payments` 기록 테이블을 둔다. 이 테이블과 관련 보상 흐름은 후속 결제 연동 단계의 목표 설계이며, Round 4 쿠폰/동시성 구현 필수 범위가 아니다.
 - 커밋 이후 전파가 필요한 `ApplicationEvent`는 `@TransactionalEventListener(phase = AFTER_COMMIT)`에서 `outbox_events`에 저장하고, 별도 relay가 Kafka broker ack 이후 발행 완료로 표시한다. 이벤트 유실을 막기 위한 저장소 권위는 outbox row이며, Kafka publish는 도메인 쓰기 트랜잭션 밖에서 수행한다. producer 설정은 `acks=all`, `idempotence=true`를 전제로 한다.
 - 쿠폰 발급 요청은 `coupon_issue_requests`에 `PENDING`으로 저장하고, `coupon-issue-requests` outbox/Kafka 이벤트를 통해 worker가 실제 발급을 수행한다. 발급 쿠폰 사용은 주문/쿠폰 유스케이스의 동기 트랜잭션 경계를 유지한다.
+- Round 8 대기열은 관계형 DB에 저장하지 않는다. Redis Sorted Set, 원자 sequence counter, TTL admission hash가 유일한 권위 상태이므로 Mermaid ERD에는 대기열 엔티티나 관계가 나타나지 않는다. Redis 비관계 저장 모델은 아래 별도 절에서 정의한다.
+- `products.sale_type`은 `NORMAL`, `LIMITED`를 저장한다. 주문 항목 중 `LIMITED` 상품이 하나라도 있으면 주문 전체가 Redis 대기열 관문 대상이고, `NORMAL`-only 주문은 기존 Round 7 주문 흐름으로 바로 진행한다.
 
 ## Mermaid ERD
 
@@ -92,6 +95,7 @@ erDiagram
         BIGINT brand_id FK
         VARCHAR product_name
         BIGINT price
+        VARCHAR sale_type
         DATETIME created_at
         DATETIME updated_at
         DATETIME deleted_at
@@ -156,6 +160,7 @@ erDiagram
     ORDERS {
         BIGINT order_id PK
         BIGINT ordered_user_id FK
+        VARCHAR idempotency_key
         BIGINT issued_coupon_id FK
         VARCHAR order_status
         BIGINT total_price
@@ -204,7 +209,6 @@ erDiagram
         DATETIME created_at
         DATETIME updated_at
     }
-
     ORDER_ITEMS {
         BIGINT order_id PK
         BIGINT product_id PK
@@ -244,6 +248,7 @@ erDiagram
 ## 관계 해석
 
 - `products.brand_id`는 상품이 반드시 하나의 브랜드에 속한다는 요구사항을 표현한다. 브랜드 삭제 시 DB cascade 대신 애플리케이션에서 브랜드와 상품을 함께 soft delete한다.
+- `products.sale_type`은 일반 상품 `NORMAL`과 선착순 상품 `LIMITED`를 구분한다. `OrderQueueGatePolicy`는 주문 상품을 조회해 `LIMITED`가 하나라도 있으면 `X-Queue-Token`과 공백이 아닌 `Idempotency-Key`를 요구한다.
 - `product_stocks.product_id`는 상품과 재고의 1:1 관계를 표현한다. 재고 생명주기는 상품에 종속되므로 별도 `deleted_at`을 두지 않고, 재고 차감 근거는 주문 항목으로 추적한다.
 - `likes`는 `(user_id, product_id)` 복합 PK로 한 사용자가 한 상품에 좋아요를 한 번만 누를 수 있게 한다. 반복 `POST`는 이미 존재하는 행을 현재 상태로 보고 성공 처리하고, 반복 `DELETE`는 삭제할 행이 없어도 성공 처리한다.
 - `product_metrics`는 `product_id`를 PK로 갖는 상품 1:1 projection 테이블이다. 좋아요 수, 판매 수, 조회 수를 매 조회마다 계산하는 대신 비정규화 컬럼으로 보관해 목록·정렬의 읽기 비용을 낮춘다. `likes`, 주문/주문 항목, 상품 조회 이벤트가 권위 상태이며, `product_metrics`는 Kafka consumer가 `LIKE_COUNT_CHANGED_V1`, 주문/결제 이벤트, 상품 조회 이벤트를 처리한 뒤 갱신하는 eventually consistent projection이다. 상품 생성 시 `like_count = 0`, `sales_count = 0`, `view_count = 0` 행을 함께 만들고, consumer 장애나 누락 의심 시 Kafka replay 또는 원천 테이블 기준 backfill/rebuild로 projection을 복구한다.
@@ -261,6 +266,27 @@ erDiagram
 - `order_items`는 `(order_id, product_id)` 복합 PK로 한 주문 안의 동일 상품을 하나의 항목으로 합산한다. 주문 당시 상품명과 단가를 스냅샷 컬럼에 보관해 이후 상품 정보 변경이나 soft delete와 독립적으로 과거 주문 내역을 유지한다.
 - `payments`는 주문별 결제 상태를 기록한다. 후속 결제 연동 구현에서는 `payments.order_id` unique 제약으로 주문과 1:1 관계를 보장한다. 결제 재시도나 결제수단 변경 이력이 필요해지면 주문과 1:N 관계로 확장한다.
 - `admin_operation_logs`는 관리자 변경 작업만 기록한다. `target_type`은 `BRAND` 또는 `PRODUCT`, `operation_type`은 `CREATED`, `UPDATED`, `DELETED`를 기준으로 한다.
+
+## Round 8 Redis 비관계 저장 모델
+
+대기열은 관계형 ERD 대상이 아니다. 아래 Redis 자료구조가 유일한 source of truth이며, `WaitingQueuePort`의 운영 구현체인 `RedissonWaitingQueueAdapter`가 설정으로 주입된 logical key를 조합한다.
+
+| 자료구조 | 설정/실제 key 형태 | 값과 역할 | 수명 |
+| --- | --- | --- | --- |
+| Sorted Set | `${redis-key-prefix}:${redis-keys.entries}` | member=`userId`, score=Redis `INCR` sequence. `ZRANK + 1`이 실시간 순번이고 `ZCARD`가 전체 대기 인원 | 입장 Lua가 member를 pop할 때까지 |
+| String counter | `${redis-key-prefix}:${redis-keys.sequence}` | 새 대기 member의 양의 단조 sequence를 `INCR`로 발급 | 대기열 namespace 수명 동안 유지 |
+| User admission Hash | `${redis-key-prefix}:${redis-keys.user-admission-prefix}:${userId}` | token, userId, sequence, availableAt, expiresAt, status, idempotencyKey를 보관하는 사용자 역조회 | 발급 시 `token-ttl`; consume 시 삭제, release 시 TTL 연장 없음 |
+| Token admission Hash | `${redis-key-prefix}:${redis-keys.token-admission-prefix}:${token}` | user binding과 `ACTIVE/PROCESSING/CONSUMED` 상태를 보관하는 token 검증 및 consumed marker | 발급 시 `token-ttl`; consume/release 후에도 최초 TTL 유지 |
+
+- 발급 token 문자열 자체의 prefix는 `commerce.waiting-queue.token-prefix`로 주입한다. Redis namespace/key 이름은 `redis-key-prefix`와 중첩 `redis-keys.entries`, `sequence`, `user-admission-prefix`, `token-admission-prefix`로 주입한다.
+- 현재 queue scope는 모든 `LIMITED` 주문이 공유하는 전역 사용자 대기열이다. token은 사용자에만 귀속되며 상품/캠페인 ID는 저장하지 않는다. 독립 행사가 필요하면 scope를 모든 ZSET/counter/hash key와 token binding에 동일하게 추가해야 한다.
+- enqueue Lua는 기존 ZSET member와 user admission을 확인한 뒤 `INCR + ZADD NX`를 원자 실행한다.
+- admit Lua는 후보 token key의 중복/기존 존재를 pop 전에 검사한다. 충돌하면 기존 binding과 ZSET을 그대로 유지하고, 정상 후보일 때만 `ZPOPMIN batchSize`, user/token hash 생성, 두 hash의 `PEXPIRE tokenTtl`을 원자 실행한다.
+- reserve Lua는 user/token binding과 `availableAt`을 검증하고 `ACTIVE -> PROCESSING` 및 `Idempotency-Key` 기록을 원자 실행한다.
+- consume Lua는 같은 멱등키의 예약만 `PROCESSING -> CONSUMED`로 바꾸고 user hash를 삭제한다. 이미 `CONSUMED`인 같은 멱등키 호출도 멱등 성공이다. token hash는 남은 TTL 동안 같은 멱등키 consumed marker로 유지하며 CAS 결과는 `Boolean`이다.
+- release Lua는 커밋된 주문이 없을 때 같은 멱등키의 예약만 `PROCESSING -> ACTIVE`로 되돌리고 양쪽 hash의 예약 멱등키를 지운다. TTL은 다시 시작하지 않으며 CAS 결과는 `Boolean`이다.
+- `PROCESSING + same key` 재시도는 기존 주문이 확인되면 consume으로 회복하고, 없으면 `409`로 거부한다. 주문 처리 예외 뒤에도 멱등키 주문이 커밋됐으면 release하지 않으며, consume/release CAS 실패는 fail-closed한다.
+- 위 key가 모두 같은 Redis에 있다는 전제에서 Lua가 원자성을 보장한다. 현재 Redisson 설정은 single server와 master-replica만 지원한다. Redis Cluster는 한 script의 multi-key가 같은 hash slot에 위치하도록 공통 hash tag를 key에 반영하고 cluster client 설정을 추가하기 전까지 지원하지 않는다.
 
 ## 주요 제약과 인덱스 후보
 
@@ -284,11 +310,13 @@ erDiagram
 | `issued_coupons(coupon_template_id, issued_at)` | index | 관리자 쿠폰 템플릿별 발급 이력 조회 |
 | `issued_coupons.version` | optimistic lock | 발급 쿠폰 사용/복구 시 동시 변경 lost update 방지 |
 | `orders(issued_coupon_id)` | unique nullable | 하나의 발급 쿠폰이 둘 이상의 주문에 적용되는 것을 방지 |
+| `orders(ordered_user_id, idempotency_key)` | unique nullable | 사용자 범위 주문 멱등성 보장과 교차 사용자 주문 정보 노출 방지 |
 | `orders(order_status, created_at)` | index | 관리자 실패/대기 주문 모니터링과 미결 주문 회복 대상 조회 |
 | `order_items(order_id, product_id)` | primary key | 주문 내 동일 상품 항목 중복 방지 |
 | `payments(order_id)` | unique | 후속 결제 연동 구현의 주문-결제 1:1 보장 |
 | `payments(external_transaction_id)` | unique nullable | 외부 결제 거래 중복 반영 방지 |
 | `products(brand_id, created_at)` | index | 브랜드 필터와 최신순 상품 목록 조회 |
+| `products(sale_type)` | index 후보 | 선착순 상품 운영 조회가 실제로 필요할 때 적용. 주문 gate는 요청 상품 ID 조회 결과로 판별 |
 | `orders(ordered_user_id, created_at)` | index | 사용자의 주문 기간 조회 |
 | `product_stocks(product_id)` | primary key | 주문 시 재고 행 단건 잠금/갱신 기준 |
 | `admin_operation_logs(admin_id, created_at)` | index | 관리자별 변경 작업 이력 조회 |
@@ -324,6 +352,11 @@ DB 관계는 FK로 표현하지만, JPA에서는 다음처럼 단방향을 기�
 
 ## 잠재 리스크
 
+- 대기열이 Redis-only source of truth이므로 Redis 장애 중에는 순번과 토큰을 확인할 수 없다. application은 다른 저장소로 우회하지 않고 `503`으로 fail-closed하며, Redis persistence/replication/backup과 `noeviction` 계열 메모리 정책은 운영 환경에서 별도로 보장해야 한다.
+- enqueue/admit/reserve/consume/release Lua가 접근하는 key는 Redis Cluster에서 같은 hash slot이어야 한다. Cluster 도입 시 설정 key에 공통 hash tag를 적용하지 않으면 multi-key script가 실패한다.
+- consumed marker는 token hash의 남은 TTL까지만 유지된다. 그 이후에도 인증된 사용자와 같은 `Idempotency-Key`의 커밋 주문을 조회해 새 mutation 없이 기존 결과를 반환하므로, 주문 저장소의 멱등키 보존 기간이 최종 중복 방어선이다.
+- 주문 DB commit 뒤 consume Lua가 실패하면 주문은 생성됐지만 token은 `PROCESSING`으로 남아 최초 응답이 `503`일 수 있다. marker가 남아 있으면 같은 token·멱등키로 consume을 회복하고, 이미 만료됐으면 사용자 범위 주문 멱등 조회로 기존 결과를 회복한다.
+- 기존 운영 스키마에는 배포 전에 [`docs/migrations/round8-waiting-queue.sql`](../migrations/round8-waiting-queue.sql)을 적용한다. 이 migration은 `products.sale_type`을 `NORMAL`로 backfill한 뒤 `NOT NULL`로 전환하고, 기존 전역 `orders.idempotency_key` unique를 `(ordered_user_id, idempotency_key)` 복합 unique로 교체한다. 운영 profile은 `ddl-auto: none`이므로 애플리케이션이 이 변경을 대신 수행하지 않는다.
 - soft delete를 쓰면 FK cascade만으로 브랜드 삭제 요구사항을 만족할 수 없다. 브랜드 삭제 유스케이스에서 소속 상품을 함께 soft delete하고, 재고 노출 여부는 상품 삭제 상태를 기준으로 판단해야 한다.
 - `PAYMENT_PENDING` 주문은 TX1 이후 TX2가 누락된 orphan일 수 있다. 회복 프로세스는 외부 결제 상태를 확인한 뒤 주문 실패 전이, 재고 복구, 쿠폰 복구, `orders.issued_coupon_id = NULL` 분리를 멱등하게 수행해야 한다.
 - 재고 차감 근거는 주문 항목으로 추적한다. 입고, 수동 보정, 재고 실사처럼 주문 외 재고 변경이 필요해지면 별도 `stock_movements` 이력 테이블을 추가해야 한다.

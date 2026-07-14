@@ -11,6 +11,7 @@ data class ProductResponse(
     val likeCount: Long = 0,
     val name: String,
     val price: Long,
+    val saleType: String,
 ) {
     companion object {
         fun from(info: ProductInfo): ProductResponse = ProductResponse(
@@ -18,6 +19,7 @@ data class ProductResponse(
             brandId = info.brandId,
             name = info.name,
             price = info.price,
+            saleType = info.saleType,
         )
 
         fun from(info: ProductDetailInfo): ProductResponse = ProductResponse(
@@ -27,6 +29,7 @@ data class ProductResponse(
             likeCount = info.likeCount,
             name = info.name,
             price = info.price,
+            saleType = info.saleType,
         )
 
         fun from(info: ProductSummaryInfo): ProductResponse = ProductResponse(
@@ -36,6 +39,7 @@ data class ProductResponse(
             likeCount = info.likeCount,
             name = info.name,
             price = info.price,
+            saleType = info.saleType,
         )
     }
 }

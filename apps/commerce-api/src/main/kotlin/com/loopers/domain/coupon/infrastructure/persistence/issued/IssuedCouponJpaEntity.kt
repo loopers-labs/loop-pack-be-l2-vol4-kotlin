@@ -1,6 +1,7 @@
 package com.loopers.domain.coupon.infrastructure.persistence.issued
 
 import com.loopers.domain.BaseEntity
+import com.loopers.domain.coupon.infrastructure.persistence.issued.tableConstraints.IssuedCouponJpaConstraints.ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT
 import com.loopers.domain.coupon.model.IssuedCouponModel
 import com.loopers.domain.coupon.model.IssuedCouponStatus
 import jakarta.persistence.Column
@@ -10,8 +11,6 @@ import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import jakarta.persistence.Version
 import java.time.LocalDateTime
-
-const val ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT = "uk_issued_coupons_user_template"
 
 @Entity
 @Table(

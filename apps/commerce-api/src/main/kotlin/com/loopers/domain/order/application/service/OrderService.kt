@@ -57,8 +57,10 @@ class OrderService(
         orderRepository.update(getById(orderId).detachCoupon())
 
     @Transactional(readOnly = true)
-    fun findByIdempotencyKeyOrNull(idempotencyKey: String): OrderModel? =
-        orderRepository.findByIdempotencyKeyOrNull(idempotencyKey)
+    fun findByOrderedUserIdAndIdempotencyKeyOrNull(
+        orderedUserId: Long,
+        idempotencyKey: String,
+    ): OrderModel? = orderRepository.findByOrderedUserIdAndIdempotencyKeyOrNull(orderedUserId, idempotencyKey)
 
     @Transactional(readOnly = true)
     fun findByOrderedUserId(

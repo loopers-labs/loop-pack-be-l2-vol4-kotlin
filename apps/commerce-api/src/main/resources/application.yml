@@ -13,6 +13,11 @@ server:
 spring:
   main:
     web-application-type: servlet
+  task:
+    scheduling:
+      pool:
+        size: 2
+      thread-name-prefix: commerce-scheduler-
   application:
     name: commerce-api
   profiles:
@@ -50,6 +55,22 @@ commerce-events:
   outbox-relay:
     enabled: true
 
+commerce:
+  waiting-queue:
+    scheduler-enabled: true
+    token-ttl: 5m
+    scheduler-delay: 10s
+    admission-batch-size: 100
+    scheduler-jitter-max: 0s
+    polling-interval: 2s
+    token-prefix: q_
+    redis-key-prefix: waiting-queue
+    redis-keys:
+      entries: entries
+      sequence: sequence
+      user-admission-prefix: admission:user
+      token-admission-prefix: admission:token
+
 ---
 spring:
   config:
@@ -65,6 +86,10 @@ spring:
 commerce-events:
   outbox-relay:
     enabled: false
+
+commerce:
+  waiting-queue:
+    scheduler-enabled: false
 
 ---
 spring:

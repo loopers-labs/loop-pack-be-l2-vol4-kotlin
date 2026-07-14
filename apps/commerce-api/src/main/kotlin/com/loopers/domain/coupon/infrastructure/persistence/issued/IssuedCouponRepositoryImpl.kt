@@ -1,6 +1,7 @@
 package com.loopers.domain.coupon.infrastructure.persistence.issued
 
 import com.loopers.domain.coupon.exception.DuplicateIssuedCouponException
+import com.loopers.domain.coupon.infrastructure.persistence.issued.tableConstraints.IssuedCouponJpaConstraints.ISSUED_COUPON_USER_TEMPLATE_UNIQUE_CONSTRAINT
 import com.loopers.domain.coupon.model.IssuedCouponModel
 import com.loopers.domain.coupon.port.IssuedCouponRepository
 import com.loopers.support.page.PageResult

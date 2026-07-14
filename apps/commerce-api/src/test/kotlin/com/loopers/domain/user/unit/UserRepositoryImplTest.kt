@@ -1,7 +1,7 @@
 package com.loopers.domain.user.unit
 
 import com.loopers.domain.user.exception.DuplicateLoginIdException
-import com.loopers.domain.user.infrastructure.persistence.USER_LOGIN_ID_UNIQUE_CONSTRAINT
+import com.loopers.domain.user.infrastructure.persistence.tableConstraints.UserJpaConstraints.USER_LOGIN_ID_UNIQUE_CONSTRAINT
 import com.loopers.domain.user.infrastructure.persistence.UserJpaRepository
 import com.loopers.domain.user.infrastructure.persistence.UserRepositoryImpl
 import com.loopers.domain.user.support.UserSteps.Companion.회원_도메인_생성

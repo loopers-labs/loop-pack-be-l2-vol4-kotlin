@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 class RedisTestContainersConfig {
     companion object {
-        private val redisContainer = RedisContainer("redis:latest")
+        val redisContainer = RedisContainer("redis:latest")
             .apply {
                 start()
             }

@@ -10,11 +10,14 @@ data class ProductModel(
     val brandId: Long,
     val name: ProductName,
     val price: Money,
+    val saleType: ProductSaleType = ProductSaleType.NORMAL,
     val deletedAt: ZonedDateTime? = null,
 ) {
     fun changeName(name: ProductName): ProductModel = copy(name = name)
 
     fun changePrice(price: Money): ProductModel = copy(price = price)
+
+    fun requiresWaitingQueue(): Boolean = saleType == ProductSaleType.LIMITED
 
     fun delete(): ProductModel {
         if (deletedAt != null) {

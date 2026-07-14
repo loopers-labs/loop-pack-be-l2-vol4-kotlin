@@ -73,6 +73,37 @@ class OrderFacadeIntegrationTest
         }
 
         @Test
+        fun `서로_다른_사용자는_같은_멱등키를_각자의_주문에_사용할_수_있다`() {
+            val firstUser = userService.signUp(사용자_회원가입())
+            val secondUser = userService.signUp(
+                사용자_회원가입(loginId = "other1234", email = "other@example.com"),
+            )
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val product = productFacade.registerProduct(
+                상품_등록_커맨드(brandId = brand.id, initialStock = 10),
+            )
+            val sharedKey = "same-key-different-users"
+            val firstCommand = 주문_생성_커맨드(
+                userId = firstUser.id,
+                idempotencyKey = sharedKey,
+                items = listOf(주문항목_생성_커맨드(productId = product.id, quantity = 1)),
+            )
+            val secondCommand = 주문_생성_커맨드(
+                userId = secondUser.id,
+                idempotencyKey = sharedKey,
+                items = listOf(주문항목_생성_커맨드(productId = product.id, quantity = 1)),
+            )
+
+            val first = orderFacade.placeOrder(firstCommand)
+            val second = orderFacade.placeOrder(secondCommand)
+
+            assertThat(second.id).isNotEqualTo(first.id)
+            assertThat(second.orderedUserId).isEqualTo(secondUser.id)
+            assertThat(orderJpaRepository.count()).isEqualTo(2)
+            assertThat(productStockJpaRepository.findById(product.id).orElseThrow().leftStock).isEqualTo(8)
+        }
+
+        @Test
         fun `동일_상품에_동시_주문이_몰려도_재고를_초과해_주문되지_않는다`() {
             val users = (1..10).map { index ->
                 userService.signUp(

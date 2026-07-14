@@ -15,7 +15,7 @@
   - 예상 한계(실측으로 확인): ① score가 계산식 → 인덱스 불가, 조회마다 전 행 스캔 ② 개별 순위가 사실상 전 행 2중 스캔 ③ 날짜 차원 없으면 누적 랭킹만 가능(롱테일)
 - [ ] **Stage 1b — MySQL 쓰기 시점 score (RDB로 번역한 방식 B, 사용자 설계 2026-07-14)**: 별도 테이블 `product_ranking_daily(ranking_date, product_id, score)` — `UNIQUE(ranking_date, product_id)` + `INDEX(ranking_date, score DESC)`. `product_metrics`는 R7 소유물이라 오염 금지 → 테이블 분리
   - 쓰기 = `INSERT ... ON DUPLICATE KEY UPDATE score = score + Δ` (ZINCRBY 대응) · 날짜 경계 = 새 날짜 행 lazy 생성 (일간 키 대응) · carry-over = 사전 `INSERT INTO 내일 SELECT product_id, score×0.1 FROM 오늘` (ZUNIONSTORE 대응) · 보존 = `DELETE < D-2` 배치 (TTL 대응)
-- [ ] **EXP-01 — 자정 배치 × 조회 경합 실측 (사용자 제안)**: 10만 행 + 조회 부하(mysqlslap/k6) 거는 중에 ① 모델 A: 제자리 전면 `UPDATE score = score×0.1` ② 모델 B: 사전 시딩 `INSERT INTO 내일 SELECT ×0.1` 실행 → 배치 중 조회 p95 열화·배치 소요·잠금/자원 지표 비교. 가설: B(다른 날짜 행에 씀)는 조회 영향 미미, A는 열화. 주의: InnoDB MVCC라 SELECT는 행 잠금에 안 막힘 — 영향은 자원 경합으로 관찰될 것
+- [x] **EXP-01 — 자정 배치 × 조회 경합 실측 (사용자 제안) ✅ 2026-07-14 완료**: 10만 행 · conc32 실측 — A(제자리 UPDATE) 조회 **−41%**·배치 24.1s vs B(사전 INSERT) **−10%**·배치 3.9s → **가설 채택: 날짜 경계는 사전 시딩**. MVCC라 블로킹 0회, 열화는 전부 자원 경합(인덱스 10만 엔트리 재배치). 상세·재현: `experiments/exp01/README.md`
 - [ ] **Stage 2 — 캐싱으로 (방식 D 계열, 실시간 아님)** (타임박스 1.5h): Stage 1 쿼리 결과를 Redis 캐시 TTL 60s로 페이지 캐싱 (week5/8 캐시 모듈 컨벤션 재사용)
   - 측정: 같은 k6 → p95·RPS 변화 (읽기 비용 붕괴 확인)
   - 예상 한계(실측으로 확인): ① 신선도 = TTL 동안 순위 고정 ② TTL 만료 순간 원 쿼리로 몰림(stampede) ③ **상품 상세의 개별 순위는 페이지 캐시로 해결 안 됨** ④ 페이지·사이즈 조합마다 캐시 키 증가

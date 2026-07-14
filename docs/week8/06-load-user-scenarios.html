@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 8 — 부하 순간, 서버에 꽂히는 API 믹스</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  /* xlink — 시리즈 글 연결 카드 (개요 ↔ 심화) */
+  .xlink{display:flex;align-items:center;gap:15px;text-decoration:none;margin:26px 0;
+    padding:18px 22px;border-radius:18px;background:var(--blue-bg2);border:1px solid var(--blue-bg);transition:.18s}
+  .xlink:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .xlink .ic{flex:none;width:40px;height:40px;border-radius:12px;background:var(--blue);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:18px}
+  .xlink .t{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.04em;display:block;margin-bottom:3px}
+  .xlink .h{font-size:15.5px;font-weight:700;color:var(--g900);line-height:1.4;display:block}
+  .xlink .h small{display:block;font-size:13px;font-weight:500;color:var(--g600);margin-top:3px}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>LOOPERS · WEEK 8 · TRAFFIC MODEL</span>
+      <h1 class="title">부하 순간, 서버에<br><span class="hl">꽂히는 API 믹스</span></h1>
+      <p class="lede">"주문 API에 N/s"는 반쪽짜리 가정입니다. 오픈 순간의 서버는 <b>주문만 받는 게 아니라</b> — 상품 탐색, 쿠폰 발급, 대기열 진입, 순번 폴링, 결제, PG 콜백이 <b>한 인스턴스에 동시에</b> 꽂힙니다. 코드에 실재하는 API로 그 믹스를 가정하되, 상품 탐색은 <b>미머지 브랜치에 있어서</b> 포함 여부가 결정 사항입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">기준 코드</span><span class="v">feature/week08-queue-core (dc9fc42)</span></div>
+        <div class="chip"><span class="k">사용자 API</span><span class="v">9개 + 탐색 2개(week5 브랜치)</span></div>
+        <div class="chip"><span class="k">기준 시나리오</span><span class="v">오픈 8,000명 · 방출 100명/s</span></div>
+        <div class="chip"><span class="k">탐색 API</span><span class="v">week5-caching 미머지 — §2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">API 전수 조사 — 이 서버가 받는 전부</a></li>
+      <li><a href="#s2">빠진 트래픽 — 상품 탐색이 없다</a></li>
+      <li><a href="#s3">주문 1건의 호출 풋프린트</a></li>
+      <li><a href="#s4">오픈 8,000명 — 국면별 믹스</a></li>
+      <li><a href="#s5">결정 카드 — 믹스에 넣을지 말지</a></li>
+      <li><a href="#s6">k6 반영 — 믹스 → 시나리오 구성</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ============ 1. API 전수 조사 ============ -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">FULL API INVENTORY</p><h2 class="sec">API 전수 조사 — 이 서버가 받는 전부</h2></div>
+    </div>
+
+    <p class="lead">commerce-api의 컨트롤러 전수 조사 결과 — 부하 순간 이 인스턴스에 도달할 수 있는 트래픽의 전체 후보입니다.</p>
+    <p>중요한 건 각 API가 <strong>어떤 자원을 때리는가</strong>입니다. 같은 1,000/s라도 Redis 왕복 API와 MySQL 행 락 API는 서버에 완전히 다른 부하입니다. 천장 해석(락 경합 vs 커넥션 풀 고갈)이 이 분류에서 갈립니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>API</th><th>호출 주체 · 언제</th><th>때리는 자원 (부하 성격)</th></tr></thead>
+        <tbody>
+          <tr><td>POST /queue/enter</td><td>사용자 — 오픈 순간 집중</td><td>Redis ZADD (수 ms, DB 무접촉)</td></tr>
+          <tr><td>GET /queue/position</td><td>사용자 — 대기 내내 반복</td><td>Redis GET+ZRANK+ZCARD (수 ms, DB 무접촉)</td></tr>
+          <tr><td>POST /orders</td><td>사용자 — 입장 후 1회</td><td>Redis 토큰 검증 + <strong>MySQL TX (재고 행 락·쿠폰·주문)</strong></td></tr>
+          <tr><td>POST /payments</td><td>사용자 — 주문 직후</td><td>MySQL + <strong>외부 PG 호출 (CB·재시도 배선)</strong></td></tr>
+          <tr><td>POST /payments/callback</td><td><em>PG 시스템</em> — 결제 수만큼 유입</td><td>MySQL (결제·주문 상태 갱신)</td></tr>
+          <tr><td>POST /coupons/issue</td><td>사용자 — 쿠폰 오픈 순간 집중</td><td>Kafka 발행 (비동기 수락 후 즉시 응답)</td></tr>
+          <tr><td>GET /coupons/issue/{requestId}</td><td>사용자 — 발급 결과 폴링</td><td>발급 결과 조회 (Round 7 실측: 전체 http의 75%가 이 폴링)</td></tr>
+          <tr><td>GET /products · /products/{id}</td><td>사용자 — 이벤트 전후 내내 (조회가 지배 트래픽)</td><td><strong>⚠ week5-caching 브랜치, 현 라인 미머지</strong> — 목록(커서·정렬·첫 페이지 Redis 캐시) + 상세(MySQL)</td></tr>
+          <tr><td>GET /users/me</td><td>사용자 — 앱 진입·새로고침 시</td><td>MySQL 단건 조회 + BCrypt 인증</td></tr>
+          <tr><td>POST /users · PUT /users/password</td><td>사용자 — 상시 소량</td><td>MySQL 쓰기. 이벤트 순간 비중 미미</td></tr>
+          <tr><td>/api-admin/v1/coupons*</td><td>관리자 — 사전 세팅</td><td>이벤트 전 완료. 부하 창에선 0으로 가정</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">믹스의 뼈대</span>
+      부하 창에서 유의미한 트래픽은 <strong>대기열 2종(Redis) + 주문·결제 3종(MySQL·PG) + 쿠폰 2종(Kafka·폴링)</strong>의 7개입니다. 나머지(계정·어드민)는 상수 취급합니다. 모든 API는 요청마다 헤더 인증(<span class="term">X-Loopers-LoginId/Pw</span>, BCrypt cost 4 시드)을 지나므로 인증 비용은 전 API 공통 오버헤드입니다.
+    </div>
+  </section>
+
+  <!-- ============ 2. 빠진 트래픽 ============ -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">UNMERGED TRAFFIC</p><h2 class="sec">상품 탐색 — 있는데, 이 라인에 없다</h2></div>
+    </div>
+
+    <p class="lead">"주문 전에 상품 여러 개를 본다"는 지배 트래픽의 API는 구현되어 있습니다 — 단, 측정 대상 브랜치에 머지되어 있지 않습니다.</p>
+    <p>정확한 상태: <span class="term">GET /api/v1/products</span>(커서 페이지네이션 · 최신/좋아요순 정렬 · 첫 페이지 Redis 캐시)와 <span class="term">GET /api/v1/products/{productId}</span>는 <strong>feature/week5-caching 브랜치</strong>에 있습니다 (Week 5에서 좋아요순 인덱스·캐시 적용 후 읽기 성능 부하 측정까지 완료). 이 브랜치가 이후 주차 라인에 머지되지 않아, week08 라인에는 <span class="term">ProductService.list/getDetail</span>이 <strong>호출자 없는 상태</strong>로만 넘어와 있습니다. 브랜치를 합치면 조회 트래픽을 믹스에 넣을 수 있고, 머지 프로브 결과 <strong>충돌은 3파일 소규모</strong>(.gitignore · 보안 설정 · 에러코드 enum)입니다. 상품 대량 시드·측정 스크립트도 그 브랜치에 자산으로 있습니다.</p>
+    <p>그래서 D1은 "만들 것인가"가 아니라 <strong>"끌어올 것인가"</strong>입니다:</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">A안 · 추천</span> week5 머지 → 탐색을 배경 부하로 포함</h4>
+        <p>측정용 브랜치(베이스라인·M2) <strong>양쪽에 동일하게</strong> week5-caching을 머지하고, 탐색은 <strong>고정 rate의 배경 암</strong>(스윕 안 함)으로 깝니다. M1 천장이 "조회가 깔린 서버"의 현실적 수치가 되고, 유/무 비교의 동일 조건도 유지됩니다. 비용: 충돌 3파일 해결 + 상품 시드 확장 + 배경 rate 가정 1개(명시).</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">B안</span> 이번 주는 제외 + 한계 명시 (축 분리)</h4>
+        <p>조회 축은 Week 5에서 이미 단독 측정된 축입니다 (쿠폰이 Week 7이었듯). 이번 주는 대기열 축만 재고, 결과 문서에 "탐색 트래픽 0 전제 — 실제 천장은 더 낮다"를 명시합니다. 변인이 최소가 되어 해석은 가장 깨끗하지만, M1 천장의 절대치가 비현실적으로 높게 잡히는 건 감수해야 합니다.</p>
+      </div>
+    </div>
+
+    <div class="note warn"><span class="tag">A안 선택 시 주의 2가지</span>
+      ① 머지는 <strong>측정 전용 브랜치에서만</strong> — 개발 라인(week08 PR 대상)에 week5를 섞는 건 별도 결정입니다. ② 첫 페이지 캐시 때문에 탐색 부하의 MySQL 도달량이 캐시 적중률에 좌우됩니다 — 배경 암은 "목록 첫 페이지(캐시 적중) + 상세 랜덤(MySQL 도달)" 비율을 고정해 변인화를 막아야 합니다. 어느 안이든 <strong>대기열 API(Redis-only)의 효과 주장은 탐색 유무와 무관하게 성립</strong>합니다 — 자원이 분리되어 있기 때문입니다.
+    </div>
+  </section>
+
+  <!-- ============ 3. 풋프린트 ============ -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">PER-ORDER FOOTPRINT</p><h2 class="sec">주문 1건의 호출 풋프린트</h2></div>
+    </div>
+
+    <p class="lead">"주문 1건"은 서버 입장에서 1회 호출이 아니라 — 대기열을 지나는 순간 십수 회의 HTTP가 됩니다.</p>
+    <p>사용자 한 명이 주문 하나를 완성할 때 서버가 받는 호출을 전부 세면 아래와 같습니다. 폴링 횟수는 코드의 <span class="term">nextPollSeconds</span> 규칙(예상 대기/10을 1~10초로 클램프)에서 나온 근사치입니다 — 줄 앞쪽 사용자는 <strong>1초 간격</strong>까지 조밀해지므로 대기가 길수록 폴링이 가파르게 쌓입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FOOTPRINT">
+        <svg viewBox="0 0 1120 250" role="img" aria-label="주문 1건이 만드는 호출 분해: 쿠폰 발급과 폴링, 대기열 진입, 순번 폴링 약 20회, 주문 1회, 결제 1회, PG 콜백 1회">
+          <defs>
+            <marker id="f1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <g>
+            <rect x="20" y="46" width="160" height="100" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <foreignObject x="20" y="46" width="160" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">쿠폰 (선택)</div><div class="s">issue 1회 + 결과 폴링 ~3회</div></div></foreignObject>
+          </g>
+          <line x1="182" y1="96" x2="216" y2="96" stroke="#8B95A1" stroke-width="2" marker-end="url(#f1)"/>
+          <g>
+            <rect x="218" y="46" width="150" height="100" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="218" y="46" width="150" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">진입</div><div class="s">enter 1회 (+새로고침 α)</div></div></foreignObject>
+          </g>
+          <line x1="370" y1="96" x2="404" y2="96" stroke="#8B95A1" stroke-width="2" marker-end="url(#f1)"/>
+          <g>
+            <rect x="406" y="46" width="170" height="100" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="2.2"/>
+            <foreignObject x="406" y="46" width="170" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">순번 폴링</div><div class="s">position ~20회 (대기 80s 기준, 끝으로 갈수록 1s 간격)</div></div></foreignObject>
+          </g>
+          <line x1="578" y1="96" x2="612" y2="96" stroke="#8B95A1" stroke-width="2" marker-end="url(#f1)"/>
+          <g>
+            <rect x="614" y="46" width="150" height="100" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="614" y="46" width="150" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">주문</div><div class="s">orders 1회 · MySQL TX</div></div></foreignObject>
+          </g>
+          <line x1="766" y1="96" x2="800" y2="96" stroke="#8B95A1" stroke-width="2" marker-end="url(#f1)"/>
+          <g>
+            <rect x="802" y="46" width="150" height="100" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <foreignObject x="802" y="46" width="150" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">결제 (결정)</div><div class="s">payments 1회 · 외부 PG</div></div></foreignObject>
+          </g>
+          <line x1="954" y1="96" x2="988" y2="96" stroke="#8B95A1" stroke-width="2" marker-end="url(#f1)"/>
+          <g>
+            <rect x="990" y="46" width="110" height="100" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3" stroke-dasharray="5 4"/>
+            <foreignObject x="990" y="46" width="110" height="100"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">콜백</div><div class="s">PG발 1회</div></div></foreignObject>
+          </g>
+          <text class="svg-s" x="560" y="192" text-anchor="middle" fill="#6B7684">실선 = 이번 측정 확정 포함 · 점선 = §5 결정 카드 (쿠폰 D3 · 결제 D2)</text>
+          <text class="svg-l" x="560" y="222" text-anchor="middle" fill="#1B64DA">주문 1건 = HTTP 최대 ~27회 · 그중 폴링 ~23회 (85%)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 주문 1건의 호출 분해 — 부하의 본체는 주문이 아니라 <b>폴링</b>입니다. Round 7 실측(전체 http 13.1만 중 폴링 9.9만 = 75%)과 같은 구조가 재현될 전망입니다.</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>API</th><th>주문 1건당 호출 수 (근거)</th><th>포함 여부</th></tr></thead>
+        <tbody>
+          <tr><td>queue/enter</td><td>1회 — 새로고침 연타는 멱등(ZADD NX)이라 +α만</td><td>확정 포함</td></tr>
+          <tr><td>queue/position</td><td>~10회(대기 40s 평균)~<strong>20회</strong>(80s) — 잔여 대기/10 간격, 막판 1s 클램프가 지배</td><td>확정 포함</td></tr>
+          <tr><td>orders</td><td>1회 (실패 재시도 시 +α, 토큰은 실패 시 유지됨)</td><td>확정 포함</td></tr>
+          <tr><td>payments (+callback)</td><td>1회 + PG발 콜백 1회</td><td>결정 D2</td></tr>
+          <tr><td>coupons/issue (+결과 폴링)</td><td>발급 1회 + 폴링 ~3회 (Round 7 스크립트 실측 패턴)</td><td>결정 D3</td></tr>
+          <tr><td>products 목록·상세</td><td><strong>탐색 유저 여정</strong>(browse-journey.js·스모크 검증 완료): 목록 1~3페이지(평균 1.45 — 70% 글로벌 첫 페이지=캐시 / 30% 브랜드 필터=MySQL) → 목록에서 본 상품 중 <strong>상세 1~3개</strong>(평균 2 — MySQL 2쿼리 + 조회 이벤트 카프카 발행), think time 0.3~1.5s. <strong>유저당 평균 ~3.4 요청</strong></td><td>포함 (D1 확정)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 4. 국면별 믹스 ============ -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">PHASE MIX · 8,000 USERS</p><h2 class="sec">오픈 8,000명 — 국면별 믹스</h2></div>
+    </div>
+
+    <p class="lead">같은 서버가 3개의 국면을 순서대로 통과합니다 — 국면마다 지배 API와 때리는 자원이 다릅니다.</p>
+    <p>오픈 10초에 8,000명 진입, 방출 100명/s(마지막 진입자 80초 대기), 주문서 작성 30~120초 가정으로 창(window)별 호출량을 근사하면:</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="PHASE TIMELINE">
+        <svg viewBox="0 0 1120 330" role="img" aria-label="시간축 0에서 200초 사이 세 국면: 0-10초 진입 폭풍, 0-80초 폴링 지배, 30-200초 주문과 결제 꼬리">
+          <defs>
+            <marker id="p1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- 시간축 -->
+          <line x1="60" y1="270" x2="1080" y2="270" stroke="#D1D6DB" stroke-width="1.5" marker-end="url(#p1)"/>
+          <text class="svg-s" x="60" y="292" text-anchor="middle" fill="#6B7684">0s</text>
+          <text class="svg-s" x="111" y="292" text-anchor="middle" fill="#6B7684">10s</text>
+          <text class="svg-s" x="468" y="292" text-anchor="middle" fill="#6B7684">80s</text>
+          <text class="svg-s" x="1060" y="292" text-anchor="middle" fill="#6B7684">~200s</text>
+          <!-- 밴드 1: enter (0~10s) -->
+          <rect x="60" y="40" width="51" height="52" rx="10" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.6"/>
+          <text class="svg-t" x="126" y="62" fill="#1B64DA">① 진입 폭풍 (0~10s)</text>
+          <text class="svg-s" x="126" y="82" fill="#3182F6">enter 8,000회 · 피크 ~800/s · Redis ZADD</text>
+          <!-- 밴드 2: position (0~80s) -->
+          <rect x="60" y="112" width="408" height="52" rx="10" fill="#E8F3FF" stroke="#3182F6" stroke-width="2.4"/>
+          <text class="svg-t" x="484" y="134" fill="#1B64DA">② 폴링 지배 (0~80s) — 부하의 본체</text>
+          <text class="svg-s" x="484" y="154" fill="#3182F6">position 총 ~16만 회 · 평균 ~2,000/s · Redis 읽기</text>
+          <!-- 밴드 3: orders+payments (30~200s) -->
+          <rect x="213" y="184" width="867" height="52" rx="10" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.6"/>
+          <foreignObject x="213" y="184" width="867" height="52"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">③ 주문·결제 꼬리 (30~200s) — orders 8,000회 · 평탄 ~47/s (방출 100/s가 작성 시간으로 한 번 더 퍼짐) · MySQL TX + PG</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 국면 타임라인 — ②의 폭이 부하의 본체이고, MySQL이 실제로 받는 부하(③)는 도착 폭풍(①)이 아니라 방출 속도×작성 시간이 결정합니다. 수치는 코드 규칙 기반 근사(이탈 0%·정직한 폴링 가정).</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>국면</th><th>서버가 받는 것 (근사)</th><th>주시할 자원</th></tr></thead>
+        <tbody>
+          <tr><td>① 0~10s 진입 폭풍</td><td>enter ~800/s + 첫 position 시작. 쿠폰 오픈 동시라면(D3) issue 스파이크 중첩</td><td>Redis · 톰캣 스레드풀</td></tr>
+          <tr><td>② 0~80s 폴링 지배</td><td>position 평균 ~2,000/s (막판 1s 클램프 구간이 견인) — <strong>전체 http의 ~85%</strong></td><td>Redis · 톰캣 스레드풀 (DB 한가함)</td></tr>
+          <tr><td>③ 30~200s 주문 꼬리</td><td>orders ~47/s 평탄 + payments·callback 동반(D2). 재고 행 락 직렬화 시작</td><td><strong>MySQL 행 락 · HikariCP</strong> · PG CB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">이 믹스가 M1 해석에 주는 교훈</span>
+      대기열이 없는 M1의 세계에선 ①~③이 <strong>전부 0초에 MySQL로 직행</strong>합니다 — 그게 붕괴의 원인입니다. 대기열이 있는 세계에선 같은 총량이 자원별로 분리됩니다: Redis가 ①②를 받아내고 MySQL은 ③만 받습니다. 그래서 M2에서 <strong>"Redis 계열 API의 천장"과 "MySQL 계열 API의 천장"을 따로 읽어야</strong> 하고, k6 태그로 API별 분해가 필수입니다.
+    </div>
+
+    <div class="note warn"><span class="tag">폴링 ~2,000/s의 함의 — 보호 장치가 만드는 부하</span>
+      순번 폴링은 DB엔 무해하지만 <strong>톰캣 스레드·Redis에는 실부하</strong>입니다. 특히 <span class="term">nextPollSeconds</span>의 1초 하한 때문에 줄 앞 ~1,000명이 초당 1회씩 폴링하는 구간이 생깁니다. M2에서 폴링 총량과 position p95를 따로 재는 이유 — 대기열 자신이 새 천장이 되는지 확인해야 합니다.
+    </div>
+  </section>
+
+  <!-- ============ 5. 결정 카드 ============ -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">DECISIONS</p><h2 class="sec">결정 카드 — 믹스에 넣을지 말지</h2></div>
+    </div>
+
+    <p class="lead">측정 스크립트를 확정하기 전에 세 가지만 결정하면 됩니다.</p>
+
+    <h3>D1 · 상품 탐색 배경 부하 (§2)</h3>
+    <p><strong>A안(week5-caching 머지 → 고정 rate 배경 암으로 포함)을 추천</strong>합니다. 근거: API가 이미 구현·단독측정까지 된 자산이고 머지 비용이 낮으며(충돌 3파일), 조회가 깔린 천장이어야 가정 TPS 서사("이 정도 트래픽의 회사")와 맞습니다. 단 배경 rate는 스윕하지 않고 상수로 고정(가정 명시), 머지는 측정 전용 브랜치에만 — 시간이 부족해지면 B안(제외+명시)으로 내려가는 게 fallback입니다.</p>
+
+    <h3>D2 · 결제 퍼널 포함 여부</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">제외 · 추천</span> 주문까지만 (기존 계획 유지)</h4>
+        <p>05 문서의 M1·M2 계획은 주문까지입니다. 결제를 넣으면 <strong>외부 PG 시뮬레이터의 성능이 측정에 끼어들어</strong> 천장의 원인 분리(락 vs 풀 vs PG)가 흐려집니다. 결제·콜백은 이미 Round 6에서 CB·재시도로 검증한 구간이기도 합니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">포함</span> 주문+결제 전체 퍼널</h4>
+        <p>실제 유저 여정과 같아져 사실성은 올라가지만, PG 스텁 처리량·콜백 타이밍이라는 새 변수 2개가 들어옵니다. 대기열 검증이라는 이번 질문에는 기여가 없습니다.</p>
+      </div>
+    </div>
+
+    <h3>D3 · 쿠폰 발급 스파이크 동시 진행 여부</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">제외 · 추천</span> 별도 이벤트로 간주</h4>
+        <p>쿠폰 폭주는 <strong>Round 7에서 이미 단독 측정 완료</strong>(EXP-01~03)입니다. 이번에 겹치면 Redis·Kafka 부하가 중첩되어 대기열 효과와 분리가 안 됩니다. "쿠폰은 사전 발급 완료, 주문 시 사용만" 가정이 깔끔합니다 — 주문 TX 안의 쿠폰 사용은 이미 포함되어 있습니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">포함</span> 쿠폰 오픈 = 주문 오픈 동시</h4>
+        <p>블랙프라이데이 최악 케이스의 사실성은 최고지만, 변인이 셋(대기열·쿠폰·중첩)이 되어 결과 해석이 어려워집니다. 하려면 M2 완료 후 추가 런으로.</p>
+      </div>
+    </div>
+
+    <div class="note"><span class="tag">전부 추천대로 가면</span>
+      이번 측정의 믹스 = <strong>탐색 배경 암(products 목록·상세, 고정 rate) + 여정 3종(enter·position·orders)</strong>. 결제·쿠폰발급은 전제 명시 후 제외(각각 Round 6·7에서 검증된 축). 05 문서의 M1·M2 계획 대비 달라지는 것은 <strong>탐색 배경 부하 추가</strong> 하나이고, 그만큼 M1 천장이 "조회가 깔린 서버"의 현실적 수치로 내려갑니다. M1·M2 양쪽에 같은 배경을 깔아야 상대 비교가 유지됩니다.
+    </div>
+  </section>
+
+  <!-- ============ 6. k6 반영 ============ -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">INTO K6</p><h2 class="sec">k6 반영 — 믹스 → 시나리오 구성</h2></div>
+    </div>
+
+    <p class="lead">위 믹스를 그대로 스크립트 구조로 옮기면 — API별 rate를 따로 만드는 게 아니라, 사용자 여정 하나가 믹스를 자동으로 만들어냅니다.</p>
+    <p>enter:position:orders의 비율(1:~20:1)은 독립 파라미터가 아니라 <strong>대기열 규칙(nextPollSeconds·방출 100/s)의 산출물</strong>입니다. 그래서 M2 스크립트는 API별 rate 3개가 아니라 <strong>여정 VU(가상 사용자) 하나</strong>로 짜야 믹스가 저절로 맞습니다. 반대로 M1은 여정이 없으므로(직행 주문) 기존 rate 스크립트 그대로입니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>측정</th><th>스크립트 · 부하 모델</th><th>이 문서가 확정해 주는 것</th></tr></thead>
+        <tbody>
+          <tr><td>M1 베이스라인</td><td>order-throughput-1m.js — POST /orders 직행 램프 100→800/s (+D1 채택 시 탐색 배경 암 동시 가동)</td><td>대기열 이전 세계 = 직행 주문 + 배경 조회. 배경 rate는 M2와 동일 고정</td></tr>
+          <tr><td>M2 보호 검증</td><td>queue-order-flow.js (신규) — 여정 VU: enter→폴링→주문 (+동일 탐색 배경 암). 스파이크 8,000 + 램프 암</td><td>API 태그 분해 · 폴링 ~2,000/s 흡수 확인 · ABANDON_RATE 0/10%</td></tr>
+          <tr><td>M3 방출 스윕</td><td>M2 스크립트 재사용, 방출 속도만 50→400/s 스윕</td><td>③국면의 orders 평탄 rate가 방출 값 따라 움직이는지</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>측정 전 체크</h3>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>API 전수 조사</b> — 현 라인 컨트롤러 9개 + 탐색 2개는 week5-caching 미머지 상태로 확인 <span class="tag">§1·§2</span></li>
+      <li class="done"><span class="box"></span><b>믹스 비율의 출처</b> — 코드 규칙(nextPollSeconds·방출 100/s)에서 유도, 임의 가정 아님. 예외: 탐색 배경 rate는 가정 파라미터(명시) <span class="tag">§3·§4</span></li>
+      <li class="done"><span class="box"></span><b>D1~D3 결정 완료 (2026-07-10)</b> — 탐색 포함(week5 반영, 고정 배경 암)·결제 제외·쿠폰 제외 <span class="tag">§5</span></li>
+      <li class="done"><span class="box"></span><b>D1 반영 완료</b> — week5 5커밋을 개발 라인 <span class="term">feature/week08-waiting-queue</span>에 rebase 반영(선형·푸시 완료, 테스트·ktlint 통과) + 베이스라인 <span class="term">measure/week08-baseline</span>(2bb0c19+week5, 대기열 없음) 생성. 시드 <span class="term">perf-seed-l5.sql</span>·탐색 스크립트 <span class="term">product-list-load.js</span> 자산 확보 <span class="tag">셋업</span></li>
+      <li><span class="box"></span><b>M2 주문 본문 갱신</b> — 현 <span class="term">OrderCreateRequest</span>는 품목별 <span class="term">price</span> 필수·<span class="term">expectedTotalAmount</span> 없음. 기존 k6 본문은 구 DTO(M1 커밋)라 M2 신규 스크립트에서 갱신 필요 <span class="tag">주의</span></li>
+    </ul>
+
+    <a class="xlink" href="05-load-test-and-degradation-plan.html">
+      <span class="ic">←</span>
+      <span><span class="t">WEEK 8 · 측정 계획으로</span><span class="h">05 — 부하 측정·완충 계획<small>이 믹스 가정이 M1~M3 런 매트릭스의 전제 조건이 됩니다.</small></span></span>
+    </a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 8 · 주문 대기열 — 부하 순간 서버에 꽂히는 API 믹스 가정<br>
+    feature/week08-queue-core (dc9fc42) 컨트롤러 전수 조사 기준 · 수치는 코드 규칙 기반 근사 · 외부 출처 없음
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

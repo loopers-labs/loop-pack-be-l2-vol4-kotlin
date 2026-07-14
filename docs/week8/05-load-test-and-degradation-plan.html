@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주문 대기열 — 부하 실측 계획과 완충 설계 (429 · 503)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 8 · 부하 실측 &amp; 완충 설계 계획</span>
+      <h1 class="title">대기열은 정말 지켜주는가 —<br><span class="hl">실측 계획과 완충 설계</span></h1>
+      <p class="lede">주문 대기열(Redis Sorted Set)의 <b>API별 소요 시간·TPS</b>를 실측하고, <b>대기열 유/무의 한계</b>를 비교하고, <b>토큰 방출 속도의 안전 상한</b>을 역산한다. 여기에 <b>큐 가득참 → 429</b>, <b>Redis 장애 → 503</b> 두 완충 장치의 설계를 확정한다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">부하 측정 계획 + Graceful Degradation</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">k6 · Redis ZSet · Resilience4j</span></div>
+        <div class="chip"><span class="k">SOURCES</span><span class="v">공식 문서 4 (전부 실재 확인)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-waiting-queue-deep-dive.html"><span class="n">01</span>딥리서치</a>
+    <a href="02-user-journey.html"><span class="n">02</span>유저 저니</a>
+    <a href="03-architecture-options.html"><span class="n">03</span>아키텍처 3안</a>
+    <a href="04-implementation-review.html"><span class="n">04</span>구현 리뷰</a>
+    <a class="cur" href="05-load-test-and-degradation-plan.html"><span class="n">05</span>부하 실측·완충 계획</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">결론부터 — 세 질문, 두 장치</a></li>
+      <li><a href="#s2">측정 환경 — 이중 관측</a></li>
+      <li><a href="#s3">M1 — 맨몸 천장 (대기열 없음)</a></li>
+      <li><a href="#s4">M2 — 대기열 보호 검증</a></li>
+      <li><a href="#s5">M3 — 토큰 방출 속도 스윕</a></li>
+      <li><a href="#s6">F1 — 큐 가득참은 429</a></li>
+      <li><a href="#s7">F2 — Redis 장애는 503</a></li>
+      <li><a href="#s8">검토 체크리스트</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 결론 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CONCLUSION FIRST</p><h2 class="sec">결론부터 — 세 질문, 두 장치</h2></div>
+    </div>
+
+    <p class="lead">이 계획이 답하려는 질문은 세 개, 그 답을 지키는 장치는 두 개다.</p>
+
+    <div class="note key"><span class="tag">Q1 — 맨몸 천장</span><strong>대기열 없이 주문 API는 초당 몇 건에서 무너지는가?</strong> → M1에서 도착률을 100→800/s로 램프하며 TPS 천장·p95·에러율로 실측한다. 이 숫자가 이후 모든 판단의 기준선이다.</div>
+    <div class="note key"><span class="tag">Q2 — 보호 효과</span><strong>같은 부하를 대기열이 받으면 — 시스템이 버티고, 유저가 기다릴 만한가?</strong> → M2에서 블랙프라이데이 오픈을 모사한 <em>행동 모델을 가진 가상 유저</em>로 enter→폴링→토큰→주문을 흘린다. 판정은 시스템 지표(에러 0 · 유입 ≈100/s 평탄화)에 <strong>유저 지표(실제 대기시간 분포 · 예상 대기시간의 정확도)</strong>를 더해서 한다.</div>
+    <div class="note key"><span class="tag">Q3 — 안전 상한</span><strong>토큰 방출 속도(배치 크기)는 어디까지 올려도 되는가?</strong> → M3에서 배치를 10→20→50→100으로 스윕해 주문 API가 다시 무너지는 지점을 찾는다. 그 직전 단계가 곧 "하류 처리량에서 역산한 배치 크기"의 실측 근거다.</div>
+
+    <blockquote>
+      <p>대기열은 피크를 없애지 않는다 — 시스템이 감당하는 속도로 흘려보낼 뿐이다. 그 "감당하는 속도"를 이번에 숫자로 박는다.</p>
+      <cite>— Round 8 글의 뼈대 (WRITING-LOG), 이 계획서가 채울 빈칸</cite>
+    </blockquote>
+
+    <p>측정과 별개로, 현재 구현에는 <strong>경계 조건 두 개가 비어 있다</strong>. 계획서 후반(§6·§7)에서 설계를 확정한다.</p>
+
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">F1</span> 큐가 가득 차면 → 429</h4><p>대기열이 무한히 길어지면 "몇 시간 대기"라는 무의미한 약속을 하게 된다. <strong>상한(<span class="term">queue.max-waiting</span>)을 넘으면 진입 자체를 429로 거절</strong>한다 — 보관(Queuing)에도 한계선이 있고, 그 밖은 거부(Rejection)가 정직하다.</p></div>
+      <div class="col o"><h4><span class="mk">F2</span> Redis가 죽으면 → 503</h4><p>대기열 경로는 Redis 단일 의존이다. 장애 시 <strong>Resilience4j 서킷브레이커가 빠르게 차단</strong>하고, <span class="term">ServiceUnavailableException</span> → <strong>503 + QUEUE:UNAVAILABLE</strong> 코드로 응답한다. 프론트는 이 코드를 보고 이용 불가 페이지로 라우팅한다 (fail-close 계약 유지).</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== S2 측정 환경 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">ENVIRONMENT</p><h2 class="sec">측정 환경 — 이중 관측</h2></div>
+    </div>
+
+    <p class="lead">클라이언트(k6)와 서버(actuator)에서 같은 현상을 양쪽으로 잰다 — 두 수치의 갭 자체가 신호다.</p>
+
+    <p>k6의 <span class="term">http_req_duration</span>은 <strong>대기·네트워크가 포함된 사용자 체감</strong>이고, actuator의 <span class="term">http.server.requests</span><a href="#r4" class="cite">[4]</a>는 <strong>서버가 처리에 쓴 시간</strong>이다. 부하가 한계에 닿으면 요청이 서버 앞에서 줄을 서기 시작하고, 이때 두 수치가 벌어진다 — Round 7의 EXP-03에서 폴링 GET이 큐에서 초 단위로 대기하던 그 패턴이다. <strong>갭이 벌어지는 시점 = 포화 시작점</strong>으로 읽는다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관측 층</th><th>도구</th><th>보는 것</th></tr></thead>
+        <tbody>
+          <tr><td>클라이언트</td><td>k6 (arrival-rate executor<a href="#r2" class="cite">[2]</a>)</td><td>API별 p50/p95/p99 · 실효 rate · http_req_failed</td></tr>
+          <tr><td>서버 HTTP</td><td><span class="term">:8081/actuator/prometheus</span></td><td>URI별 요청 수·히스토그램 (percentile histogram on)</td></tr>
+          <tr><td>서버 자원</td><td>같은 엔드포인트</td><td>hikaricp.connections.pending · JVM · resilience4j CB 상태</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>재사용 자산 (신규 제작 최소화)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>자산</th><th>위치</th><th>용도</th></tr></thead>
+        <tbody>
+          <tr><td>주문 부하 스크립트</td><td><span class="term">load-test/k6/order-throughput-1m.js</span></td><td>M1 그대로 (hot/spread 암, RATE 파라미터)</td></tr>
+          <tr><td>폴링 패턴 전례</td><td><span class="term">coupon-issue-accept-poll.js</span></td><td>M2 신규 스크립트의 폴링 뼈대</td></tr>
+          <tr><td>시드</td><td><span class="term">perf-seed.sql</span> (계정 · 상품 · 재고)</td><td>유저 순환은 헤더 인증(setup 불필요)</td></tr>
+          <tr><td>런북 형식</td><td><span class="term">RUNBOOK-coupon.md</span> / <span class="term">EXP-NN-*.md</span></td><td>결과 기록 포맷 그대로 (EXP-04부터)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">측정 한계 (미리 못박음)</span>로컬 docker 단일 노드 측정이다 — 절대치가 아니라 <strong>"대기열 유/무의 상대 비교"와 "포화가 시작되는 형태"</strong>를 얻는 게 목적이다. Round 7 결정("실측은 로컬까지")과 동일한 스코프. 절대치가 필요해지면 그때 EC2 SUT를 세운다.</div>
+  </section>
+
+  <!-- ===================== S3 M1 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">MEASUREMENT 1 · BASELINE</p><h2 class="sec">M1 — 맨몸 천장 (대기열 없음)</h2></div>
+    </div>
+
+    <p class="lead">대기열 도입 전 커밋(base 브랜치)에서 주문 API에 직접 램프 부하를 걸어 붕괴 지점을 찾는다.</p>
+
+    <p><strong>측정 대상 커밋은 <span class="term">feature/week08-waiting-queue</span> 브랜치</strong> — 대기열 코드가 없는 <span class="term">OrderController</span> 그대로라 우회 토글 같은 측정용 코드를 심을 필요가 없다. 같은 시드, 같은 docker 인프라에서 돌리므로 유일한 변수는 대기열 유무다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="SEQ. M1">
+        <svg viewBox="0 0 720 470" role="img" aria-label="M1 베이스라인 시퀀스: k6가 초당 100에서 800까지 램프하며 주문 API를 직접 호출한다. OrderController가 OrderFacade의 place를 호출하고 MySQL에서 재고 차감 UPDATE가 인기 상품 한 행의 락에 직렬화된다. 락 대기가 길어지며 p95가 폭증하고 타임아웃과 5xx가 시작되는 붕괴 지점을 찾는다.">
+          <defs>
+            <marker id="m1a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- participants -->
+          <g>
+            <rect x="30" y="14" width="120" height="54" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="30" y="14" width="120" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">사용자</div><div class="s">k6 부하</div></div></foreignObject>
+            <rect x="230" y="14" width="140" height="54" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="230" y="14" width="140" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">주문 API</div><div class="s">OrderController</div></div></foreignObject>
+            <rect x="430" y="14" width="130" height="54" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="430" y="14" width="130" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">주문 유스케이스</div><div class="s">OrderFacade</div></div></foreignObject>
+            <rect x="600" y="14" width="90" height="54" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="600" y="14" width="90" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">MySQL</div><div class="s">재고 행</div></div></foreignObject>
+          </g>
+          <!-- lifelines -->
+          <line x1="90" y1="68" x2="90" y2="440" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="300" y1="68" x2="300" y2="440" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="495" y1="68" x2="495" y2="440" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="645" y1="68" x2="645" y2="440" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <!-- flow -->
+          <line x1="90" y1="112" x2="296" y2="112" stroke="#3182F6" stroke-width="2" marker-end="url(#m1a)"/>
+          <text class="svg-l" x="193" y="100" text-anchor="middle" fill="#1B64DA">POST /orders 직접 →</text>
+          <text class="svg-s" x="193" y="130" text-anchor="middle" fill="#3182F6">도착률 100→800/s 램프</text>
+          <line x1="300" y1="164" x2="491" y2="164" stroke="#4E5968" stroke-width="2" marker-end="url(#m1a)"/>
+          <text class="svg-l" x="397" y="152" text-anchor="middle" fill="#4E5968">place() 호출 →</text>
+          <line x1="495" y1="216" x2="641" y2="216" stroke="#4E5968" stroke-width="2" marker-end="url(#m1a)"/>
+          <text class="svg-l" x="568" y="204" text-anchor="middle" fill="#4E5968">재고 UPDATE →</text>
+          <!-- contention note at MySQL -->
+          <rect x="560" y="238" width="150" height="66" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="560" y="238" width="150" height="66"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">행 락 직렬화</div><div class="s">hot 상품 1행 대기↑</div></div></foreignObject>
+          <!-- degradation return -->
+          <line x1="296" y1="348" x2="94" y2="348" stroke="#F04452" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#m1a)"/>
+          <text class="svg-l" x="195" y="336" text-anchor="middle" fill="#C9303C">← p95 폭증 · 타임아웃 · 5xx</text>
+          <!-- what to read -->
+          <rect x="60" y="386" width="600" height="54" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="60" y="386" width="600" height="54"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">여기서 읽는 것 = 붕괴 직전의 처리량 (TPS 천장)</div><div class="s">TPS · p95 · http_req_failed · hikaricp pending 이 동시에 꺾이는 지점</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> M1 — 대기열 없이 주문 API에 직접 램프 부하. 붕괴 지점이 곧 기준선이다.</figcaption>
+    </figure>
+
+    <h3>런 사양</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>값</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>스크립트</td><td><span class="term">order-throughput-1m.js</span> + ramping 스케줄</td><td>기존 자산 재사용, ARM=hot 기본</td></tr>
+          <tr><td>부하 모델</td><td>ramping-arrival-rate 100→200→400→800/s, 단계 1분<a href="#r2" class="cite">[2]</a></td><td>open model — 응답 지연과 무관하게 도착 유지 (실제 유저처럼)</td></tr>
+          <tr><td>암(arm)</td><td>hot (상품 1001 집중) / spread (10개 분산) 각 1런</td><td>락 경합 유/무 대조 — 천장의 원인 분리</td></tr>
+          <tr><td>산출</td><td>TPS 천장 · p95 · 에러율 · hikaricp pending 곡선</td><td>M2·M3의 비교 기준선</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn"><span class="tag">주의 — Round 7의 교훈</span>평균 rate는 램프 스케줄의 그림자일 수 있다. 천장은 "평균 몇/s를 처리했나"가 아니라 <strong>"어느 시점부터 도착률을 못 따라가기 시작했나"</strong>로 읽는다 (EXP-01에서 ~270/s를 천장으로 오독할 뻔했던 그 함정).</div>
+  </section>
+
+  <!-- ===================== S4 M2 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">MEASUREMENT 2 · PROTECTED</p><h2 class="sec">M2 — 대기열 보호 검증</h2></div>
+    </div>
+
+    <p class="lead">이 실험의 진짜 질문은 "시스템이 버티는가"가 아니라 — "유저가 기다릴 만한가"다.</p>
+
+    <p>대기열이 정당한 이유는 블랙프라이데이의 주문처럼 <strong>유저에게 기다릴 유인이 있는 워크로드</strong>이기 때문이다. 그런데 그 유인은 저절로 생기지 않는다 — <em>줄이 줄고 있는 게 보이고, 언제 차례가 오는지 알 수 있을 때</em>만 유저는 새로고침 연타 대신 기다림을 선택한다. 그래서 M2의 부하는 "초당 N개의 요청"이 아니라 <strong>행동 모델을 가진 가상 유저</strong>다: 오픈 순간 몰려들고, 서버가 알려준 주기로만 순번을 확인하고, 입장하면 주문서를 실제 행위 시간만큼 작성하고, 일부는 기다리다 떠난다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="USER VIEW">
+        <svg viewBox="0 0 1120 384" role="img" aria-label="같은 블랙프라이데이 오픈 폭증을 겪는 한 유저의 두 세계 비교 타임라인. 위 레인은 대기열이 있는 세계: 10시 정각 클릭, 8천 명 동시 폭주, 대기 화면에서 내 앞 4213명과 예상 43초를 확인, 폴링으로 순번이 줄어드는 것을 보고, 43초 뒤 입장해 토큰과 5분 제한을 받고, 약 90초간 주문서를 작성해 10시 2분 13초에 주문 성공. 아래 레인은 대기열이 없는 세계: 같은 클릭 후 30초 무한 로딩, 타임아웃과 500 에러, 새로고침 연타로 재시도 폭풍이 서버를 더 악화시키고, 언제 될지 모르는 채 이탈. 아래 요약: 기다림이 견딜 만한 이유는 줄이 줄고 있고 언제 되는지 안다는 피드백이며, M2는 그 약속의 정확도까지 지표로 잰다.">
+          <defs>
+            <marker id="uv1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- Lane A -->
+          <text class="svg-l" x="20" y="40" text-anchor="start" fill="#0A8F5B">A · 대기열이 있는 세계 (이번 구현) — 유저 한 명의 133초</text>
+          <rect x="20" y="54" width="150" height="72" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="20" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">10:00:00 클릭</div><div class="s">8,000명 동시 폭주</div></div></foreignObject>
+          <rect x="204" y="54" width="150" height="72" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="204" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">대기 화면</div><div class="s">앞 4,213명 · 예상 43초</div></div></foreignObject>
+          <rect x="388" y="54" width="150" height="72" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="388" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">줄이 줄어드는 게 보임</div><div class="s">10s: 3,190 → 30s: 1,020</div></div></foreignObject>
+          <rect x="572" y="54" width="150" height="72" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="572" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">10:00:43 입장</div><div class="s">토큰 · 5분 제한 시작</div></div></foreignObject>
+          <rect x="756" y="54" width="150" height="72" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="756" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">주문서 작성</div><div class="s">~90초 (실제 행위 시간)</div></div></foreignObject>
+          <rect x="940" y="54" width="150" height="72" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="940" y="54" width="150" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">10:02:13 완료</div><div class="s">주문 성공 ✓</div></div></foreignObject>
+          <line x1="172" y1="90" x2="200" y2="90" stroke="#3182F6" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="356" y1="90" x2="384" y2="90" stroke="#3182F6" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="540" y1="90" x2="568" y2="90" stroke="#15C47E" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="724" y1="90" x2="752" y2="90" stroke="#3182F6" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="908" y1="90" x2="936" y2="90" stroke="#15C47E" stroke-width="2" marker-end="url(#uv1)"/>
+          <!-- Lane B -->
+          <text class="svg-l" x="20" y="176" text-anchor="start" fill="#C9303C">B · 대기열이 없는 세계 (M1이 실측하는 그 세계)</text>
+          <rect x="20" y="190" width="170" height="72" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="20" y="190" width="170" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">10:00:00 클릭</div><div class="s">같은 8,000명 폭주</div></div></foreignObject>
+          <rect x="232" y="190" width="170" height="72" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="232" y="190" width="170" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">무한 로딩</div><div class="s">30초 응답 없음</div></div></foreignObject>
+          <rect x="444" y="190" width="170" height="72" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="444" y="190" width="170" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">타임아웃 · 500</div><div class="s">왜 안 되는지 모름</div></div></foreignObject>
+          <rect x="656" y="190" width="170" height="72" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="656" y="190" width="170" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">새로고침 연타</div><div class="s">재시도 폭풍 → 서버 악화</div></div></foreignObject>
+          <rect x="868" y="190" width="170" height="72" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="868" y="190" width="170" height="72"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">이탈</div><div class="s">언제 될지 모르는 기다림</div></div></foreignObject>
+          <line x1="192" y1="226" x2="228" y2="226" stroke="#8B95A1" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="404" y1="226" x2="440" y2="226" stroke="#F04452" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="616" y1="226" x2="652" y2="226" stroke="#F04452" stroke-width="2" marker-end="url(#uv1)"/>
+          <line x1="828" y1="226" x2="864" y2="226" stroke="#F04452" stroke-width="2" marker-end="url(#uv1)"/>
+          <!-- insight -->
+          <rect x="20" y="296" width="1070" height="64" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="20" y="296" width="1070" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">기다림이 견딜 만한 이유 = "줄이 줄고 있다 · 언제 되는지 안다"는 피드백</div><div class="s">M2는 그 약속(estimatedWaitSeconds)의 정확도까지 지표로 잰다 — 약속이 틀리면 A의 유저도 B처럼 행동한다</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 같은 폭증을 겪는 한 유저의 두 세계. M2의 스파이크 암은 위쪽 여정 8,000개를 그대로 실행한다 — 방출 100/s이면 마지막 진입자도 80초 안에 입장한다.</figcaption>
+    </figure>
+
+    <h3>유저 행동 모델 → 스크립트 구현 → 유저 지표</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>유저 행동</th><th>k6 구현 (queue-order-flow.js)</th><th>유저 관점 지표</th></tr></thead>
+        <tbody>
+          <tr><td>오픈 순간 몰림</td><td>스파이크 암 — 10초에 8,000명 진입 (<span class="term">coupon-issue-spike</span> 패턴 재사용)</td><td>전원이 거절 없이 줄을 서는가</td></tr>
+          <tr><td>예의 바른 대기</td><td>응답의 <span class="term">nextPollSeconds</span> 간격으로만 순번 확인</td><td><span class="term">queue_wait_time</span> — 진입→입장 소요 p50/p95/max</td></tr>
+          <tr><td>약속을 믿고 기다림</td><td>첫 응답의 <span class="term">estimatedWaitSeconds</span> 저장 → 실제 대기와 비교</td><td><span class="term">wait_promise_error</span> — 실제−예상 (초). 과소약속이 신뢰를 깬다</td></tr>
+          <tr><td>기다리다 떠남 (잠적)</td><td><span class="term">ABANDON_RATE</span> 파라미터 (기본 0% · 민감도 런 10%) — 폴링 중단, 줄에는 남음</td><td>토큰 미사용 만료 = 유량 손실률 (딥리서치 §10 카드의 실측)</td></tr>
+          <tr><td>주문서 작성</td><td>입장 후 think time 30~120초 균등분포 (TTL 5분 산정의 근거였던 실제 행위 시간)</td><td>TTL 내 주문 완료율</td></tr>
+          <tr><td>주문</td><td>POST /orders 1회 → 성공 확인</td><td>여정 성공률 — 진입자 중 주문 완료 비율</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>이 플로우에서 API별 소요 시간과 TPS가 처음으로 <strong>세 엔드포인트 각각</strong>(enter / position / orders)으로 분해되어 나온다 — "API별로 얼마나 걸리고 TPS가 어느 정도인가"의 답. 부수 발견도 있다: 입장자가 즉시 주문하지 않고 작성 시간을 쓰므로, <strong>주문 도착은 방출 속도(100/s)보다 한 번 더 퍼진다</strong>. 하류가 실제로 받는 부하 모양이 이 런에서 처음 보인다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="SEQ. M2">
+        <svg viewBox="0 0 1120 700" role="img" aria-label="M2 대기열 보호 시퀀스: 사용자가 대기열 진입 API를 호출하면 서비스가 Redis에 ZADD NX로 넣고 순번과 다음 폴링 주기를 돌려준다. 사용자는 그 주기로 순번을 폴링한다. 스케줄러가 100밀리초마다 Lua로 ZPOPMIN 10명과 토큰 SET을 원자 실행한다. 차례가 오면 폴링 응답이 ADMITTED와 입장 토큰이 되고, 사용자는 주문 API를 호출한다. 주문 API는 토큰 존재를 검증한 뒤 MySQL 주문 트랜잭션을 실행하고 완료 시 토큰을 삭제한다. 주문 유입은 초당 약 100으로 평탄화된다.">
+          <defs>
+            <marker id="m2a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- participants -->
+          <rect x="20" y="14" width="110" height="56" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="20" y="14" width="110" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">사용자</div><div class="s">k6 부하</div></div></foreignObject>
+          <rect x="150" y="14" width="160" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="150" y="14" width="160" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">대기열 API</div><div class="s">OrderQueueController</div></div></foreignObject>
+          <rect x="330" y="14" width="150" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="330" y="14" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">대기열 서비스</div><div class="s">OrderQueueService</div></div></foreignObject>
+          <rect x="495" y="14" width="90" height="56" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="495" y="14" width="90" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">Redis</div><div class="s">ZSet·토큰</div></div></foreignObject>
+          <rect x="602" y="14" width="216" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="602" y="14" width="216" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">입장 스케줄러</div><div class="s">OrderQueueAdmissionScheduler</div></div></foreignObject>
+          <rect x="838" y="14" width="140" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="838" y="14" width="140" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">주문 API</div><div class="s">OrderController</div></div></foreignObject>
+          <rect x="1000" y="14" width="90" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="1000" y="14" width="90" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">MySQL</div><div class="s">주문·재고</div></div></foreignObject>
+          <!-- lifelines -->
+          <line x1="75" y1="70" x2="75" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="230" y1="70" x2="230" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="405" y1="70" x2="405" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="540" y1="70" x2="540" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="710" y1="70" x2="710" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="908" y1="70" x2="908" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="1045" y1="70" x2="1045" y2="672" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <!-- 1 enter -->
+          <line x1="75" y1="112" x2="226" y2="112" stroke="#3182F6" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="150" y="100" text-anchor="middle" fill="#1B64DA">① POST /queue/enter →</text>
+          <line x1="230" y1="140" x2="401" y2="140" stroke="#4E5968" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="316" y="128" text-anchor="middle" fill="#4E5968">enter(userId) →</text>
+          <line x1="405" y1="168" x2="536" y2="168" stroke="#0A8F5B" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="470" y="156" text-anchor="middle" fill="#0A8F5B">ZADD NX →</text>
+          <line x1="226" y1="204" x2="79" y2="204" stroke="#3182F6" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#m2a)"/>
+          <text class="svg-s" x="152" y="192" text-anchor="middle" fill="#3182F6">← WAITING · 순번 · nextPollSeconds</text>
+          <!-- 2 polling -->
+          <line x1="75" y1="248" x2="226" y2="248" stroke="#3182F6" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="150" y="236" text-anchor="middle" fill="#1B64DA">② GET /queue/position →</text>
+          <text class="svg-s" x="150" y="266" text-anchor="middle" fill="#8B95A1">(nextPollSeconds 간격 반복)</text>
+          <line x1="405" y1="290" x2="536" y2="290" stroke="#0A8F5B" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="470" y="278" text-anchor="middle" fill="#0A8F5B">ZRANK·ZCARD →</text>
+          <!-- 3 scheduler -->
+          <line x1="710" y1="340" x2="544" y2="340" stroke="#0A8F5B" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="628" y="316" text-anchor="middle" fill="#0A8F5B">← ③ 100ms마다 Lua 원자 실행</text>
+          <text class="svg-s" x="628" y="330" text-anchor="middle" fill="#0A8F5B">ZPOPMIN 10 + SET 토큰 EX 300</text>
+          <!-- 4 admitted -->
+          <line x1="226" y1="392" x2="79" y2="392" stroke="#15C47E" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="152" y="380" text-anchor="middle" fill="#0A8F5B">← ④ ADMITTED + 입장 토큰</text>
+          <!-- 5 order -->
+          <line x1="75" y1="444" x2="904" y2="444" stroke="#3182F6" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="490" y="432" text-anchor="middle" fill="#1B64DA">⑤ POST /orders (토큰 보유자만) →</text>
+          <line x1="908" y1="480" x2="409" y2="480" stroke="#4E5968" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="660" y="468" text-anchor="middle" fill="#4E5968">← verifyAdmission(userId) — 토큰 존재 확인</text>
+          <line x1="908" y1="532" x2="1041" y2="532" stroke="#0A8F5B" stroke-width="2" marker-end="url(#m2a)"/>
+          <text class="svg-l" x="974" y="520" text-anchor="middle" fill="#0A8F5B">⑥ 주문 TX →</text>
+          <line x1="908" y1="576" x2="409" y2="576" stroke="#8B95A1" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#m2a)"/>
+          <text class="svg-s" x="660" y="564" text-anchor="middle" fill="#6B7684">← ⑦ completeOrder — DEL 토큰 (일회용 소모)</text>
+          <!-- summary -->
+          <rect x="140" y="608" width="840" height="56" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="140" y="608" width="840" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">읽는 것: 주문 유입 ≈ 초당 100 평탄화 · 에러율 0 · enter/position/orders 각각의 p95와 TPS</div><div class="s">/queue/* 는 DB 접근 0 — Redis 왕복만이므로 p95 수 ms 대가 기대값</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> M2 — 전체 유저 저니의 시스템 쪽 단면. 도착 폭풍은 Redis 앞에서 줄이 되고, MySQL에는 방출 속도만 도달한다.</figcaption>
+    </figure>
+
+    <h3>신규 스크립트 사양 — queue-order-flow.js</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>값</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>플로우</td><td>enter → position 폴링 → ADMITTED → think time → 주문 → 성공 확인</td><td>실제 유저 저니와 동일 (02-user-journey + 행동 모델)</td></tr>
+          <tr><td>폴링 간격</td><td>응답의 <span class="term">nextPollSeconds</span> 준수 (1~10s)</td><td>서버가 지시한 예의 바른 폴링 — 폴링 스파이크 억제 검증 겸용</td></tr>
+          <tr><td>부하 모델</td><td>암 ① 스파이크: 10초에 8,000명 (블랙프라이데이 오픈) · 암 ② 램프: M1과 동일 100→800/s</td><td>①은 유저 서사와 흡수력 검증, ②는 동일 총부하로 유/무 비교</td></tr>
+          <tr><td>태그</td><td>enter / position / orders 요청에 k6 tag 부여</td><td>API별 p95·TPS 분해 출력</td></tr>
+          <tr><td>합격 기준</td><td>주문 http_req_failed 0% · 유입 ≈100/s 평탄 · 여정 성공률 100% (이탈 0% 런) · 대기시간 p95와 약속 오차 기록</td><td>Q2의 답 — 시스템과 유저 양면</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">함께 관찰</span>폴링 GET의 총량. Round 7 실측에서 http 13.1만 건 중 ~9.9만이 폴링 GET이었다 — <strong>보호 장치 자신이 만드는 부하</strong>가 이번에는 <span class="term">nextPollSeconds</span> 동적 간격으로 얼마나 줄었는지가 부속 수확이다.</div>
+  </section>
+
+  <!-- ===================== S5 M3 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">MEASUREMENT 3 · SWEEP</p><h2 class="sec">M3 — 토큰 방출 속도 스윕</h2></div>
+    </div>
+
+    <p class="lead">배치 크기를 10→20→50→100으로 올리며, 토큰 보유자의 주문이 어디까지 "터지지 않고" 처리되는지 찾는다.</p>
+
+    <p>방출 속도 = 배치 크기 × (1000 / fixed-delay). <span class="term">fixed-delay 100ms</span> 고정이므로 배치 10/20/50/100은 <strong>초당 100/200/500/1000명</strong>의 토큰 보유자를 주문 API로 내보낸다. M1에서 실측한 천장을 이 방출 속도가 넘는 순간, 대기열이 지켜주던 하류가 다시 무너진다 — <strong>그 직전 단계가 안전 상한이고, 현재 기본값(배치 10)의 여유 폭이 숫자로 나온다</strong>.</p>
+
+    <p>유저 관점으로 뒤집으면 <strong>방출 속도는 대기시간 다이얼</strong>이다 — 같은 8,000명 줄이 100/s면 80초, 500/s면 16초에 빠진다. 즉 M3의 안전 상한은 "시스템이 견디는 최대치"이자 <strong>"유저에게 약속할 수 있는 최단 대기시간"</strong>이다. 다이얼을 천장 너머로 돌리면 짧아지는 건 대기가 아니라 서비스의 수명이다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="SEQ. M3">
+        <svg viewBox="0 0 720 480" role="img" aria-label="M3 방출 속도 스윕: 입장 스케줄러의 배치 크기를 10, 20, 50, 100으로 단계별로 올려 초당 100, 200, 500, 1000명의 토큰 보유자를 주문 API로 내보낸다. 주문 API는 MySQL 주문 트랜잭션을 실행한다. M1에서 실측한 천장을 넘는 단계에서 p95와 에러율이 무너지며, 그 직전 단계가 안전 상한이다.">
+          <defs>
+            <marker id="m3a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- participants -->
+          <rect x="30" y="14" width="220" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="30" y="14" width="220" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">입장 스케줄러</div><div class="s">OrderQueueAdmissionScheduler</div></div></foreignObject>
+          <rect x="330" y="14" width="150" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="330" y="14" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">주문 API</div><div class="s">OrderController</div></div></foreignObject>
+          <rect x="560" y="14" width="110" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="560" y="14" width="110" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">MySQL</div><div class="s">주문·재고 TX</div></div></foreignObject>
+          <!-- lifelines -->
+          <line x1="140" y1="70" x2="140" y2="450" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="405" y1="70" x2="405" y2="450" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="615" y1="70" x2="615" y2="450" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <!-- sweep arrows -->
+          <line x1="140" y1="120" x2="401" y2="120" stroke="#15C47E" stroke-width="2" marker-end="url(#m3a)"/>
+          <text class="svg-l" x="270" y="108" text-anchor="middle" fill="#0A8F5B">런① 배치 10 → 방출 100/s →</text>
+          <line x1="140" y1="172" x2="401" y2="172" stroke="#15C47E" stroke-width="2" marker-end="url(#m3a)"/>
+          <text class="svg-l" x="270" y="160" text-anchor="middle" fill="#0A8F5B">런② 배치 20 → 방출 200/s →</text>
+          <line x1="140" y1="224" x2="401" y2="224" stroke="#3182F6" stroke-width="2" marker-end="url(#m3a)"/>
+          <text class="svg-l" x="270" y="212" text-anchor="middle" fill="#1B64DA">런③ 배치 50 → 방출 500/s →</text>
+          <!-- ceiling line -->
+          <line x1="60" y1="262" x2="660" y2="262" stroke="#F04452" stroke-width="1.6" stroke-dasharray="7 5"/>
+          <text class="svg-l" x="360" y="252" text-anchor="middle" fill="#C9303C">— M1에서 실측한 하류 천장 (이 위는 위험 구간) —</text>
+          <line x1="140" y1="300" x2="401" y2="300" stroke="#F04452" stroke-width="2" marker-end="url(#m3a)"/>
+          <text class="svg-l" x="270" y="288" text-anchor="middle" fill="#C9303C">런④ 배치 100 → 방출 1000/s →</text>
+          <!-- order tx -->
+          <line x1="405" y1="340" x2="611" y2="340" stroke="#4E5968" stroke-width="2" marker-end="url(#m3a)"/>
+          <text class="svg-l" x="508" y="328" text-anchor="middle" fill="#4E5968">주문 TX (방출 속도로 유입) →</text>
+          <!-- verdict -->
+          <rect x="60" y="376" width="600" height="60" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="60" y="376" width="600" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">정지 기준: 주문 p95 &gt; 1s 또는 에러율 &gt; 1% — 그 직전 단계 = 안전 상한</div><div class="s">"배치 크기는 하류 처리량에서 역산한다"의 실측 근거가 이 표에서 나온다</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 4.</b> M3 — 방출 속도를 단계적으로 올려 하류 천장과 교차시키는 스윕. 각 런은 3~5분.</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>런</th><th>batch-size · 방출 속도</th><th>예상 (M1 천장 대비)</th></tr></thead>
+        <tbody>
+          <tr><td>런 ①</td><td>10 · 100/s (현재 기본값)</td><td>안정 — M2와 동일 조건 재확인</td></tr>
+          <tr><td>런 ②</td><td>20 · 200/s</td><td>천장 아래면 안정 — 여유 폭 측정</td></tr>
+          <tr><td>런 ③</td><td>50 · 500/s</td><td>천장 부근 — p95 상승 시작 예상</td></tr>
+          <tr><td>런 ④</td><td>100 · 1000/s</td><td>천장 초과 — 붕괴 재현 (대기열이 무력화되는 증명)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">핵심</span>런 ④가 실패하는 게 <strong>계획의 성공</strong>이다 — "토큰을 한 번에 쏟으면 Thundering Herd로 원래 문제가 재발한다"는 글의 주장을 실측으로 증명하는 런이기 때문. 대기열의 가치는 줄 세우기가 아니라 <strong>방출 속도 제어</strong>에 있음이 여기서 드러난다.</div>
+  </section>
+
+  <!-- ===================== S6 F1 429 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">FEATURE 1 · BOUNDED QUEUE</p><h2 class="sec">F1 — 큐가 가득 차면 429</h2></div>
+    </div>
+
+    <p class="lead">대기열에 상한을 두고, 넘치면 진입을 429 Too Many Requests로 거절한다 — 무한 대기는 보관이 아니라 방치다.</p>
+
+    <p>현재 <span class="term">enter()</span>는 상한이 없다. 100만 명이 줄을 서면 마지막 유저의 예상 대기 시간은 배치 10 기준 <strong>약 2.8시간</strong> — 그 안내는 사실상 거절인데 시스템만 그걸 모른 채 자리를 잡아둔다. 상한은 <strong>"수용 가능한 최대 예상 대기시간 × 방출 속도"로 역산</strong>한다: 예를 들어 최대 10분 대기까지만 약속한다면 100/s × 600s = 60,000명이 상한이다. 값은 정책이므로 프로퍼티 <span class="term">queue.max-waiting</span>으로 외부화하고, 기본값은 M3 실측 후 확정한다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="SEQ. F1">
+        <svg viewBox="0 0 720 450" role="img" aria-label="F1 큐 가득참 시퀀스: 사용자가 대기열 진입을 요청하면 서비스가 Redis에 ZCARD로 대기 수를 조회한다. 대기 수가 상한 미만이면 기존대로 ZADD NX로 진입시키고 WAITING을 응답한다. 상한 이상이면 TooManyRequestsException을 던지고 429와 QUEUE:QUEUE_FULL 코드로 응답한다.">
+          <defs>
+            <marker id="f1a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- participants -->
+          <rect x="25" y="14" width="110" height="56" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="25" y="14" width="110" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">사용자</div><div class="s">진입 요청</div></div></foreignObject>
+          <rect x="200" y="14" width="160" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="200" y="14" width="160" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">대기열 API</div><div class="s">OrderQueueController</div></div></foreignObject>
+          <rect x="400" y="14" width="150" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="400" y="14" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">대기열 서비스</div><div class="s">OrderQueueService</div></div></foreignObject>
+          <rect x="590" y="14" width="100" height="56" rx="14" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="590" y="14" width="100" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">Redis</div><div class="s">queue:orders</div></div></foreignObject>
+          <!-- lifelines -->
+          <line x1="80" y1="70" x2="80" y2="420" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="280" y1="70" x2="280" y2="420" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="475" y1="70" x2="475" y2="420" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="640" y1="70" x2="640" y2="420" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <!-- flow -->
+          <line x1="80" y1="110" x2="276" y2="110" stroke="#3182F6" stroke-width="2" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="178" y="98" text-anchor="middle" fill="#1B64DA">POST /queue/enter →</text>
+          <line x1="280" y1="146" x2="471" y2="146" stroke="#4E5968" stroke-width="2" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="375" y="134" text-anchor="middle" fill="#4E5968">enter(userId) →</text>
+          <line x1="475" y1="182" x2="636" y2="182" stroke="#0A8F5B" stroke-width="2" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="555" y="170" text-anchor="middle" fill="#0A8F5B">ZCARD (대기 수 N) →</text>
+          <!-- branch OK -->
+          <line x1="475" y1="248" x2="636" y2="248" stroke="#15C47E" stroke-width="2" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="555" y="224" text-anchor="middle" fill="#0A8F5B">N &lt; max-waiting</text>
+          <text class="svg-s" x="555" y="238" text-anchor="middle" fill="#0A8F5B">ZADD NX — 기존 흐름 →</text>
+          <line x1="276" y1="282" x2="84" y2="282" stroke="#15C47E" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="180" y="270" text-anchor="middle" fill="#0A8F5B">← 200 WAITING · 순번</text>
+          <!-- branch FULL -->
+          <line x1="471" y1="352" x2="284" y2="352" stroke="#F04452" stroke-width="2" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="378" y="328" text-anchor="middle" fill="#C9303C">N ≥ max-waiting</text>
+          <text class="svg-s" x="378" y="342" text-anchor="middle" fill="#C9303C">TooManyRequestsException</text>
+          <line x1="276" y1="388" x2="84" y2="388" stroke="#F04452" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f1a)"/>
+          <text class="svg-l" x="180" y="376" text-anchor="middle" fill="#C9303C">← 429 QUEUE:QUEUE_FULL</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 5.</b> F1 — 상한 검사는 ZCARD 선조회, 초과 시 진입 없이 429. 아래 분기가 신규.</figcaption>
+    </figure>
+
+    <h3>설계 결정</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>결정</th><th>내용</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>검사 방식</td><td><span class="term">totalWaiting() ≥ max</span> 선검사 후 ZADD (soft cap)</td><td>ZCARD→ZADD 사이 race의 초과폭은 순간 동시 enter 수준 — 상한은 UX 정책이지 정합성 불변식이 아니므로 Lua 원자화는 YAGNI</td></tr>
+          <tr><td>새 예외</td><td><span class="term">TooManyRequestsException</span> (429) — supports/error 신규</td><td>기존 wrapper에 429 없음. supports 확장은 PR #12 전례 있음</td></tr>
+          <tr><td>에러 코드</td><td><span class="term">QueueErrorCode.QUEUE_FULL</span></td><td>도메인 enum에 추가 — 코드 규칙 <span class="term">QUEUE:QUEUE_FULL</span></td></tr>
+          <tr><td>상한 값</td><td><span class="term">queue.max-waiting</span> 프로퍼티, 기본값은 M3 후 확정</td><td>상한 = 최대 약속 대기시간 × 방출 속도 (정책 손잡이)</td></tr>
+          <tr><td>토큰 보유자</td><td>상한과 무관하게 기존 409 (ALREADY_ADMITTED) 유지</td><td>가득참과 재진입은 다른 실패 — 코드로 구분돼야 프론트가 다르게 안내</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>검증</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>통합 테스트</b> — max-waiting=1로 축소, 두 번째 진입이 429 <span class="tag">신규</span></li>
+      <li><span class="box"></span><b>통합 테스트</b> — 가득 찬 큐에서 한 명 입장(ZPOPMIN)하면 다음 진입 허용 <span class="tag">신규</span></li>
+      <li><span class="box"></span><b>k6 런</b> — 상한 축소 후 초과 유입: 429 비율이 초과분과 일치 + 429가 서버를 아프게 하지 않음(p95 유지) <span class="tag">M2 변형</span></li>
+    </ul>
+  </section>
+
+  <!-- ===================== S7 F2 503 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">FEATURE 2 · FAIL-CLOSE FAST</p><h2 class="sec">F2 — Redis 장애는 503</h2></div>
+    </div>
+
+    <p class="lead">Redis가 죽으면 서킷브레이커가 빠르게 차단하고, 503 + QUEUE:UNAVAILABLE로 정직하게 응답한다.</p>
+
+    <p>설계 결정 3(딥리서치)에서 이미 <strong>fail-close(전면 차단)</strong>를 계약으로 박았다 — 주문은 재고·결제가 걸린 정합성 민감 경로라, 쿠폰 게이트키퍼의 fail-open과 반대다. 이번에 확정하는 것은 <strong>차단의 "방식"</strong>이다: 매 요청이 Redis 커넥션 타임아웃을 기다리며 스레드를 태우는 게 아니라, <strong>Resilience4j CircuitBreaker<a href="#r1" class="cite">[1]</a>가 실패율을 감지해 OPEN으로 전이하면 이후 호출은 Redis를 건드리지도 않고 <span class="term">CallNotPermittedException</span>으로 즉시 실패</strong>한다. 애플리케이션은 이를 <span class="term">ServiceUnavailableException</span>으로 변환해 503으로 내린다. 프론트는 <span class="term">QUEUE:UNAVAILABLE</span> 코드를 보고 이용 불가 안내 페이지로 라우팅한다.</p>
+
+    <div class="note"><span class="tag">반려한 대안 — 정상 응답 shape의 UNAVAILABLE 상태</span>fallback으로 200 + <span class="term">status=UNAVAILABLE</span>을 내리는 방식은 클라이언트 파싱이 단순해지는 대신, <strong>실패가 성공 응답으로 위장되어 에러율 모니터링에서 사라진다</strong>. 장애가 대시보드에 안 보이는 것은 그 자체로 2차 장애다. HTTP 시맨틱대로 503이 정직하다 — 사용자 확정 (2026-07-09).</div>
+
+    <figure>
+      <div class="fig-box" data-fig="SEQ. F2">
+        <svg viewBox="0 0 720 560" role="img" aria-label="F2 Redis 장애 시퀀스. 1단계 감지: 사용자 요청이 서킷브레이커를 거쳐 Redis를 호출하지만 연결 실패가 반복되어 실패율이 임계치를 넘고 서킷이 OPEN으로 전이한다. 2단계 차단: 이후 모든 대기열 관련 요청은 Redis를 호출하지 않고 CallNotPermittedException으로 즉시 실패하며, ServiceUnavailableException으로 변환되어 503과 QUEUE:UNAVAILABLE 코드로 응답한다. 프론트는 이용 불가 페이지로 라우팅한다. 오픈 상태 유지 시간이 지나면 HALF_OPEN으로 시험 호출을 통과시켜 회복을 탐지한다.">
+          <defs>
+            <marker id="f2a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- participants -->
+          <rect x="25" y="14" width="105" height="56" rx="14" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="25" y="14" width="105" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">사용자</div><div class="s">enter·주문</div></div></foreignObject>
+          <rect x="180" y="14" width="170" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="180" y="14" width="170" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">대기열 서비스·저장소</div><div class="s">OrderQueueRepository</div></div></foreignObject>
+          <rect x="400" y="14" width="160" height="56" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+          <foreignObject x="400" y="14" width="160" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">서킷브레이커</div><div class="s">instance: order-queue</div></div></foreignObject>
+          <rect x="600" y="14" width="95" height="56" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="600" y="14" width="95" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">Redis</div><div class="s">장애 중</div></div></foreignObject>
+          <!-- lifelines -->
+          <line x1="77" y1="70" x2="77" y2="530" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="265" y1="70" x2="265" y2="530" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="480" y1="70" x2="480" y2="530" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <line x1="647" y1="70" x2="647" y2="530" stroke="#D1D6DB" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <!-- phase 1 -->
+          <text class="svg-l" x="77" y="102" text-anchor="start" fill="#6B7684">［1단계 · 감지］</text>
+          <line x1="77" y1="126" x2="261" y2="126" stroke="#3182F6" stroke-width="2" marker-end="url(#f2a)"/>
+          <text class="svg-l" x="170" y="114" text-anchor="middle" fill="#1B64DA">대기열 요청 →</text>
+          <line x1="265" y1="160" x2="476" y2="160" stroke="#4E5968" stroke-width="2" marker-end="url(#f2a)"/>
+          <text class="svg-l" x="370" y="148" text-anchor="middle" fill="#4E5968">계측된 Redis 호출 →</text>
+          <line x1="480" y1="194" x2="643" y2="194" stroke="#F04452" stroke-width="2" marker-end="url(#f2a)"/>
+          <text class="svg-l" x="562" y="182" text-anchor="middle" fill="#C9303C">연결 실패 ✕ 반복</text>
+          <rect x="405" y="216" width="150" height="56" rx="14" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="405" y="216" width="150" height="56"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">OPEN 전이</div><div class="s">실패율 ≥ 임계치</div></div></foreignObject>
+          <!-- phase 2 -->
+          <text class="svg-l" x="77" y="316" text-anchor="start" fill="#6B7684">［2단계 · 차단 — Redis 미호출］</text>
+          <line x1="77" y1="340" x2="261" y2="340" stroke="#3182F6" stroke-width="2" marker-end="url(#f2a)"/>
+          <text class="svg-l" x="170" y="328" text-anchor="middle" fill="#1B64DA">이후 모든 요청 →</text>
+          <line x1="476" y1="374" x2="269" y2="374" stroke="#F04452" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f2a)"/>
+          <text class="svg-s" x="372" y="362" text-anchor="middle" fill="#C9303C">← CallNotPermittedException (즉시)</text>
+          <line x1="261" y1="420" x2="81" y2="420" stroke="#F04452" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#f2a)"/>
+          <text class="svg-l" x="171" y="396" text-anchor="middle" fill="#C9303C">← 503 QUEUE:UNAVAILABLE</text>
+          <text class="svg-s" x="171" y="410" text-anchor="middle" fill="#C9303C">ServiceUnavailableException 변환</text>
+          <rect x="27" y="440" width="100" height="50" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+          <foreignObject x="27" y="440" width="100" height="50"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">이용 불가</div><div class="s">페이지 이동</div></div></foreignObject>
+          <!-- recovery -->
+          <rect x="360" y="480" width="330" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+          <foreignObject x="360" y="480" width="330" height="46"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">open 유지시간 경과 → HALF_OPEN 시험 → 회복</div></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 6.</b> F2 — 감지(1단계)와 차단(2단계). OPEN 동안 Redis를 아예 호출하지 않아 스레드·타임아웃 낭비가 없다.</figcaption>
+    </figure>
+
+    <h3>설계 결정</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>결정</th><th>내용</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>적용 지점</td><td><span class="term">@CircuitBreaker(name = "order-queue")</span>를 OrderQueueRepository 메서드에</td><td>PG 어댑터와 동일 패턴 (인프라 레이어에서 계측) — 전례 재사용</td></tr>
+          <tr><td>예외 변환</td><td>Redis 계열 <span class="term">DataAccessException</span> + <span class="term">CallNotPermittedException</span> → <span class="term">ServiceUnavailableException(QUEUE_UNAVAILABLE)</span></td><td>PG는 failover가 있어 결과값으로 흡수했지만, 대기열은 대체재가 없는 fail-close — 예외 전파가 맞다</td></tr>
+          <tr><td>새 예외</td><td><span class="term">ServiceUnavailableException</span> (503) — supports/error 신규 + advice 핸들러</td><td>기존 wrapper에 503 없음. 429와 함께 한 번에 추가</td></tr>
+          <tr><td>CB 설정 (계획값)</td><td>COUNT_BASED window 20 · min-calls 10 · failure 50% · open 5s · half-open 3</td><td>폴링이 초당 수백이라 default(창 100·min 50)로도 수 초 내 차지만, 창을 줄여 더 빨리 차단 + open 5s로 회복 탐지 빠르게. <strong>chaos 런에서 조정 후 확정</strong></td></tr>
+          <tr><td>record 대상</td><td>RedisConnectionFailureException 등 접속·타임아웃 계열만</td><td>비즈니스 예외(409 등)는 실패율에 섞이면 안 됨 — PG 설정의 record/ignore 분리와 동일 원칙</td></tr>
+          <tr><td>스케줄러</td><td><span class="term">CallNotPermittedException</span> catch 추가 — 조용히 skip</td><td>현재 DataAccessException만 잡음 → CB 예외가 새면 스케줄러 스레드에 스택트레이스 폭풍</td></tr>
+          <tr><td>주문 경로</td><td><span class="term">verifyAdmission</span>도 동일하게 503</td><td>fail-close 계약(결정 3) — Redis 불능 시 토큰 검증 불가 = 주문도 차단</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">application.yml — 추가할 CB 설정 (계획값)</span>
+      </div>
+<pre><span class="cm"># resilience4j.circuitbreaker.configs 아래에 추가</span>
+<span class="ty">redis-queue</span>:
+  sliding-window-type: COUNT_BASED
+  sliding-window-size: <span class="st">20</span>
+  minimum-number-of-calls: <span class="st">10</span>
+  failure-rate-threshold: <span class="st">50</span>
+  wait-duration-in-open-state: <span class="st">5s</span>
+  permitted-number-of-calls-in-half-open-state: <span class="st">3</span>
+  record-exceptions:
+    - org.springframework.data.redis.RedisConnectionFailureException
+    - org.springframework.dao.QueryTimeoutException
+
+<span class="cm"># instances 아래에 추가</span>
+<span class="ty">order-queue</span>:
+  base-config: redis-queue</pre>
+    </div>
+
+    <h3>검증</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>통합 테스트</b> — CB를 강제 OPEN(<span class="term">transitionToOpenState</span>) 후 enter/position/주문 검증이 전부 503 + QUEUE:UNAVAILABLE <span class="tag">신규</span></li>
+      <li><span class="box"></span><b>chaos 수동 런</b> — 부하 중 <span class="term">docker stop redis</span>: 503 전환 시간(수 초 내), 스레드 고갈 없음, 스케줄러 로그 조용 <span class="tag">수동</span></li>
+      <li><span class="box"></span><b>회복 확인</b> — <span class="term">docker start redis</span> 후 open 5s + HALF_OPEN 시험 3회 거쳐 자동 복귀, 대기 중이던 ZSet 데이터 보존 확인 <span class="tag">수동</span></li>
+      <li><span class="box"></span><b>메트릭</b> — <span class="term">resilience4j_circuitbreaker_state</span>가 prometheus 엔드포인트에 노출되는지<a href="#r4" class="cite">[4]</a> <span class="tag">관측</span></li>
+    </ul>
+  </section>
+
+  <!-- ===================== S8 검토 체크리스트 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">REVIEW CHECKLIST</p><h2 class="sec">검토 체크리스트</h2></div>
+    </div>
+
+    <p class="lead">측정을 돌리기 전과 결과를 읽을 때, 스스로에게 물을 것들.</p>
+
+    <h3>측정 전 — 전제 점검</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>단일 인스턴스 전제</b>가 문서·PR 본문에 명문화됐는가 — 앱 2대면 방출 속도가 2배가 된다 (스케줄러가 인스턴스마다 돈다) <span class="tag">전제</span></li>
+      <li><span class="box"></span><b>토큰 값 미검증 결정</b> — verifyAdmission은 토큰 존재만 확인하고 값 대조를 안 한다 (인증이 ACCOUNT_ID로 선행되므로). 이 결정이 기록돼 있는가 <span class="tag">결정</span></li>
+      <li><span class="box"></span><b>M1·M2가 같은 시드·같은 docker 리소스</b>에서 도는가 — 브랜치 외 변수 통제 <span class="tag">공정성</span></li>
+      <li><span class="box"></span><b>14:00 이후 러닝 시 로컬 머신 백그라운드 부하</b>(IDE 인덱싱 등) 통제 — 재현 안 되는 수치는 노이즈다 <span class="tag">환경</span></li>
+    </ul>
+
+    <h3>결과 읽을 때 — 해석 점검</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>k6 ↔ actuator 갭</b>이 벌어지는 시점을 포화 시작으로 기록했는가 (평균 rate 오독 금지) <span class="tag">해석</span></li>
+      <li><span class="box"></span><b>재현 확인</b> — 이상한 수치는 1회 재런으로 재현되는지 본다. 재현되는 gap은 노이즈가 아니라 신호다 (LC875 측정 교훈) <span class="tag">해석</span></li>
+      <li><span class="box"></span><b>약속 정확도</b> — 실제 대기가 예상(<span class="term">estimatedWaitSeconds</span>)보다 길어지는 <b>과소약속</b>이 있었는가. 유저 신뢰를 깨는 방향의 오차부터 잡는다 <span class="tag">유저</span></li>
+      <li><span class="box"></span><b>만료 유량 손실률</b> — 방출된 토큰 중 주문 없이 만료된 비율 (이탈 민감도 런). 손실만큼 실효 방출 속도가 깎여 뒷줄의 대기가 길어진다 <span class="tag">유저</span></li>
+      <li><span class="box"></span><b>최악 동시 유효 토큰 = 방출 속도 × TTL</b> — 배치를 올리면 이 곱도 커진다 (100/s × 300s = 3만). M3에서 배치를 올릴 때 TTL을 같이 재검토했는가 <span class="tag">연쇄</span></li>
+      <li><span class="box"></span><b>429 상한 역산</b> — max-waiting 기본값을 "최대 약속 대기시간 × M3 확정 방출 속도"로 계산해 기록했는가 <span class="tag">연쇄</span></li>
+      <li><span class="box"></span><b>CB 계획값 확정</b> — chaos 런 후 window·open 시간을 실측 기반으로 조정했는가 (계획값 그대로 두지 않기) <span class="tag">확정</span></li>
+    </ul>
+
+    <div class="note key"><span class="tag">산출물 계약</span>각 런의 원시 결과는 <span class="term">docs/week8/experiments/EXP-04-*.md</span>부터 번호를 이어 기록한다 (k6 summary + actuator 스냅샷 차분). 이 계획서는 "왜 이렇게 재는가"까지만 — <strong>수치가 생기면 EXP 문서가 원본</strong>이다 (WRITING-LOG 원칙 그대로).</div>
+  </section>
+
+  <!-- ===================== REFERENCES ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <a class="ref primary" id="r1" href="https://resilience4j.readme.io/docs/circuitbreaker" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>Resilience4j — CircuitBreaker</b> — CLOSED/OPEN/HALF_OPEN 상태 전이, OPEN 시 CallNotPermittedException으로 즉시 거절, slidingWindowSize·failureRateThreshold·waitDurationInOpenState 설정.<span class="src">https://resilience4j.readme.io/docs/circuitbreaker</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r2" href="https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ramping-arrival-rate/" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>Grafana k6 — Ramping arrival rate</b> — 단계(stages)별 목표 도착률로 iteration을 시작하는 open-model executor. 응답 지연과 무관하게 부하를 유지해 실제 유저 도착을 모사.<span class="src">https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ramping-arrival-rate/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r3" href="https://redis.io/docs/latest/commands/zpopmin/" target="_blank" rel="noopener"><span class="n">3</span><span class="b"><b>Redis — ZPOPMIN</b> — 최저 score 멤버를 count개 제거+반환, O(log(N)·M). 스케줄러 드레인의 원자 연산 근거.<span class="src">https://redis.io/docs/latest/commands/zpopmin/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r4" href="https://docs.spring.io/spring-boot/reference/actuator/metrics.html" target="_blank" rel="noopener"><span class="n">4</span><span class="b"><b>Spring Boot — Actuator Metrics</b> — http.server.requests 자동 계측과 /actuator/prometheus 스크레이프 엔드포인트. 서버 관점 URI별 관측의 근거.<span class="src">https://docs.spring.io/spring-boot/reference/actuator/metrics.html</span><span class="pr p1">1차 출처</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 8 · 주문 대기열 — 부하 실측 계획과 완충 설계 (M1·M2·M3 + F1 429 + F2 503)<br>
+    sources: Resilience4j · Grafana k6 · Redis · Spring Boot 공식 문서 (URL 실재 확인 2026-07-09)
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

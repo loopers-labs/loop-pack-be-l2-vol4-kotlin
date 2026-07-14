@@ -6,6 +6,7 @@ import com.loopers.order.application.OrderFacade
 import com.loopers.order.application.OrderInfo
 import com.loopers.order.application.OrderLineCommand
 import com.loopers.order.domain.OrderStatus
+import com.loopers.queue.application.OrderQueueService
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestAttribute
 import org.springframework.web.bind.annotation.RequestBody
@@ -16,13 +17,18 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/orders")
 class OrderController(
     private val orderFacade: OrderFacade,
+    private val orderQueueService: OrderQueueService,
 ) {
     @PostMapping
     fun order(
         @RequestAttribute(ACCOUNT_ID) userId: Long,
         @RequestBody request: OrderCreateRequest,
-    ): OrderCreateResponse =
-        OrderCreateResponse.from(orderFacade.place(request.toCommand(userId)))
+    ): OrderCreateResponse {
+        orderQueueService.verifyAdmission(userId)
+        val info = orderFacade.place(request.toCommand(userId))
+        orderQueueService.completeOrder(userId)
+        return OrderCreateResponse.from(info)
+    }
 }
 
 data class OrderCreateRequest(

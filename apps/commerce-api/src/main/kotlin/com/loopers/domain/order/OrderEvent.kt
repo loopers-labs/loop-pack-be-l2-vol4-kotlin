@@ -13,6 +13,9 @@ import java.util.UUID
 sealed class OrderEvent : DomainEvent {
     abstract val orderId: Long
 
+    /** 주문 라인 스냅샷 — 이벤트 payload 공용(어떤 상품이 몇 개인가). */
+    data class Line(val productId: Long, val quantity: Int)
+
     data class Created(
         override val orderId: Long,
         val userId: Long,
@@ -24,8 +27,6 @@ sealed class OrderEvent : DomainEvent {
         override val eventType: String get() = "ORDER_CREATED"
         override val aggregateType: String get() = "ORDER"
         override val aggregateId: String get() = orderId.toString()
-
-        data class Line(val productId: Long, val quantity: Int)
 
         companion object {
             fun from(order: Order): Created = Created(

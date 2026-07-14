@@ -38,7 +38,8 @@ class MetricsEventHandler(
             "LIKE_CREATED" -> productMetricsFacade.increaseLike(eventId, productIdOf(envelope))
             "LIKE_CANCELED" -> productMetricsFacade.decreaseLike(eventId, productIdOf(envelope))
             "PRODUCT_VIEWED" -> productMetricsFacade.increaseView(eventId, productIdOf(envelope))
-            "ORDER_CREATED" -> productMetricsFacade.addSales(eventId, salesLinesOf(envelope))
+            // 판매량은 결제 확정(ORDER_PAID) 기준 — 결제 미확정 주문(ORDER_CREATED)은 판매가 아니므로 집계하지 않는다.
+            "ORDER_PAID" -> productMetricsFacade.addSales(eventId, salesLinesOf(envelope))
             else -> log.debug("처리 대상이 아닌 이벤트 타입: {}", envelope.eventType)
         }
     }

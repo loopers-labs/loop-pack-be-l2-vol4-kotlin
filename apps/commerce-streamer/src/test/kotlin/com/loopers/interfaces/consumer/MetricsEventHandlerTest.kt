@@ -21,7 +21,7 @@ class MetricsEventHandlerTest {
         EventEnvelope(
             eventId = eventId.toString(),
             eventType = eventType,
-            aggregateType = if (eventType == "ORDER_CREATED") "ORDER" else "PRODUCT",
+            aggregateType = if (eventType.startsWith("ORDER")) "ORDER" else "PRODUCT",
             aggregateId = aggregateId,
             occurredAt = LocalDateTime.now(),
             payload = objectMapper.readTree(payload),
@@ -55,15 +55,24 @@ class MetricsEventHandlerTest {
     }
 
     @Test
-    fun `ORDER_CREATED 는 payload 의 라인을 판매량 누적으로 번역된다`() {
+    fun `ORDER_PAID 는 payload 의 라인을 판매량 누적으로 번역된다`() {
         val eventId = UUID.randomUUID()
         val payload = """{"lines":[{"productId":7,"quantity":2},{"productId":9,"quantity":1}]}"""
 
-        handler.handle(envelope("ORDER_CREATED", aggregateId = "100", eventId = eventId, payload = payload))
+        handler.handle(envelope("ORDER_PAID", aggregateId = "100", eventId = eventId, payload = payload))
 
         verify {
             facade.addSales(eventId, listOf(SalesLine(7L, 2), SalesLine(9L, 1)))
         }
+    }
+
+    @Test
+    fun `ORDER_CREATED 는 판매량으로 집계하지 않는다 - 결제 미확정 주문은 판매가 아니다`() {
+        val payload = """{"lines":[{"productId":7,"quantity":2}]}"""
+
+        handler.handle(envelope("ORDER_CREATED", aggregateId = "100", eventId = UUID.randomUUID(), payload = payload))
+
+        verify(exactly = 0) { facade.addSales(any(), any()) }
     }
 
     @Test
@@ -86,9 +95,9 @@ class MetricsEventHandlerTest {
     }
 
     @Test
-    fun `ORDER_CREATED payload 에 lines 배열이 없으면 MalformedEventException 을 던진다`() {
+    fun `ORDER_PAID payload 에 lines 배열이 없으면 MalformedEventException 을 던진다`() {
         assertThrows<MalformedEventException> {
-            handler.handle(envelope("ORDER_CREATED", aggregateId = "100", eventId = UUID.randomUUID(), payload = "{}"))
+            handler.handle(envelope("ORDER_PAID", aggregateId = "100", eventId = UUID.randomUUID(), payload = "{}"))
         }
 
         verify(exactly = 0) { facade.addSales(any(), any()) }

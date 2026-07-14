@@ -16,6 +16,9 @@ sealed class OrderEvent : DomainEvent {
     /** 주문 라인 스냅샷 — 이벤트 payload 공용(어떤 상품이 몇 개인가). */
     data class Line(val productId: Long, val quantity: Int)
 
+    /**
+     * 주문 생성 사실 — 내부 소비자(입장 토큰 회수)용. 결제 미확정 주문이라 외부(판매 집계·랭킹)로는 전파하지 않는다.
+     */
     data class Created(
         override val orderId: Long,
         val userId: Long,
@@ -23,11 +26,7 @@ sealed class OrderEvent : DomainEvent {
         val lines: List<Line>,
         override val eventId: UUID = UUID.randomUUID(),
         override val occurredAt: LocalDateTime = LocalDateTime.now(),
-    ) : OrderEvent(), ExternalEvent {
-        override val eventType: String get() = "ORDER_CREATED"
-        override val aggregateType: String get() = "ORDER"
-        override val aggregateId: String get() = orderId.toString()
-
+    ) : OrderEvent() {
         companion object {
             fun from(order: Order): Created = Created(
                 orderId = order.id,

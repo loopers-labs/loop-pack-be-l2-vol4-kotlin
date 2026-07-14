@@ -5,7 +5,7 @@ import com.loopers.domain.product.Level as DomainLevel
 import com.loopers.domain.product.TechCategory as DomainTechCategory
 
 class ProductV1Dto {
-    // (id, name, author, category, level, price, likeCount, brandId, brandName, soldOut)
+    // (id, name, author, category, level, price, likeCount, brandId, brandName, soldOut, rank)
     // stock 수량·status·isbn은 대고객 노출 금지
 
     enum class TechCategory {
@@ -74,6 +74,7 @@ class ProductV1Dto {
         val brandId: Long,
         val brandName: String,
         val soldOut: Boolean,
+        val rank: Long?,
     ) {
         companion object {
             fun from(info: ProductInfo): ProductResponse = ProductResponse(
@@ -87,6 +88,7 @@ class ProductV1Dto {
                 brandId = info.brandId,
                 brandName = info.brandName,
                 soldOut = info.soldOut,
+                rank = info.rank,
             )
         }
     }

@@ -37,4 +37,30 @@ sealed class OrderEvent : DomainEvent {
             )
         }
     }
+
+    /**
+     * 결제 확정 사실 — 판매량 집계·랭킹 등 "실제 판매"를 소비하는 외부 소비자용.
+     * 주문 생성(Created)과 달리 결제까지 완료된 주문만 나른다.
+     */
+    data class Paid(
+        override val orderId: Long,
+        val userId: Long,
+        val totalAmount: Long,
+        val lines: List<Line>,
+        override val eventId: UUID = UUID.randomUUID(),
+        override val occurredAt: LocalDateTime = LocalDateTime.now(),
+    ) : OrderEvent(), ExternalEvent {
+        override val eventType: String get() = "ORDER_PAID"
+        override val aggregateType: String get() = "ORDER"
+        override val aggregateId: String get() = orderId.toString()
+
+        companion object {
+            fun from(order: Order): Paid = Paid(
+                orderId = order.id,
+                userId = order.userId,
+                totalAmount = order.totalAmount,
+                lines = order.lines.map { Line(productId = it.productId, quantity = it.quantity.value) },
+            )
+        }
+    }
 }

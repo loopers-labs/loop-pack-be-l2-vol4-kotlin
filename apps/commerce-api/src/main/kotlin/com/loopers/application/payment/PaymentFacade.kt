@@ -2,11 +2,13 @@ package com.loopers.application.payment
 
 import com.loopers.application.order.OrderCompensator
 import com.loopers.application.payment.port.PaymentGateway
+import com.loopers.application.support.event.DomainEventPublisher
 import com.loopers.application.payment.port.PaymentGatewayException
 import com.loopers.application.payment.port.PaymentRequestCommand
 import com.loopers.application.payment.port.PgTransaction
 import com.loopers.application.payment.port.PgTransactionStatus
 import com.loopers.domain.order.OrderErrorType
+import com.loopers.domain.order.OrderEvent
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.payment.CardNumber
 import com.loopers.domain.payment.CardType
@@ -25,6 +27,7 @@ class PaymentFacade(
     private val paymentRepository: PaymentRepository,
     private val paymentGateway: PaymentGateway,
     private val orderCompensator: OrderCompensator,
+    private val eventPublisher: DomainEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(PaymentFacade::class.java)
 
@@ -86,6 +89,8 @@ class PaymentFacade(
             PgTransactionStatus.SUCCESS -> {
                 payment.approve(transaction.transactionKey, LocalDateTime.now())
                 order.markPaid(transaction.transactionKey, transaction.status.name)
+                // 결제 확정 사실 — outbox 를 타고 외부(판매 집계·랭킹)로 전파된다. settle 멱등 가드로 주문당 1회.
+                eventPublisher.publish(OrderEvent.Paid.from(order))
             }
             PgTransactionStatus.FAILED -> {
                 payment.fail(transaction.reason)

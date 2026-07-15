@@ -3,6 +3,7 @@ package com.loopers.application.ranking
 import com.loopers.domain.product.ProductRepositoryPort
 import com.loopers.domain.ranking.RankingPage
 import com.loopers.domain.ranking.RankingRolloverPort
+import com.loopers.domain.ranking.RankingRolloverStatus
 import com.loopers.domain.ranking.RankingService
 import com.loopers.interfaces.api.ranking.RankingApplicationServicePort
 import org.slf4j.LoggerFactory
@@ -32,27 +33,46 @@ class RankingApplicationServiceAdapter(
     }
 
     /**
-     * 오늘 보드 키 자체가 없으면 이월 배치 실패로 판단한다 — 분산 락을 잡은 요청만 복구를 비동기 트리거하고,
-     * 복구가 끝날 때까지는 전날 보드로 폴백해 빈 랭킹 응답을 막는다.
+     * 오늘 조회는 이월 status로 3-way 분기한다. 정기 배치는 전날 23:50에 시작해 자정 전에 DONE을 찍는 게 정상이므로,
+     * 오늘 status가 DONE이 아니라는 관측 자체가 "자정을 넘겼는데 이월 미완료"라는 뜻 — 별도 시각 비교가 필요 없다.
+     * DONE이 되기 전까지는 전날 보드("멈춘" 랭킹)로 폴백해 이월이 반쯤 진행된 어중간한 오늘 보드 노출을 막는다.
      */
     private fun resolveEffectiveDate(requestedDate: LocalDate, today: LocalDate): LocalDate {
-        if (requestedDate != today || rankingService.exists(today)) return requestedDate
+        if (requestedDate != today) return requestedDate
 
-        triggerRolloverRecovery(today)
-        return today.minusDays(1)
+        return when (rankingRolloverPort.getStatus(today)) {
+            RankingRolloverStatus.DONE -> today
+            RankingRolloverStatus.IN_PROGRESS -> {
+                warnRolloverIncompleteOnce(today, "이월이 자정을 넘겨 아직 실행 중")
+                today.minusDays(1)
+            }
+            RankingRolloverStatus.NOT_STARTED -> {
+                triggerRolloverRecovery(today)
+                today.minusDays(1)
+            }
+        }
     }
 
     private fun triggerRolloverRecovery(today: LocalDate) {
-        if (!rankingRolloverPort.tryLock(today)) return
+        // PROGRESS SET NX가 곧 분산 락 - 실패는 다른 인스턴스/요청이 방금 선점했다는 뜻이므로 무행동
+        if (!rankingRolloverPort.tryStart(today)) return
 
+        warnRolloverIncompleteOnce(today, "이월 시작 흔적 없음(배치 실패) - 복구를 트리거한다")
         recoveryExecutor.execute {
             runCatching {
                 rankingRolloverPort.carryOverSnapshot(fromDate = today.minusDays(1), toDate = today)
-                rankingRolloverPort.releaseLock(today)
+                rankingRolloverPort.complete(today)
             }.onFailure {
-                // 실패 시 락을 유지해 복구 재시도 폭주를 막는다 (락 TTL 만료 후 자연 재시도)
+                // PROGRESS를 유지해 복구 재시도 폭주를 막는다 (heartbeat가 멈추므로 TTL 만료 후 자연 재시도)
                 log.error("랭킹 이월 복구 실패. targetDate={}", today, it)
             }
+        }
+    }
+
+    /** 폴백 구간엔 매 요청이 미완료를 관측하므로 notified SET NX 가드로 최초 1회만 WARN을 남긴다. */
+    private fun warnRolloverIncompleteOnce(today: LocalDate, cause: String) {
+        if (rankingRolloverPort.tryMarkNotified(today)) {
+            log.warn("랭킹 이월 미완료 감지 - 전날 보드로 폴백 중. targetDate={}, cause={}", today, cause)
         }
     }
 

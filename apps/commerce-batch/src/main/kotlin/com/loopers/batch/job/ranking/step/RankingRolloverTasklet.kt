@@ -23,8 +23,10 @@ import kotlin.math.floor
  * snapshot:{D}를 페이징 순회하며 carry = floor(score × 0.1)을 D+1 보드(all/snapshot)에 반영한다.
  * carry가 0이면 add를 생략해 미미한 점수는 자연 소멸시키고 ZSET 크기를 억제한다.
  *
- * 분산 락(ranking:rollover:lock:{D+1})은 commerce-api의 장애 복구 트리거와 같은 키를 공유해
- * 배치·복구가 서로 중복 진입하지 못하게 한다.
+ * 상태 키(ranking:rollover:status:{D+1})는 PROGRESS SET NX로 분산 락을 겸하며 commerce-api의
+ * 장애 복구 트리거와 같은 키를 공유한다 — 배치·복구가 서로 중복 진입하지 못한다.
+ * 페이지 순회마다 PROGRESS TTL을 갱신(heartbeat)하고, 완료 시 DONE으로 덮어쓴다(락 해제 불필요).
+ * 실패 시 PROGRESS를 지우지 않는다 — heartbeat가 멈추므로 최대 10분 내 만료돼 재시도 가능해진다.
  */
 @StepScope
 @ConditionalOnProperty(name = ["spring.batch.job.name"], havingValue = RankingRolloverJobConfig.JOB_NAME)
@@ -41,23 +43,20 @@ class RankingRolloverTasklet(
     override fun execute(contribution: StepContribution, chunkContext: ChunkContext): RepeatStatus {
         val sourceDate = requestDate?.let { LocalDate.parse(it) } ?: LocalDate.now(ZONE)
         val targetDate = sourceDate.plusDays(1)
-        val lockKey = "ranking:rollover:lock:${targetDate.format(DATE_FORMAT)}"
+        val statusKey = "ranking:rollover:status:${targetDate.format(DATE_FORMAT)}"
 
-        val locked = master.opsForValue().setIfAbsent(lockKey, "1", LOCK_TTL) == true
-        if (!locked) {
-            log.warn("이월 락 획득 실패 - 다른 인스턴스가 실행 중이므로 종료한다. lockKey={}", lockKey)
+        val started = master.opsForValue().setIfAbsent(statusKey, STATUS_PROGRESS, PROGRESS_TTL) == true
+        if (!started) {
+            log.warn("이월 상태 선점 실패 - 다른 주체가 실행 중이거나 이미 완료됐으므로 종료한다. statusKey={}", statusKey)
             return RepeatStatus.FINISHED
         }
 
-        try {
-            carryOver(sourceDate, targetDate)
-        } finally {
-            master.delete(lockKey)
-        }
+        carryOver(sourceDate, targetDate, statusKey)
+        master.opsForValue().set(statusKey, STATUS_DONE, DONE_TTL)
         return RepeatStatus.FINISHED
     }
 
-    private fun carryOver(sourceDate: LocalDate, targetDate: LocalDate) {
+    private fun carryOver(sourceDate: LocalDate, targetDate: LocalDate, statusKey: String) {
         val fromKey = "ranking:snapshot:${sourceDate.format(DATE_FORMAT)}"
         val toAllKey = "ranking:all:${targetDate.format(DATE_FORMAT)}"
         val toSnapshotKey = "ranking:snapshot:${targetDate.format(DATE_FORMAT)}"
@@ -79,6 +78,9 @@ class RankingRolloverTasklet(
                 carried++
             }
 
+            // heartbeat - 살아있는 한 총 소요가 PROGRESS TTL을 넘어도 상태가 유지되고, 크래시하면 갱신이 멈춰 자연 만료된다
+            master.expire(statusKey, PROGRESS_TTL)
+
             if (tuples.size < PAGE_SIZE) break
             offset += PAGE_SIZE
         }
@@ -91,7 +93,10 @@ class RankingRolloverTasklet(
     companion object {
         private val ZONE = ZoneId.of("Asia/Seoul")
         private val DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE
-        private val LOCK_TTL = Duration.ofMinutes(5)
+        private const val STATUS_PROGRESS = "PROGRESS"
+        private const val STATUS_DONE = "DONE"
+        private val PROGRESS_TTL = Duration.ofMinutes(10)
+        private val DONE_TTL = Duration.ofDays(2)
         private val ZSET_TTL = Duration.ofDays(2)
         private const val CARRY_OVER_FACTOR = 0.1
         private const val PAGE_SIZE = 1000

@@ -19,6 +19,4 @@ class RankingService(
 
     fun getProductRanking(date: LocalDate, productId: Long): RankingEntry? =
         rankingRepositoryPort.getEntry(RankingBoard.allOf(date), productId)
-
-    fun exists(date: LocalDate): Boolean = rankingRepositoryPort.exists(RankingBoard.allOf(date))
 }

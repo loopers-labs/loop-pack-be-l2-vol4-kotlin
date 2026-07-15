@@ -8,7 +8,4 @@ interface RankingRepositoryPort {
 
     /** 특정 상품의 랭킹 항목. 보드에 없으면 null. */
     fun getEntry(board: RankingBoard, productId: Long): RankingEntry?
-
-    /** 보드 키 존재 여부 (이월 배치 실패 감지용). */
-    fun exists(board: RankingBoard): Boolean
 }

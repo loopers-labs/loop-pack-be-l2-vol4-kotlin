@@ -67,12 +67,4 @@ class RankingServiceTest {
 
         assertThat(rankingService.getProductRanking(date, 101L)).isEqualTo(entry)
     }
-
-    @DisplayName("exists는 all 보드 키 존재 여부를 반환한다.")
-    @Test
-    fun delegatesExists() {
-        every { rankingRepositoryPort.exists(board) } returns false
-
-        assertThat(rankingService.exists(date)).isFalse()
-    }
 }

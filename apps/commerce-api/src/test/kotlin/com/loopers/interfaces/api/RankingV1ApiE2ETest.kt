@@ -66,6 +66,13 @@ class RankingV1ApiE2ETest @Autowired constructor(
         redis.opsForZSet().add(board.key(), productId.toString(), score)
     }
 
+    private fun rolloverStatusKey(date: LocalDate): String =
+        "ranking:rollover:status:${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+
+    private fun markRolloverDone(date: LocalDate) {
+        redis.opsForValue().set(rolloverStatusKey(date), "DONE")
+    }
+
     private fun getRankings(query: String = ""): ResponseEntity<ApiResponse<Any>> =
         testRestTemplate.exchange(
             if (query.isEmpty()) RANKING_ENDPOINT else "$RANKING_ENDPOINT?$query",
@@ -85,6 +92,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
         fun returnsHydratedRankingPage() {
             val first = createProduct("1등 상품", 39000L)
             val second = createProduct("2등 상품", 15000L)
+            markRolloverDone(today)
             seedScore(RankingBoard.allOf(today), first.id, 1280.0)
             seedScore(RankingBoard.allOf(today), second.id, 500.0)
 
@@ -110,6 +118,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
         @Test
         fun defaultsToToday_whenDateOmitted() {
             val product = createProduct("오늘 상품", 10000L)
+            markRolloverDone(today)
             seedScore(RankingBoard.allOf(today), product.id, 50.0)
 
             val response = getRankings()
@@ -153,9 +162,9 @@ class RankingV1ApiE2ETest @Autowired constructor(
     @Nested
     inner class RolloverFallback {
 
-        @DisplayName("오늘 보드 키가 없으면 전날 랭킹으로 폴백 응답하고, 복구가 비동기로 오늘 보드를 생성한다.")
+        @DisplayName("이월 status가 없으면(배치 실패) 전날 랭킹으로 폴백 응답하고, 복구가 비동기로 이월 후 DONE을 찍는다.")
         @Test
-        fun fallsBackToYesterdayAndRecovers_whenTodayBoardMissing() {
+        fun fallsBackToYesterdayAndRecovers_whenRolloverNotStarted() {
             val yesterday = today.minusDays(1)
             val product = createProduct("어제의 1등", 20000L)
             seedScore(RankingBoard.allOf(yesterday), product.id, 100.0)
@@ -174,16 +183,40 @@ class RankingV1ApiE2ETest @Autowired constructor(
                 { assertThat(firstItem?.get("score")).isEqualTo(100.0) },
             )
 
-            // 복구: snapshot:{어제} ×0.1(floor) → 오늘 보드 생성
-            awaitUntil { redis.hasKey(RankingBoard.allOf(today).key()) }
+            // 복구: snapshot:{어제} ×0.1(floor) → 오늘 보드 생성 + status DONE 전이
+            awaitUntil { redis.opsForValue().get(rolloverStatusKey(today)) == "DONE" }
             assertThat(redis.opsForZSet().score(RankingBoard.allOf(today).key(), product.id.toString())).isEqualTo(10.0)
             assertThat(redis.opsForZSet().score(RankingBoard.snapshotOf(today).key(), product.id.toString())).isEqualTo(10.0)
 
-            // 복구 완료 후 요청부터는 오늘 보드로 정상 응답
+            // 복구 완료(DONE) 후 요청부터는 오늘 보드로 정상 응답
             val afterRecovery = getRankings("date=${dateParam(today)}")
             val afterData = afterRecovery.body?.data as? Map<*, *>
             val afterFirst = (afterData?.get("items") as? List<*>)?.get(0) as? Map<*, *>
             assertThat(afterFirst?.get("score")).isEqualTo(10.0)
+        }
+
+        @DisplayName("이월 status가 PROGRESS면(실행 중) 복구 트리거 없이 전날 랭킹으로 폴백만 한다.")
+        @Test
+        fun fallsBackWithoutRecovery_whenRolloverInProgress() {
+            val yesterday = today.minusDays(1)
+            val product = createProduct("어제의 1등", 20000L)
+            seedScore(RankingBoard.allOf(yesterday), product.id, 100.0)
+            seedScore(RankingBoard.snapshotOf(yesterday), product.id, 100.0)
+            redis.opsForValue().set(rolloverStatusKey(today), "PROGRESS")
+
+            val response = getRankings("date=${dateParam(today)}")
+
+            val data = response.body?.data as? Map<*, *>
+            val items = data?.get("items") as? List<*>
+            val firstItem = items?.get(0) as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(items).hasSize(1) },
+                { assertThat(firstItem?.get("score")).isEqualTo(100.0) },
+                // 실행 주체가 따로 있으므로 복구를 트리거하지 않는다 - 오늘 보드는 생성되지 않고 status도 그대로
+                { assertThat(redis.hasKey(RankingBoard.allOf(today).key())).isFalse() },
+                { assertThat(redis.opsForValue().get(rolloverStatusKey(today))).isEqualTo("PROGRESS") },
+            )
         }
 
         private fun awaitUntil(timeoutMs: Long = 10_000L, intervalMs: Long = 200L, condition: () -> Boolean) {

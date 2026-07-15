@@ -39,7 +39,7 @@ class RankingRolloverJobE2ETest @Autowired constructor(
     private val snapshotKey = "ranking:snapshot:20260714"
     private val targetAllKey = "ranking:all:20260715"
     private val targetSnapshotKey = "ranking:snapshot:20260715"
-    private val lockKey = "ranking:rollover:lock:20260715"
+    private val statusKey = "ranking:rollover:status:20260715"
 
     @AfterEach
     fun tearDown() {
@@ -51,7 +51,7 @@ class RankingRolloverJobE2ETest @Autowired constructor(
         .addLong("runId", System.nanoTime())
         .toJobParameters()
 
-    @DisplayName("snapshot:{D}의 점수를 floor(×0.1)해 all/snapshot:{D+1}에 이월하고, 락을 해제한다.")
+    @DisplayName("snapshot:{D}의 점수를 floor(×0.1)해 all/snapshot:{D+1}에 이월하고, status를 DONE으로 전이한다.")
     @Test
     fun carriesOverScores_withFloorAndSkipZero() {
         jobLauncherTestUtils.job = job
@@ -68,7 +68,8 @@ class RankingRolloverJobE2ETest @Autowired constructor(
             { assertThat(redis.opsForZSet().score(targetSnapshotKey, "101")).isEqualTo(128.0) },
             { assertThat(redis.opsForZSet().score(targetAllKey, "102")).isEqualTo(5.0) },
             { assertThat(vanishedScore).isNull() },
-            { assertThat(redis.hasKey(lockKey)).isFalse() },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
+            { assertThat(redis.getExpire(statusKey)).isGreaterThan(600L).isLessThanOrEqualTo(2 * 24 * 60 * 60L) },
         )
     }
 
@@ -96,11 +97,11 @@ class RankingRolloverJobE2ETest @Autowired constructor(
         assertThat(redis.getExpire(targetSnapshotKey)).isGreaterThan(0L).isLessThanOrEqualTo(2 * 24 * 60 * 60L)
     }
 
-    @DisplayName("다른 주체가 락을 잡고 있으면, 이월 없이 정상 종료한다.")
+    @DisplayName("다른 주체가 status를 선점(PROGRESS)하고 있으면, 이월 없이 정상 종료한다.")
     @Test
-    fun skipsCarryOver_whenLockHeldByOther() {
+    fun skipsCarryOver_whenStatusHeldByOther() {
         jobLauncherTestUtils.job = job
-        redis.opsForValue().set(lockKey, "held-by-other")
+        redis.opsForValue().set(statusKey, "PROGRESS")
         redis.opsForZSet().add(snapshotKey, "101", 1280.0)
 
         val jobExecution = jobLauncherTestUtils.launchJob(jobParameters())
@@ -108,7 +109,23 @@ class RankingRolloverJobE2ETest @Autowired constructor(
         assertAll(
             { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
             { assertThat(redis.hasKey(targetAllKey)).isFalse() },
-            { assertThat(redis.opsForValue().get(lockKey)).isEqualTo("held-by-other") },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("PROGRESS") },
+        )
+    }
+
+    @DisplayName("이미 DONE인 날짜에 재실행해도 status 선점에 실패해 중복 이월하지 않는다.")
+    @Test
+    fun skipsCarryOver_whenAlreadyDone() {
+        jobLauncherTestUtils.job = job
+        redis.opsForValue().set(statusKey, "DONE")
+        redis.opsForZSet().add(snapshotKey, "101", 1280.0)
+
+        val jobExecution = jobLauncherTestUtils.launchJob(jobParameters())
+
+        assertAll(
+            { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
+            { assertThat(redis.hasKey(targetAllKey)).isFalse() },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
         )
     }
 }

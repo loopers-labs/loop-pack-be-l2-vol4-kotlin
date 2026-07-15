@@ -57,7 +57,6 @@ class RankingRepositoryAdapterIntegrationTest @Autowired constructor(
     fun returnsEmpty_whenBoardMissing() {
         assertThat(rankingRepositoryPort.getPage(board, 0L, 20L)).isEmpty()
         assertThat(rankingRepositoryPort.getTotalCount(board)).isZero()
-        assertThat(rankingRepositoryPort.exists(board)).isFalse()
     }
 
     @DisplayName("getTotalCount는 보드의 전체 멤버 수를 반환한다.")
@@ -79,13 +78,5 @@ class RankingRepositoryAdapterIntegrationTest @Autowired constructor(
         assertThat(entry?.rank).isEqualTo(2L)
         assertThat(entry?.score).isEqualTo(900.0)
         assertThat(rankingRepositoryPort.getEntry(board, 999L)).isNull()
-    }
-
-    @DisplayName("exists는 보드 키가 있으면 true를 반환한다.")
-    @Test
-    fun returnsTrue_whenBoardExists() {
-        seed(101L to 1280.0)
-
-        assertThat(rankingRepositoryPort.exists(board)).isTrue()
     }
 }

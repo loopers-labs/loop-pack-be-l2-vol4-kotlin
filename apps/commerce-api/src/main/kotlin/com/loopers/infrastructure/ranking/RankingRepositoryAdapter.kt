@@ -39,6 +39,4 @@ class RankingRepositoryAdapter(
         val score = replica.opsForZSet().score(board.key(), member) ?: return null
         return RankingEntry(productId = productId, score = score, rank = rank + 1)
     }
-
-    override fun exists(board: RankingBoard): Boolean = replica.hasKey(board.key())
 }

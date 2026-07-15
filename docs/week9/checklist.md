@@ -57,8 +57,8 @@
 - [ ] **1. 날짜별 키 계산** — 이벤트 발생 시각(KST) 기준 `ranking:all:{yyyyMMdd}` 키 산출 기능
 - [ ] **2. ZSET 점수 반영** — `ProductMetricsService.handle` 소비 지점에서 이벤트 타입별 `Weight × Score` 를 `ZINCRBY` 로 누적. `masterRedisTemplate.opsForZSet().incrementScore(key, productId, delta)` (R8 `OrderQueueRepository` 패턴)
 - [ ] **3. TTL 부여** — 키 최초 생성 시점에 2Day TTL. `INCR` 후 TTL 없으면 붙이기(원자성: Lua 또는 `expire` 조건부 — 매 이벤트 재설정 피함)
-- [ ] **4. 스코어 모델 확정** — 위 예시 가중치를 **우리 서비스 기준으로 재산정**. 주문 `price × amount` 스케일 지배 → log 정규화 여부 판단. (근거 WRITING-LOG)
-- [ ] **5. 감소 이벤트 정책** — 좋아요 취소(`ProductUnlikedEvent`) 등 감소 신호를 대칭 차감할지 무시할지 결정. 음수 score 허용 여부. (근거 WRITING-LOG)
+- [x] **4. 스코어 모델 확정 ✅ 2026-07-15** — view 0.1 / like 0.2 / 주문 **order line당 0.7 고정**. 가격·수량 미반영(건수 카운트 — 인기 랭킹 업계 표준, 조사 13건 `purchase-signal-research.html`). 주문 1건 0.7 > 좋아요 3건 0.6 충족. (근거 WRITING-LOG)
+- [x] **5. 감소 이벤트 정책 ✅ 2026-07-15** — 좋아요 취소 대칭 차감(−0.2), 음수 score 허용. (근거 WRITING-LOG)
 - [ ] **원자성/멱등** — 이미 `EventHandled`(event_id) 멱등 위에서 동작하므로 ZSET 갱신도 같은 멱등 경계 안에 둔다. `product_metrics` upsert 와 ZSET 갱신의 **정합성 경계**(같은 트랜잭션/배치 vs 분리) 결정
 
 ## Step 2 — Ranking API
@@ -84,8 +84,8 @@
 
 ## 진입 전 확정할 열린 결정 (→ WRITING-LOG)
 
-1. **스코어 모델** — 가중치 값 + 주문 log 정규화 여부
-2. **감소 이벤트** — 좋아요 취소 대칭 차감 vs 무시, 음수 허용 여부
+1. ~~**스코어 모델**~~ ✅ 2026-07-15 확정: view 0.1 / like 0.2 / **주문 order line당 0.7 고정 (가격·수량 미반영 — 건수 카운트, Shopify·Amazon 계열)**. 조사 13건: `purchase-signal-research.html`, 근거: WRITING-LOG
+2. ~~**감소 이벤트**~~ ✅ 2026-07-15 확정: 좋아요 취소 **대칭 차감(−0.2)**, 음수 score 허용 (metrics 동작 일치 · ZINCRBY 의미론 보존)
 3. **ZSET 갱신 위치** — collector 소비 트랜잭션/배치 안에서 product_metrics와 함께 vs 분리
 4. **TTL 부여 방식** — 매 이벤트 재설정 회피(조건부 expire / Lua)
 5. **Aggregation** — N+1 회피 전략(IN 일괄 / 캐시 재사용)

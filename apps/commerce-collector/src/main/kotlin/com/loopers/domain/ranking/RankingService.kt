@@ -1,0 +1,54 @@
+package com.loopers.domain.ranking
+
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
+/**
+ * 랭킹 반영 Domain Service. Inbox 멱등 확인 → 컷오프 판단(적재 대상 보드 결정) → 점수 반영 → Inbox 기록을
+ * 오케스트레이션한다. 트랜잭션 경계는 application 계층이 가진다.
+ */
+class RankingService(
+    private val rankingRepositoryPort: RankingRepositoryPort,
+    private val rankingEventInboxRepositoryPort: RankingEventInboxRepositoryPort,
+) {
+    fun reflect(occurredAt: ZonedDateTime, productId: Long, type: RankingEventType, delta: Long, eventId: String) {
+        if (rankingEventInboxRepositoryPort.isHandled(eventId)) return
+
+        val entries = resolveBoardScores(occurredAt, type, delta)
+        rankingRepositoryPort.incrementScore(entries, productId, eventId)
+        rankingEventInboxRepositoryPort.markHandled(eventId)
+    }
+
+    /**
+     * 23:50 컷오프 기준 적재 대상 보드 결정.
+     * - 00:00 ~ 23:50 : 오늘 all/snapshot += w×delta
+     * - 23:50 ~ 24:00 : 오늘 all += w×delta, 내일 all/snapshot += 0.1×w×delta (snapshot:{오늘}은 동결)
+     */
+    private fun resolveBoardScores(occurredAt: ZonedDateTime, type: RankingEventType, delta: Long): List<BoardScore> {
+        val seoulOccurredAt = occurredAt.withZoneSameInstant(ZONE)
+        val date = seoulOccurredAt.toLocalDate()
+        val score = type.weight * delta
+
+        return if (seoulOccurredAt.toLocalTime() < CUTOFF) {
+            listOf(
+                BoardScore(RankingBoard.allOf(date), score),
+                BoardScore(RankingBoard.snapshotOf(date), score),
+            )
+        } else {
+            // 저장 가중치가 ×10 스케일이라 0.1배도 항상 정수다
+            val carryScore = score / CARRY_OVER_DIVISOR
+            listOf(
+                BoardScore(RankingBoard.allOf(date), score),
+                BoardScore(RankingBoard.allOf(date.plusDays(1)), carryScore),
+                BoardScore(RankingBoard.snapshotOf(date.plusDays(1)), carryScore),
+            )
+        }
+    }
+
+    companion object {
+        private val ZONE = ZoneId.of("Asia/Seoul")
+        private val CUTOFF = LocalTime.of(23, 50)
+        private const val CARRY_OVER_DIVISOR = 10L
+    }
+}

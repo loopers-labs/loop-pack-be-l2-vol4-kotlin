@@ -4,7 +4,6 @@ import com.loopers.application.outbox.OutboxFactory
 import com.loopers.domain.auth.AuthService
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
-import com.loopers.domain.coupon.CouponIssueFailureReason
 import com.loopers.domain.coupon.CouponIssueRequest
 import com.loopers.domain.coupon.CouponIssueRequestRepositoryPort
 import com.loopers.domain.coupon.CouponTemplateService

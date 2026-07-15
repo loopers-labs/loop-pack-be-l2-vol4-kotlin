@@ -4,7 +4,6 @@ import com.loopers.application.outbox.OutboxFactory
 import com.loopers.domain.auth.AuthService
 import com.loopers.domain.common.PageRequest
 import com.loopers.domain.common.PageResult
-import com.loopers.domain.coupon.CouponIssueFailureReason
 import com.loopers.domain.coupon.CouponIssueRequest
 import com.loopers.domain.coupon.CouponIssueRequestRepositoryPort
 import com.loopers.domain.coupon.CouponIssueStatus
@@ -205,12 +204,20 @@ class CouponApplicationServiceAdapterTest {
         val t = template(id = 3L)
         val issuedAt = LocalDateTime.parse("2026-06-07T10:00:00")
         val coupon1 = UserCoupon(
-            id = 21L, couponTemplateId = 3L, userId = 9L,
-            status = CouponStatus.AVAILABLE, issuedAt = issuedAt, usedAt = null,
+            id = 21L,
+            couponTemplateId = 3L,
+            userId = 9L,
+            status = CouponStatus.AVAILABLE,
+            issuedAt = issuedAt,
+            usedAt = null,
         )
         val coupon2 = UserCoupon(
-            id = 20L, couponTemplateId = 3L, userId = 8L,
-            status = CouponStatus.USED, issuedAt = issuedAt, usedAt = LocalDateTime.parse("2026-06-07T11:00:00"),
+            id = 20L,
+            couponTemplateId = 3L,
+            userId = 8L,
+            status = CouponStatus.USED,
+            issuedAt = issuedAt,
+            usedAt = LocalDateTime.parse("2026-06-07T11:00:00"),
         )
         val pageRequest = PageRequest(page = 0, size = 20)
         every { couponTemplateService.getById(3L) } returns t
@@ -245,7 +252,12 @@ class CouponApplicationServiceAdapterTest {
         minOrderAmount: Long = 30_000L,
         totalCount: Long = 100L,
     ) = CouponTemplate(
-        id = id, name = name, type = type, value = value,
-        minOrderAmount = minOrderAmount, expiredAt = expiredAt, totalCount = totalCount,
+        id = id,
+        name = name,
+        type = type,
+        value = value,
+        minOrderAmount = minOrderAmount,
+        expiredAt = expiredAt,
+        totalCount = totalCount,
     )
 }

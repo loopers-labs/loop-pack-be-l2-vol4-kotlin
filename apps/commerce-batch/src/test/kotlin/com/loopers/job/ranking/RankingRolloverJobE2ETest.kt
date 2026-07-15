@@ -36,10 +36,10 @@ class RankingRolloverJobE2ETest @Autowired constructor(
     private val redis = masterTemplate as RedisTemplate<String, String>
 
     private val sourceDate = LocalDate.of(2026, 7, 14)
-    private val snapshotKey = "ranking:snapshot:20260714"
-    private val targetAllKey = "ranking:all:20260715"
-    private val targetSnapshotKey = "ranking:snapshot:20260715"
-    private val statusKey = "ranking:rollover:status:20260715"
+    private val snapshotKey = "ranking:snapshot:v1:20260714"
+    private val targetAllKey = "ranking:all:v1:20260715"
+    private val targetSnapshotKey = "ranking:snapshot:v1:20260715"
+    private val statusKey = "ranking:rollover:status:v1:20260715"
 
     @AfterEach
     fun tearDown() {
@@ -110,6 +110,47 @@ class RankingRolloverJobE2ETest @Autowired constructor(
             { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
             { assertThat(redis.hasKey(targetAllKey)).isFalse() },
             { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("PROGRESS") },
+        )
+    }
+
+    @DisplayName("boards KV에 여러 버전이 있으면 각 버전의 snapshot을 각자의 D+1 보드로 이월하고, 버전별 status를 DONE으로 전이한다.")
+    @Test
+    fun carriesOverEveryBoardVersion() {
+        jobLauncherTestUtils.job = job
+        redis.opsForValue().set(
+            "ranking:weights:boards",
+            """[{"version":"v1","weights":{"VIEW":10,"LIKE":50,"ORDER":500}},{"version":"v2","weights":{"VIEW":20,"LIKE":80,"ORDER":400}}]""",
+        )
+        redis.opsForZSet().add(snapshotKey, "101", 1000.0)
+        redis.opsForZSet().add("ranking:snapshot:v2:20260714", "101", 2000.0)
+
+        jobLauncherTestUtils.launchJob(jobParameters())
+
+        assertAll(
+            { assertThat(redis.opsForZSet().score(targetAllKey, "101")).isEqualTo(100.0) },
+            { assertThat(redis.opsForZSet().score("ranking:all:v2:20260715", "101")).isEqualTo(200.0) },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
+            { assertThat(redis.opsForValue().get("ranking:rollover:status:v2:20260715")).isEqualTo("DONE") },
+        )
+    }
+
+    @DisplayName("한 버전이 이미 선점(PROGRESS)돼 있어도 다른 버전의 이월은 정상 수행된다.")
+    @Test
+    fun carriesOverRemainingVersions_whenOneVersionHeld() {
+        jobLauncherTestUtils.job = job
+        redis.opsForValue().set(
+            "ranking:weights:boards",
+            """[{"version":"v1","weights":{"VIEW":10,"LIKE":50,"ORDER":500}},{"version":"v2","weights":{"VIEW":20,"LIKE":80,"ORDER":400}}]""",
+        )
+        redis.opsForValue().set(statusKey, "PROGRESS")
+        redis.opsForZSet().add(snapshotKey, "101", 1000.0)
+        redis.opsForZSet().add("ranking:snapshot:v2:20260714", "101", 2000.0)
+
+        jobLauncherTestUtils.launchJob(jobParameters())
+
+        assertAll(
+            { assertThat(redis.hasKey(targetAllKey)).isFalse() },
+            { assertThat(redis.opsForZSet().score("ranking:all:v2:20260715", "101")).isEqualTo(200.0) },
         )
     }
 

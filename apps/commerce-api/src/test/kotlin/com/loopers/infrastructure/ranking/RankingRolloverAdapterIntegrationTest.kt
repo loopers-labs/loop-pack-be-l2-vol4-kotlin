@@ -27,8 +27,8 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
 
     private val yesterday = LocalDate.of(2026, 7, 14)
     private val today = LocalDate.of(2026, 7, 15)
-    private val statusKey = "ranking:rollover:status:20260715"
-    private val notifiedKey = "ranking:rollover:notified:20260715"
+    private val statusKey = "ranking:rollover:status:v1:20260715"
+    private val notifiedKey = "ranking:rollover:notified:v1:20260715"
 
     @AfterEach
     fun tearDown() {
@@ -38,20 +38,20 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
     @DisplayName("getStatus는 status 값(DONE/PROGRESS/없음)을 3-way로 판별한다.")
     @Test
     fun resolvesStatusThreeWay() {
-        assertThat(rankingRolloverPort.getStatus(today)).isEqualTo(RankingRolloverStatus.NOT_STARTED)
+        assertThat(rankingRolloverPort.getStatus("v1", today)).isEqualTo(RankingRolloverStatus.NOT_STARTED)
 
         master.opsForValue().set(statusKey, "PROGRESS")
-        assertThat(rankingRolloverPort.getStatus(today)).isEqualTo(RankingRolloverStatus.IN_PROGRESS)
+        assertThat(rankingRolloverPort.getStatus("v1", today)).isEqualTo(RankingRolloverStatus.IN_PROGRESS)
 
         master.opsForValue().set(statusKey, "DONE")
-        assertThat(rankingRolloverPort.getStatus(today)).isEqualTo(RankingRolloverStatus.DONE)
+        assertThat(rankingRolloverPort.getStatus("v1", today)).isEqualTo(RankingRolloverStatus.DONE)
     }
 
     @DisplayName("tryStart는 SET NX 선점 - 최초 1회만 성공하고, PROGRESS와 TTL이 기록된다.")
     @Test
     fun tryStartActsAsDistributedLock() {
-        val first = rankingRolloverPort.tryStart(today)
-        val second = rankingRolloverPort.tryStart(today)
+        val first = rankingRolloverPort.tryStart("v1", today)
+        val second = rankingRolloverPort.tryStart("v1", today)
 
         assertAll(
             { assertThat(first).isTrue() },
@@ -64,14 +64,14 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
     @DisplayName("carryOverSnapshot은 floor(×0.1)로 이월하고 0점은 소멸시키며, D+1 보드에 TTL을 설정한다.")
     @Test
     fun carriesOverWithFloorAndSkipZero() {
-        val fromKey = "ranking:snapshot:20260714"
-        val toAllKey = "ranking:all:20260715"
-        val toSnapshotKey = "ranking:snapshot:20260715"
+        val fromKey = "ranking:snapshot:v1:20260714"
+        val toAllKey = "ranking:all:v1:20260715"
+        val toSnapshotKey = "ranking:snapshot:v1:20260715"
         master.opsForZSet().add(fromKey, "101", 1280.0) // → 128
         master.opsForZSet().add(fromKey, "102", 55.0) // → floor(5.5) = 5
         master.opsForZSet().add(fromKey, "103", 5.0) // → floor(0.5) = 0 → 소멸
 
-        rankingRolloverPort.carryOverSnapshot(fromDate = yesterday, toDate = today)
+        rankingRolloverPort.carryOverSnapshot("v1", fromDate = yesterday, toDate = today)
 
         val vanishedScore: Double? = master.opsForZSet().score(toAllKey, "103")
         assertAll(
@@ -88,9 +88,9 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
     @Test
     fun refreshesProgressTtlAsHeartbeat() {
         master.opsForValue().set(statusKey, "PROGRESS", java.time.Duration.ofSeconds(30))
-        master.opsForZSet().add("ranking:snapshot:20260714", "101", 1280.0)
+        master.opsForZSet().add("ranking:snapshot:v1:20260714", "101", 1280.0)
 
-        rankingRolloverPort.carryOverSnapshot(fromDate = yesterday, toDate = today)
+        rankingRolloverPort.carryOverSnapshot("v1", fromDate = yesterday, toDate = today)
 
         assertThat(master.getExpire(statusKey, TimeUnit.SECONDS)).isGreaterThan(30L).isLessThanOrEqualTo(600L)
     }
@@ -98,9 +98,9 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
     @DisplayName("complete는 status를 DONE으로 덮어쓴다(TTL 2일) - 별도 락 해제가 필요 없다.")
     @Test
     fun completeOverwritesStatusToDone() {
-        rankingRolloverPort.tryStart(today)
+        rankingRolloverPort.tryStart("v1", today)
 
-        rankingRolloverPort.complete(today)
+        rankingRolloverPort.complete("v1", today)
 
         assertAll(
             { assertThat(master.opsForValue().get(statusKey)).isEqualTo("DONE") },
@@ -111,8 +111,8 @@ class RankingRolloverAdapterIntegrationTest @Autowired constructor(
     @DisplayName("tryMarkNotified는 SET NX 가드 - 최초 1회만 true를 반환해 WARN 로그 중복을 막는다.")
     @Test
     fun notifiedGuardAllowsOnlyFirst() {
-        val first = rankingRolloverPort.tryMarkNotified(today)
-        val second = rankingRolloverPort.tryMarkNotified(today)
+        val first = rankingRolloverPort.tryMarkNotified("v1", today)
+        val second = rankingRolloverPort.tryMarkNotified("v1", today)
 
         assertAll(
             { assertThat(first).isTrue() },

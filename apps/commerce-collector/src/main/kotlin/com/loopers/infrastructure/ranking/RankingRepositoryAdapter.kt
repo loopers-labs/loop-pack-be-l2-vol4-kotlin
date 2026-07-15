@@ -27,9 +27,9 @@ class RankingRepositoryAdapter(
 
     private val incrementScript = DefaultRedisScript(INCREMENT_WITH_DEDUP_LUA, Long::class.java)
 
-    override fun incrementScore(entries: List<BoardScore>, productId: Long, eventId: String): Boolean {
+    override fun incrementScore(version: String, entries: List<BoardScore>, productId: Long, eventId: String): Boolean {
         val keys = buildList {
-            add(dedupKey(eventId))
+            add(dedupKey(version, eventId))
             entries.forEach { add(it.board.key()) }
         }
         val args = buildList {
@@ -41,12 +41,13 @@ class RankingRepositoryAdapter(
 
         val applied = master.execute(incrementScript, keys, *args.toTypedArray()) == 1L
         if (!applied) {
-            log.info("이미 반영된 이벤트라 랭킹 증가를 건너뛴다. eventId={}", eventId)
+            log.info("이미 반영된 이벤트라 랭킹 증가를 건너뛴다. version={}, eventId={}", version, eventId)
         }
         return applied
     }
 
-    private fun dedupKey(eventId: String): String = "ranking:handled:$eventId"
+    /** 버전별로 분리 — v2 병행 구축 시 배치 replay와 collector 이중 적재가 같은 이벤트를 만나도 버전당 한 번만 반영된다. */
+    private fun dedupKey(version: String, eventId: String): String = "ranking:handled:$version:$eventId"
 
     companion object {
         private const val DEDUP_TTL_SECONDS = 24 * 60 * 60L

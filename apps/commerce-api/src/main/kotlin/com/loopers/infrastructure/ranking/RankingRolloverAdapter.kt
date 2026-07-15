@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.floor
 
 /**
- * 이월 상태 머신 어댑터. ranking:rollover:status:{D}가 PROGRESS SET NX로 분산 락을 겸하고,
+ * 이월 상태 머신 어댑터. ranking:rollover:status:{v}:{D}가 PROGRESS SET NX로 분산 락을 겸하고,
  * 완료 시 DONE으로 덮어써 별도 락 해제가 필요 없다. 정기 이월 배치(commerce-batch)와 같은 키를 공유해
  * 배치 실행 중 api 측 복구가 중복 진입하지 못하게 한다.
  */
@@ -28,21 +28,21 @@ class RankingRolloverAdapter(
     @Suppress("UNCHECKED_CAST")
     private val master = masterTemplate as RedisTemplate<String, String>
 
-    override fun getStatus(targetDate: LocalDate): RankingRolloverStatus =
-        when (master.opsForValue().get(statusKey(targetDate))) {
+    override fun getStatus(version: String, targetDate: LocalDate): RankingRolloverStatus =
+        when (master.opsForValue().get(statusKey(version, targetDate))) {
             STATUS_DONE -> RankingRolloverStatus.DONE
             STATUS_PROGRESS -> RankingRolloverStatus.IN_PROGRESS
             else -> RankingRolloverStatus.NOT_STARTED
         }
 
-    override fun tryStart(targetDate: LocalDate): Boolean =
-        master.opsForValue().setIfAbsent(statusKey(targetDate), STATUS_PROGRESS, PROGRESS_TTL) == true
+    override fun tryStart(version: String, targetDate: LocalDate): Boolean =
+        master.opsForValue().setIfAbsent(statusKey(version, targetDate), STATUS_PROGRESS, PROGRESS_TTL) == true
 
-    override fun carryOverSnapshot(fromDate: LocalDate, toDate: LocalDate) {
-        val fromKey = RankingBoard.snapshotOf(fromDate).key()
-        val toAllKey = RankingBoard.allOf(toDate).key()
-        val toSnapshotKey = RankingBoard.snapshotOf(toDate).key()
-        val statusKey = statusKey(toDate)
+    override fun carryOverSnapshot(version: String, fromDate: LocalDate, toDate: LocalDate) {
+        val fromKey = RankingBoard.snapshotOf(version, fromDate).key()
+        val toAllKey = RankingBoard.allOf(version, toDate).key()
+        val toSnapshotKey = RankingBoard.snapshotOf(version, toDate).key()
+        val statusKey = statusKey(version, toDate)
 
         var offset = 0L
         var carried = 0L
@@ -73,18 +73,18 @@ class RankingRolloverAdapter(
         log.info("랭킹 이월 완료. from={}, to={}, carriedMembers={}", fromKey, toAllKey, carried)
     }
 
-    override fun complete(targetDate: LocalDate) {
-        master.opsForValue().set(statusKey(targetDate), STATUS_DONE, DONE_TTL)
+    override fun complete(version: String, targetDate: LocalDate) {
+        master.opsForValue().set(statusKey(version, targetDate), STATUS_DONE, DONE_TTL)
     }
 
-    override fun tryMarkNotified(targetDate: LocalDate): Boolean =
-        master.opsForValue().setIfAbsent(notifiedKey(targetDate), "1", NOTIFIED_TTL) == true
+    override fun tryMarkNotified(version: String, targetDate: LocalDate): Boolean =
+        master.opsForValue().setIfAbsent(notifiedKey(version, targetDate), "1", NOTIFIED_TTL) == true
 
-    private fun statusKey(targetDate: LocalDate): String =
-        "ranking:rollover:status:${targetDate.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+    private fun statusKey(version: String, targetDate: LocalDate): String =
+        "ranking:rollover:status:$version:${targetDate.format(DateTimeFormatter.BASIC_ISO_DATE)}"
 
-    private fun notifiedKey(targetDate: LocalDate): String =
-        "ranking:rollover:notified:${targetDate.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+    private fun notifiedKey(version: String, targetDate: LocalDate): String =
+        "ranking:rollover:notified:$version:${targetDate.format(DateTimeFormatter.BASIC_ISO_DATE)}"
 
     companion object {
         private const val STATUS_PROGRESS = "PROGRESS"

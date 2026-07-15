@@ -67,7 +67,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
     }
 
     private fun rolloverStatusKey(date: LocalDate): String =
-        "ranking:rollover:status:${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+        "ranking:rollover:status:v1:${date.format(DateTimeFormatter.BASIC_ISO_DATE)}"
 
     private fun markRolloverDone(date: LocalDate) {
         redis.opsForValue().set(rolloverStatusKey(date), "DONE")
@@ -93,8 +93,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
             val first = createProduct("1등 상품", 39000L)
             val second = createProduct("2등 상품", 15000L)
             markRolloverDone(today)
-            seedScore(RankingBoard.allOf(today), first.id, 1280.0)
-            seedScore(RankingBoard.allOf(today), second.id, 500.0)
+            seedScore(RankingBoard.allOf("v1", today), first.id, 1280.0)
+            seedScore(RankingBoard.allOf("v1", today), second.id, 500.0)
 
             val response = getRankings("date=${dateParam(today)}&page=1&size=20")
 
@@ -119,7 +119,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
         fun defaultsToToday_whenDateOmitted() {
             val product = createProduct("오늘 상품", 10000L)
             markRolloverDone(today)
-            seedScore(RankingBoard.allOf(today), product.id, 50.0)
+            seedScore(RankingBoard.allOf("v1", today), product.id, 50.0)
 
             val response = getRankings()
 
@@ -167,8 +167,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
         fun fallsBackToYesterdayAndRecovers_whenRolloverNotStarted() {
             val yesterday = today.minusDays(1)
             val product = createProduct("어제의 1등", 20000L)
-            seedScore(RankingBoard.allOf(yesterday), product.id, 100.0)
-            seedScore(RankingBoard.snapshotOf(yesterday), product.id, 100.0)
+            seedScore(RankingBoard.allOf("v1", yesterday), product.id, 100.0)
+            seedScore(RankingBoard.snapshotOf("v1", yesterday), product.id, 100.0)
 
             val response = getRankings("date=${dateParam(today)}")
 
@@ -185,8 +185,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
 
             // 복구: snapshot:{어제} ×0.1(floor) → 오늘 보드 생성 + status DONE 전이
             awaitUntil { redis.opsForValue().get(rolloverStatusKey(today)) == "DONE" }
-            assertThat(redis.opsForZSet().score(RankingBoard.allOf(today).key(), product.id.toString())).isEqualTo(10.0)
-            assertThat(redis.opsForZSet().score(RankingBoard.snapshotOf(today).key(), product.id.toString())).isEqualTo(10.0)
+            assertThat(redis.opsForZSet().score(RankingBoard.allOf("v1", today).key(), product.id.toString())).isEqualTo(10.0)
+            assertThat(redis.opsForZSet().score(RankingBoard.snapshotOf("v1", today).key(), product.id.toString())).isEqualTo(10.0)
 
             // 복구 완료(DONE) 후 요청부터는 오늘 보드로 정상 응답
             val afterRecovery = getRankings("date=${dateParam(today)}")
@@ -200,8 +200,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
         fun fallsBackWithoutRecovery_whenRolloverInProgress() {
             val yesterday = today.minusDays(1)
             val product = createProduct("어제의 1등", 20000L)
-            seedScore(RankingBoard.allOf(yesterday), product.id, 100.0)
-            seedScore(RankingBoard.snapshotOf(yesterday), product.id, 100.0)
+            seedScore(RankingBoard.allOf("v1", yesterday), product.id, 100.0)
+            seedScore(RankingBoard.snapshotOf("v1", yesterday), product.id, 100.0)
             redis.opsForValue().set(rolloverStatusKey(today), "PROGRESS")
 
             val response = getRankings("date=${dateParam(today)}")
@@ -214,7 +214,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
                 { assertThat(items).hasSize(1) },
                 { assertThat(firstItem?.get("score")).isEqualTo(100.0) },
                 // 실행 주체가 따로 있으므로 복구를 트리거하지 않는다 - 오늘 보드는 생성되지 않고 status도 그대로
-                { assertThat(redis.hasKey(RankingBoard.allOf(today).key())).isFalse() },
+                { assertThat(redis.hasKey(RankingBoard.allOf("v1", today).key())).isFalse() },
                 { assertThat(redis.opsForValue().get(rolloverStatusKey(today))).isEqualTo("PROGRESS") },
             )
         }
@@ -238,8 +238,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
         fun mergesRanking_whenProductRankedToday() {
             val ranked = createProduct("랭킹 상품", 30000L)
             val other = createProduct("다른 상품", 10000L)
-            seedScore(RankingBoard.allOf(today), ranked.id, 500.0)
-            seedScore(RankingBoard.allOf(today), other.id, 900.0)
+            seedScore(RankingBoard.allOf("v1", today), ranked.id, 500.0)
+            seedScore(RankingBoard.allOf("v1", today), other.id, 900.0)
 
             val response = testRestTemplate.exchange(
                 "/api/v1/products/${ranked.id}",

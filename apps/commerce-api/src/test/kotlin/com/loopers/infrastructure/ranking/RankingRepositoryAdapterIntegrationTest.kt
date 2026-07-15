@@ -24,7 +24,7 @@ class RankingRepositoryAdapterIntegrationTest @Autowired constructor(
     private val master = masterTemplate as RedisTemplate<String, String>
 
     private val date = LocalDate.of(2026, 7, 14)
-    private val board = RankingBoard.allOf(date)
+    private val board = RankingBoard.allOf("v1", date)
 
     @AfterEach
     fun tearDown() {

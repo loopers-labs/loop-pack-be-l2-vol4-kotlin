@@ -16,6 +16,7 @@ class RankingServiceTest {
 
     private lateinit var rankingRepositoryPort: RankingRepositoryPort
     private lateinit var rankingEventInboxRepositoryPort: RankingEventInboxRepositoryPort
+    private lateinit var rankingWeightBoardsPort: RankingWeightBoardsPort
     private lateinit var rankingService: RankingService
 
     private val date = LocalDate.of(2026, 7, 14)
@@ -24,20 +25,22 @@ class RankingServiceTest {
     fun setUp() {
         rankingRepositoryPort = mockk()
         rankingEventInboxRepositoryPort = mockk()
-        rankingService = RankingService(rankingRepositoryPort, rankingEventInboxRepositoryPort)
+        rankingWeightBoardsPort = mockk()
+        rankingService = RankingService(rankingRepositoryPort, rankingEventInboxRepositoryPort, rankingWeightBoardsPort)
 
         every { rankingEventInboxRepositoryPort.isHandled(any()) } returns false
         every { rankingEventInboxRepositoryPort.markHandled(any()) } returns Unit
-        every { rankingRepositoryPort.incrementScore(any(), any(), any()) } returns true
+        every { rankingWeightBoardsPort.getActiveBoards() } returns listOf(RankingWeights.default())
+        every { rankingRepositoryPort.incrementScore(any(), any(), any(), any()) } returns true
     }
 
     private fun reflect(occurredAt: ZonedDateTime, type: RankingEventType = RankingEventType.LIKE, delta: Long = 1L) {
         rankingService.reflect(occurredAt = occurredAt, productId = 101L, type = type, delta = delta, eventId = "event-1")
     }
 
-    private fun capturedEntries(): List<BoardScore> {
+    private fun capturedEntries(version: String = "v1"): List<BoardScore> {
         val entries = slot<List<BoardScore>>()
-        verify { rankingRepositoryPort.incrementScore(capture(entries), 101L, "event-1") }
+        verify { rankingRepositoryPort.incrementScore(version, capture(entries), 101L, "event-1") }
         return entries.captured
     }
 
@@ -51,18 +54,59 @@ class RankingServiceTest {
 
             reflect(ZonedDateTime.parse("2026-07-14T10:00:00+09:00[Asia/Seoul]"))
 
-            verify(exactly = 0) { rankingRepositoryPort.incrementScore(any(), any(), any()) }
+            verify(exactly = 0) { rankingRepositoryPort.incrementScore(any(), any(), any(), any()) }
             verify(exactly = 0) { rankingEventInboxRepositoryPort.markHandled(any()) }
         }
 
         @DisplayName("Redis dedup에 걸려 incrementScore가 false를 반환해도(재시도 정상 경로), Inbox 기록은 수행된다.")
         @Test
         fun marksHandled_whenRedisDedupSkips() {
-            every { rankingRepositoryPort.incrementScore(any(), any(), any()) } returns false
+            every { rankingRepositoryPort.incrementScore(any(), any(), any(), any()) } returns false
 
             reflect(ZonedDateTime.parse("2026-07-14T10:00:00+09:00[Asia/Seoul]"))
 
             verify(exactly = 1) { rankingEventInboxRepositoryPort.markHandled("event-1") }
+        }
+    }
+
+    @DisplayName("버전별 이중 적재 - ")
+    @Nested
+    inner class VersionedWrite {
+        private val morning = ZonedDateTime.parse("2026-07-14T10:00:00+09:00[Asia/Seoul]")
+
+        @DisplayName("boards에 2개 버전이 있으면 각 버전의 가중치로 버전마다 1회씩 적재된다.")
+        @Test
+        fun writesEachVersion_withOwnWeights() {
+            every { rankingWeightBoardsPort.getActiveBoards() } returns listOf(
+                RankingWeights.default(),
+                RankingWeights("v2", mapOf(RankingEventType.LIKE to 80L)),
+            )
+
+            reflect(morning)
+
+            val v1Entries = capturedEntries("v1")
+            val v2Entries = capturedEntries("v2")
+            assertThat(v1Entries).containsExactly(
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+                BoardScore(RankingBoard.snapshotOf("v1", date), 50L),
+            )
+            assertThat(v2Entries).containsExactly(
+                BoardScore(RankingBoard.allOf("v2", date), 80L),
+                BoardScore(RankingBoard.snapshotOf("v2", date), 80L),
+            )
+        }
+
+        @DisplayName("버전 설정에 없는 이벤트 타입은 기본 가중치로 계산된다.")
+        @Test
+        fun fallsBackToDefaultWeight_whenTypeMissing() {
+            every { rankingWeightBoardsPort.getActiveBoards() } returns listOf(
+                RankingWeights("v2", mapOf(RankingEventType.LIKE to 80L)),
+            )
+
+            reflect(morning, type = RankingEventType.ORDER)
+
+            val entries = capturedEntries("v2")
+            assertThat(entries.map { it.scoreDelta }).containsOnly(500L)
         }
     }
 
@@ -76,8 +120,8 @@ class RankingServiceTest {
 
             val entries = capturedEntries()
             assertThat(entries).containsExactly(
-                BoardScore(RankingBoard.allOf(date), 50L),
-                BoardScore(RankingBoard.snapshotOf(date), 50L),
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+                BoardScore(RankingBoard.snapshotOf("v1", date), 50L),
             )
         }
 
@@ -88,9 +132,9 @@ class RankingServiceTest {
 
             val entries = capturedEntries()
             assertThat(entries).containsExactly(
-                BoardScore(RankingBoard.allOf(date), 50L),
-                BoardScore(RankingBoard.allOf(date.plusDays(1)), 5L),
-                BoardScore(RankingBoard.snapshotOf(date.plusDays(1)), 5L),
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+                BoardScore(RankingBoard.allOf("v1", date.plusDays(1)), 5L),
+                BoardScore(RankingBoard.snapshotOf("v1", date.plusDays(1)), 5L),
             )
         }
 
@@ -101,8 +145,8 @@ class RankingServiceTest {
 
             val entries = capturedEntries()
             assertThat(entries).hasSize(3)
-            assertThat(entries.map { it.board }).doesNotContain(RankingBoard.snapshotOf(date))
-            assertThat(entries.map { it.board }).contains(RankingBoard.allOf(date.plusDays(1)))
+            assertThat(entries.map { it.board }).doesNotContain(RankingBoard.snapshotOf("v1", date))
+            assertThat(entries.map { it.board }).contains(RankingBoard.allOf("v1", date.plusDays(1)))
         }
 
         @DisplayName("occurredAt이 다른 타임존이어도 Asia/Seoul 기준으로 날짜/컷오프를 판단한다.")
@@ -113,7 +157,7 @@ class RankingServiceTest {
 
             val entries = capturedEntries()
             assertThat(entries).hasSize(3)
-            assertThat(entries[0].board).isEqualTo(RankingBoard.allOf(date))
+            assertThat(entries[0].board).isEqualTo(RankingBoard.allOf("v1", date))
         }
     }
 
@@ -122,7 +166,7 @@ class RankingServiceTest {
     inner class Score {
         private val morning = ZonedDateTime.parse("2026-07-14T10:00:00+09:00[Asia/Seoul]")
 
-        @DisplayName("VIEW +1은 +10, LIKE +1은 +50, ORDER +1은 +500으로 적재된다(×10 저장 스케일).")
+        @DisplayName("기본 가중치로 VIEW +1은 +10, LIKE +1은 +50, ORDER +1은 +500으로 적재된다(×10 저장 스케일).")
         @Test
         fun appliesWeightByType() {
             listOf(
@@ -131,7 +175,7 @@ class RankingServiceTest {
                 RankingEventType.ORDER to 500L,
             ).forEach { (type, expectedScore) ->
                 val entries = slot<List<BoardScore>>()
-                every { rankingRepositoryPort.incrementScore(capture(entries), any(), any()) } returns true
+                every { rankingRepositoryPort.incrementScore(any(), capture(entries), any(), any()) } returns true
 
                 rankingService.reflect(morning, 101L, type, 1L, "event-$type")
 

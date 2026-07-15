@@ -79,8 +79,9 @@ class RankingEventConsumerE2ETest @Autowired constructor(
         kafkaTemplate.send(topic, payload)
 
         awaitUntil { rankingEventInboxRepositoryContains(payload.eventId) }
-        val allKey = RankingBoard.allOf(occurredAt.toLocalDate()).key()
-        val snapshotKey = RankingBoard.snapshotOf(occurredAt.toLocalDate()).key()
+        // boards KV가 없으므로 기본 v1 보드에 적재된다
+        val allKey = RankingBoard.allOf("v1", occurredAt.toLocalDate()).key()
+        val snapshotKey = RankingBoard.snapshotOf("v1", occurredAt.toLocalDate()).key()
         assertThat(redis.opsForZSet().score(allKey, "1")).isEqualTo(50.0)
         assertThat(redis.opsForZSet().score(snapshotKey, "1")).isEqualTo(50.0)
     }
@@ -103,7 +104,7 @@ class RankingEventConsumerE2ETest @Autowired constructor(
         kafkaTemplate.send(topic, payload)
         Thread.sleep(8_000L) // fetch.max.wait.ms(5s) 배치 폴링 주기를 감안해, 중복 메시지가 실제로 소비될 시간을 준다
 
-        val allKey = RankingBoard.allOf(occurredAt.toLocalDate()).key()
+        val allKey = RankingBoard.allOf("v1", occurredAt.toLocalDate()).key()
         assertThat(redis.opsForZSet().score(allKey, "2")).isEqualTo(10.0)
     }
 

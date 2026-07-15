@@ -14,7 +14,8 @@
   - 측정: EXPLAIN(filesort 확인) · 스케일별(1만 vs 10만) p95 · 개별 순위 쿼리 비용
   - 예상 한계(실측으로 확인): ① score가 계산식 → 인덱스 불가, 조회마다 전 행 스캔 ② 개별 순위가 사실상 전 행 2중 스캔 ③ 날짜 차원 없으면 누적 랭킹만 가능(롱테일)
 - [ ] **Stage 1b — MySQL 쓰기 시점 score (RDB로 번역한 방식 B, 사용자 설계 2026-07-14)**: 별도 테이블 `product_ranking_daily(ranking_date, product_id, score)` — `UNIQUE(ranking_date, product_id)` + `INDEX(ranking_date, score DESC)`. `product_metrics`는 R7 소유물이라 오염 금지 → 테이블 분리
-  - 쓰기 = `INSERT ... ON DUPLICATE KEY UPDATE score = score + Δ` (ZINCRBY 대응) · 날짜 경계 = 새 날짜 행 lazy 생성 (일간 키 대응) · carry-over = 사전 `INSERT INTO 내일 SELECT product_id, score×0.1 FROM 오늘` (ZUNIONSTORE 대응) · 보존 = `DELETE < D-2` 배치 (TTL 대응)
+  - 쓰기 = `INSERT ... ON DUPLICATE KEY UPDATE score = score + Δ` (ZINCRBY 대응) · 날짜 경계 = 새 날짜 행 lazy 생성 (일간 키 대응) · carry-over = **dual write: 오늘 행 +Δ와 내일 행 +Δ×0.1 동시 upsert (2026-07-15 결정 — 사전 INSERT 배치 대체)** · 보존 = `DELETE < D-2` 배치 (TTL 대응)
+  - 추가 측정 (2026-07-15): **단일 upsert vs dual write(트랜잭션 2행)** 쓰기 경로 처리량·p95 — carry 비용을 숫자로 확보
 - [x] **EXP-01 — 자정 배치 × 조회 경합 실측 (사용자 제안) ✅ 2026-07-14 완료**: 10만 행 · conc32 실측 — A(제자리 UPDATE) 조회 **−41%**·배치 24.1s vs B(사전 INSERT) **−10%**·배치 3.9s → **가설 채택: 날짜 경계는 사전 시딩**. MVCC라 블로킹 0회, 열화는 전부 자원 경합(인덱스 10만 엔트리 재배치). 상세·재현: `experiments/exp01/README.md`
 - [ ] **Stage 2 — 캐싱으로 (방식 D 계열, 실시간 아님)** (타임박스 1.5h): Stage 1 쿼리 결과를 Redis 캐시 TTL 60s로 페이지 캐싱 (week5/8 캐시 모듈 컨벤션 재사용)
   - 측정: 같은 k6 → p95·RPS 변화 (읽기 비용 붕괴 확인)
@@ -77,7 +78,7 @@
 
 - [ ] **실시간 Weight 조절** — 점수 계산 가중치를 재기동 없이 수정하는 방법 (config 외부화 / 관리 API)
 - [ ] **시간 단위(1h) 랭킹** — `ranking:all:{yyyyMMddHH}` 등 초 실시간
-- [ ] **콜드 스타트 완화 스케줄러** — 23:50 `ZUNIONSTORE ranking:all:{내일} 1 ranking:all:{오늘} WEIGHTS 0.1 AGGREGATE SUM` 로 다음 랭킹판 미리 생성. `@ConditionalOnProperty` on/off (OutboxRelay 컨벤션). ⚠️ `ZUNIONSTORE`는 destination을 TTL 없이 새로 만듦 → 직후 `EXPIRE` 명시 필수 + "첫 이벤트가 TTL 부여" 로직은 carry-over가 먼저 만든 키와 충돌 안 하게(TTL 유무 확인) (2026-07-14 논의)
+- [ ] **콜드 스타트 완화 = dual write carry-over (2026-07-15 결정 — 23:50 스케줄러 대체)** — 이벤트 소비 시 오늘 키 `ZINCRBY +Δ`와 **내일 키 `ZINCRBY +Δ×0.1`을 함께** 실행. 배치 실패 모드 제거 + 누락 창 0, carry가 `EventHandled` 멱등을 상속. 내일 키 TTL은 첫 dual write 시 부여(2Day면 내일 키도 자연 커버). 비용 = 이벤트당 Redis 연산 2배 — Stage 1b에서 단일 vs dual 쓰기 비용 실측. (버린 대안: 23:50 `ZUNIONSTORE` 스케줄러 — WRITING-LOG 2026-07-15 결정 로그 참조)
 - [ ] **Top-N 캐싱** — 매 요청 `ZREVRANGE` vs 주기 캐싱 트레이드오프
 - [ ] **상위 N만 유지** — 상품 다수 시 ZSET 메모리 관리(`ZREMRANGEBYRANK`)
 

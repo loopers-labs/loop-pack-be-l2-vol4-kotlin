@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R9 랭킹 — MySQL 날짜 경계 두 모델 (제자리 감쇠 vs 사전 시딩)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Loopers Round 9 · MySQL 랭킹 — 날짜 경계 설계</span>
+      <h1 class="title">날짜별로 나눌 것인가,<br><span class="hl">한 판을 갱신할 것인가</span></h1>
+      <p class="lede">MySQL 쓰기 시점 랭킹에서 날짜가 바뀔 때 점수를 어떻게 넘길 것인가. <b>한 판 유지 + 제자리 감쇠 UPDATE(모델 A)</b> vs <b>날짜별 행 분리 + 사전 시딩 INSERT(모델 B)</b> — EXP-01에서 실측으로 판정했다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">모델 A</span><span class="v">하나로 유지 + UPDATE 감쇠</span></div>
+        <div class="chip"><span class="k">모델 B</span><span class="v">날짜별 행 + 사전 INSERT</span></div>
+        <div class="chip"><span class="k">판정</span><span class="v">B 구조 + dual write carry (07-15)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">전제 — 왜 "날짜 경계"가 문제인가</a></li>
+      <li><a href="#s2">모델 A — 한 판 유지 + 제자리 감쇠</a></li>
+      <li><a href="#s3">모델 B — 날짜별 분리 + 사전 시딩</a></li>
+      <li><a href="#s4">EXP-01 실측 — 숫자로 본 두 모델</a></li>
+      <li><a href="#s5">왜 A가 비싼가 — 인덱스 재배치</a></li>
+      <li><a href="#s6">판정과 함의</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== 1. 전제 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CONTEXT</p><h2 class="sec">전제 — 왜 "날짜 경계"가 문제인가</h2></div>
+    </div>
+
+    <p class="lead">쓰기 시점 누적 설계에서는 이벤트가 올 때마다 score를 컬럼에 더해 둔다. 그런데 랭킹은 "일간"이다 — 자정에 점수를 어떻게 넘길 것인가.</p>
+    <p>ZSET 설계의 carry-over(전일 점수 ×0.1을 새 판에 넘겨 콜드 스타트 완화)를 RDB로 번역하면, 자정마다 <strong>전 상품의 점수를 한꺼번에 만지는 배치</strong>가 생긴다. 문제는 그 배치가 도는 동안에도 <strong>랭킹 조회는 계속 들어온다</strong>는 것. 여기서 저장 구조에 대한 선택지가 갈린다.</p>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">모델 A</span> 하나로 유지 + UPDATE</h4>
+        <p>product당 <strong>행 1개</strong>. 날짜 차원 없이 한 판을 계속 쓰고, 자정에 전 행을 <span class="term">score = score × 0.1</span>로 <strong>제자리 감쇠</strong>시킨다. 조회가 읽는 판과 배치가 쓰는 판이 <strong>같다</strong>.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">모델 B</span> 날짜별 분리 + INSERT</h4>
+        <p><span class="term">(ranking_date, product_id)</span>로 <strong>날짜마다 행을 분리</strong>. 자정 전에 <strong>내일 판을 미리 INSERT</strong>(전일 ×0.1)해 두고, 지난 판은 <span class="term">DELETE &lt; D-2</span>로 정리. 조회가 읽는 판(오늘)과 배치가 쓰는 판(내일)이 <strong>다르다</strong>.</p>
+      </div>
+    </div>
+
+    <div class="note key"><span class="tag">쟁점</span>기능은 둘 다 된다. 갈리는 것은 <strong>"자정 배치가 도는 동안 조회가 얼마나 아픈가"</strong> — 이것이 EXP-01의 측정 질문이었다.</div>
+  </section>
+
+  <!-- ===================== 2. 모델 A ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">MODEL A · IN-PLACE DECAY</p><h2 class="sec">모델 A — 한 판 유지 + 제자리 감쇠</h2></div>
+    </div>
+
+    <p class="lead">product당 행 하나. 세 주체(이벤트 쓰기 · 자정 배치 · 조회)가 전부 같은 판, 같은 인덱스 위에서 움직인다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">model-a-in-place.sql</span>
+      </div>
+<pre><span class="cm">-- 한 판: product당 1행, 날짜 차원 없음</span>
+<span class="kw">CREATE TABLE</span> product_ranking (
+  product_id <span class="ty">BIGINT</span>        <span class="kw">PRIMARY KEY</span>,
+  score      <span class="ty">DECIMAL</span>(12,3) <span class="kw">NOT NULL DEFAULT</span> 0,
+  <span class="kw">KEY</span> ix_score (score <span class="kw">DESC</span>)
+);
+
+<span class="cm">-- 평시 쓰기: 이벤트마다 델타 누적</span>
+<span class="kw">INSERT INTO</span> product_ranking (product_id, score) <span class="kw">VALUES</span> (?, ?)
+<span class="kw">ON DUPLICATE KEY UPDATE</span> score = score + <span class="fn">VALUES</span>(score);
+
+<span class="cm">-- 자정 배치: 어제의 기여를 10%로 줄이는 "제자리 전면 감쇠"</span>
+<span class="cm">-- ⚠️ 조회가 읽고 있는 바로 그 판(그 인덱스)을 전 행 UPDATE</span>
+<span class="kw">UPDATE</span> product_ranking <span class="kw">SET</span> score = score * 0.1;</pre>
+    </div>
+
+    <h3>프로세스 — 3자가 한 판을 공유</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG. A1">
+        <svg viewBox="0 0 720 310" role="img" aria-label="모델 A 프로세스: 이벤트 쓰기, 자정 배치, 랭킹 조회가 모두 product_ranking 한 판과 단일 인덱스에 접근해 경합한다.">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <g>
+            <rect x="20" y="30" width="180" height="66" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="20" y="30" width="180" height="66">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">이벤트 쓰기</div><div class="s">view·like·order +Δ</div></div>
+            </foreignObject>
+          </g>
+          <line x1="204" y1="63" x2="296" y2="120" stroke="#8B95A1" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="242" y="80" text-anchor="start" fill="#6B7684">upsert</text>
+          <g>
+            <rect x="20" y="215" width="180" height="66" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+            <foreignObject x="20" y="215" width="180" height="66">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">자정 배치</div><div class="s">UPDATE score×0.1 전 행</div></div>
+            </foreignObject>
+          </g>
+          <line x1="204" y1="248" x2="296" y2="192" stroke="#F04452" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="236" y="242" text-anchor="start" fill="#C9303C">전 행 재배치</text>
+          <g>
+            <rect x="275" y="115" width="190" height="80" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+            <foreignObject x="275" y="115" width="190" height="80">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">product_ranking</div><div class="s">단 하나의 판 · ix_score 단일 인덱스</div></div>
+            </foreignObject>
+          </g>
+          <line x1="469" y1="155" x2="526" y2="155" stroke="#3182F6" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="497" y="143" text-anchor="middle" fill="#1B64DA">읽기</text>
+          <g>
+            <rect x="530" y="115" width="170" height="80" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="530" y="115" width="170" height="80">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">랭킹 조회</div><div class="s">Top-20 인덱스 리드</div></div>
+            </foreignObject>
+          </g>
+          <text class="svg-l" x="370" y="230" text-anchor="middle" fill="#C9303C">⚠ 배치가 도는 동안, 조회가 읽는 바로 그 인덱스 페이지를 전면 재배치</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 A1.</b> 모델 A 프로세스 — 읽는 판과 쓰는 판이 같다. 자정 배치의 24초 동안 조회와 정면 경합한다.</figcaption>
+    </figure>
+
+    <h3>데이터 — 쌓이지 않고 덮어써진다</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG. A2">
+        <svg viewBox="0 0 720 285" role="img" aria-label="모델 A 데이터 변화: 상품 3개의 행이 자정 배치에서 값만 10분의 1로 덮어써지고, 낮 동안 다시 누적된다. 행 수는 늘지 않고 어제의 판은 소실된다.">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- snapshot 1 -->
+          <text class="svg-t" x="115" y="46" text-anchor="middle" fill="#333D4B">7/14 23:59</text>
+          <rect x="20" y="60" width="190" height="150" rx="14" fill="#fff" stroke="#D1D6DB" stroke-width="1.2"/>
+          <line x1="20" y1="94" x2="210" y2="94" stroke="#E5E8EB" stroke-width="1.2"/>
+          <text class="svg-s" x="38" y="82" fill="#8B95A1">product</text>
+          <text class="svg-s" x="192" y="82" text-anchor="end" fill="#8B95A1">score</text>
+          <text class="svg-s" x="38" y="120" fill="#4E5968">P-101</text><text class="svg-s" x="192" y="120" text-anchor="end" fill="#4E5968">120.0</text>
+          <text class="svg-s" x="38" y="148" fill="#4E5968">P-207</text><text class="svg-s" x="192" y="148" text-anchor="end" fill="#4E5968">80.0</text>
+          <text class="svg-s" x="38" y="176" fill="#4E5968">P-309</text><text class="svg-s" x="192" y="176" text-anchor="end" fill="#4E5968">45.5</text>
+          <text class="svg-s" x="115" y="200" text-anchor="middle" fill="#8B95A1">행 3개</text>
+          <!-- arrow 1 -->
+          <line x1="216" y1="135" x2="258" y2="135" stroke="#F04452" stroke-width="2" marker-end="url(#a2)"/>
+          <text class="svg-l" x="237" y="118" text-anchor="middle" fill="#C9303C">자정 배치</text>
+          <text class="svg-l" x="237" y="158" text-anchor="middle" fill="#C9303C">×0.1</text>
+          <!-- snapshot 2 -->
+          <text class="svg-t" x="360" y="46" text-anchor="middle" fill="#333D4B">7/15 00:00 (배치 후)</text>
+          <rect x="265" y="60" width="190" height="150" rx="14" fill="#fff" stroke="#F04452" stroke-width="1.2"/>
+          <line x1="265" y1="94" x2="455" y2="94" stroke="#E5E8EB" stroke-width="1.2"/>
+          <text class="svg-s" x="283" y="82" fill="#8B95A1">product</text>
+          <text class="svg-s" x="437" y="82" text-anchor="end" fill="#8B95A1">score</text>
+          <text class="svg-s" x="283" y="120" fill="#4E5968">P-101</text><text class="svg-s" x="437" y="120" text-anchor="end" fill="#C9303C">12.0</text>
+          <text class="svg-s" x="283" y="148" fill="#4E5968">P-207</text><text class="svg-s" x="437" y="148" text-anchor="end" fill="#C9303C">8.0</text>
+          <text class="svg-s" x="283" y="176" fill="#4E5968">P-309</text><text class="svg-s" x="437" y="176" text-anchor="end" fill="#C9303C">4.6</text>
+          <text class="svg-s" x="360" y="200" text-anchor="middle" fill="#C9303C">같은 행 3개 — 값만 덮어씀</text>
+          <!-- arrow 2 -->
+          <line x1="461" y1="135" x2="503" y2="135" stroke="#15C47E" stroke-width="2" marker-end="url(#a2)"/>
+          <text class="svg-l" x="482" y="118" text-anchor="middle" fill="#0A8F5B">낮 동안</text>
+          <text class="svg-l" x="482" y="158" text-anchor="middle" fill="#0A8F5B">+누적</text>
+          <!-- snapshot 3 -->
+          <text class="svg-t" x="605" y="46" text-anchor="middle" fill="#333D4B">7/15 낮</text>
+          <rect x="510" y="60" width="190" height="150" rx="14" fill="#fff" stroke="#D1D6DB" stroke-width="1.2"/>
+          <line x1="510" y1="94" x2="700" y2="94" stroke="#E5E8EB" stroke-width="1.2"/>
+          <text class="svg-s" x="528" y="82" fill="#8B95A1">product</text>
+          <text class="svg-s" x="682" y="82" text-anchor="end" fill="#8B95A1">score</text>
+          <text class="svg-s" x="528" y="120" fill="#4E5968">P-101</text><text class="svg-s" x="682" y="120" text-anchor="end" fill="#0A8F5B">58.2</text>
+          <text class="svg-s" x="528" y="148" fill="#4E5968">P-207</text><text class="svg-s" x="682" y="148" text-anchor="end" fill="#0A8F5B">8.9</text>
+          <text class="svg-s" x="528" y="176" fill="#4E5968">P-309</text><text class="svg-s" x="682" y="176" text-anchor="end" fill="#0A8F5B">31.0</text>
+          <text class="svg-s" x="605" y="200" text-anchor="middle" fill="#8B95A1">여전히 행 3개</text>
+          <!-- bottom annotation -->
+          <text class="svg-s" x="360" y="255" text-anchor="middle" fill="#C9303C">행 수는 언제나 상품 수 그대로 — 7/14의 판은 덮어써져 소실 (?date= 과거 조회 불가)</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 A2.</b> 모델 A 데이터 — 테이블은 자라지 않는다. 대신 어제라는 판 자체가 사라진다.</figcaption>
+    </figure>
+
+    <h3>장단점</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">장점</span> 단순함</h4>
+        <p>✓ 행 수 = 상품 수로 <strong>고정</strong> — 용량·정리 걱정 없음<br>
+           ✓ 날짜 차원이 없어 조회에 <span class="term">WHERE</span> 불필요<br>
+           ✓ 정리(DELETE) 배치 자체가 없음 — 운영 부품 최소</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">단점</span> 자정의 비용</h4>
+        <p>✗ 배치가 조회와 <strong>같은 인덱스에서 경합</strong> — 처리량 −41% 실측<br>
+           ✗ 전 행 재배치라 배치 자체도 24.1s<br>
+           ✗ 어제 판이 덮어써져 소실 — <span class="term">?date=</span> 과거 조회 불가<br>
+           ✗ 재실행하면 ×0.1이 중복 적용 — <strong>비멱등</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 3. 모델 B ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">MODEL B · PRE-SEEDING</p><h2 class="sec">모델 B — 날짜별 분리 + 사전 시딩</h2></div>
+    </div>
+
+    <p class="lead">날짜마다 판(행 집합)을 분리한다. 자정 배치는 오늘 판을 건드리지 않고, 내일 판을 미리 만들어 둔다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">model-b-pre-seeding.sql</span>
+      </div>
+<pre><span class="cm">-- 날짜별 판: (ranking_date, product_id)가 행의 정체성</span>
+<span class="kw">CREATE TABLE</span> product_ranking_daily (
+  ranking_date <span class="ty">DATE</span>         <span class="kw">NOT NULL</span>,
+  product_id   <span class="ty">BIGINT</span>       <span class="kw">NOT NULL</span>,
+  score        <span class="ty">DECIMAL</span>(12,3) <span class="kw">NOT NULL DEFAULT</span> 0,
+  <span class="kw">UNIQUE KEY</span> uk_date_product (ranking_date, product_id),
+  <span class="kw">KEY</span>        ix_date_score   (ranking_date, score <span class="kw">DESC</span>)
+);
+
+<span class="cm">-- 평시 쓰기: 오늘 날짜 행에 누적 (새 날짜 행은 lazy 생성)</span>
+<span class="kw">INSERT INTO</span> product_ranking_daily (ranking_date, product_id, score)
+<span class="kw">VALUES</span> (<span class="fn">CURDATE</span>(), ?, ?)
+<span class="kw">ON DUPLICATE KEY UPDATE</span> score = score + <span class="fn">VALUES</span>(score);
+
+<span class="cm">-- 자정 전 배치: 내일 판을 "미리" 만든다 — 오늘 판은 안 건드림</span>
+<span class="kw">INSERT INTO</span> product_ranking_daily (ranking_date, product_id, score)
+<span class="kw">SELECT</span> <span class="fn">CURDATE</span>() + <span class="kw">INTERVAL</span> 1 <span class="kw">DAY</span>, product_id, score * 0.1
+<span class="kw">FROM</span>   product_ranking_daily <span class="kw">WHERE</span> ranking_date = <span class="fn">CURDATE</span>();
+
+<span class="cm">-- 보존: 이틀 지난 판 정리 (ZSET TTL 2Day 대응)</span>
+<span class="kw">DELETE FROM</span> product_ranking_daily
+<span class="kw">WHERE</span> ranking_date &lt; <span class="fn">CURDATE</span>() - <span class="kw">INTERVAL</span> 2 <span class="kw">DAY</span>;</pre>
+    </div>
+
+    <h3>프로세스 — 판마다 역할이 다르다</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG. B1">
+        <svg viewBox="0 0 720 384" role="img" aria-label="모델 B 프로세스: 이벤트 쓰기는 오늘 판에, 23:50 배치는 내일 판에, 정리 배치는 D-2 판에 접근한다. 조회는 오늘 판을 읽어 서로 부딪히지 않는다.">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- left actors -->
+          <g>
+            <rect x="20" y="36" width="180" height="64" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="20" y="36" width="180" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">23:50 배치</div><div class="s">INSERT 내일 SELECT ×0.1</div></div>
+            </foreignObject>
+          </g>
+          <line x1="204" y1="68" x2="271" y2="68" stroke="#15C47E" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="20" y="124" width="180" height="64" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="20" y="124" width="180" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">이벤트 쓰기</div><div class="s">+Δ upsert (오늘 행)</div></div>
+            </foreignObject>
+          </g>
+          <line x1="204" y1="156" x2="271" y2="156" stroke="#8B95A1" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="20" y="300" width="180" height="64" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3"/>
+            <foreignObject x="20" y="300" width="180" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">정리 배치</div><div class="s">DELETE &lt; D-2</div></div>
+            </foreignObject>
+          </g>
+          <line x1="204" y1="332" x2="271" y2="332" stroke="#F04452" stroke-width="2" marker-end="url(#b1)"/>
+          <!-- central partitions -->
+          <g>
+            <rect x="275" y="36" width="190" height="64" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="275" y="36" width="190" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><div class="t">내일 판 · 7/16</div><div class="s">사전 시딩 ×0.1</div></div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="275" y="124" width="190" height="64" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="275" y="124" width="190" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">오늘 판 · 7/15</div><div class="s">쓰기 + 조회 대상</div></div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="275" y="212" width="190" height="64" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="275" y="212" width="190" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">어제 판 · 7/14</div><div class="s">?date= 과거 조회</div></div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="275" y="300" width="190" height="64" rx="16" fill="#FEEFEF" stroke="#F04452" stroke-width="1.3" stroke-dasharray="6 5"/>
+            <foreignObject x="275" y="300" width="190" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="t">7/13 판</div><div class="s">보존 만료 — 삭제</div></div>
+            </foreignObject>
+          </g>
+          <!-- right actors -->
+          <text class="svg-l" x="615" y="72" text-anchor="middle" fill="#0A8F5B">오늘 판 안 건드림</text>
+          <line x1="469" y1="156" x2="526" y2="156" stroke="#3182F6" stroke-width="2" marker-end="url(#b1)"/>
+          <g>
+            <rect x="530" y="124" width="170" height="64" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="530" y="124" width="170" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="t">랭킹 조회</div><div class="s">Top-20 (오늘 판)</div></div>
+            </foreignObject>
+          </g>
+          <line x1="469" y1="244" x2="526" y2="244" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#b1)"/>
+          <g>
+            <rect x="530" y="212" width="170" height="64" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="530" y="212" width="170" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><div class="t">?date 조회</div><div class="s">전일 랭킹</div></div>
+            </foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 B1.</b> 모델 B 프로세스 — 배치는 내일 판, 조회는 오늘 판. 인덱스 프리픽스 수준에서 접근 구간이 갈린다.</figcaption>
+    </figure>
+
+    <h3>데이터 — 날짜별 판이 쌓이고, DELETE가 상한을 고정한다</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG. B2">
+        <svg viewBox="0 0 720 330" role="img" aria-label="모델 B 데이터 축적: 매일 시딩 판이 하나 추가되고 D-2 판이 삭제되어, 테이블에는 항상 3판 내외가 유지된다.">
+          <defs>
+            <marker id="b2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <!-- day column 1 : 7/14 -->
+          <text class="svg-t" x="115" y="46" text-anchor="middle" fill="#333D4B">7/14 시점</text>
+          <rect x="20" y="64" width="190" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-s" x="115" y="91" text-anchor="middle" fill="#0A8F5B">7/15 — 시딩 판</text>
+          <rect x="20" y="120" width="190" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="115" y="147" text-anchor="middle" fill="#1B64DA">7/14 — 오늘 판</text>
+          <rect x="20" y="176" width="190" height="46" rx="12" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="115" y="203" text-anchor="middle" fill="#4E5968">7/13 — 어제 판</text>
+          <rect x="20" y="232" width="190" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="115" y="259" text-anchor="middle" fill="#C9303C">7/12 — DELETE</text>
+          <!-- arrow -->
+          <line x1="216" y1="150" x2="258" y2="150" stroke="#8B95A1" stroke-width="2" marker-end="url(#b2)"/>
+          <text class="svg-l" x="237" y="136" text-anchor="middle" fill="#6B7684">+1일</text>
+          <!-- day column 2 : 7/15 -->
+          <text class="svg-t" x="360" y="46" text-anchor="middle" fill="#333D4B">7/15 시점 (오늘)</text>
+          <rect x="265" y="64" width="190" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-s" x="360" y="91" text-anchor="middle" fill="#0A8F5B">7/16 — 시딩 판</text>
+          <rect x="265" y="120" width="190" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="360" y="147" text-anchor="middle" fill="#1B64DA">7/15 — 오늘 판</text>
+          <rect x="265" y="176" width="190" height="46" rx="12" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="360" y="203" text-anchor="middle" fill="#4E5968">7/14 — 어제 판</text>
+          <rect x="265" y="232" width="190" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="360" y="259" text-anchor="middle" fill="#C9303C">7/13 — DELETE</text>
+          <!-- arrow -->
+          <line x1="461" y1="150" x2="503" y2="150" stroke="#8B95A1" stroke-width="2" marker-end="url(#b2)"/>
+          <text class="svg-l" x="482" y="136" text-anchor="middle" fill="#6B7684">+1일</text>
+          <!-- day column 3 : 7/16 -->
+          <text class="svg-t" x="605" y="46" text-anchor="middle" fill="#333D4B">7/16 시점</text>
+          <rect x="510" y="64" width="190" height="46" rx="12" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.2"/>
+          <text class="svg-s" x="605" y="91" text-anchor="middle" fill="#0A8F5B">7/17 — 시딩 판</text>
+          <rect x="510" y="120" width="190" height="46" rx="12" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.2"/>
+          <text class="svg-s" x="605" y="147" text-anchor="middle" fill="#1B64DA">7/16 — 오늘 판</text>
+          <rect x="510" y="176" width="190" height="46" rx="12" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="605" y="203" text-anchor="middle" fill="#4E5968">7/15 — 어제 판</text>
+          <rect x="510" y="232" width="190" height="46" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-width="1.2" stroke-dasharray="6 5"/>
+          <text class="svg-s" x="605" y="259" text-anchor="middle" fill="#C9303C">7/14 — DELETE</text>
+          <!-- bottom annotation -->
+          <text class="svg-s" x="360" y="305" text-anchor="middle" fill="#0A8F5B">매일 1판 추가 + 1판 삭제 → 항상 3판 내외 — 행 수 상한 = 상품 수 × 보존 일수</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 B2.</b> 모델 B 데이터 — 판이 날짜별로 쌓이지만, DELETE가 매일 한 판을 걷어내 총량은 일정하다.</figcaption>
+    </figure>
+
+    <h3>장단점</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">장점</span> 판의 분리</h4>
+        <p>✓ 읽는 판·쓰는 판 분리 — 배치 중 조회 열화 <strong>−10%</strong>에 그침<br>
+           ✓ append만 하므로 배치도 <strong>3.9s</strong> (A의 1/6)<br>
+           ✓ 전일 판이 남아 <span class="term">?date=</span> 과거 조회 자연 지원<br>
+           ✓ INSERT 기반이라 재실행 안전(멱등)하게 만들기 쉬움</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">단점</span> 운영 부품 증가</h4>
+        <p>✗ 행 수 = 상품 수 × 보존 일수로 <strong>증가</strong><br>
+           ✗ <span class="term">DELETE &lt; D-2</span> 정리 배치가 추가로 필요<br>
+           ✗ 모든 쿼리에 <span class="term">WHERE ranking_date</span>가 붙음<br>
+           ✗ 시딩(23:50) 이후 자정까지의 이벤트는 내일 판 초기값에 미반영 — 근사 감수</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 4. 실측 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">EXP-01 · 2026-07-14</p><h2 class="sec">EXP-01 실측 — 숫자로 본 두 모델</h2></div>
+    </div>
+
+    <p class="lead">10만 행 · 동시성 32에서 "배치가 도는 동안의 조회"를 쟀다. 가설(사용자, 7/14): B는 다른 행에 쓰므로 영향 미미, A는 열화 — 단 MVCC라 블로킹이 아니라 자원 경합으로 나타날 것.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>시나리오</th><th>slap 30k 총시간 (qps)</th><th>배치 소요</th><th>샘플러 p50/p95/max (ms)</th></tr></thead>
+        <tbody>
+          <tr><td>0 · baseline (배치 없음)</td><td>39.9s (752 qps)</td><td>—</td><td>144 / 218 / 249</td></tr>
+          <tr><td>A · 제자리 UPDATE</td><td>67.3s (446 qps, <strong>−41%</strong>)</td><td><strong>24.1s</strong></td><td>173 / 242 / <strong>382</strong></td></tr>
+          <tr><td>B · 사전 INSERT</td><td>44.2s (679 qps, −10%)</td><td>3.9s</td><td>166 / 238 / 251</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>세 갈래 모두 B의 압승이다. 배치가 도는 동안 조회 처리량은 A가 <strong>−41%</strong>, B가 <strong>−10%</strong>. 배치 자체도 A는 <strong>24.1초</strong>, B는 <strong>3.9초</strong> — 6배 차이. 꼬리 지연(max)도 A만 baseline의 1.5배(382ms)로 튀었고 B는 baseline 수준(251ms)을 유지했다.</p>
+
+    <div class="note"><span class="tag">측정 환경</span>전용 스키마 <span class="term">ranking_exp</span> 10만 행 · mysqlslap conc32 · 30k 쿼리 · 로컬 도커 arm64. 샘플러는 단발 Top-20 쿼리 60회 왕복(docker exec 오버헤드 포함 — <strong>상대 비교용</strong>). 재현: <span class="term">exp01/run-scenario.sh</span>.</div>
+  </section>
+
+  <!-- ===================== 5. 왜 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">ROOT CAUSE</p><h2 class="sec">왜 A가 비싼가 — 인덱스 재배치</h2></div>
+    </div>
+
+    <p class="lead">score를 제자리에서 바꾸는 것은 "값 하나 고치기"가 아니다. 정렬 인덱스에서는 <strong>엔트리의 삭제 + 재삽입</strong>이다.</p>
+    <p><span class="term">ix_score (score DESC)</span>는 score 순으로 정렬된 B-tree다. <span class="term">UPDATE score = score × 0.1</span>은 10만 엔트리 전부의 <strong>정렬 위치를 이동</strong>시킨다 — 옛 위치에서 삭제하고 새 위치에 재삽입. 이 작업이 벌어지는 인덱스 페이지가 <strong>조회(Top-20 인덱스 리드)가 읽는 바로 그 페이지들</strong>이라, 버퍼풀·리두·언두에서 정면 경합이 난다.</p>
+    <p>반면 B의 <span class="term">INSERT INTO 내일 SELECT</span>는 <span class="term">ix_date_score</span>에서 <strong>내일 날짜 프리픽스 구간에 append</strong>할 뿐이다. 오늘 판 구간은 물리적으로 다른 페이지들이므로 조회와 부딪히지 않는다.</p>
+
+    <div class="note warn"><span class="tag">확인된 함정</span>예측대로 <strong>잠금 블로킹은 0회</strong>였다 (InnoDB MVCC — SELECT는 행 잠금에 안 막힘). 그러나 "SELECT는 잠금에 안 막힌다"가 "영향 없다"는 뜻이 아니었다 — 열화는 잠금이 아니라 <strong>자원 경합의 형태로 처리량 −41%</strong>가 되어 나타났다. 이 낙차가 블로그 소재다.</div>
+  </section>
+
+  <!-- ===================== 6. 판정 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">DECISION</p><h2 class="sec">판정과 함의</h2></div>
+    </div>
+
+    <blockquote>
+      <p>쓰는 판과 읽는 판을 분리하라 — 날짜 경계는 제자리 감쇠가 아니라 사전 시딩이다.</p>
+      <cite>— EXP-01 판정, WRITING-LOG 결정 로그 (2026-07-14)</cite>
+    </blockquote>
+
+    <p>MySQL Stage 1b의 날짜 경계 처리는 <strong>모델 B(날짜별 분리 + 사전 시딩)로 확정</strong>했다. 모델 A의 단순함(행 수 고정, 정리 배치 불필요)은 자정마다 반복되는 −41% 열화를 정당화하지 못한다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>관점</th><th>A — 한 판 + UPDATE 감쇠</th><th>B — 날짜별 판 + 사전 INSERT</th></tr></thead>
+        <tbody>
+          <tr><td>저장 구조</td><td>product당 1행, 날짜 차원 없음</td><td>(ranking_date, product_id)로 날짜별 행</td></tr>
+          <tr><td>자정 배치</td><td>오늘 판 전 행 제자리 UPDATE</td><td>내일 판 사전 INSERT (오늘 판 불변)</td></tr>
+          <tr><td>배치 중 조회</td><td>−41% · max 1.5배</td><td>−10% · max baseline 수준</td></tr>
+          <tr><td>배치 소요</td><td>24.1s</td><td>3.9s (6배 빠름)</td></tr>
+          <tr><td>과거 날짜 조회</td><td>불가 (덮어써서 소실)</td><td>?date= 로 자연 지원 (D-2까지)</td></tr>
+          <tr><td>추가 비용</td><td>없음</td><td>행 수 ×보존일수 · DELETE 배치</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>ZSET과의 구조적 동형성</h3>
+    <p>이 결론은 ZSET 설계의 <strong>carry-over(23:50에 <span class="term">ZUNIONSTORE</span>로 내일 키를 사전 생성)</strong>와 정확히 같은 구조다. Redis에서 "내일 키를 미리 만든다"가 자연스러워 보였던 것이, RDB로 번역해 실측하니 <strong>왜 그래야 하는지</strong>(읽는 판 보호)가 수치로 증명됐다. 날짜별 키 분리 = 날짜별 행 분리, TTL 2Day = <span class="term">DELETE &lt; D-2</span>.</p>
+
+    <h3>최종 결정 (2026-07-15) — carry는 배치가 아니라 dual write로</h3>
+    <p>날짜별 판 분리(모델 B)라는 <strong>구조는 유지</strong>하되, carry-over의 실행 메커니즘을 23:50 배치에서 <strong>dual write</strong>로 바꿨다. 이벤트를 소비할 때 <span class="term">오늘 판 +Δ</span>와 <span class="term">내일 판 +Δ×0.1</span>을 한 트랜잭션에서 함께 쓴다 — ZSET 번역은 <span class="term">ZINCRBY</span> 2회.</p>
+    <div class="note key"><span class="tag">선택 이유</span>① <strong>carry 신뢰성 승격</strong> — 배치라는 별도 실패 모드가 클래스째 사라지고, carry가 본 쓰기 경로의 멱등(<span class="term">EventHandled</span>)·트랜잭션 보장을 그대로 상속한다. ② <strong>누락 창 0</strong> — 23:50~00:00 10분 컷 자체가 소멸한다. ③ <strong>덮어쓰기 배제</strong> — 배치 계열의 안전장치였던 "통짜 재시딩(DELETE+INSERT)"과 모델 A의 제자리 UPDATE는 <strong>덮어쓰기 = 데이터 상실 연산</strong>이다. 누적(additive)만 존재하는 쓰기 경로가 복구·감사 관점에서 구조적으로 안전하다.</div>
+    <p>지불하는 대가 — 이벤트당 쓰기 2배(핫패스 영구 비용, <strong>Stage 1b에서 단일 vs dual 처리량·p95 실측 예정</strong>) · 감쇠가 1일 절단(지수 연쇄의 ×0.01 항 소실 — 무시 가능) · 실시간 가중치 변경(Nice) 시 내일 판이 구·신 가중치 혼합 · 트랜잭션이 2행을 만지므로 잠금 순서(날짜 오름차순) 고정. 전체 논거와 버린 대안은 WRITING-LOG 2026-07-15 결정 로그에 기록했다.</p>
+
+    <details class="tg">
+      <summary><span class="tw">연관 결정</span>carry-over 가중치 ×0.1과 실행 시각 23:50의 의미<span class="cv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></summary>
+      <div class="tg-body">
+        <p><strong>×0.1 = 시스템의 기억력 파라미터.</strong> 매일 ×0.1 연쇄는 지수 감쇠다 — 이틀 전 기여 0.01배, 사흘 전 0.001배, 과거 총 기여 상한 ≈ ×0.111. 과거 인기 상품의 head 고착(롱테일)이 구조적으로 불가능해진다. 0.5면 안정 우선, 0.1이면 신선도 우선, 0.01이면 사실상 리셋 — 콜드 스타트 땜빵이 아니라 <strong>신선도 vs 안정성 다이얼</strong>이다 (2026-07-14 논의).</p>
+        <p><strong>왜 23:50인가.</strong> 23:50 사전 생성은 23:50~00:00 10분치 시딩 누락(실효 ~0.07%)을 감수하는 대신, 덮어쓰기 방식이라 <strong>재실행 멱등</strong> + 새 판 쓰기와 경합이 없다. 대안인 00:00 self-union은 누락 0·원자적이지만 재실행 시 중복 가산(비멱등). 시딩은 근사치가 목적이므로 멱등을 우선해 23:50 채택 (2026-07-14 논의).</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================== REFERENCES ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">근거 문서 (프로젝트 내부)</h2></div>
+    </div>
+    <div class="ref primary" id="r1"><span class="n">1</span><span class="b"><b>EXP-01 — 자정 배치 × 조회 경합 실측</b> — 셋업 · 시나리오 · 결과 표 · 판정 · 재현 스크립트.<span class="src">docs/week9/experiments/exp01/README.md</span></span></div>
+    <div class="ref" id="r2"><span class="n">2</span><span class="b"><b>WRITING-LOG 결정 로그</b> — "날짜 경계는 제자리 감쇠가 아니라 사전 시딩이다" · carry-over 가중치/실행 시각 논의.<span class="src">docs/week9/experiments/WRITING-LOG.md</span></span></div>
+    <div class="ref" id="r3"><span class="n">3</span><span class="b"><b>Round 9 구현 체크리스트</b> — Stage 1b 설계(테이블 분리 · lazy 생성 · carry-over · 보존 배치).<span class="src">docs/week9/checklist.md</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Round 9 · MySQL 날짜 경계 두 모델 — 제자리 감쇠 vs 사전 시딩 (2026-07-15)<br>
+    근거: exp01/README.md · WRITING-LOG.md · checklist.md (내부 문서 — 수치는 전부 실측값)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
+import java.time.Instant
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -29,7 +30,7 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     }
 
     private fun handle(eventId: String, eventType: String, json: String) {
-        productMetricsService.handle(eventId, eventType, objectMapper.readTree(json))
+        productMetricsService.handle(eventId, eventType, objectMapper.readTree(json), Instant.now())
     }
 
     @DisplayName("처음 보는 상품의 좋아요 이벤트를 처리하면, product_metrics 행을 만들고 like_count 를 1 로 둔다.")

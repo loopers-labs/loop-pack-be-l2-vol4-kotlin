@@ -5,6 +5,7 @@ import com.loopers.product.application.ProductInfo
 import com.loopers.product.application.ProductService
 import com.loopers.product.domain.ProductErrorCode
 import com.loopers.product.domain.ProductSort
+import com.loopers.ranking.application.RankingQueryService
 import com.loopers.shared.domain.CursorPage
 import com.loopers.support.error.BadRequestException
 import org.springframework.web.bind.annotation.GetMapping
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController
 class ProductController(
     private val productService: ProductService,
     private val productListQuery: ProductListQuery,
+    private val rankingQueryService: RankingQueryService,
 ) {
     @GetMapping
     fun getProducts(
@@ -41,7 +43,7 @@ class ProductController(
     fun getProduct(
         @PathVariable productId: Long,
     ): ProductDetailResponse =
-        ProductDetailResponse.from(productService.getDetail(productId))
+        ProductDetailResponse.from(productService.getDetail(productId), rankingQueryService.findTodayRank(productId))
 
     private companion object {
         private const val MAX_PAGE_SIZE = 100
@@ -89,9 +91,10 @@ data class ProductDetailResponse(
     val name: String,
     val price: Long,
     val likeCount: Long,
+    val rank: Long?,
 ) {
     companion object {
-        fun from(info: ProductDetailInfo): ProductDetailResponse =
+        fun from(info: ProductDetailInfo, rank: Long?): ProductDetailResponse =
             ProductDetailResponse(
                 id = info.id,
                 brandId = info.brandId,
@@ -99,6 +102,7 @@ data class ProductDetailResponse(
                 name = info.name,
                 price = info.price,
                 likeCount = info.likeCount,
+                rank = rank,
             )
     }
 }

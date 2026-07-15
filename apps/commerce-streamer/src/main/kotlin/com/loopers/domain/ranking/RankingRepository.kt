@@ -12,4 +12,9 @@ interface RankingRepository {
      * 랭킹판과 멱등 표식에 보존 기간(ttlSeconds)을 걸어 메모리를 자동 회수한다.
      */
     fun incrementScoreOnce(eventId: UUID, key: String, productId: Long, delta: Double, ttlSeconds: Long)
+
+    /**
+     * 주어진 랭킹판 키들에서 상품을 제거한다. 삭제된 상품을 오늘·어제 랭킹판에서 걷어낼 때 쓴다.
+     */
+    fun removeProduct(keys: List<String>, productId: Long)
 }

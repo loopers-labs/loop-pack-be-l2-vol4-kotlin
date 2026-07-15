@@ -35,8 +35,10 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
         redisCleanUp.truncateAll()
     }
 
-    private fun scoreOf(productId: Long): Double? =
-        masterTemplate.opsForZSet().score(key, productId.toString())
+    private fun scoreOf(productId: Long): Double? = scoreOf(key, productId)
+
+    private fun scoreOf(rankKey: String, productId: Long): Double? =
+        masterTemplate.opsForZSet().score(rankKey, productId.toString())
 
     @DisplayName("점수를 누적하면,")
     @Nested
@@ -55,6 +57,24 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
 
             assertThat(scoreOf(101L)).isCloseTo(0.9, within(1e-9))
         }
+
+        @Test
+        fun `음수 증분을 누적하면 점수가 감소하고 0 아래로도 내려간다`() {
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.2, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = -0.7, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(101L)).isCloseTo(-0.5, within(1e-9))
+        }
+
+        @Test
+        fun `서로 다른 날짜 키에 누적한 점수는 섞이지 않는다`() {
+            val otherKey = "rank:all:20260713"
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), otherKey, productId = 101L, delta = 0.2, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(101L)).isEqualTo(0.7)
+            assertThat(scoreOf(otherKey, 101L)).isEqualTo(0.2)
+        }
     }
 
     @DisplayName("같은 eventId 로 다시 누적하면,")
@@ -68,6 +88,22 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
             rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
 
             assertThat(scoreOf(101L)).isEqualTo(0.7)
+        }
+    }
+
+    @DisplayName("상품을 제거하면,")
+    @Nested
+    inner class RemoveProduct {
+        @Test
+        fun `지정한 날짜 키들에서 그 상품이 사라진다`() {
+            val yesterday = "rank:all:20260713"
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), yesterday, productId = 101L, delta = 0.5, ttlSeconds = ttlSeconds)
+
+            rankingRepository.removeProduct(listOf(key, yesterday), productId = 101L)
+
+            assertThat(scoreOf(101L)).isNull()
+            assertThat(scoreOf(yesterday, 101L)).isNull()
         }
     }
 

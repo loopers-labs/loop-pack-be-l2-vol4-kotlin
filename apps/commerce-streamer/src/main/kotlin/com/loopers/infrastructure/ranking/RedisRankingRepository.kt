@@ -29,6 +29,11 @@ class RedisRankingRepository(
         )
     }
 
+    override fun removeProduct(keys: List<String>, productId: Long) {
+        val member = productId.toString()
+        keys.forEach { masterTemplate.opsForZSet().remove(it, member) }
+    }
+
     private fun seenKey(eventId: UUID): String = "rank:seen:$eventId"
 
     companion object {

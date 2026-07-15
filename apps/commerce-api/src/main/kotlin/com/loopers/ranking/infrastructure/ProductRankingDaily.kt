@@ -16,7 +16,7 @@ import java.time.LocalDate
         UniqueConstraint(name = "uk_prd_date_product", columnNames = ["ranking_date", "product_id"]),
     ],
     indexes = [
-        Index(name = "idx_prd_date_score", columnList = "ranking_date, score DESC"),
+        Index(name = "idx_prd_date_score", columnList = "ranking_date, score DESC, product_id ASC"),
     ],
 )
 class ProductRankingDaily(

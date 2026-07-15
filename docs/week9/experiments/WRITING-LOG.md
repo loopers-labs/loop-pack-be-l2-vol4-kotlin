@@ -22,6 +22,16 @@
 
 ## 결정 로그
 
+## 2026-07-15 — Stage 1b 읽기 인덱스: tie-break 가 filesort 를 만들고, COUNT 는 옵티마이저가 배신한다 (EXPLAIN 실측)
+
+### 결정 — 인덱스를 `(ranking_date, score DESC, product_id ASC)` 3컬럼으로 확장. 개별 순위 COUNT 의 옵티마이저 미스는 Stage 1b 한계 데이터로 보존
+
+- 배경/문제: Stage 1b 구현의 읽기 쿼리 2종을 exp01 테이블(10만 행)로 EXPLAIN 검증. ① 페이지 = `WHERE ranking_date=? ORDER BY score DESC, product_id ASC LIMIT 20` ② 개별 순위 = 내 score 조회(uk const, 문제 없음) 후 `COUNT(*) WHERE ranking_date=? AND score > ?`.
+- 발견 1 (페이지): 2컬럼 인덱스 `(ranking_date, score DESC)`에서 **tie-break `product_id ASC`가 인덱스 정렬 순서를 깨** filesort 로 5만 행 전체 정렬 (tie-break 를 빼면 인덱스 사용). → **3컬럼 인덱스로 ORDER BY 를 인덱스 순서와 일치**시키면 `Using index`(커버링) + filesort 소멸 + 페이지네이션 결정성 유지.
+- 발견 2 (COUNT): 3컬럼 커버링 인덱스가 있어도 **옵티마이저가 uk(비커버링, 행 룩업 10만 회)를 선택**. EXPLAIN ANALYZE 실측 — uk 44.8ms vs FORCE INDEX 커버링 range 14.5ms (**3배**). 옵티마이저 cost 추정(1977 vs 10153)이 실제와 반대. exp02 에서 본 "개별 순위 = 최악 경로(29qps)"의 원인 그대로.
+- 고른 것 & 왜: 인덱스는 3컬럼으로 확장(페이지 경로는 완전 해결). COUNT 는 **FORCE INDEX 를 넣지 않고 이식성 있는 파생 쿼리 유지** — H2 테스트 호환 리스크를 지면서까지 고칠 필요가 없는 게, 이 비용이 바로 로드맵이 실측으로 보이려는 "Stage 1 의 개별 순위 한계"이고 Stage 3 ZSET `ZREVRANK`(O(log N))의 존재 이유다. 상세 조회당 15~45ms 급 순위 쿼리는 한계 데이터포인트로 보존.
+- 트레이드오프: 3컬럼 인덱스는 엔트리가 커져 쓰기 시 재배치 비용 소폭 증가 (Stage 1b 쓰기 실측 항목에 포함됨). FORCE INDEX 미사용으로 상세 순위는 최적 경로 대비 3배 비쌈 — 운영 전환 시 힌트 도입 여지 기록.
+
 ## 2026-07-15 — 주문 스코어는 금액이 아니라 "결정 횟수"를 센다 (스코어 모델 확정)
 
 ### 결정 — view +0.1 / like ±0.2 (대칭 차감) / 주문 order line당 +0.7 고정. 가격·수량은 랭킹 점수에 넣지 않는다 (사용자 확정)

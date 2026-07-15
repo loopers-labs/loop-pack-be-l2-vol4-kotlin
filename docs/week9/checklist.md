@@ -13,7 +13,8 @@
 - [ ] **Stage 1a — MySQL 조회 시점 계산 (방식 A)** (타임박스 2h): 쿼리 안에서 score 합성(`0.1·view + 0.2·like + 0.6·sales`) + `ORDER BY score DESC LIMIT` · 개별 순위 = `1 + COUNT(score식 > 내 score식)`
   - 측정: EXPLAIN(filesort 확인) · 스케일별(1만 vs 10만) p95 · 개별 순위 쿼리 비용
   - 예상 한계(실측으로 확인): ① score가 계산식 → 인덱스 불가, 조회마다 전 행 스캔 ② 개별 순위가 사실상 전 행 2중 스캔 ③ 날짜 차원 없으면 누적 랭킹만 가능(롱테일)
-- [ ] **Stage 1b — MySQL 쓰기 시점 score (RDB로 번역한 방식 B, 사용자 설계 2026-07-14)**: 별도 테이블 `product_ranking_daily(ranking_date, product_id, score)` — `UNIQUE(ranking_date, product_id)` + `INDEX(ranking_date, score DESC)`. `product_metrics`는 R7 소유물이라 오염 금지 → 테이블 분리
+- [ ] **Stage 1b — MySQL 쓰기 시점 score (RDB로 번역한 방식 B, 사용자 설계 2026-07-14)**: 별도 테이블 `product_ranking_daily(ranking_date, product_id, score)` — `UNIQUE(ranking_date, product_id)` + `INDEX(ranking_date, score DESC, product_id ASC)` (3컬럼 확장 2026-07-15 — tie-break filesort 제거, EXPLAIN 근거 WRITING-LOG). `product_metrics`는 R7 소유물이라 오염 금지 → 테이블 분리
+  - **구현 완료 ✅ 2026-07-15** (브랜치 `feature/week09-ranking-stage1-mysql`): streamer dual write 적재(테스트 9) + api 랭킹 조회/상세 순위(테스트 9) — 전 테스트 green. 남은 것 = 쓰기 비용 실측(아래)과 k6 측정(사용자 검토 후)
   - 쓰기 = `INSERT ... ON DUPLICATE KEY UPDATE score = score + Δ` (ZINCRBY 대응) · 날짜 경계 = 새 날짜 행 lazy 생성 (일간 키 대응) · carry-over = **dual write: 오늘 행 +Δ와 내일 행 +Δ×0.1 동시 upsert (2026-07-15 결정 — 사전 INSERT 배치 대체)** · 보존 = `DELETE < D-2` 배치 (TTL 대응)
   - 추가 측정 (2026-07-15): **단일 upsert vs dual write(트랜잭션 2행)** 쓰기 경로 처리량·p95 — carry 비용을 숫자로 확보
 - [x] **EXP-01 — 자정 배치 × 조회 경합 실측 (사용자 제안) ✅ 2026-07-14 완료**: 10만 행 · conc32 실측 — A(제자리 UPDATE) 조회 **−41%**·배치 24.1s vs B(사전 INSERT) **−10%**·배치 3.9s → **가설 채택: 날짜 경계는 사전 시딩**. MVCC라 블로킹 0회, 열화는 전부 자원 경합(인덱스 10만 엔트리 재배치). 상세·재현: `experiments/exp01/README.md`
@@ -88,8 +89,8 @@
 2. ~~**감소 이벤트**~~ ✅ 2026-07-15 확정: 좋아요 취소 **대칭 차감(−0.2)**, 음수 score 허용 (metrics 동작 일치 · ZINCRBY 의미론 보존)
 3. **ZSET 갱신 위치** — collector 소비 트랜잭션/배치 안에서 product_metrics와 함께 vs 분리
 4. **TTL 부여 방식** — 매 이벤트 재설정 회피(조건부 expire / Lua)
-5. **Aggregation** — N+1 회피 전략(IN 일괄 / 캐시 재사용)
-6. **API 응답 계약** — 빈 랭킹/미진입 상품 rank=null 형태
+5. ~~**Aggregation**~~ ✅ 2026-07-15 (Stage 1b 구현으로 확정): `productRepository.findAllActiveByIdIn` IN 일괄 — ZSET 전환 시 그대로 재사용
+6. ~~**API 응답 계약**~~ ✅ 2026-07-15 (Stage 1b 구현으로 확정): 빈 랭킹 = 빈 배열, 미진입 상세 rank = null(필드 생략), 삭제 상품 = 항목 제외, rank = competition ranking(동점 동순위)
 7. **유실·복구 전략** — 이 설계에서 Redis는 캐시가 아니라 **누적 점수의 유일한 저장소**. 오늘 판 유실 시 재구축 경로 결정: Kafka 재소비가 자연스러우나 R7 `EventHandled` 멱등이 재소비를 막음 → 랭킹용 멱등 경계 분리(별도 consumer group) vs 감수(리더보드 정확성 요구 수준 판단) vs Redis persistence 의존. 과거 이력은 TTL로 영구 소실 — "전일 조회"까지만 요구되므로 수용, 이력 요구 생기면 만료 전 DB 스냅샷 배치 (2026-07-14 논의)
 
 ## 구현 완료 후 — Technical Writing (제출 필수 산출물)

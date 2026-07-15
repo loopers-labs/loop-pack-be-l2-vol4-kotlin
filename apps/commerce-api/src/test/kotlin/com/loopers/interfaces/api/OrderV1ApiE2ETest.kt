@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api
 
+import com.loopers.application.queue.port.EntryTokenStore
 import com.loopers.domain.coupon.CouponFixture
 import com.loopers.domain.coupon.CouponRepository
 import com.loopers.domain.coupon.DiscountType
@@ -8,11 +9,15 @@ import com.loopers.domain.coupon.UserCouponRepository
 import com.loopers.domain.order.OrderStatus
 import com.loopers.domain.product.ProductFixture
 import com.loopers.domain.product.ProductRepository
+import com.loopers.domain.queue.EntryToken
 import com.loopers.domain.user.UserFixture
 import com.loopers.domain.user.UserRepository
 import com.loopers.interfaces.api.order.OrderV1Dto
 import com.loopers.interfaces.api.user.UserV1Dto
+import com.loopers.testcontainers.MySqlTestContainersConfig
+import com.loopers.testcontainers.RedisTestContainersConfig
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -23,6 +28,7 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
+import org.springframework.context.annotation.Import
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -30,16 +36,20 @@ import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import java.time.Duration
 import java.time.LocalDateTime
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(MySqlTestContainersConfig::class, RedisTestContainersConfig::class)
 class OrderV1ApiE2ETest @Autowired constructor(
     private val testRestTemplate: TestRestTemplate,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
     private val userRepository: UserRepository,
     private val productRepository: ProductRepository,
     private val couponRepository: CouponRepository,
     private val userCouponRepository: UserCouponRepository,
+    private val entryTokenStore: EntryTokenStore,
 ) {
     private var productId: Long = 0L
     private var userCouponId: Long = 0L
@@ -72,6 +82,7 @@ class OrderV1ApiE2ETest @Autowired constructor(
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     @DisplayName("POST /api/v1/orders 주문 생성")
@@ -269,6 +280,48 @@ class OrderV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("입장 토큰 관문")
+    @Nested
+    inner class EntryTokenGate {
+        @DisplayName("입장 토큰이 없으면, 403 ENTRY_TOKEN_REQUIRED 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenNoToken() {
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(
+                    request(quantity = 1, userCouponId = null),
+                    headers(UserFixture.DEFAULT_LOGIN_ID, idempotencyKey = "idem-gate-1", withEntryToken = false),
+                ),
+                anyResponse(),
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN) },
+                { assertThat(response.body?.meta?.errorCode).isEqualTo("ENTRY_TOKEN_REQUIRED") },
+            )
+        }
+
+        @DisplayName("입장 토큰이 유효하지 않으면, 403 ENTRY_TOKEN_INVALID 응답을 받는다.")
+        @Test
+        fun returnsForbidden_whenInvalidToken() {
+            val bogusHeaders = headers(UserFixture.DEFAULT_LOGIN_ID, idempotencyKey = "idem-gate-2", withEntryToken = false)
+                .apply { set(HEADER_ENTRY_TOKEN, "bogus-token") }
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                HttpEntity(request(quantity = 1, userCouponId = null), bogusHeaders),
+                anyResponse(),
+            )
+
+            assertAll(
+                { assertThat(response.statusCode).isEqualTo(HttpStatus.FORBIDDEN) },
+                { assertThat(response.body?.meta?.errorCode).isEqualTo("ENTRY_TOKEN_INVALID") },
+            )
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private fun request(quantity: Int, userCouponId: Long?): OrderV1Dto.PlaceOrderRequest =
@@ -309,11 +362,24 @@ class OrderV1ApiE2ETest @Autowired constructor(
         idempotencyKey: String? = null,
     ): HttpHeaders = headers(loginId, idempotencyKey)
 
-    private fun headers(loginId: String, idempotencyKey: String? = null): HttpHeaders = HttpHeaders().apply {
+    // 주문 API 는 입장 토큰 관문 뒤에 있다. 정상 주문 경로는 대기열에서 입장한 상태를 가정하므로,
+    // 실제 발급 흐름(스케줄러) 대신 토큰을 직접 seed 해 X-Entry-Token 을 함께 보낸다.
+    private fun headers(
+        loginId: String,
+        idempotencyKey: String? = null,
+        withEntryToken: Boolean = true,
+    ): HttpHeaders = HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
         set(HEADER_LOGIN_ID, loginId)
         set(HEADER_LOGIN_PW, UserFixture.DEFAULT_PASSWORD)
         if (idempotencyKey != null) set("Idempotency-Key", idempotencyKey)
+        if (withEntryToken) {
+            userRepository.findByLoginId(loginId)?.let { user ->
+                val token = EntryToken.issue()
+                entryTokenStore.issue(user.id, token, Duration.ofMinutes(5))
+                set(HEADER_ENTRY_TOKEN, token.value)
+            }
+        }
     }
 
     private fun orderResponse() = object : ParameterizedTypeReference<ApiResponse<OrderV1Dto.OrderResponse>>() {}
@@ -323,5 +389,6 @@ class OrderV1ApiE2ETest @Autowired constructor(
     companion object {
         private const val HEADER_LOGIN_ID = "X-Loopers-LoginId"
         private const val HEADER_LOGIN_PW = "X-Loopers-LoginPw"
+        private const val HEADER_ENTRY_TOKEN = "X-Entry-Token"
     }
 }

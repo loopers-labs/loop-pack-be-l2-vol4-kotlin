@@ -5,6 +5,7 @@ import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.auth.AuthUser
 import com.loopers.interfaces.api.auth.LoginUser
 import com.loopers.interfaces.api.auth.RequireAuth
+import com.loopers.interfaces.api.queue.RequireEntryToken
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
 import org.springframework.format.annotation.DateTimeFormat
@@ -25,6 +26,7 @@ class OrderV1Controller(
 ) : OrderV1ApiSpec {
     @PostMapping("/orders")
     @RequireAuth
+    @RequireEntryToken
     override fun placeOrder(
         @LoginUser user: AuthUser,
         // 미존재/빈 헤더는 빈 문자열로 넘겨 도메인이 IDEMPOTENCY_KEY_BLANK 로 판정하게 한다.

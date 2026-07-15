@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.core.KafkaTemplate
+import java.time.LocalDateTime
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -62,12 +64,16 @@ class OutboxRelayIntegrationTest @Autowired constructor(
         every { kafkaTemplate.send(any<String>(), any(), any()) } throws RuntimeException("broker down")
         relay.relay()
 
-        // 유실 없음: 이벤트는 여전히 PENDING 으로 outbox 에 남아 재시도 근거가 된다
-        assertThat(outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING)).hasSize(1)
+        // 유실 없음: 이벤트는 여전히 PENDING 으로 outbox 에 남고, 실패 기록과 백오프가 걸린다
+        val failed = outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PENDING)
+        assertThat(failed).hasSize(1)
+        assertThat(failed.first().retryCount).isEqualTo(1)
+        assertThat(failed.first().nextRetryAt).isNotNull()
         assertThat(outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PUBLISHED)).isEmpty()
 
-        // 브로커 복구 — 다음 릴레이 주기
+        // 브로커 복구 — 첫 실패의 백오프(1초)가 지나야 다음 릴레이가 재시도한다
         every { kafkaTemplate.send(any<String>(), any(), any()) } returns CompletableFuture.completedFuture(mockk())
+        Thread.sleep(1100)
         relay.relay()
 
         // 재시도로 결국 발행됨
@@ -75,4 +81,34 @@ class OutboxRelayIntegrationTest @Autowired constructor(
         assertThat(outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.PUBLISHED)).hasSize(1)
         verify { kafkaTemplate.send("order-events", any(), any()) }
     }
+
+    @Test
+    fun `재시도 상한을 소진한 이벤트는 FAILED 로 격리되고, 같은 애그리거트의 뒤 이벤트는 다음 주기부터 발행된다`() {
+        // 9회 실패를 이미 겪은 poison 이벤트 — 백오프는 과거로 소진돼 이번 주기에 마지막 시도가 이루어진다
+        val poison = outboxRow()
+        repeat(9) { poison.recordFailure(LocalDateTime.now().minusHours(1), "broker down") }
+        outboxEventJpaRepository.save(poison)
+        val next = outboxEventJpaRepository.save(outboxRow())
+
+        // 10번째 실패 — poison 은 FAILED 격리, 같은 애그리거트의 뒤 이벤트는 이번 주기 보류
+        every { kafkaTemplate.send(any<String>(), any(), any()) } throws RuntimeException("broker down")
+        relay.relay()
+        assertThat(outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.FAILED)).hasSize(1)
+        assertThat(outboxEventJpaRepository.findById(next.id).get().status).isEqualTo(OutboxStatus.PENDING)
+
+        // 다음 주기 — FAILED 는 폴링에서 빠지므로 뒤 이벤트가 발행돼 스트림이 재개된다
+        every { kafkaTemplate.send(any<String>(), any(), any()) } returns CompletableFuture.completedFuture(mockk())
+        relay.relay()
+        assertThat(outboxEventJpaRepository.findById(next.id).get().status).isEqualTo(OutboxStatus.PUBLISHED)
+        assertThat(outboxEventJpaRepository.findByStatusOrderByIdAsc(OutboxStatus.FAILED)).hasSize(1)
+    }
+
+    private fun outboxRow() = OutboxEventEntity.create(
+        eventId = UUID.randomUUID(),
+        aggregateType = "ORDER",
+        aggregateId = "42",
+        eventType = "ORDER_CREATED",
+        payload = "{}",
+        occurredAt = LocalDateTime.now(),
+    )
 }

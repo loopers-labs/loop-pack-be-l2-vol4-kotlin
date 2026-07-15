@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.application.metrics.ProductMetricsFacade
 import com.loopers.application.metrics.SalesLine
 import com.loopers.kafka.EventEnvelope
+import com.loopers.kafka.MalformedEventException
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -62,5 +64,33 @@ class MetricsEventHandlerTest {
         verify {
             facade.addSales(eventId, listOf(SalesLine(7L, 2), SalesLine(9L, 1)))
         }
+    }
+
+    @Test
+    fun `역직렬화할 수 없는 메시지는 MalformedEventException 을 던진다 - 재시도 없이 DLT 로 격리된다`() {
+        assertThrows<MalformedEventException> { handler.handle("not-json".toByteArray()) }
+
+        verify(exactly = 0) { facade.increaseLike(any(), any()) }
+        verify(exactly = 0) { facade.decreaseLike(any(), any()) }
+        verify(exactly = 0) { facade.increaseView(any(), any()) }
+        verify(exactly = 0) { facade.addSales(any(), any()) }
+    }
+
+    @Test
+    fun `aggregateId 가 상품 식별자가 아니면 MalformedEventException 을 던진다`() {
+        assertThrows<MalformedEventException> {
+            handler.handle(envelope("LIKE_CREATED", aggregateId = "not-a-number", eventId = UUID.randomUUID()))
+        }
+
+        verify(exactly = 0) { facade.increaseLike(any(), any()) }
+    }
+
+    @Test
+    fun `ORDER_CREATED payload 에 lines 배열이 없으면 MalformedEventException 을 던진다`() {
+        assertThrows<MalformedEventException> {
+            handler.handle(envelope("ORDER_CREATED", aggregateId = "100", eventId = UUID.randomUUID(), payload = "{}"))
+        }
+
+        verify(exactly = 0) { facade.addSales(any(), any()) }
     }
 }

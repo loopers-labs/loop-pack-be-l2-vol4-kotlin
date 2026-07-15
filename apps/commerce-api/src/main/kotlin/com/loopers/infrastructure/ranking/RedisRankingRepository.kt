@@ -7,7 +7,6 @@ import com.loopers.domain.ranking.RankingRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.domain.Pageable
 import org.springframework.data.redis.core.RedisTemplate
-import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.stereotype.Component
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

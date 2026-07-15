@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.data.redis.core.RedisTemplate
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 @SpringBootTest(properties = ["spring.kafka.listener.auto-startup=false"])
 @Import(MySqlTestContainersConfig::class, RedisTestContainersConfig::class)
@@ -27,6 +28,7 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
     private val redisCleanUp: RedisCleanUp,
 ) {
     private val key = "rank:all:20260714"
+    private val ttlSeconds = 172_800L
 
     @AfterEach
     fun tearDown() {
@@ -41,15 +43,15 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
     inner class IncrementScore {
         @Test
         fun `랭킹판에서 그 상품의 점수가 증가한다`() {
-            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
 
             assertThat(scoreOf(101L)).isEqualTo(0.7)
         }
 
         @Test
         fun `서로 다른 이벤트로 같은 상품에 누적하면 점수가 합산된다`() {
-            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7)
-            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.2)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.2, ttlSeconds = ttlSeconds)
 
             assertThat(scoreOf(101L)).isCloseTo(0.9, within(1e-9))
         }
@@ -62,10 +64,24 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
         fun `점수는 한 번만 반영된다`() {
             val eventId = UUID.randomUUID()
 
-            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7)
-            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7)
+            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
 
             assertThat(scoreOf(101L)).isEqualTo(0.7)
+        }
+    }
+
+    @DisplayName("점수를 누적하면 보존 기간이,")
+    @Nested
+    inner class Ttl {
+        @Test
+        fun `랭킹판과 멱등 표식 양쪽에 설정된다`() {
+            val eventId = UUID.randomUUID()
+
+            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+
+            assertThat(masterTemplate.getExpire(key, TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
+            assertThat(masterTemplate.getExpire("rank:seen:$eventId", TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
         }
     }
 }

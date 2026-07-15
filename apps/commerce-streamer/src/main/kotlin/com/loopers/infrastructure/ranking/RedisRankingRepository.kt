@@ -19,23 +19,26 @@ class RedisRankingRepository(
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val masterTemplate: RedisTemplate<String, String>,
 ) : RankingRepository {
-    override fun incrementScoreOnce(eventId: UUID, key: String, productId: Long, delta: Double) {
+    override fun incrementScoreOnce(eventId: UUID, key: String, productId: Long, delta: Double, ttlSeconds: Long) {
         masterTemplate.execute(
             INCREMENT_ONCE,
             listOf(seenKey(eventId), key),
             delta.toString(),
             productId.toString(),
+            ttlSeconds.toString(),
         )
     }
 
     private fun seenKey(eventId: UUID): String = "rank:seen:$eventId"
 
     companion object {
-        // KEYS[1]=멱등 표식 키, KEYS[2]=랭킹판 키, ARGV[1]=증분 점수, ARGV[2]=상품 식별자(member)
+        // KEYS[1]=멱등 표식 키, KEYS[2]=랭킹판 키, ARGV[1]=증분 점수, ARGV[2]=상품 식별자(member), ARGV[3]=보존 기간(초)
         private val INCREMENT_ONCE = DefaultRedisScript(
             """
             if redis.call('SETNX', KEYS[1], '1') == 1 then
+                redis.call('EXPIRE', KEYS[1], ARGV[3])
                 redis.call('ZINCRBY', KEYS[2], ARGV[1], ARGV[2])
+                redis.call('EXPIRE', KEYS[2], ARGV[3])
                 return 1
             end
             return 0

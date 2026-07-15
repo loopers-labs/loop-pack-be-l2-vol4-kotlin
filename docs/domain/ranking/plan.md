@@ -35,15 +35,15 @@
 ### Phase 1 — 도메인 모델 (`com.loopers.domain.ranking`)
 > 값 객체, 도메인 규칙. 스프링/Redis 의존 없이 순수 Kotlin 로 작성. 키·점수 규약은 [logical-model.md](./logical-model.md).
 
-- [ ] (streamer) 날짜로 랭킹판 키를 만들면 `rank:all:{yyyyMMdd}` 형식이 된다
-- [ ] (streamer) 시각이 주어지면 Asia/Seoul 기준 날짜의 키로 계산된다 — 자정 직후 시각은 새 날짜 키에 귀속된다
-- [ ] (streamer) 조회 신호 1건의 점수는 조회 가중치와 같다
-- [ ] (streamer) 좋아요 신호 1건의 점수는 좋아요 가중치와 같다
-- [ ] (streamer) 좋아요 취소 신호의 점수는 좋아요 가중치의 음수다
-- [ ] (streamer) 주문 신호의 점수는 수량 × 주문 가중치다
-- [ ] (streamer) 주문 1건(수량 1)의 점수가 좋아요 3건의 합보다 크다 — 가중치 관계(0.7 > 0.2×3)가 정책으로 고정된다
-- [ ] (commerce-api) `yyyyMMdd` 형식이 아닌 날짜 문자열로 랭킹판 키를 만들려 하면 예외가 발생한다
-- [ ] (commerce-api) 날짜 문자열 없이 키를 만들면 오늘(Asia/Seoul) 날짜의 키가 된다
+- [x] (streamer) 날짜로 랭킹판 키를 만들면 `rank:all:{yyyyMMdd}` 형식이 된다
+- [x] (streamer) 시각이 주어지면 Asia/Seoul 기준 날짜의 키로 계산된다 — 자정 직후 시각은 새 날짜 키에 귀속된다
+- [x] (streamer) 조회 신호 1건의 점수는 조회 가중치와 같다
+- [x] (streamer) 좋아요 신호 1건의 점수는 좋아요 가중치와 같다
+- [x] (streamer) 좋아요 취소 신호의 점수는 좋아요 가중치의 음수다
+- [x] (streamer) 주문 신호의 점수는 수량 × 주문 가중치다
+- [x] (streamer) 주문 1건(수량 1)의 점수가 좋아요 3건의 합보다 크다 — 가중치 관계(0.7 > 0.2×3)가 정책으로 고정된다
+- [x] (commerce-api) `yyyyMMdd` 형식이 아닌 날짜 문자열로 랭킹판 키를 만들려 하면 예외가 발생한다
+- [x] (commerce-api) 날짜 문자열 없이 키를 만들면 오늘(Asia/Seoul) 날짜의 키가 된다
 
 ### Phase 2 — 도메인 서비스 (`com.loopers.domain.ranking.{Aggregate}Service`)
 > 도메인 규칙 조합 + Repository 인터페이스를 통한 상태 변경.
@@ -110,3 +110,4 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - 2026-07-13: /test-cases 로 초기 케이스 도출. ZSET 키 규약은 [logical-model.md](./logical-model.md) 에 확정.
 - 2026-07-14: 주문 신호를 `ORDER_PAID`(결제 확정) 기준으로 확정. 선행 작업으로 commerce-api 에 `OrderEvent.Paid` 신설·`ORDER_CREATED` 내부화, streamer 판매 집계 매핑 교체 완료.
 - 2026-07-14: 구현 전 상세 검토 — ① 랭킹은 전용 consumer group + Lua 원자 멱등(유실·중복 없음, 방침 격상) ② 이월 23:50 + 목적지 존재 시 스킵 ③ 삭제 상품은 `PRODUCT_DELETED` 신설 + ZREM ④ 시간 창 KST 달력일·occurredAt 귀속 확정. 케이스 갱신 반영.
+- 2026-07-14: Phase 1 완료 — streamer `RankingKey`(일자·발생시각)·`RankingScorePolicy`(신호별 가중치·취소 음수·주문 수량)·`RankingSignal`·`RankingWeights`, commerce-api `RankingKey`(문자열 파싱·오늘 기본)·`RankingErrorType`.

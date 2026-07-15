@@ -53,9 +53,9 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 ### Phase 3 — 인프라 어댑터 (`com.loopers.infrastructure.ranking`)
 > Redis 어댑터 구현. Testcontainers(Redis) 통합 테스트 — `modules/redis` testFixtures 재사용.
 
-- [ ] (streamer) 점수를 누적하면 랭킹판에서 그 상품의 점수가 증가한다
-- [ ] (streamer) 같은 상품에 여러 번 누적하면 점수가 합산된다
-- [ ] (streamer) **같은 eventId 로 두 번 누적을 시도하면 점수는 한 번만 반영된다** — 멱등 표식과 증분이 원자다(Lua)
+- [x] (streamer) 점수를 누적하면 랭킹판에서 그 상품의 점수가 증가한다
+- [x] (streamer) 같은 상품에 여러 번 누적하면 점수가 합산된다
+- [x] (streamer) **같은 eventId 로 두 번 누적을 시도하면 점수는 한 번만 반영된다** — 멱등 표식과 증분이 원자다(Lua)
 - [ ] (streamer) 음수 증분을 누적하면 점수가 감소하고, 0 아래로도 내려간다
 - [ ] (streamer) 점수 누적 시 랭킹판과 멱등 표식에 보존 기간(48시간) 만료가 설정된다
 - [ ] (streamer) 서로 다른 날짜 키에 누적한 점수는 섞이지 않는다

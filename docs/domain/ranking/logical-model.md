@@ -66,7 +66,7 @@ rank:brand:{brandId}:{yyyyMMdd} 등 scope 확장
 | 이월 (Carry-Over) | `ZUNIONSTORE {내일키} 1 {오늘키} WEIGHTS 0.1` — 23:50 실행, **목적지 키 존재 시 스킵**(중복 실행·자정 후 오발동 방어) | commerce-streamer (스케줄러) |
 
 - 순위는 `ZREVRANGE` 의 페이지 시작 인덱스에서 이어진다 — `rank = page × size + (목록 내 위치) + 1`.
-- 쓰기는 master 템플릿, 읽기는 replica 분산 템플릿을 쓴다(`modules/redis` 이원 구성).
+- 쓰기·읽기 모두 master 템플릿을 쓴다 — 대기열 ZSET 조회와 같은 이유로, 갱신 직후에도 순위가 흔들리지 않게 최신 상태를 읽는다. replica 분산은 복제 지연이 순위 정확성을 흐리므로 채택하지 않는다.
 - 이월은 23:50 스냅샷 복사다 — 23:50~자정 사이에 쌓인 점수는 다음 날 이월분에 포함되지 않는다(허용).
 
 ## 4. 정합성 — 전용 consumer group + Lua 원자 멱등

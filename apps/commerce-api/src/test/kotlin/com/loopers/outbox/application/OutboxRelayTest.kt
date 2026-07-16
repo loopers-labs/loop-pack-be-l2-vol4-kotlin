@@ -53,7 +53,7 @@ class OutboxRelayTest {
 
         val order = inOrder(eventMessagePublisher, outboxEventRepository)
         order.verify(eventMessagePublisher).publish(eq("order-events"), eq("10"), any())
-        order.verify(eventMessagePublisher).publish(eq("catalog-events"), eq("20"), any())
+        order.verify(eventMessagePublisher).publish(eq("product-events"), eq("20"), any())
         order.verify(outboxEventRepository).markSent(listOf(1L, 2L))
     }
 
@@ -67,14 +67,14 @@ class OutboxRelayTest {
         verify(eventMessagePublisher).publish("order-events", "10", objectMapper.readTree("""{"eventId":"e-1"}"""))
     }
 
-    @DisplayName("PRODUCT aggregate 는 catalog-events 토픽에 key=aggregateId 로 발행한다.")
+    @DisplayName("PRODUCT aggregate 는 product-events 토픽에 key=aggregateId 로 발행한다.")
     @Test
     fun publishesProductEventToCatalogEventsTopic() {
         givenPending(outboxEvent(1L, "PRODUCT", 20L))
 
         outboxRelay.relay()
 
-        verify(eventMessagePublisher).publish("catalog-events", "20", objectMapper.readTree("""{"eventId":"e-1"}"""))
+        verify(eventMessagePublisher).publish("product-events", "20", objectMapper.readTree("""{"eventId":"e-1"}"""))
     }
 
     @DisplayName("발행이 실패하면 그 지점에서 중단하고, 성공분까지만 SENT 마킹한다 — 실패분 이후는 발행하지 않는다.")

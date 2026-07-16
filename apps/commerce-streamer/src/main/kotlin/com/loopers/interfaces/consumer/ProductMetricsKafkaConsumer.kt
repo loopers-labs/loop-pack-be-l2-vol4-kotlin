@@ -19,7 +19,7 @@ class ProductMetricsKafkaConsumer(
     private val logger = LoggerFactory.getLogger(ProductMetricsKafkaConsumer::class.java)
 
     @KafkaListener(
-        topics = ["catalog-events", "order-events", "user-action-events"],
+        topics = ["product-events", "order-events", "user-action-events"],
         groupId = "commerce-streamer-metrics",
         containerFactory = KafkaConfig.BATCH_LISTENER,
         autoStartup = "\${kafka.listener.auto-startup:true}",

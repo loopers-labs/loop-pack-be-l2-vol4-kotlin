@@ -12,7 +12,7 @@ import org.springframework.kafka.config.TopicBuilder
 @Profile("local")
 class KafkaTopicsConfig {
     @Bean
-    fun catalogEventsTopic(): NewTopic = TopicBuilder.name(EventTopics.CATALOG_EVENTS).partitions(3).replicas(1).build()
+    fun productEventsTopic(): NewTopic = TopicBuilder.name(EventTopics.PRODUCT_EVENTS).partitions(3).replicas(1).build()
 
     @Bean
     fun couponIssueRequestsTopic(): NewTopic =

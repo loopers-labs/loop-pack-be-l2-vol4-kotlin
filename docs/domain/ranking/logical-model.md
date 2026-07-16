@@ -36,12 +36,13 @@ rank:all:{yyyyMMdd}          예: rank:all:20260713
 ### 멱등 표식 키
 
 ```
-rank:seen:{eventId}          예: rank:seen:8f14e45f-...
+rank:seen:{eventId}:{productId}   예: rank:seen:8f14e45f-...:101
 ```
 
 | 항목 | 규약 |
 |---|---|
 | 타입 | String (값은 의미 없음, 존재 여부만 사용) |
+| 멱등 단위 | (이벤트, 상품) — 한 주문(같은 eventId)의 여러 상품 라인이 서로를 막지 않도록 productId 를 키에 포함한다 |
 | TTL | 48시간 — 재전달이 도달할 수 있는 기간보다 충분히 길게, 랭킹판 보존 기간과 동일 |
 | 용도 | 랭킹 반영의 exactly-once — 표식 생성(SETNX)과 점수 증분(ZINCRBY)을 Lua 로 원자 실행 |
 
@@ -56,7 +57,7 @@ rank:brand:{brandId}:{yyyyMMdd} 등 scope 확장
 
 | 목적 | 연산 | 수행 주체 |
 |---|---|---|
-| 점수 누적 (조회·좋아요·주문) | **Lua 원자 실행**: `SETNX rank:seen:{eventId}` 가 1이면 `ZINCRBY key delta productId` + `EXPIRE`(둘 다) | commerce-streamer, **랭킹 전용 consumer group** |
+| 점수 누적 (조회·좋아요·주문) | **Lua 원자 실행**: `SETNX rank:seen:{eventId}:{productId}` 가 1이면 `ZINCRBY key delta productId` + `EXPIRE`(둘 다) | commerce-streamer, **랭킹 전용 consumer group** |
 | 주문 신호의 원천 | `ORDER_PAID`(결제 확정) 이벤트 — `ORDER_CREATED` 는 내부 이벤트라 와이어에 나오지 않는다 | commerce-api (발행) |
 | 좋아요 취소 차감 | 같은 Lua 경로에 음수 delta | commerce-streamer (랭킹 그룹) |
 | 삭제 상품 정리 | `PRODUCT_DELETED` 소비 → `ZREM {오늘키} {어제키} productId` | commerce-streamer (랭킹 그룹) |

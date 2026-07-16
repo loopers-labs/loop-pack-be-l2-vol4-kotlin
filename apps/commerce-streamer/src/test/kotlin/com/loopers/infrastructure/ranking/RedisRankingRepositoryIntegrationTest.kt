@@ -96,6 +96,18 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
 
             assertThat(scoreOf(101L)).isEqualTo(0.7)
         }
+
+        @Test
+        fun `같은 eventId 라도 상품이 다르면 각각 반영된다`() {
+            // 한 주문(같은 eventId)에 여러 상품 라인이 있으면 라인마다 반영돼야 한다.
+            val eventId = UUID.randomUUID()
+
+            rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+            rankingRepository.incrementScoreOnce(eventId, key, productId = 202L, delta = 1.4, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(101L)).isEqualTo(0.7)
+            assertThat(scoreOf(202L)).isEqualTo(1.4)
+        }
     }
 
     @DisplayName("상품을 제거하면,")
@@ -124,7 +136,7 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
             rankingRepository.incrementScoreOnce(eventId, key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
 
             assertThat(masterTemplate.getExpire(key, TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
-            assertThat(masterTemplate.getExpire("rank:seen:$eventId", TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
+            assertThat(masterTemplate.getExpire("rank:seen:$eventId:101", TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
         }
     }
 

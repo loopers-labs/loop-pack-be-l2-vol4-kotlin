@@ -25,10 +25,10 @@ class RedisRankingRepository(
     override fun incrementScoreOnce(eventId: UUID, key: String, productId: Long, delta: Double, ttlSeconds: Long) {
         masterTemplate.execute(
             INCREMENT_ONCE,
-            listOf(seenKey(eventId), key),
+            listOf(seenKey(eventId, productId), key),
             delta.toString(),
             productId.toString(),
-            ttlSeconds.toString(),
+            ttlSecon현ds.toString(),
         )
     }
 
@@ -45,7 +45,8 @@ class RedisRankingRepository(
         masterTemplate.expire(destKey, Duration.ofSeconds(ttlSeconds))
     }
 
-    private fun seenKey(eventId: UUID): String = "rank:seen:$eventId"
+    // 멱등 단위는 (이벤트, 상품) — 한 주문(같은 eventId)의 여러 상품 라인이 서로를 막지 않게 한다.
+    private fun seenKey(eventId: UUID, productId: Long): String = "rank:seen:$eventId:$productId"
 
     companion object {
         // KEYS[1]=멱등 표식 키, KEYS[2]=랭킹판 키, ARGV[1]=증분 점수, ARGV[2]=상품 식별자(member), ARGV[3]=보존 기간(초)

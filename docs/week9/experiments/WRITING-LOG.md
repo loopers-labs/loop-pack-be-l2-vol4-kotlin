@@ -90,3 +90,14 @@
 - 함정 발견: Kotlin data class의 프리미티브 필수 필드(Long)는 JSON 누락 시 예외가 아니라 0으로 채워짐 — 테스트가 잡아냄. 컨슈머 전용 mapper에 `FAIL_ON_MISSING_CREATOR_PROPERTIES`·`FAIL_ON_NULL_FOR_PRIMITIVES`를 켜서 계약 위반이 조용히 통과하지 않게 강제.
 - 부수 결정: `catalog-events` → `product-events` rename — 코드 전체가 product 어휘(패키지·이벤트명·aggregateType "PRODUCT")인데 토픽만 catalog여서 유추 불가. week7에 직접 지은 이름이라 계약 파트너 조율 불요, 브로커 auto-create로 마이그레이션 무비용(테스트 데이터 환경).
 - 트레이드오프 / 남은 리스크: ① 컨슈머 스레드 3→9 ② 그룹 rename으로 기존 오프셋 승계 없음(latest 시작 — 측정 환경이라 무해) ③ 프로듀서·컨슈머 스키마 이중 정의는 앱 간 계약의 정상 비용.
+
+## 2026-07-16 — 구독(EventSubscription)별 컨슈머 분리 — metrics 와 ranking 의 독립 소비
+
+### 결정 — 한 컨슈머가 두 프로젝션을 한 트랜잭션으로 처리하던 구조를, 구독별 컨슈머 그룹 + 구독별 멱등 기록으로 분리한다
+
+- 배경/문제: `ProductMetricsService.handle()` 하나가 metrics 카운터와 랭킹 dual write 를 같은 트랜잭션에서 처리 — ① 두 책임이 운명공동체(랭킹 지연 = metrics 랙) ② `event_handled` 가 컨슈머 공용이라 랭킹만 재처리(replay) 불가능 ③ Stage 3 에서 랭킹이 Redis 로 가면 어차피 한 트랜잭션이 성립 불가. 결정적으로 두 구독이 원하는 기록이 다름 — metrics 는 종류별 카운터, ranking 은 균일한 점수 델타.
+- 고른 것 & 왜: ① `ProductRankingKafkaConsumer` 신설(그룹 `commerce-streamer-ranking-{topic}`) — 경계에서 이벤트를 `ScoreDelta(productId, amount)` 로 변환해 `RankingAccumulateService.accumulate()` 에 위임 (서비스 입력 = 그 구독이 원하는 기록 그 자체) ② `event_handled` 를 `(event_id, subscription)` 복합키로 — 구독별 처리 기록이라 "이 이벤트가 각 프로젝션에 반영됐는가"를 구독별로 검증 가능 ③ 구분자는 String 이 아니라 `EventSubscription { METRICS, RANKING }` enum(@Enumerated STRING). bare `Subscription` 은 커머스 도메인의 구독 결제와 충돌해 도메인 자격어를 붙임. Pub/Sub 의 topic→subscription 모델과 동일한 어휘.
+- 버린 대안 & 왜: 단일 컨슈머 유지(metrics-ranking 원자성) — 그 원자성을 사용하는 소비자가 없음(정산 검증도 k6 카운터 대 저장소 대사). / handler 문자열 상수 — 방금 String eventType 분기를 걷어낸 것과 같은 이유로 기각.
+- 함정: 분리하는 순간 복합키 전환은 선택이 아니라 필수 — 단일 PK(event_id)면 둘째 구독의 insert 가 PK 충돌 → 롤백 → 재전달 무한루프.
+- 부수 정리: 아키텍처 훅이 domain 레이어의 JPA import 위반을 검출(기존 EventHandled 가 domain 에 @Entity 로 존재) → 엔티티를 `metrics/infrastructure` 로 이동, domain 엔 enum + 순수 인터페이스(`exists`/`markHandled`)만. 소비 계약(`ConsumedEvents`)은 두 구독이 공유하므로 `shared/event` 로 이동. 역직렬화는 `ConsumedEventDeserializer` 오브젝트로 단일화.
+- 트레이드오프 / 남은 리스크: ① 브로커 읽기 2배·이벤트당 트랜잭션 1→2 ② metrics-ranking 간 원자성 소멸(사용처 없음 확인) ③ Stage 3 에서 RANKING 구독의 멱등 기록을 MySQL 에 둘지 Redis(Lua dedup+ZINCRBY)로 옮길지는 열린 결정.

@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실시간 랭킹 Stage 1 — MySQL 구현 해부</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>LOOPERS · WEEK 9 · STAGE 1</span>
+      <h1 class="title">실시간 랭킹,<br><span class="hl">MySQL로 먼저 부딪히기</span></h1>
+      <p class="lede">바로 Redis ZSET으로 가지 않았다. <b>쓰기 시점 점수 적재 + dual write</b>로 MySQL 위에 일간 랭킹을 먼저 세우고, 이 구현이 어디서 무너지는지를 실측으로 확인한 뒤 다음 단계로 간다. 이 글은 그 Stage 1 구현의 해부도다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">TOPIC</span><span class="v">일간 상품 랭킹 (실시간 반영)</span></div>
+        <div class="chip"><span class="k">STACK</span><span class="v">Kotlin · Spring · Kafka · MySQL 8</span></div>
+        <div class="chip"><span class="k">CODE</span><span class="v">PR #12 — feature/week09-design-docs</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">왜 MySQL부터인가</a></li>
+      <li><a href="#s2">데이터 모델 — 점수는 쓸 때 계산한다</a></li>
+      <li><a href="#s3">쓰기 경로 — 이벤트 소비 파이프라인</a></li>
+      <li><a href="#s4">자정 경계 — 배치 대신 dual write</a></li>
+      <li><a href="#s5">읽기 경로 — 랭킹 페이지와 개별 순위</a></li>
+      <li><a href="#s6">테스트로 고정한 계약</a></li>
+      <li><a href="#s7">알려진 한계와 다음 측정</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">WHY MYSQL FIRST</p><h2 class="sec">왜 MySQL부터인가</h2></div>
+    </div>
+
+    <p class="lead">"RDB는 랭킹에 느리다"는 서술만으로 ZSET을 고르면, 그것은 결정이 아니라 주장이다.</p>
+    <p>요구사항은 네 가지다. <strong>일간 랭킹</strong>(자정마다 판이 바뀜), <strong>실시간 반영</strong>(이벤트가 곧바로 점수에 잡힘), <strong>개별 상품 순위</strong>(상세 페이지에 "오늘 N위"), 그리고 <strong>전날 점수의 10% 이월</strong>(자정 직후 판이 텅 비지 않게). 점수 가중치는 조회 0.1 · 좋아요 0.2 · 주문 0.7이고, 주문은 금액이 아니라 <em>주문 라인 건수</em>로 센다 — 고가 상품 1건이 인기 상품 판을 뒤집는 왜곡을 피하기 위해 실서비스 사례 조사 후 확정한 값이다.</p>
+    <p>구현은 3단계로 올라간다. <strong>Stage 1 MySQL 쿼리 → Stage 2 Redis 캐시 → Stage 3 ZSET.</strong> 같은 시드, 같은 k6 시나리오, 같은 지표로 3자 비교해서 각 단계의 탈락 사유를 요구사항 항목에 1:1로 매핑하는 것이 목표다. 이 글이 다루는 Stage 1은 "MySQL로 어디까지 되는가"의 기준선이다.</p>
+
+    <div class="note key"><span class="tag">이 구현의 두 가지 핵심 결정</span>① <strong>점수는 쓰기 시점에 누적</strong>한다 — 조회 시점에 가중치를 합성하는 방식은 사전 실험(EXP-02)에서 최악 경로임이 확인됐다. ② <strong>자정 감쇠는 배치가 아니라 dual write</strong>로 처리한다 — 전면 UPDATE 배치는 사전 실험(EXP-01)에서 조회 처리량을 41% 깎았다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">DATA MODEL</p><h2 class="sec">데이터 모델 — 점수는 쓸 때 계산한다</h2></div>
+    </div>
+
+    <p class="lead">테이블은 하나다. <span class="term">product_ranking_daily</span> — 날짜 × 상품마다 점수 한 행.</p>
+    <p>대안은 두 갈래였다. 기존 <span class="term">product_metrics</span>(누적 카운트 테이블)를 두고 조회할 때마다 <code>0.1×view + 0.2×like + 0.7×order</code>를 합성하는 방식(조회 시점 계산)과, 이벤트가 올 때마다 가중치를 곱해 점수 컬럼에 바로 누적하는 방식(쓰기 시점 계산). EXP-02에서 둘을 같은 환경에 놓고 재보니 조회 시점 계산은 정렬 기준이 계산식이라 인덱스를 탈 수 없었고, 10만 행 기준 개별 순위 쿼리가 처리량 29qps로 최악 경로였다. 그래서 <strong>점수를 미리 계산해 저장하고, 조회는 인덱스만 읽게</strong> 만들었다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>구성 요소</th><th>정의</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td>컬럼</td><td>ranking_date · product_id · score (DECIMAL 20,4)</td><td>날짜별 판 × 상품 점수</td></tr>
+          <tr><td>UNIQUE KEY</td><td>uk_prd_date_product (ranking_date, product_id)</td><td>upsert 충돌 키 — 한 판에 상품 1행</td></tr>
+          <tr><td>INDEX</td><td>idx_prd_date_score (ranking_date, score DESC, product_id ASC)</td><td>랭킹 페이지가 정렬 없이 읽는 커버링 인덱스</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>인덱스 3컬럼이 이 설계의 골격이다. <span class="term">ranking_date</span>로 판을 자르고, <span class="term">score DESC</span><a href="#r2" class="cite">[2]</a>로 이미 정렬돼 있으니 랭킹 페이지 조회는 filesort 없이 인덱스 순서 그대로 LIMIT만 걸면 된다. 마지막 <span class="term">product_id ASC</span>는 동점일 때 순서를 결정적으로 만들고, 동시에 조회가 필요로 하는 세 컬럼을 인덱스만으로 커버한다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">ranking/infrastructure/ProductRankingDaily.kt</span>
+      </div>
+<pre><span class="kw">@Entity</span>
+<span class="kw">@Table</span>(
+    name = <span class="st">"product_ranking_daily"</span>,
+    uniqueConstraints = [
+        UniqueConstraint(name = <span class="st">"uk_prd_date_product"</span>, columnNames = [<span class="st">"ranking_date"</span>, <span class="st">"product_id"</span>]),
+    ],
+    indexes = [
+        Index(name = <span class="st">"idx_prd_date_score"</span>, columnList = <span class="st">"ranking_date, score DESC, product_id ASC"</span>),
+    ],
+)
+<span class="kw">class</span> <span class="ty">ProductRankingDaily</span>(
+    rankingDate: <span class="ty">LocalDate</span>,
+    productId: <span class="ty">Long</span>,
+    score: <span class="ty">BigDecimal</span>,
+) : <span class="ty">BaseEntity</span>()</pre>
+    </div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">WRITE PATH</p><h2 class="sec">쓰기 경로 — 이벤트 소비 파이프라인</h2></div>
+    </div>
+
+    <p class="lead">이벤트 하나가 점수 두 행이 되기까지 — 발행부터 upsert까지 전 구간이다.</p>
+    <p>발행 쪽은 이벤트 성격에 따라 경로가 다르다. 좋아요와 주문은 week 7에 만든 <strong>outbox를 통해 원자 발행</strong>되므로 유실이 없어야 하고(불일치 = 버그), 상품 조회(view)는 <span class="term">@Async</span> AFTER_COMMIT 직접 발행이라 <strong>유실 허용</strong> 경로다. 이 차이는 나중에 정산(reconciliation) 검증의 허용 오차 기준이 된다 — like·order는 오차 0, view는 결손만 허용.</p>
+    <p>소비 쪽은 <span class="term">commerce-streamer</span>가 토픽 3개를 배치로 읽는다. 멱등 처리(<span class="term">event_handled</span> 테이블로 eventId 중복 차단), 기존 <span class="term">product_metrics</span> 누적, 그리고 이번에 추가된 <strong>랭킹 점수 적재</strong>가 이벤트당 한 트랜잭션 안에서 함께 처리된다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 1040" role="img" aria-label="쓰기 경로 전체 파이프라인: commerce-api의 세 이벤트가 Kafka 토픽 3개를 거쳐 commerce-streamer의 컨슈머와 서비스에서 처리되고, dual write upsert로 MySQL product_ranking_daily의 오늘판과 내일판에 적재되는 흐름">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- producers -->
+          <text class="svg-l" x="10" y="12" fill="#8B95A1">commerce-api</text>
+          <g>
+            <rect x="10" y="22" width="220" height="86" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="10" y="22" width="220" height="86">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">ProductLiked · Unliked</div>
+                <div class="s">LikeService → Outbox</div>
+                <div class="s">원자 발행 · 유실 없음</div>
+              </div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="250" y="22" width="220" height="86" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="250" y="22" width="220" height="86">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">OrderCreated</div>
+                <div class="s">주문 생성 → Outbox</div>
+                <div class="s">원자 발행 · 유실 없음</div>
+              </div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="490" y="22" width="220" height="86" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="490" y="22" width="220" height="86">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">ProductViewed</div>
+                <div class="s">상세 조회 → @Async 직접 발행</div>
+                <div class="s">AFTER_COMMIT · 유실 허용</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <line x1="120" y1="112" x2="120" y2="152" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
+          <line x1="360" y1="112" x2="360" y2="152" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
+          <line x1="600" y1="112" x2="600" y2="152" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
+
+          <!-- kafka -->
+          <rect x="10" y="158" width="700" height="72" rx="18" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-l" x="26" y="180" fill="#4E5968">Kafka</text>
+          <rect x="35" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
+          <text class="svg-s" x="120" y="208" text-anchor="middle" fill="#4E5968">catalog-events</text>
+          <rect x="275" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
+          <text class="svg-s" x="360" y="208" text-anchor="middle" fill="#4E5968">order-events</text>
+          <rect x="515" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
+          <text class="svg-s" x="600" y="208" text-anchor="middle" fill="#4E5968">user-action-events</text>
+
+          <line x1="360" y1="234" x2="360" y2="288" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
+          <text class="svg-l" x="376" y="266" fill="#6B7684">batch consume · groupId commerce-streamer-metrics</text>
+
+          <!-- consumer -->
+          <text class="svg-l" x="80" y="284" fill="#8B95A1" text-anchor="start"></text>
+          <text class="svg-l" x="10" y="308" fill="#8B95A1">commerce-streamer</text>
+          <g>
+            <rect x="80" y="318" width="560" height="88" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="80" y="318" width="560" height="88">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">ProductMetricsKafkaConsumer</div>
+                <div class="s">JSON 파싱 실패 · eventId 누락 → warn 후 skip (배치 재전달 안 함)</div>
+                <div class="s">occurredAt = record.timestamp() — 이벤트의 시간 기준</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <line x1="360" y1="410" x2="360" y2="450" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
+
+          <!-- service -->
+          <g>
+            <rect x="80" y="456" width="560" height="244" rx="18" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="80" y="460" width="560" height="62">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">ProductMetricsService.handle() — @Transactional</div>
+                <div class="s">event_handled 멱등 체크 → eventType 분기 (metrics + 랭킹 동시 적재)</div>
+              </div>
+            </foreignObject>
+            <rect x="102" y="530" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
+            <text class="svg-s" x="118" y="551" fill="#4E5968">ProductLikedEvent&#160;&#160;&#160;→ like +1&#160;&#160;· 랭킹 Δ = +0.2</text>
+            <rect x="102" y="572" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
+            <text class="svg-s" x="118" y="593" fill="#4E5968">ProductUnlikedEvent&#160;→ like −1&#160;&#160;· 랭킹 Δ = −0.2</text>
+            <rect x="102" y="614" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
+            <text class="svg-s" x="118" y="635" fill="#4E5968">ProductViewedEvent&#160;&#160;→ view +1&#160;&#160;· 랭킹 Δ = +0.1</text>
+            <rect x="102" y="656" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
+            <text class="svg-s" x="118" y="677" fill="#4E5968">OrderCreatedEvent&#160;&#160;&#160;→ 라인별 sales +qty · 랭킹 Δ = +0.7 (수량 무관)</text>
+          </g>
+
+          <!-- split arrows -->
+          <line x1="360" y1="704" x2="210" y2="762" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
+          <line x1="360" y1="704" x2="510" y2="762" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a1)"/>
+          <text class="svg-l" x="360" y="742" text-anchor="middle" fill="#6B7684">accumulateRanking(eventDate = KST(occurredAt), productId, Δ)</text>
+
+          <!-- dual write boxes -->
+          <g>
+            <rect x="80" y="768" width="260" height="76" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="80" y="768" width="260" height="76">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">오늘판 (eventDate)</div>
+                <div class="s">upsertDelta(오늘, +Δ)</div>
+              </div>
+            </foreignObject>
+          </g>
+          <g>
+            <rect x="380" y="768" width="260" height="76" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="380" y="768" width="260" height="76">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo green">
+                <div class="t">내일판 (eventDate + 1일)</div>
+                <div class="s">upsertDelta(내일, +Δ × 0.1)</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <line x1="210" y1="848" x2="210" y2="892" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
+          <line x1="510" y1="848" x2="510" y2="892" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a1)"/>
+          <text class="svg-l" x="360" y="878" text-anchor="middle" fill="#6B7684">같은 트랜잭션 · 날짜 오름차순 고정 (잠금 순서)</text>
+
+          <!-- mysql -->
+          <g>
+            <rect x="80" y="898" width="560" height="126" rx="18" fill="#F9FAFB" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="80" y="898" width="560" height="126">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">MySQL · product_ranking_daily</div>
+                <div class="s">INSERT … ON DUPLICATE KEY UPDATE score = score + Δ</div>
+                <div class="s">uk (ranking_date, product_id) — upsert 충돌 키</div>
+                <div class="s">idx (ranking_date, score DESC, product_id ASC) — 조회용 커버링</div>
+              </div>
+            </foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 쓰기 경로 전체. 이벤트 1건이 멱등 체크를 지나 metrics와 랭킹에 동시 적재되고,
+      랭킹은 오늘판·내일판 두 행에 upsert된다 — 이벤트당 랭킹 쓰기 2회가 이 설계의 영구 비용이다.</figcaption>
+    </figure>
+
+    <p>적재의 심장은 아래 다섯 줄이다. 이벤트의 발생 시각(<span class="term">occurredAt</span>)을 KST 날짜로 바꿔 오늘판에 Δ를 더하고, <em>같은 트랜잭션에서</em> 내일판에 Δ×0.1을 미리 더한다. 왜 내일판까지 건드리는지는 4장에서 다룬다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">metrics/application/ProductMetricsService.kt</span>
+      </div>
+<pre><span class="kw">private fun</span> <span class="fn">accumulateRanking</span>(occurredAt: <span class="ty">Instant</span>, productId: <span class="ty">Long</span>, delta: <span class="ty">BigDecimal</span>) {
+    <span class="kw">val</span> eventDate = occurredAt.atZone(KST).toLocalDate()
+    productRankingDailyRepository.accumulate(eventDate, productId, delta)
+    productRankingDailyRepository.accumulate(
+        eventDate.plusDays(<span class="st">1</span>), productId, delta.multiply(RankingWeights.CARRY_RATE),
+    )
+}</pre>
+    </div>
+
+    <p>저장은 JPA 엔티티 조회 없이 native upsert 한 방이다. <span class="term">ON DUPLICATE KEY UPDATE</span><a href="#r1" class="cite">[1]</a>는 uk 충돌 시 <code>score = score + :delta</code>로 원자 가산되므로, 여러 컨슈머 스레드가 같은 상품을 동시에 치더라도 read-modify-write 경합이 없다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">ranking/infrastructure/ProductRankingDailyJpaRepository.kt (streamer)</span>
+      </div>
+<pre><span class="kw">@Modifying</span>
+<span class="kw">@Query</span>(value = <span class="st">"""
+    insert into product_ranking_daily (ranking_date, product_id, score, created_at, updated_at)
+    values (:rankingDate, :productId, :delta, now(), now())
+    on duplicate key update
+        score = score + :delta,
+        updated_at = now()
+"""</span>, nativeQuery = <span class="kw">true</span>)
+<span class="kw">fun</span> <span class="fn">upsertDelta</span>(rankingDate: <span class="ty">LocalDate</span>, productId: <span class="ty">Long</span>, delta: <span class="ty">BigDecimal</span>): <span class="ty">Int</span></pre>
+    </div>
+
+    <div class="note"><span class="tag">참고</span>한 트랜잭션이 오늘·내일 두 행을 만지므로 <strong>잠금 취득 순서를 날짜 오름차순으로 고정</strong>했다. 순서가 이벤트마다 뒤섞이면 상품이 겹치는 동시 트랜잭션 사이에 데드락 창이 열린다.</div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">MIDNIGHT BOUNDARY</p><h2 class="sec">자정 경계 — 배치 대신 dual write</h2></div>
+    </div>
+
+    <p class="lead">자정에 실행되는 작업은 0개다. 내일판은 하루 종일 미리 만들어지고 있었다.</p>
+    <p>"전날 점수의 10% 이월"의 소박한 구현은 자정 배치다 — 00:00에 <code>UPDATE score = score × 0.1</code>을 전면 실행하거나, 오늘판을 읽어 내일판을 INSERT하는 것. 그런데 EXP-01에서 10만 행 · 동시성 32로 실측해 보니 <strong>제자리 전면 UPDATE는 배치가 도는 24.1초 동안 조회 처리량을 41% 깎았다.</strong> score 변경이 <span class="term">(date, score DESC)</span> 인덱스 10만 엔트리의 삭제+재삽입이 되는데, 그 페이지들이 바로 조회가 읽는 페이지들이기 때문이다. 반면 다른 날짜 프리픽스에 append하는 사전 INSERT 방식은 −10%에 그쳤다. 결론: <strong>쓰는 판과 읽는 판을 분리하라.</strong></p>
+    <p>여기서 한 발 더 나가면 배치 자체가 사라진다. 이벤트를 적재할 때마다 내일판에도 Δ×0.1을 같이 쌓으면(dual write), 하루가 끝나는 시점의 내일판 잔고가 정확히 <em>오늘 총점 × 0.1</em>이 된다. 자정에는 조회가 바라보는 날짜만 바뀌면 되고, 새 판은 이미 이월 점수로 시딩돼 있다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 02">
+        <svg viewBox="0 0 720 450" role="img" aria-label="자정 경계 dual write 타임라인: 7월 16일 낮에 발생한 이벤트가 오늘판에 델타를, 내일판에 델타 곱하기 0.1을 동시에 적재하고, 자정에는 조회 대상 판만 바뀌는 구조">
+          <defs>
+            <marker id="b1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- time axis -->
+          <line x1="40" y1="52" x2="686" y2="52" stroke="#B0B8C1" stroke-width="1.6" marker-end="url(#b1)"/>
+          <text class="svg-l" x="200" y="40" text-anchor="middle" fill="#6B7684">7/16 14:00</text>
+          <text class="svg-l" x="480" y="40" text-anchor="middle" fill="#C9303C">00:00 자정</text>
+          <text class="svg-l" x="610" y="40" text-anchor="middle" fill="#6B7684">7/17</text>
+
+          <!-- midnight divider -->
+          <line x1="480" y1="52" x2="480" y2="408" stroke="#F04452" stroke-width="1.4" stroke-dasharray="5 4"/>
+
+          <!-- event box -->
+          <g>
+            <rect x="130" y="66" width="140" height="52" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="130" y="66" width="140" height="52">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">이벤트 +Δ</div>
+                <div class="s">14:00 발생</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <!-- lane 1: today board -->
+          <g>
+            <rect x="40" y="178" width="420" height="70" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="40" y="178" width="420" height="70">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">7/16판 (ranking_date = 7/16)</div>
+                <div class="s">자정 전 조회 대상 — 이벤트마다 +Δ 누적</div>
+              </div>
+            </foreignObject>
+          </g>
+          <text class="svg-s" x="472" y="216" text-anchor="start" fill="#8B95A1">자정 후 조회 안 함</text>
+          <text class="svg-s" x="472" y="232" text-anchor="start" fill="#8B95A1">(행은 그대로 남음)</text>
+
+          <!-- lane 2: tomorrow board -->
+          <g>
+            <rect x="40" y="300" width="650" height="70" rx="16" fill="#E7F9F1" stroke="#15C47E" stroke-width="1.3"/>
+            <foreignObject x="40" y="300" width="650" height="70">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo green">
+                <div class="t">7/17판 (ranking_date = 7/17)</div>
+                <div class="s">자정 전: 이벤트마다 +Δ×0.1 선적재 (조회 안 함) → 자정 후: 조회 대상으로 전환</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <!-- arrows from event -->
+          <line x1="200" y1="122" x2="200" y2="172" stroke="#3182F6" stroke-width="1.8" marker-end="url(#b1)"/>
+          <text class="svg-l" x="214" y="152" fill="#1B64DA">+Δ</text>
+          <line x1="252" y1="118" x2="330" y2="294" stroke="#15C47E" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#b1)"/>
+          <text class="svg-l" x="316" y="200" fill="#0A8F5B">+Δ × 0.1</text>
+
+          <!-- midnight note -->
+          <text class="svg-s" x="492" y="272" fill="#C9303C">자정에 실행되는 배치: 0개</text>
+          <text class="svg-s" x="492" y="288" fill="#C9303C">조회 날짜만 오늘 → 내일로 전환</text>
+
+          <!-- balance note -->
+          <text class="svg-s" x="360" y="404" text-anchor="middle" fill="#0A8F5B">00:00 전환 시점의 7/17판 잔고 = 7/16 총점 × 0.1 — 콜드 스타트 없음</text>
+        </svg>
+      </div>
+      <figcaption><b>그림 2.</b> 자정 경계 처리. 배치라는 운영 부품 없이, 이벤트 자신이 이월 점수를 미리 만든다.
+      쓰는 판(내일)과 읽는 판(오늘)이 인덱스 프리픽스 수준에서 분리되므로 조회 간섭이 구조적으로 작다.</figcaption>
+    </figure>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">버린 안</span> 자정 배치 (EXP-01 실측)</h4>
+        <p>제자리 전면 UPDATE: 배치 24.1초 동안 조회 처리량 <strong>−41%</strong>, 꼬리지연 최대 1.5배. 사전 INSERT 시딩도 −10%에 배치 운영 부품(스케줄러·재실행 멱등성·실패 알림)이 따라온다. 23:50 배치안은 마지막 10분 이벤트가 이월에서 누락된다.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">채택</span> dual write 선적재</h4>
+        <p>자정 작업 0개, 콜드 스타트 없음, 재해 지점 없음. 비용은 이벤트당 랭킹 쓰기 2배 — 핫패스에 상주하는 영구 비용이라 Stage 1b에서 단일 쓰기 대비 처리량·p95를 실측해 크기를 확인한다.</p>
+      </div>
+    </div>
+
+    <div class="note"><span class="tag">정확도 트레이드오프</span>감쇠가 1일에서 절단된다 — 배치 방식은 어제 이월분까지 포함해 ×0.1이 지수적으로 연쇄하지만, delta dual write는 그제 점수의 ×0.01 항이 소실된다. 크기가 1% 수준이라 순위 영향은 무시 가능하다고 판단했고, 대신 "지수 감쇠"라는 표현은 쓰지 않기로 했다.</div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">READ PATH</p><h2 class="sec">읽기 경로 — 랭킹 페이지와 개별 순위</h2></div>
+    </div>
+
+    <p class="lead">순위는 저장하지 않는다. 점수가 정렬돼 있으니, 순위는 읽는 순간의 위치일 뿐이다.</p>
+    <p>읽기 API는 둘이다. <span class="term">GET /api/v1/rankings</span>는 날짜별 랭킹 페이지를 주고(미지정 시 오늘 KST), <span class="term">GET /api/v1/products/{id}</span>는 기존 상세 응답에 "오늘 N위"를 얹는다. 둘 다 비로그인 허용(permitAll)이다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG. 03">
+        <svg viewBox="0 0 1120 520" role="img" aria-label="읽기 경로 두 갈래: 랭킹 페이지 조회는 컨트롤러 검증과 서비스의 3단계 조립을 거치고, 상품 상세 순위는 내 행 조회와 카운트 쿼리 2회로 계산된다. 둘 다 product_ranking_daily를 읽는다">
+          <defs>
+            <marker id="c1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- Flow A -->
+          <text class="svg-l" x="10" y="24" fill="#8B95A1">A · 랭킹 페이지</text>
+          <g>
+            <rect x="10" y="88" width="160" height="64" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="10" y="88" width="160" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">GET /rankings</div>
+                <div class="s">?date&amp;page&amp;size</div>
+              </div>
+            </foreignObject>
+          </g>
+          <line x1="174" y1="120" x2="204" y2="120" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#c1)"/>
+          <g>
+            <rect x="210" y="75" width="250" height="90" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="210" y="75" width="250" height="90">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">RankingController</div>
+                <div class="s">size 1~100 · page ≥ 1</div>
+                <div class="s">date는 yyyyMMdd — 위반 시 400</div>
+              </div>
+            </foreignObject>
+          </g>
+          <line x1="464" y1="120" x2="494" y2="120" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#c1)"/>
+          <g>
+            <rect x="500" y="38" width="270" height="166" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="500" y="38" width="270" height="166">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">RankingQueryService.getPage</div>
+                <div class="s">① date = 지정일 | 오늘(KST)</div>
+                <div class="s">랭킹 행: 인덱스 순서 그대로 LIMIT</div>
+                <div class="s">② 상품 조인: findAllActiveByIdIn</div>
+                <div class="s">— 비활성 상품은 결과에서 제외</div>
+                <div class="s">③ rank = (page−1)×size + idx + 1</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <!-- Flow B -->
+          <text class="svg-l" x="10" y="272" fill="#8B95A1">B · 상품 상세의 오늘 순위</text>
+          <g>
+            <rect x="10" y="336" width="160" height="64" rx="14" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+            <foreignObject x="10" y="336" width="160" height="64">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">GET /products/{id}</div>
+                <div class="s">상세 조회</div>
+              </div>
+            </foreignObject>
+          </g>
+          <line x1="174" y1="368" x2="204" y2="368" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#c1)"/>
+          <g>
+            <rect x="210" y="323" width="250" height="90" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="210" y="323" width="250" height="90">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">ProductController.getProduct</div>
+                <div class="s">getDetail(id) 응답에</div>
+                <div class="s">findTodayRank(id) 결과를 합성</div>
+              </div>
+            </foreignObject>
+          </g>
+          <line x1="464" y1="368" x2="494" y2="368" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#c1)"/>
+          <g>
+            <rect x="500" y="290" width="270" height="156" rx="16" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+            <foreignObject x="500" y="290" width="270" height="156">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
+                <div class="t">RankingQueryService.findTodayRank</div>
+                <div class="s">① 내 행 조회 (오늘, productId)</div>
+                <div class="s">— 없으면 null → 순위 미노출</div>
+                <div class="s">② rank = COUNT(score &gt; 내 score) + 1</div>
+                <div class="s">요청마다 쿼리 2회</div>
+              </div>
+            </foreignObject>
+          </g>
+
+          <!-- DB -->
+          <line x1="774" y1="121" x2="814" y2="121" stroke="#3182F6" stroke-width="1.8" marker-end="url(#c1)"/>
+          <text class="svg-l" x="794" y="106" text-anchor="middle" fill="#1B64DA">①</text>
+          <line x1="774" y1="368" x2="814" y2="368" stroke="#3182F6" stroke-width="1.8" marker-end="url(#c1)"/>
+          <text class="svg-l" x="794" y="353" text-anchor="middle" fill="#1B64DA">①②</text>
+          <g>
+            <rect x="820" y="60" width="286" height="400" rx="18" fill="#F9FAFB" stroke="#B0B8C1" stroke-width="1.3"/>
+            <foreignObject x="820" y="60" width="286" height="400">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
+                <div class="t">MySQL · product_ranking_daily</div>
+                <div class="s" style="margin-top:12px">A: idx (date, score DESC, id) 를</div>
+                <div class="s">프리픽스 range로 읽고 LIMIT —</div>
+                <div class="s">filesort 없음 · 커버링</div>
+                <div class="s" style="margin-top:14px;color:#C9303C">B의 COUNT: 옵티마이저가 커버링</div>
+                <div class="s" style="color:#C9303C">인덱스 대신 uk 선택 (행 룩업 10만회)</div>
+                <div class="s" style="color:#C9303C">실측 44.8ms vs 커버링 14.5ms — 3배</div>
+                <div class="s" style="margin-top:14px">개별 순위가 이 구현의 최악 경로</div>
+              </div>
+            </foreignObject>
+          </g>
+        </svg>
+      </div>
+      <figcaption><b>그림 3.</b> 읽기 두 갈래. 랭킹 페이지(A)는 인덱스 순서를 그대로 흘려보내는 가장 싼 경로,
+      개별 순위(B)는 요청마다 COUNT를 계산하는 가장 비싼 경로다 — Stage 1의 한계가 B에 모여 있다.</figcaption>
+    </figure>
+
+    <p>페이지 응답의 순위는 계산식 한 줄이다 — 인덱스가 이미 <span class="term">score DESC, product_id ASC</span>로 정렬해 놨으므로 페이지 시작 순위에 행 위치만 더하면 된다. 개별 순위는 "나보다 점수 높은 행 수 + 1"로 센다.</p>
+
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
+        <span class="fn">ranking/application/RankingQueryService.kt</span>
+      </div>
+<pre><span class="cm">// A. 랭킹 페이지 — 위치가 곧 순위</span>
+<span class="kw">val</span> startRank = (page - <span class="st">1</span>).toLong() * size
+rank = startRank + index + <span class="st">1</span>
+
+<span class="cm">// B. 상품 상세 — 나보다 높은 점수를 센다</span>
+<span class="kw">fun</span> <span class="fn">findTodayRank</span>(productId: <span class="ty">Long</span>): <span class="ty">Long</span>? {
+    <span class="kw">val</span> today = LocalDate.now(KST)
+    <span class="kw">val</span> mine = repository.findByRankingDateAndProductId(today, productId) ?: <span class="kw">return null</span>
+    <span class="kw">return</span> repository.countByRankingDateAndScoreGreaterThan(today, mine.score) + <span class="st">1</span>
+}</pre>
+    </div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">TESTS AS CONTRACT</p><h2 class="sec">테스트로 고정한 계약</h2></div>
+    </div>
+
+    <p class="lead">이 구현이 Stage 2·3으로 갈아타도 깨지면 안 되는 동작들을 통합 테스트로 못 박았다.</p>
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>dual write 정합</b> — 이벤트 1건이 오늘판 +Δ, 내일판 +Δ×0.1 정확히 두 행을 만든다 <span class="tag">적재</span></li>
+      <li class="done"><span class="box"></span><b>멱등</b> — 같은 eventId 재전달 시 점수가 이중 가산되지 않는다 <span class="tag">적재</span></li>
+      <li class="done"><span class="box"></span><b>가산 upsert</b> — 동일 (날짜, 상품) 반복 이벤트가 행 증식 없이 score 누적으로 수렴한다 <span class="tag">적재</span></li>
+      <li class="done"><span class="box"></span><b>페이징 계약</b> — date·page·size 검증(400), 빈 판의 빈 응답, 순위 계산 <span class="tag">API</span></li>
+      <li class="done"><span class="box"></span><b>상세 순위</b> — 랭킹 행이 없으면 순위 미노출(null), 있으면 COUNT+1 <span class="tag">API</span></li>
+    </ul>
+    <p>추가로 성능 런 후의 데이터 정합은 정산 SQL(<span class="term">load-test/verify-ranking.sql</span>)로 검증한다 — k6가 센 이벤트 수로 기대 점수 합을 만들고 저장소 합과 대사한다. like·order는 outbox 원자 발행이라 오차 0이어야 하고, view는 유실 허용 경로라 결손만 허용된다(초과 가산은 어떤 경우에도 버그).</p>
+  </section>
+
+  <!-- ===================== S7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">KNOWN LIMITS</p><h2 class="sec">알려진 한계와 다음 측정</h2></div>
+    </div>
+
+    <p class="lead">Stage 1은 "완성"이 아니라 "기준선"이다 — 한계가 어디서 오는지 수치로 남기는 것이 목적이다.</p>
+
+    <div class="note warn"><span class="tag">한계 1 · 개별 순위가 최악 경로</span>상세 요청마다 쿼리 2회가 돌고, COUNT 쿼리에서 <strong>옵티마이저가 커버링 인덱스 대신 uk를 선택</strong>한다 — 10만 행 기준 uk 44.8ms vs FORCE INDEX<a href="#r3" class="cite">[3]</a> 커버링 14.5ms로 3배 차이인데, 옵티마이저의 cost 추정(1977 vs 10153)은 실제와 반대였다. 트래픽이 몰리는 상세 페이지에 이 비용이 상주한다.</div>
+    <div class="note warn"><span class="tag">한계 2 · 이벤트당 쓰기 2배</span>dual write는 핫패스의 영구 비용이다. 쓰기 램프에서 단일 쓰기 대비 컨슈머 처리량·랙이 얼마나 갈리는지 Stage 1b에서 실측한다.</div>
+    <div class="note"><span class="tag">한계 3 · 동점 표기 불일치</span>랭킹 페이지의 순위는 위치 기반(동점은 product_id로 갈림)이고 상세의 순위는 COUNT 기반(동점끼리 같은 순위 공유)이라, 동점 상품이 리스트 5위 · 상세 4위로 보일 수 있다. 실사용 영향은 작지만 표기 규칙을 통일할지는 열린 결정이다.</div>
+
+    <p>다음은 측정이다. R9 부하 계획(<span class="term">02-load-test-plan.html</span>)의 시나리오로 조회 램프(50→400rps)·신선도 프로브(이벤트→반영 지연)·정산을 돌려 Stage 1의 숫자를 확보하고, 같은 조건에서 Stage 2(캐시) · Stage 3(ZSET)과 3자 비교한다. "왜 ZSET인가"는 그 표가 대답하게 된다.</p>
+  </section>
+
+  <!-- ===================== REFERENCES ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <a class="ref primary" id="r1" href="https://dev.mysql.com/doc/refman/8.0/en/insert-on-duplicate.html" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>MySQL 8.0 Reference Manual — INSERT ... ON DUPLICATE KEY UPDATE Statement</b> — uk 충돌 시 UPDATE로 전환되는 원자 upsert. 랭킹 delta 가산의 근거 문법.<span class="src">https://dev.mysql.com/doc/refman/8.0/en/insert-on-duplicate.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r2" href="https://dev.mysql.com/doc/refman/8.0/en/descending-indexes.html" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>MySQL 8.0 Reference Manual — Descending Indexes</b> — MySQL 8의 실제 내림차순 인덱스(InnoDB). idx의 score DESC가 forward scan으로 동작하는 근거.<span class="src">https://dev.mysql.com/doc/refman/8.0/en/descending-indexes.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r3" href="https://dev.mysql.com/doc/refman/8.0/en/index-hints.html" target="_blank" rel="noopener"><span class="n">3</span><span class="b"><b>MySQL 8.0 Reference Manual — Index Hints</b> — FORCE INDEX 등 옵티마이저 인덱스 선택 개입. 한계 1의 uk 오선택 실측에 사용.<span class="src">https://dev.mysql.com/doc/refman/8.0/en/index-hints.html</span><span class="pr p1">1차 출처</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Loopers Week 9 · 실시간 랭킹 Stage 1 (MySQL) 구현 해부 — 2026-07-16<br>
+    코드: feature/week09-design-docs (PR #12) · 실측 근거: docs/week9/experiments (EXP-01 · EXP-02)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

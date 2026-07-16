@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 9 — 랭킹 부하테스트 측정 플랜</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  .tbl-wrap.scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Week 9 · 실시간 랭킹 · 측정 플랜</span>
+      <h1 class="title">랭킹 시스템<br><span class="hl">부하테스트 측정 플랜</span></h1>
+      <p class="lede">R8 대기열 측정 방법론(이중 관측 · 하네스 검증 · 웜업 · run-meta)을 그대로 승계하고, 측정 대상을 <b>랭킹 읽기/쓰기 경로 + Kafka 컨슈머 + 정합성</b>으로 확장한다. Stage 1 → 2 → 3(ZSET) 업그레이드의 근거를 전부 <b>같은 시드 · 같은 시나리오 · 같은 지표</b>의 숫자로 확보하는 것이 목적이다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">SUT</span><span class="v">commerce-api + commerce-streamer</span></div>
+        <div class="chip"><span class="k">METHOD</span><span class="v">R8 EXP 방법론 승계</span></div>
+        <div class="chip"><span class="k">TOOLS</span><span class="v">k6 · actuator · Prometheus</span></div>
+        <div class="chip"><span class="k">STATUS</span><span class="v">플랜 — 실행 전 사용자 확인</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a class="cur" href="02-load-test-plan.html"><span class="n">02</span>측정 플랜</a>
+    <a href="stage1-mysql-two-approaches.html"><span class="n">S1</span>Stage1 두 방식</a>
+    <a href="purchase-signal-research.html"><span class="n">RS</span>구매 신호 조사</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">무엇을 증명하는 측정인가</a></li>
+      <li><a href="#s2">R8 방법론 승계 원칙</a></li>
+      <li><a href="#s3">토폴로지 &amp; 하네스</a></li>
+      <li><a href="#s4">부하 시나리오 (k6)</a></li>
+      <li><a href="#s5">표준 메트릭 세트 — 서버·DB·Redis·Kafka</a></li>
+      <li><a href="#s6">정합성 · 날짜 경계 · 멱등 검증</a></li>
+      <li><a href="#s7">실험 매트릭스 &amp; 판정 기준</a></li>
+      <li><a href="#s8">런 절차 &amp; 기록 계약</a></li>
+      <li><a href="#refs">근거 자산 (내부)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">GOAL</p><h2 class="sec">무엇을 증명하는 측정인가</h2></div>
+    </div>
+
+    <p class="lead">이번 측정의 최종 산출물은 단계별 비교표 하나다 — Stage 1a / 1b / 2 / 3 × {p95, 최대 RPS, 신선도, 개별 순위 비용, 쓰기 경로 부하, 운영 복잡도}.</p>
+    <p>랭킹은 <strong>쓰기(컨슈머가 이벤트를 소비하며 점수 누적)</strong>와 <strong>읽기(API가 Top-N·개별 순위 조회)</strong>가 분리된 시스템이다. 그래서 측정도 두 경로를 따로 재고, 마지막에 혼합 런으로 상호 간섭을 잰다. 여기에 랭킹 특유의 세 번째 축 — <strong>정합성(이벤트 수 × 가중치 = 점수)과 날짜 경계(자정 판 전환 · carry-over)</strong> — 을 추가한다. 성능 숫자가 아무리 좋아도 점수가 틀리면 랭킹이 아니기 때문이다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">읽기</span>랭킹 조회 경로</h4>
+        <p><span class="term">GET /api/v1/rankings</span> 페이지 조회 + 상품 상세의 개별 순위. Stage별로 p95·최대 RPS가 어떻게 붕괴/개선되는지. Stage 1a의 filesort 전체 스캔 → Stage 2의 TTL 캐시 → Stage 3의 <span class="term">ZREVRANGE</span> 비용 차이를 같은 잣대로.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">쓰기</span>이벤트 → 점수 누적 경로</h4>
+        <p>Kafka 3토픽 → <span class="term">commerce-streamer</span> 배치 소비 → 점수 upsert. 컨슈머 랙이 발산하지 않는 최대 유입률(소비 천장), dual write(오늘판 +Δ · 내일판 +0.1Δ)의 추가 비용, 이벤트 발행 → 랭킹 반영까지의 <strong>신선도 지연</strong>.</p>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">정합성</span>점수가 맞는가</h4>
+        <p>부하 종료 후 정산: k6가 성공시킨 이벤트 수 × 가중치와 저장소의 점수 합이 일치하는가. 멱등(재소비·재기동) 상황에서 중복 가산이 0인가. §6에서 검증식·허용 오차까지 고정.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">경계</span>리셋이 안전한가</h4>
+        <p>자정 판 전환 시 조회 열화·콜드 스타트가 없는가(EXP-01에서 사전 시딩 채택 근거 확보 완료), carry-over 점수가 내일판에 정확히 ×0.1로 실려 있는가, TTL/보존 삭제가 조회를 방해하지 않는가.</p>
+      </div>
+    </div>
+
+    <div class="note key"><span class="tag">측정 조건 고정 (checklist.md 로드맵과 동일)</span>같은 시드 데이터 · 같은 k6 시나리오 · 같은 지표로 Stage만 바꿔 잰다. <strong>변인은 항상 하나 — 랭킹 저장소/조회 방식뿐.</strong> 이 조건이 깨지면 비교표가 무효가 된다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">METHOD</p><h2 class="sec">R8 방법론 승계 원칙</h2></div>
+    </div>
+
+    <p class="lead">R8 대기열 측정에서 검증된 6가지 원칙을 그대로 가져온다. 전부 실측 실패에서 나온 교훈이라 생략하지 않는다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>원칙</th><th>내용</th><th>R8에서의 근거</th></tr></thead>
+        <tbody>
+          <tr><td>이중 관측</td><td>k6 <span class="term">http_req_duration</span>(체감)과 actuator <span class="term">http_server_requests</span>(서버 처리)를 동시 수집. <strong>두 수치의 갭이 벌어지는 시점 = 포화 시작점</strong></td><td>평균 rate는 램프 스케줄의 그림자 — week7 EXP-01 오독 교훈</td></tr>
+          <tr><td>하네스 사전 검증</td><td>본 런 전 <span class="term">harness-ceiling-smoke.js</span>로 부하 경로 천장 확인. <strong>하네스 천장 ≥ SUT 포화 RPS × 3</strong>이어야 유효</td><td>SSH 터널로 부하 시 macOS ssh 사망(poll: Invalid argument) → 1런 무효</td></tr>
+          <tr><td>웜업 필수</td><td>앱 재기동 후 웜업 런 생략 금지. 콜드 런은 <span class="term">*-COLD.*</span> 파일명으로 별도 보존</td><td>EXP-05 콜드 런에서 enter 실패 121건 — 웜업 후 전부 소멸</td></tr>
+          <tr><td>변인 통제</td><td>비교 런은 같은 시드·같은 리소스·같은 인프라. 차이는 브랜치(Stage) 하나</td><td>M1↔M2 비교 설계 그대로</td></tr>
+          <tr><td>기록 계약</td><td>런마다 run-meta(커밋·기동 인자·부하 조건·시각), 결과는 k6 JSON + 샘플러 CSV, EXP 문서 5섹션(조건→가설→수치→판독→결정)</td><td>week7 PLAN.md §10 포맷 승계</td></tr>
+          <tr><td>지연 절대치 주의</td><td>부하가 공인망을 지나면 지연에 인터넷 RTT 포함 → 천장 판정은 <strong>처리량·에러율·서버측 지표</strong> 기준</td><td>EXP-04 §1 명시</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>R9에서 새로 필요한 것</h3>
+    <p>R8과 달리 SUT가 <strong>앱 2개</strong>다. <span class="term">commerce-api</span>(읽기 API + 이벤트 발행)와 <span class="term">commerce-streamer</span>(소비 + 점수 쓰기)가 같은 노드에서 뜨므로, 샘플러도 두 앱의 actuator를 각각 긁어야 한다. 또 R8의 샘플러는 HTTP·Hikari·Tomcat만 수집했고 <strong>CPU·GC·힙은 빠져 있었다</strong>(CPU는 별도 보완 런으로 수집). R9에서는 §5의 표준 메트릭 세트로 샘플러를 확장해 보완 런 없이 한 번에 수집한다.</p>
+
+    <div class="note warn"><span class="tag">주의 — 컨슈머는 k6가 안 보인다</span>쓰기 경로의 병목은 HTTP 응답에 나타나지 않는다. 이벤트는 202/200으로 접수된 뒤 Kafka 뒤편에서 처리되므로, <strong>k6 지표만 보면 쓰기 천장을 영영 못 본다.</strong> 소비 천장은 반드시 컨슈머 랙(records-lag)과 신선도 프로브(§4 S-FRESH)로 관측한다.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">TOPOLOGY</p><h2 class="sec">토폴로지 &amp; 하네스</h2></div>
+    </div>
+
+    <p class="lead">R8 AWS 2노드 구성을 그대로 재사용하고, 앱 노드에 commerce-streamer를 추가한다. 로컬 파일럿 → AWS 본 런 2단계도 동일.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>노드</th><th>사양 / 구성</th><th>R9 변경점</th></tr></thead>
+        <tbody>
+          <tr><td>loopers-lt-infra</td><td>EC2 m6i.large (2vCPU/8GB) — MySQL 8.0(buffer pool 4G, max_conn 300) + Redis 7 master/replica + Kafka 3.5.1, docker compose</td><td>변경 없음 (Kafka ADVERTISED_LISTENERS = infra 프라이빗 IP)</td></tr>
+          <tr><td>loopers-lt-app</td><td>EC2 c6i.xlarge (4vCPU/8GB) — java -jar, perf 프로파일</td><td><strong>commerce-api(-Xms2g -Xmx2g) + commerce-streamer(-Xms1g -Xmx1g) 동시 기동.</strong> 힙 합계가 노드 8GB 안에서 OS 여유를 남기도록 배분</td></tr>
+          <tr><td>로컬 맥</td><td>k6 부하 + 샘플러 스크립트</td><td>샘플러 4종으로 확장: actuator×2(앱별) + redis + kafka lag (§5)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG.1">
+        <svg viewBox="0 0 800 430" role="img" aria-label="측정 토폴로지 — 로컬 맥의 k6와 샘플러가 앱 노드의 commerce-api·commerce-streamer를 상대로 부하와 수집을 수행하고, 앱 노드는 인프라 노드의 MySQL·Redis·Kafka에 접속하며, Kafka에서 commerce-streamer가 소비한다">
+          <defs>
+            <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3182F6"/></marker>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8B95A1"/></marker>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#15C47E"/></marker>
+          </defs>
+
+          <!-- 그룹 컨테이너 -->
+          <rect x="14" y="30" width="196" height="380" rx="18" fill="#fff" stroke="#E5E8EB"/>
+          <text x="112" y="56" text-anchor="middle" class="svg-l" fill="#6B7684">로컬 맥 (부하·수집)</text>
+
+          <rect x="292" y="30" width="216" height="380" rx="18" fill="#fff" stroke="#E5E8EB"/>
+          <text x="400" y="56" text-anchor="middle" class="svg-l" fill="#6B7684">앱 노드 c6i.xlarge</text>
+
+          <rect x="590" y="30" width="196" height="380" rx="18" fill="#fff" stroke="#E5E8EB"/>
+          <text x="688" y="56" text-anchor="middle" class="svg-l" fill="#6B7684">인프라 노드 m6i.large</text>
+
+          <!-- 로컬 맥 내부 -->
+          <rect x="30" y="76" width="164" height="64" rx="12" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="30" y="76" width="164" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">k6 읽기 암</span><span class="s">ranking-read.js</span></div></foreignObject>
+
+          <rect x="30" y="152" width="164" height="64" rx="12" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="30" y="152" width="164" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">k6 쓰기 유입 암</span><span class="s">browse + like + order</span></div></foreignObject>
+
+          <rect x="30" y="228" width="164" height="64" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="30" y="228" width="164" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><span class="t">actuator 샘플러 ×2</span><span class="s">api:8081 · streamer</span></div></foreignObject>
+
+          <rect x="30" y="304" width="164" height="64" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="30" y="304" width="164" height="64"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><span class="t">redis · lag 샘플러</span><span class="s">INFO / consumer-groups</span></div></foreignObject>
+
+          <!-- 앱 노드 내부 -->
+          <rect x="308" y="90" width="184" height="110" rx="12" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="308" y="90" width="184" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">commerce-api</span><span class="s">rankings API · 이벤트 발행</span><span class="s">-Xms2g -Xmx2g · Hikari 40</span></div></foreignObject>
+
+          <rect x="308" y="252" width="184" height="110" rx="12" fill="#E7F9F1" stroke="#15C47E"/>
+          <foreignObject x="308" y="252" width="184" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><span class="t">commerce-streamer</span><span class="s">배치 소비 · 점수 upsert</span><span class="s">groupId: streamer-metrics</span></div></foreignObject>
+
+          <!-- 인프라 노드 내부 -->
+          <rect x="606" y="76" width="164" height="76" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="606" y="76" width="164" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><span class="t">MySQL 8.0</span><span class="s">product_ranking_daily</span></div></foreignObject>
+
+          <rect x="606" y="176" width="164" height="76" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="606" y="176" width="164" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><span class="t">Redis 7</span><span class="s">ZSET ranking:all:*</span></div></foreignObject>
+
+          <rect x="606" y="276" width="164" height="76" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
+          <foreignObject x="606" y="276" width="164" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="fo grey"><span class="t">Kafka 3.5.1</span><span class="s">3 topics · 3 partitions</span></div></foreignObject>
+
+          <!-- 화살표: k6 → api -->
+          <path d="M194 108 C 240 108, 250 130, 308 138" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#ar1)"/>
+          <path d="M194 184 C 240 184, 250 160, 308 152" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#ar1)"/>
+          <!-- 샘플러 → 앱들 -->
+          <path d="M194 260 C 240 260, 250 190, 308 178" fill="none" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <path d="M194 272 C 244 280, 254 300, 308 306" fill="none" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <!-- redis/lag 샘플러 → 인프라 (아래로 우회) -->
+          <path d="M112 368 C 112 402, 640 402, 672 352" fill="none" stroke="#8B95A1" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <!-- api → 인프라 -->
+          <path d="M492 118 C 540 118, 550 110, 606 110" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#ar1)"/>
+          <path d="M492 150 C 540 150, 550 200, 606 208" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#ar1)"/>
+          <path d="M492 180 C 545 190, 555 290, 606 302" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#ar1)"/>
+          <text x="548" y="245" text-anchor="middle" class="svg-s" fill="#3182F6">발행</text>
+          <!-- kafka → streamer 소비 -->
+          <path d="M606 330 C 555 336, 545 320, 492 316" fill="none" stroke="#15C47E" stroke-width="2" marker-end="url(#ar3)"/>
+          <text x="548" y="345" text-anchor="middle" class="svg-s" fill="#0A8F5B">소비</text>
+          <!-- streamer → mysql/redis 쓰기 -->
+          <path d="M492 282 C 545 275, 560 145, 606 128" fill="none" stroke="#15C47E" stroke-width="2" marker-end="url(#ar3)"/>
+          <path d="M492 300 C 548 296, 560 230, 606 220" fill="none" stroke="#15C47E" stroke-width="2" marker-end="url(#ar3)"/>
+          <text x="560" y="265" text-anchor="middle" class="svg-s" fill="#0A8F5B">점수 upsert</text>
+        </svg>
+      </div>
+      <figcaption><b>FIG.1 — 측정 토폴로지.</b> 파랑 = 읽기·발행 경로(HTTP), 초록 = 쓰기 경로(Kafka 소비 → 점수 upsert), 점선 = 수집. Stage 1b는 점수가 MySQL로, Stage 3은 Redis ZSET으로 간다.</figcaption>
+    </figure>
+
+    <h3>하네스 체크 (본 런 전 1회)</h3>
+    <p><span class="term">harness-ceiling-smoke.js</span>(500→1000→2000→4000/s, <span class="term">p(99)&lt;50ms</span> · <span class="term">http_req_failed&lt;1%</span>)로 부하 경로 천장을 먼저 확인한다. SSH 터널 금지, SG에 내 IP /32 직접 개방 — R8 실측 교훈 그대로.</p>
+
+    <div class="note key"><span class="tag">확정 (2026-07-15)</span>토폴로지 확정 — <strong>EC2 2대, 앱 노드에 JVM 2개 동거, HTTP 부하는 api만 수신.</strong> streamer 포트는 이미 분리돼 있음: server <span class="term">8083</span> / management <span class="term">8084</span> (application.yml에 api 8081과의 충돌 회피 주석 존재). 간섭이 판정을 흐리면 노드 분리 + 전 Stage 재런.</div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">SCENARIOS</p><h2 class="sec">부하 시나리오 (k6)</h2></div>
+    </div>
+
+    <p class="lead">기존 자산 2개를 재사용하고, 랭킹 전용 3개를 새로 만든다. 전부 open model(arrival-rate) — 도착률이 통제 변수다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>시나리오</th><th>내용</th><th>재사용/신규</th></tr></thead>
+        <tbody>
+          <tr><td>S-READ</td><td><span class="term">ranking-read.js</span> — <span class="term">GET /api/v1/rankings</span> ramping-arrival-rate <strong>50→100→200→400/s 각 1분</strong>. 페이지 분포: page1 80% · page2~5 15% · deep(6~50) 5%. date: 오늘 90% · 어제 10%. size=20 고정. 태그 <span class="term">api:rankings</span></td><td>신규</td></tr>
+          <tr><td>S-DETAIL</td><td>상품 상세(개별 순위 포함) 조회 암 — <span class="term">browse-journey.js</span>의 detail 경로 재사용. Stage 1a의 "개별 순위 = 전 행 2중 스캔" 비용이 여기서 드러난다</td><td>재사용</td></tr>
+          <tr><td>S-WRITE</td><td>이벤트 유입 — <span class="term">browse-journey.js</span>(view, RATE 100/s) + <span class="term">order-ramp.js</span>(order, MODE=warmup 수준 상수율) + like 토글. <strong>⚠️ 블로커(2026-07-15 확인): like HTTP 엔드포인트가 현재 브랜치에 없음</strong>(like 도메인에 interfaces 레이어 부재, LikeService 호출 컨트롤러 0건). like 암은 ① 엔드포인트 추가 ② 테스트 프로듀서로 Kafka 직접 발행 중 결정 필요 — 그전까지 S-WRITE는 view+order 2종으로 진행</td><td>재사용+블로커</td></tr>
+          <tr><td>S-MIX</td><td>실전 혼합: S-READ 200/s + S-WRITE 동시. 읽기와 쓰기(같은 테이블/키에 upsert)의 상호 간섭 측정 — Stage 1b에서 <span class="term">INDEX(ranking_date, score DESC)</span> 재배치 경합이 조회 p95를 얼마나 미는가</td><td>조합</td></tr>
+          <tr><td>S-FRESH</td><td><span class="term">ranking-freshness.js</span> — 센티널 상품 1개에 like 1건 발사 → rankings API를 500ms 간격 폴링 → 점수 변화 감지까지의 시간. 부하 배경(S-WRITE) 위에서 30회 반복해 <strong>신선도 p50/p95</strong> 산출. Stage 2에서는 이 값이 TTL 60s에 수렴함을 숫자로 확인</td><td>신규</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">쓰기 유입률의 앵커</span>R8에서 확보한 천장 — 주문 C=200/s(hot), 배경 탐색 100명/s(≈340 req/s) — 을 유입 기준선으로 쓴다. 탐색 유저 1명 ≈ view 2건 + like 0.2건이므로, <strong>배경 100명/s ≈ 이벤트 220/s 유입</strong>이 S-WRITE의 1× 기준. 소비 천장 탐색은 이 배수(1×/2×/4×)로 올린다.</div>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">ranking-read.js — 골격 (신규)</span></div>
+      <pre><span class="cm">// R8 order-ramp.js 패턴 승계: open model + 사후 판정(threshold 없음)</span>
+<span class="kw">export const</span> options = {
+  scenarios: { read: {
+    executor: <span class="st">'ramping-arrival-rate'</span>, startRate: <span class="ty">50</span>, timeUnit: <span class="st">'1s'</span>,
+    stages: [ <span class="cm">// 50→100→200→400/s 각 1분</span>
+      { target: <span class="ty">50</span>, duration: <span class="st">'1m'</span> }, { target: <span class="ty">100</span>, duration: <span class="st">'1m'</span> },
+      { target: <span class="ty">200</span>, duration: <span class="st">'1m'</span> }, { target: <span class="ty">400</span>, duration: <span class="st">'1m'</span> } ],
+    preAllocatedVUs: <span class="ty">300</span>, maxVUs: <span class="ty">2000</span>, gracefulStop: <span class="st">'10s'</span>,
+  }},
+  summaryTrendStats: [<span class="st">'avg'</span>,<span class="st">'med'</span>,<span class="st">'p(90)'</span>,<span class="st">'p(95)'</span>,<span class="st">'p(99)'</span>,<span class="st">'max'</span>],
+};
+<span class="kw">export default function</span> () {
+  <span class="kw">const</span> page = pickPage();          <span class="cm">// 80% p1 / 15% p2~5 / 5% deep</span>
+  <span class="kw">const</span> date = pickDate();          <span class="cm">// 90% 오늘 / 10% 어제 (?date=yyyyMMdd)</span>
+  http.<span class="fn">get</span>(<span class="st">`${BASE}/api/v1/rankings?date=${date}&amp;size=20&amp;page=${page}`</span>,
+    { tags: { api: <span class="st">'rankings'</span> }, timeout: <span class="st">'10s'</span> });
+}</pre>
+    </div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">METRICS</p><h2 class="sec">표준 메트릭 세트 — 서버·DB·Redis·Kafka</h2></div>
+    </div>
+
+    <p class="lead">이번 주차뿐 아니라 앞으로 모든 측정에서 공통으로 수집하는 최소 세트를 여기서 고정한다. R8 샘플러에 없던 CPU·GC·힙을 추가해, "보완 런"이 다시 필요 없게 만든다.</p>
+    <p>수집 수단은 셋이다. ① <span class="term">sample-actuator.sh</span> 확장판 — 5초 간격으로 <span class="term">/actuator/prometheus</span>를 긁어 CSV로 (앱별 1프로세스), ② <span class="term">sample-redis.sh</span> / <span class="term">sample-kafka-lag.sh</span> 신규 — 같은 5초 간격으로 <span class="term">redis-cli INFO</span>와 <span class="term">kafka-consumer-groups.sh --describe</span>, ③ 사후 1회 조회 — MySQL 누적 카운터·EXPLAIN. Prometheus+Grafana 스택(week5 유산, scrape 5s)은 로컬 파일럿에서 병용한다.</p>
+
+    <h3>① 앱 공통 — commerce-api · commerce-streamer 각각</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>영역</th><th>메트릭 (micrometer 이름)</th><th>무엇을 판정하나</th></tr></thead>
+        <tbody>
+          <tr><td>CPU·부하</td><td><span class="term">process_cpu_usage</span> · <span class="term">system_cpu_usage</span> · <span class="term">system_load_average_1m</span></td><td>포화가 CPU 기인인지, 앱 2개 동거의 간섭인지 분리</td></tr>
+          <tr><td>GC·힙</td><td><span class="term">jvm_gc_pause_seconds</span>(count/sum/max) · <span class="term">jvm_memory_used_bytes{area="heap"}</span> · <span class="term">jvm_gc_memory_promoted_bytes_total</span></td><td>pause 스파이크가 p99 흔드는지 · old gen 단조 증가 = 누수/캐시 폭주 신호</td></tr>
+          <tr><td>스레드</td><td><span class="term">jvm_threads_live_threads</span> · <span class="term">tomcat_threads_busy_threads</span>(api만)</td><td>Tomcat 200 상한 대비 busy 포화 시점</td></tr>
+          <tr><td>HTTP</td><td><span class="term">http_server_requests_seconds</span> count/sum/max — <span class="term">/api/v1/rankings</span> · <span class="term">/api/v1/products/{productId}</span> URI 필터</td><td>이중 관측의 서버측 절반. k6와의 갭 = 포화 판정</td></tr>
+          <tr><td>Hikari</td><td><span class="term">hikaricp_connections_active</span> · <span class="term">_pending</span> · <span class="term">_idle</span> · <span class="term">hikaricp_connections_timeout_total</span> · <span class="term">hikaricp_connections_acquire_seconds</span></td><td>pending&gt;0 지속 = 풀 40 부족. timeout&gt;0 = 즉시 정지 신호. api·streamer 풀을 따로 본다</td></tr>
+          <tr><td>비동기</td><td><span class="term">executor_active_threads</span> · <span class="term">executor_queued_tasks</span>(api — view 발행 @Async 풀)</td><td>view 이벤트 발행 큐 적체 = "유실 허용" 경로가 실제로 얼마나 버리는지의 선행 지표</td></tr>
+          <tr><td>Kafka 클라이언트</td><td>streamer: <span class="term">kafka_consumer_fetch_manager_records_lag_max</span> · <span class="term">records_consumed_total</span> · <span class="term">spring_kafka_listener_seconds</span> / api: <span class="term">kafka_producer_record_send_total</span> · <span class="term">record_error_total</span> · <span class="term">resilience4j_circuitbreaker_state</span>(outbox relay)</td><td>랙 발산 = 소비 천장 초과. listener_seconds = 배치 1회 처리 비용. producer error·CB open = 발행측 유실 시작점</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>② MySQL — 사후 1회 + 런 전후 델타</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>수집</th><th>무엇을 판정하나</th></tr></thead>
+        <tbody>
+          <tr><td>행 락</td><td><span class="term">SHOW GLOBAL STATUS</span> — <span class="term">Innodb_row_lock_waits</span> · <span class="term">Innodb_row_lock_time</span> (런 전후 델타)</td><td>핫 상품 upsert 직렬화 — dual write 2행 트랜잭션의 락 비용</td></tr>
+          <tr><td>동시성</td><td><span class="term">Threads_running</span> · <span class="term">Threads_connected</span> (샘플러에 5초 간격 추가 가능)</td><td>DB측 포화 — running이 vCPU 2를 크게 넘으면 경합</td></tr>
+          <tr><td>스캔 품질</td><td><span class="term">Handler_read_rnd_next</span> · <span class="term">Created_tmp_disk_tables</span> 델타 + 대표 쿼리 <span class="term">EXPLAIN ANALYZE</span> 캡처(<span class="term">explain-capture.sh</span> 재사용)</td><td>Stage 1a filesort·전 행 스캔을 숫자로 — "왜 탈락인가"의 증거</td></tr>
+          <tr><td>버퍼 풀</td><td><span class="term">Innodb_buffer_pool_reads</span> vs <span class="term">read_requests</span> 델타</td><td>디스크 유출 여부 — 시드 10만 스케일에서 워킹셋이 풀에 드는지</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>③ Redis — sample-redis.sh (신규, 5초 간격 INFO)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>수집</th><th>무엇을 판정하나</th></tr></thead>
+        <tbody>
+          <tr><td>처리량·지연</td><td><span class="term">instantaneous_ops_per_sec</span> + 사후 <span class="term">SLOWLOG GET</span></td><td>ZSET 연산 천장. deep page ZREVRANGE가 슬로우로그에 잡히는지</td></tr>
+          <tr><td>메모리</td><td><span class="term">used_memory</span> · <span class="term">mem_fragmentation_ratio</span> + 사후 <span class="term">MEMORY USAGE ranking:all:{d}</span> · <span class="term">ZCARD</span></td><td>판 2개(오늘+내일, dual write) × 10만 상품의 실제 점유 — TTL 2d 동안 최대 3판 공존 비용</td></tr>
+          <tr><td>키 수명</td><td><span class="term">expired_keys</span> · <span class="term">evicted_keys</span> 델타</td><td><strong>evicted&gt;0은 즉시 정지</strong> — 랭킹 키가 밀려나면 점수 유실 = 정합성 실험 전체 무효</td></tr>
+          <tr><td>연결</td><td><span class="term">connected_clients</span> · <span class="term">blocked_clients</span></td><td>커넥션 누수·풀 설정 검증</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>④ Kafka — sample-kafka-lag.sh (신규, 5초 간격)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>수집</th><th>무엇을 판정하나</th></tr></thead>
+        <tbody>
+          <tr><td>컨슈머 랙</td><td><span class="term">kafka-consumer-groups.sh --describe --group commerce-streamer-metrics</span> — 토픽·파티션별 LAG (컨테이너 내 CLI, CSV 적재)</td><td>micrometer lag의 교차 검증 + 파티션 3개 간 편중(핫 상품 키 쏠림) 관측</td></tr>
+          <tr><td>발행-소비 균형</td><td>LOG-END-OFFSET 증가율 vs CURRENT-OFFSET 증가율</td><td>유입률 대비 소비율 — 랙 발산의 원인이 유입 폭증인지 소비 둔화인지</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">앞으로의 모든 측정에 적용하는 계약</span>위 ①~④가 <strong>표준 메트릭 세트 v1</strong>이다. 이후 주차 측정은 이 세트를 기본 수집하고, 실험 특화 지표만 추가한다. 특히 <strong>CPU · GC pause · 힙 · Hikari pending · 컨슈머 랙</strong> 5개는 어떤 실험에서도 생략하지 않는다 — R8에서 CPU 부재로 보완 런을 치른 재발 방지.</div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">CORRECTNESS</p><h2 class="sec">정합성 · 날짜 경계 · 멱등 검증</h2></div>
+    </div>
+
+    <p class="lead">성능 런이 끝날 때마다 정산(reconciliation)을 돌린다 — 부하 중 점수가 하나라도 새면 그 Stage는 성능과 무관하게 탈락이다.</p>
+
+    <h3>정산식 — 이벤트 수 × 가중치 = 점수 합</h3>
+    <p>k6가 커스텀 카운터로 <strong>성공 응답 기준</strong> 이벤트 수를 센다: view는 상세 조회 200 건수(V), like는 등록 성공(L⁺)·취소 성공(L⁻), order는 주문 성공의 order line 수(O). 부하 종료 + 랙 0 도달 후 저장소를 조회해 대사한다.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">verify-ranking.sql — 정산 (런마다 실행)</span></div>
+      <pre><span class="cm">-- 기대값: E = 0.1·V + 0.2·(L⁺ − L⁻) + 0.7·O   (V·L·O는 k6 카운터 출력)</span>
+<span class="cm">-- [1] 오늘판 점수 합 = E 인가</span>
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(score) <span class="kw">FROM</span> product_ranking_daily <span class="kw">WHERE</span> ranking_date = <span class="st">:today</span>;
+<span class="cm">-- [2] 내일판 = 오늘판 × 0.1 인가 (dual write carry 검증)</span>
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(score) <span class="kw">FROM</span> product_ranking_daily <span class="kw">WHERE</span> ranking_date = <span class="st">:tomorrow</span>;
+<span class="cm">-- [3] R7 집계와 교차 대사 (같은 트랜잭션이므로 Stage 1b에선 완전 일치해야 함)</span>
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(view_count), <span class="fn">SUM</span>(like_count), <span class="fn">SUM</span>(order_count) <span class="kw">FROM</span> product_metrics;
+<span class="cm">-- [4] Stage 3: ZSET vs MySQL 진실원 Top-100 비교 (ZREVRANGE ↔ ORDER BY score DESC)</span></pre>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>이벤트</th><th>발행 경로</th><th>허용 오차</th></tr></thead>
+        <tbody>
+          <tr><td>like / order</td><td>outbox(BEFORE_COMMIT) → OutboxRelay → Kafka — 본 트랜잭션과 원자적</td><td><strong>0 — 정확히 일치해야 한다.</strong> 불일치 = 버그</td></tr>
+          <tr><td>view</td><td>AFTER_COMMIT + @Async 직접 발행 — 설계상 유실 허용</td><td>결손만 허용(저장소 ≤ k6 카운트). <strong>유실률을 기록</strong>해 executor 큐 적체와 상관 분석. 초과는 0 — 중복 가산은 어떤 경우에도 버그</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>멱등 — 재소비·재기동 카오스 런</h3>
+    <p>S-WRITE 부하 중간에 <span class="term">commerce-streamer</span>를 1회 kill → 재기동한다. 재기동 직후 Kafka가 마지막 커밋 오프셋부터 배치를 재전달하므로, <span class="term">EventHandled</span>(event_id PK) 멱등이 실전 부하에서 중복 가산을 막는지 확인한다. <strong>판정: 정산식 [1]~[3]이 카오스 없는 런과 동일하게 성립.</strong> 부수 관측: 재기동~랙 회복 시간(복구 소요), 회복 구간의 신선도 악화 폭.</p>
+
+    <h3>날짜 경계 — 판 전환·carry-over·보존</h3>
+    <figure>
+      <div class="fig-box" data-fig="FIG.2">
+        <svg viewBox="0 0 800 300" role="img" aria-label="dual write 날짜 경계 — 이벤트 델타가 오늘판에 +Δ, 내일판에 +0.1Δ로 동시에 기록되고, 자정이 지나면 내일판이 오늘판이 되어 carry 점수를 이미 갖고 시작한다. D-2 판은 보존 배치가 삭제한다">
+          <defs>
+            <marker id="br1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3182F6"/></marker>
+            <marker id="br2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#F04452"/></marker>
+          </defs>
+          <!-- 이벤트 소스 -->
+          <rect x="20" y="110" width="170" height="80" rx="14" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="20" y="110" width="170" height="80"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">이벤트 소비</span><span class="s">Δ = weight × score</span><span class="s">EventHandled 멱등 내부</span></div></foreignObject>
+
+          <!-- 오늘판 -->
+          <rect x="300" y="40" width="200" height="76" rx="14" fill="#fff" stroke="#3182F6" stroke-width="2"/>
+          <foreignObject x="300" y="40" width="200" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">오늘판 D</span><span class="s">score += Δ · 조회 대상</span></div></foreignObject>
+
+          <!-- 내일판 -->
+          <rect x="300" y="150" width="200" height="76" rx="14" fill="#F4F9FF" stroke="#3182F6" stroke-dasharray="6 4"/>
+          <foreignObject x="300" y="150" width="200" height="76"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">내일판 D+1</span><span class="s">score += 0.1·Δ (carry)</span></div></foreignObject>
+
+          <!-- D-2 -->
+          <rect x="300" y="250" width="200" height="40" rx="12" fill="#FEEFEF" stroke="#F04452" stroke-dasharray="4 4"/>
+          <foreignObject x="300" y="250" width="200" height="40"><div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><span class="s">D-2 판 — 보존 배치 DELETE</span></div></foreignObject>
+
+          <!-- 자정 이후 -->
+          <rect x="590" y="95" width="190" height="90" rx="14" fill="#E7F9F1" stroke="#15C47E"/>
+          <foreignObject x="590" y="95" width="190" height="90"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><span class="t">자정 후</span><span class="s">D+1이 새 오늘판</span><span class="s">carry를 이미 적재한 채 시작</span></div></foreignObject>
+
+          <!-- 화살표 -->
+          <path d="M190 138 C 240 130, 250 90, 300 80" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#br1)"/>
+          <text x="235" y="92" text-anchor="middle" class="svg-s" fill="#3182F6">+Δ</text>
+          <path d="M190 162 C 240 170, 250 182, 300 186" fill="none" stroke="#3182F6" stroke-width="2" marker-end="url(#br1)"/>
+          <text x="235" y="196" text-anchor="middle" class="svg-s" fill="#3182F6">+0.1Δ</text>
+          <path d="M500 188 C 545 188, 552 160, 590 148" fill="none" stroke="#15C47E" stroke-width="2" marker-end="url(#br1)"/>
+          <text x="545" y="152" text-anchor="middle" class="svg-s" fill="#0A8F5B">00:00 KST</text>
+          <path d="M400 226 L 400 250" fill="none" stroke="#F04452" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#br2)"/>
+        </svg>
+      </div>
+      <figcaption><b>FIG.2 — dual write 날짜 경계 모델.</b> 자정 "리셋"은 실제로는 키(판) 전환이다. 새 판은 carry(전일 ×0.1)를 이미 갖고 시작하므로 콜드 스타트가 없다 — 이것이 EXP-01에서 사전 시딩(판 분리)을 채택한 이유의 연장선.</figcaption>
+    </figure>
+
+    <ul class="checklist">
+      <li><span class="box"></span><b>판 전환 정확성</b> — 시스템 시계를 돌릴 수 없으므로 <strong>occurredAt 주입</strong>으로 검증: 테스트 프로듀서로 UTC 14:59:59 / 15:00:00(KST 23:59:59 / 00:00:00) 이벤트를 발행해 각각 D판·D+1판에 적재되는지 확인. 통합 테스트에 이미 있는 케이스를 부하 환경에서 재확인 <span class="tag">EXP-06</span></li>
+      <li><span class="box"></span><b>경계 시점 조회 열화</b> — 판 전환 시각 전후로 S-READ를 걸어 p95 변화 기록. dual write 모델은 배치가 없어 EXP-01의 −10%보다도 좋아야 정상 — 실측으로 확정 <span class="tag">EXP-06</span></li>
+      <li><span class="box"></span><b>어제 판 조회</b> — 전환 후 <span class="term">?date=어제</span>가 전환 전 최종 순위와 동일한지(과거 판 불변성) <span class="tag">EXP-06</span></li>
+      <li><span class="box"></span><b>보존/TTL</b> — Stage 1b: D-2 DELETE 배치 실행 중 S-READ p95 열화 측정. Stage 3: 키 TTL 2d 부여 확인 + <strong>TTL 미부여 키 0건</strong> 스캔 <span class="tag">EXP-06</span></li>
+      <li><span class="box"></span><b>Stage 3 드리프트</b> — MySQL 집계와 ZSET이 트랜잭션 경계 밖으로 갈라진 뒤, 부하 종료 시점의 점수 차(드리프트)를 상품별로 측정. WRITING-LOG 미결 #3(ZSET 갱신 위치)·#7(유실·복구)의 판단 입력 <span class="tag">EXP-05</span></li>
+    </ul>
+  </section>
+
+  <!-- ===================== S7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">MATRIX</p><h2 class="sec">실험 매트릭스 &amp; 판정 기준</h2></div>
+    </div>
+
+    <p class="lead">EXP 번호는 week9 로컬 연번을 잇는다 — EXP-01(자정 배치 경합, 완료)·EXP-02(Stage 1a, 스크립트 확보) 뒤로 4개를 추가한다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>EXP</th><th>목적 · 부하 · 산출</th><th>판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td>EXP-01 ✅</td><td>자정 배치 × 조회 경합 — 완료. 사전 시딩(판 분리) 채택 (A −41% vs B −10%)</td><td>완료 — dual write 결정의 입력</td></tr>
+          <tr><td>EXP-02</td><td><strong>Stage 1a 읽기 천장</strong> — S-READ + S-DETAIL, 1만/10만 2스케일. EXPLAIN ANALYZE로 filesort·스캔 행수 캡처</td><td>천장 = p95 &gt; 1s 또는 에러율 &gt; 1% 시작 도착률 (R8 기준 승계). 개별 순위 쿼리 비용 별도 기록</td></tr>
+          <tr><td>EXP-03</td><td><strong>Stage 1b 쓰기 비용</strong> — S-WRITE 1×/2×/4×, <strong>단일 upsert vs dual write 대조 런</strong>(checklist 요구 사항). 소비 천장 = 랙 발산 시작 유입률</td><td>랙이 평탄 유지되는 최대 유입률. dual write 추가 비용을 %로 (처리량·listener_seconds·행 락 델타)</td></tr>
+          <tr><td>EXP-04</td><td><strong>Stage 2 캐시</strong> — EXP-02와 동일 부하 재실행 + S-FRESH. TTL 만료 순간 stampede 관측(만료 직후 5초 창의 DB QPS 스파이크)</td><td>p95·RPS 개선폭 + 신선도가 TTL 60s에 수렴함을 확인. 상세 개별 순위가 캐시로 해결 안 됨을 숫자로</td></tr>
+          <tr><td>EXP-05</td><td><strong>Stage 3 ZSET</strong> — 동일 부하 전체 재실행(S-READ·S-WRITE·S-MIX·S-FRESH) + 드리프트 측정 + Redis 메모리 점유(판 3개 공존)</td><td>비교표 완성이 목적. 추가로 evicted_keys=0 · TTL 미부여 키 0건 · 카오스 런 정산 성립</td></tr>
+          <tr><td>EXP-06</td><td><strong>날짜 경계 통합 검증</strong> — §6 체크리스트 전체(occurredAt 주입·경계 조회 열화·과거 판 불변·보존 배치)</td><td>체크리스트 5항목 전부 통과. 경계 전후 p95 변화 기록</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>공통 SLO·정지 기준</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>기준</th><th>값</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>읽기 천장 판정</td><td>랭킹 조회 p95 &gt; 1s 또는 에러율 &gt; 1%가 시작되는 도착률</td><td>R8 M3 정지 기준 승계 — 붕괴는 에러보다 지연으로 먼저 온다(EXP-04 실측)</td></tr>
+          <tr><td>쓰기 천장 판정</td><td>records-lag가 <strong>지속 발산</strong>하는 유입률 (일시 스파이크 후 회복은 통과)</td><td>open model에서 소비 천장의 정의 그 자체</td></tr>
+          <tr><td>즉시 정지</td><td>Hikari timeout &gt; 0 · Redis evicted_keys &gt; 0 · 정산 불일치(like/order)</td><td>측정 계속해도 데이터가 오염됨 — 원인 잡고 재런</td></tr>
+          <tr><td>신선도 기록치</td><td>S-FRESH p50/p95 — 판정 아닌 기록 (Stage 간 비교축)</td><td>"실시간"의 정의를 숫자로 만드는 지표</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn"><span class="tag">앱 2개 동거의 함정</span>api와 streamer가 같은 4vCPU를 나눠 쓴다. <strong>읽기 천장 측정(EXP-02·04·05의 S-READ 단독) 중 streamer가 놀고 있으면 CPU 여유가 과대평가되고, S-MIX에서 갑자기 꺼진다.</strong> 그래서 S-MIX가 반드시 필요하고, CPU는 앱별 <span class="term">process_cpu_usage</span>로 분리 관측한다. 간섭이 심하면 노드 분리 여부를 그때 결정한다 — 미리 노드를 늘리지 않는다.</div>
+  </section>
+
+  <!-- ===================== S8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">RUNBOOK</p><h2 class="sec">런 절차 &amp; 기록 계약</h2></div>
+    </div>
+
+    <p class="lead">RUNBOOK-queue.md의 절차를 랭킹용으로 번역한다. 1런 = 시드 확인 → 웜업 → 샘플러 기동 → 본 런 → 정산 → 기록.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">1런 표준 절차 (로컬 맥)</span></div>
+      <pre><span class="cm"># 0. 시드 — perf-seed-l5.sql 재사용(상품 100,750 · BCrypt cost 4) + 랭킹 시드 2스케일(1만/10만)</span>
+<span class="cm"># 1. 웜업 — 재기동 후 생략 금지. 콜드 런은 *-COLD.* 로 보존</span>
+k6 run -e MODE=warmup product-list-load.js
+
+<span class="cm"># 2. 샘플러 4종 기동 (5초 간격, 백그라운드)</span>
+ACT=http://$APP:8081/actuator/prometheus  ./sample-actuator.sh api.csv  290 &amp;
+ACT=http://$APP:$STR_PORT/actuator/prometheus ./sample-actuator.sh str.csv 290 &amp;
+./sample-redis.sh     redis.csv 290 &amp;      <span class="cm"># INFO memory/stats/clients</span>
+./sample-kafka-lag.sh lag.csv   290 &amp;      <span class="cm"># consumer-groups describe</span>
+
+<span class="cm"># 3. 본 런 — 실험별 조합 (예: EXP-02 읽기 천장)</span>
+k6 run --summary-export=read.json  ranking-read.js
+<span class="cm"># 4. 랙 0 도달 대기 → 정산</span>
+mysql loopers &lt; verify-ranking.sql          <span class="cm"># k6 카운터와 대사</span>
+<span class="cm"># 5. run-meta.md 기록 → 쿨다운 ≥20s → 다음 런</span></pre>
+    </div>
+
+    <h3>기록 계약</h3>
+    <ul class="checklist">
+      <li><span class="box"></span>결과 원본은 <span class="term">load-test/results/exp0N-ranking/</span> — k6 summary JSON + 샘플러 CSV 4종 + <span class="term">run-meta.md</span>(커밋 해시 · 기동 인자 · 부하 조건 · 시각)</li>
+      <li><span class="box"></span>수치의 원본 문서는 <span class="term">docs/week9/experiments/expNN/README.md</span> — 5섹션 고정: <b>조건 → 가설 → 수치 → 판독 → 결정</b>. 이 플랜 문서는 "왜 재는가"까지만</li>
+      <li><span class="box"></span>판단·서사는 <span class="term">WRITING-LOG.md</span>에 결정 시점 기록 (블로그 소재)</li>
+      <li><span class="box"></span>최종 산출물 = <b>Stage 비교표</b>: 4 Stage × {p95, 최대 RPS, 신선도 p95, 개별 순위 비용, 쓰기 경로 부하, 운영 복잡도} + "어떤 요구사항이 Stage 1·2를 탈락시켰는가" 명시</li>
+      <li><span class="box"></span>측정 종료 후 EC2 terminate + SG 삭제 (R8 체크리스트 승계)</li>
+    </ul>
+
+    <h3>실행 전 준비물 (코드/스크립트 작업 목록)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>준비물</th><th>내용</th><th>상태</th></tr></thead>
+        <tbody>
+          <tr><td>ranking-read.js</td><td>§4 골격대로 작성 — 웜업 모드 포함</td><td>✅ 완료</td></tr>
+          <tr><td>ranking-freshness.js</td><td>센티널 프로브 — like 부재로 <strong>view×5를 신호로 사용</strong>(유실 허용 경로라 lost 카운터 병행). 응답 필드명(items[].productId/score)은 파일럿에서 대조</td><td>✅ 완료</td></tr>
+          <tr><td>browse-journey.js 확장</td><td>LIKE_RATIO — <strong>like 엔드포인트 부재 블로커</strong>(§4). 해소 방식 결정 후 작업</td><td>⛔ 블로커</td></tr>
+          <tr><td>sample-actuator.sh 확장</td><td>표준 세트 v1 컬럼 추가 (rankings URI·CPU·load·GC·힙·스레드·Hikari idle/timeout·executor·kafka lag). R8 컬럼 순서 유지</td><td>✅ 완료</td></tr>
+          <tr><td>sample-redis.sh · sample-kafka-lag.sh</td><td>신규 2종 — <strong>infra 노드에서 docker exec로 실행</strong>(6379/9092는 SG 외부 미개방)</td><td>✅ 완료</td></tr>
+          <tr><td>verify-ranking.sql</td><td>§6 정산 쿼리 — product_metrics 컬럼명은 실행 전 SHOW COLUMNS 대조</td><td>✅ 완료</td></tr>
+          <tr><td>랭킹 시드 SQL</td><td>product_ranking_daily 1만/10만 2스케일 (exp02 시드는 Stage 1a용 별도 테이블 — 1b용은 새로 필요)</td><td>확인</td></tr>
+          <tr><td>streamer management 포트</td><td>확인 완료 — server 8083 / management 8084 (application.yml 기설정)</td><td>✅ 해결</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">실행 게이트</span>이 문서는 플랜이다. <strong>준비물 작성 → 사용자 확인 → 로컬 파일럿 → AWS 본 런</strong> 순서로 진행하고, 각 단계 산출물(스크립트·시드)은 실행 전에 보여주고 confirm 받는다.</div>
+  </section>
+
+  <!-- ===================== REFS ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">근거 자산 (내부)</h2></div>
+    </div>
+    <p>이 플랜의 근거는 전부 저장소 내부 실측 자산이다. 외부 출처 인용 없음 — 방법론의 원본은 아래 파일들이다.</p>
+
+    <a class="ref primary" href="../week8/05-load-test-and-degradation-plan.html"><span class="n">1</span><span class="b"><b>Week 8 부하테스트·열화 대응 플랜</b> — 이중 관측 원칙, M1/M2/M3 설계, 산출물 계약의 원본.<span class="src">docs/week8/05-load-test-and-degradation-plan.html</span><span class="pr p1">방법론 원본</span></span></a>
+    <a class="ref primary" href="../week8/06-load-user-scenarios.html"><span class="n">2</span><span class="b"><b>Week 8 부하 유저 시나리오</b> — 여정 기반 시나리오 설계(탐색 암·주문 암)의 원본.<span class="src">docs/week8/06-load-user-scenarios.html</span><span class="pr p1">방법론 원본</span></span></a>
+    <div class="ref"><span class="n">3</span><span class="b"><b>RUNBOOK-queue.md</b> — AWS 2노드 토폴로지·시드·런 절차·SSH 터널 금지 교훈. §8 런 절차의 원본.<span class="src">load-test/RUNBOOK-queue.md</span></span></div>
+    <div class="ref"><span class="n">4</span><span class="b"><b>EXP-04 · EXP-05 실측 기록</b> — 천장 C=200/s 앵커, 웜업 필수(콜드 런 enter 실패 121건), 5섹션 기록 포맷.<span class="src">docs/week8/experiments/EXP-04-baseline.md · EXP-05-queue-protection.md</span></span></div>
+    <div class="ref"><span class="n">5</span><span class="b"><b>Week 9 체크리스트 · EXP-01</b> — 단계적 검증 로드맵, 스코어 모델(0.1/0.2/0.7), dual write 결정, 사전 시딩 채택 실측.<span class="src">docs/week9/checklist.md · docs/week9/experiments/exp01/README.md</span></span></div>
+    <div class="ref"><span class="n">6</span><span class="b"><b>측정 자산 (재사용)</b> — k6 스크립트 3종, actuator 샘플러, 시드 SQL, Prometheus 스택.<span class="src">load-test/k6/* · load-test/sample-actuator.sh · load-test/perf-seed-l5.sql · load-test/perf/*</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 9 랭킹 부하테스트 측정 플랜 — R8 방법론 승계 · 표준 메트릭 세트 v1 정의<br>
+    근거: 저장소 내부 실측 자산 (week8 EXP-04/05 · week9 EXP-01)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -17,7 +17,7 @@ class RedisRankingRepository(
 ) : RankingRepository {
     override fun addScore(date: LocalDate, productId: Long, delta: Double) {
         val key = "ranking:" + date.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-        val zincrby = redisTemplate.opsForZSet().incrementScore(key, productId.toString(), delta)
+        redisTemplate.opsForZSet().incrementScore(key, productId.toString(), delta)
         redisTemplate.expire(key, Duration.ofDays(3))
     }
 

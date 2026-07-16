@@ -1,9 +1,14 @@
 package com.loopers.interfaces.consumer
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.exc.InvalidTypeIdException
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.loopers.config.kafka.KafkaConfig
+import com.loopers.metrics.application.ConsumedEvent
+import com.loopers.metrics.application.OrderCreatedEvent
+import com.loopers.metrics.application.ProductEvent
 import com.loopers.metrics.application.ProductMetricsService
+import com.loopers.metrics.application.ProductViewedEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
@@ -14,36 +19,74 @@ import java.time.Instant
 @Component
 class ProductMetricsKafkaConsumer(
     private val productMetricsService: ProductMetricsService,
-    private val objectMapper: ObjectMapper,
 ) {
     private val logger = LoggerFactory.getLogger(ProductMetricsKafkaConsumer::class.java)
 
+    // 프리미티브(Long) 필수 필드는 누락 시 0 으로 채워지므로, 계약 위반이 조용히 통과하지 않게 누락·null 을 실패로 강제한다.
+    private val objectMapper = jacksonObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES, true)
+        .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
+
     @KafkaListener(
-        topics = ["product-events", "order-events", "user-action-events"],
-        groupId = "commerce-streamer-metrics",
+        topics = ["product-events"],
+        groupId = "commerce-streamer-metrics-product",
         containerFactory = KafkaConfig.BATCH_LISTENER,
         autoStartup = "\${kafka.listener.auto-startup:true}",
     )
-    fun consume(messages: List<ConsumerRecord<Any, Any>>, acknowledgment: Acknowledgment) {
+    fun consumeProductEvents(messages: List<ConsumerRecord<String, ByteArray>>, acknowledgment: Acknowledgment) {
         messages.forEach { record ->
-            val payload = parse(record) ?: return@forEach
-            val eventId = payload["eventId"]?.asText()
-            if (eventId.isNullOrBlank()) {
-                logger.warn("eventId 없는 메시지 — skip (topic={}, offset={})", record.topic(), record.offset())
-                return@forEach
-            }
-            productMetricsService.handle(eventId, payload["eventType"]?.asText().orEmpty(), payload, occurredAt(record))
+            val event = parse<ProductEvent>(record) ?: return@forEach
+            productMetricsService.handle(event, occurredAt(record))
         }
         acknowledgment.acknowledge()
     }
 
-    private fun occurredAt(record: ConsumerRecord<Any, Any>): Instant =
+    @KafkaListener(
+        topics = ["order-events"],
+        groupId = "commerce-streamer-metrics-order",
+        containerFactory = KafkaConfig.BATCH_LISTENER,
+        autoStartup = "\${kafka.listener.auto-startup:true}",
+    )
+    fun consumeOrderEvents(messages: List<ConsumerRecord<String, ByteArray>>, acknowledgment: Acknowledgment) {
+        messages.forEach { record ->
+            val event = parse<OrderCreatedEvent>(record) ?: return@forEach
+            productMetricsService.handle(event, occurredAt(record))
+        }
+        acknowledgment.acknowledge()
+    }
+
+    @KafkaListener(
+        topics = ["user-action-events"],
+        groupId = "commerce-streamer-metrics-user-action",
+        containerFactory = KafkaConfig.BATCH_LISTENER,
+        autoStartup = "\${kafka.listener.auto-startup:true}",
+    )
+    fun consumeUserActionEvents(messages: List<ConsumerRecord<String, ByteArray>>, acknowledgment: Acknowledgment) {
+        messages.forEach { record ->
+            val event = parse<ProductViewedEvent>(record) ?: return@forEach
+            productMetricsService.handle(event, occurredAt(record))
+        }
+        acknowledgment.acknowledge()
+    }
+
+    private fun occurredAt(record: ConsumerRecord<String, ByteArray>): Instant =
         if (record.timestamp() >= 0) Instant.ofEpochMilli(record.timestamp()) else Instant.now()
 
-    private fun parse(record: ConsumerRecord<Any, Any>): JsonNode? = try {
-        objectMapper.readTree(record.value() as ByteArray)
-    } catch (e: Exception) {
-        logger.warn("파싱 불가 메시지 — skip (topic={}, offset={}): {}", record.topic(), record.offset(), e.javaClass.simpleName)
-        null
+    // 역직렬화 실패는 warn 후 skip — poison pill 이 배치 재전달로 이어지지 않게 한다.
+    private inline fun <reified T : ConsumedEvent> parse(record: ConsumerRecord<String, ByteArray>): T? {
+        val event = try {
+            objectMapper.readValue(record.value(), T::class.java)
+        } catch (e: InvalidTypeIdException) {
+            logger.warn("알 수 없는 eventType — skip (topic={}, offset={}, type={})", record.topic(), record.offset(), e.typeId)
+            return null
+        } catch (e: Exception) {
+            logger.warn("역직렬화 불가 메시지 — skip (topic={}, offset={}): {}", record.topic(), record.offset(), e.javaClass.simpleName)
+            return null
+        }
+        if (event.eventId.isBlank()) {
+            logger.warn("eventId 없는 메시지 — skip (topic={}, offset={})", record.topic(), record.offset())
+            return null
+        }
+        return event
     }
 }

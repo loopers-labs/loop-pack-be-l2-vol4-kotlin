@@ -1,6 +1,5 @@
 package com.loopers.metrics.application
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.metrics.infrastructure.EventHandledJpaRepository
 import com.loopers.metrics.infrastructure.ProductMetricsJpaRepository
 import com.loopers.support.DatabaseCleanup
@@ -22,21 +21,27 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     private val eventHandledJpaRepository: EventHandledJpaRepository,
     private val databaseCleanup: DatabaseCleanup,
 ) {
-    private val objectMapper = ObjectMapper()
-
     @BeforeEach
     fun setUp() {
         databaseCleanup.execute()
     }
 
-    private fun handle(eventId: String, eventType: String, json: String) {
-        productMetricsService.handle(eventId, eventType, objectMapper.readTree(json), Instant.now())
-    }
+    private fun like(eventId: String, productId: Long) =
+        productMetricsService.handle(ProductEvent.Liked(eventId, productId), Instant.now())
+
+    private fun unlike(eventId: String, productId: Long) =
+        productMetricsService.handle(ProductEvent.Unliked(eventId, productId), Instant.now())
+
+    private fun view(eventId: String, productId: Long) =
+        productMetricsService.handle(ProductViewedEvent(eventId, productId), Instant.now())
+
+    private fun order(eventId: String, vararg items: OrderCreatedEvent.OrderLine) =
+        productMetricsService.handle(OrderCreatedEvent(eventId, items.toList()), Instant.now())
 
     @DisplayName("처음 보는 상품의 좋아요 이벤트를 처리하면, product_metrics 행을 만들고 like_count 를 1 로 둔다.")
     @Test
     fun createsMetricsRow_whenFirstLikedEventHandled() {
-        handle("e-1", "ProductLikedEvent", """{"productId":1}""")
+        like("e-1", 1)
 
         val metrics = productMetricsJpaRepository.findAll()
         assertAll(
@@ -52,8 +57,8 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     @DisplayName("같은 상품의 좋아요 이벤트를 두 번 처리하면, like_count 가 누적된다.")
     @Test
     fun accumulatesLikeCount_whenLikedTwice() {
-        handle("e-1", "ProductLikedEvent", """{"productId":1}""")
-        handle("e-2", "ProductLikedEvent", """{"productId":1}""")
+        like("e-1", 1)
+        like("e-2", 1)
 
         assertThat(productMetricsJpaRepository.findAll().single().likeCount).isEqualTo(2L)
     }
@@ -61,8 +66,8 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     @DisplayName("좋아요 취소 이벤트를 처리하면, like_count 가 감소한다.")
     @Test
     fun decreasesLikeCount_whenUnliked() {
-        handle("e-1", "ProductLikedEvent", """{"productId":1}""")
-        handle("e-2", "ProductUnlikedEvent", """{"productId":1}""")
+        like("e-1", 1)
+        unlike("e-2", 1)
 
         assertThat(productMetricsJpaRepository.findAll().single().likeCount).isEqualTo(0L)
     }
@@ -70,11 +75,7 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     @DisplayName("주문 생성 이벤트를 처리하면, items 의 상품별로 sales_count 에 수량을 더한다.")
     @Test
     fun accumulatesSalesPerProduct_whenOrderCreated() {
-        handle(
-            "e-1",
-            "OrderCreatedEvent",
-            """{"orderId":10,"items":[{"productId":1,"quantity":2},{"productId":2,"quantity":3}]}""",
-        )
+        order("e-1", OrderCreatedEvent.OrderLine(1, 2), OrderCreatedEvent.OrderLine(2, 3))
 
         val salesByProductId = productMetricsJpaRepository.findAll().associate { it.productId to it.salesCount }
         assertAll(
@@ -87,8 +88,8 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     @DisplayName("상품 조회 이벤트를 처리하면, view_count 가 증가한다.")
     @Test
     fun increasesViewCount_whenViewed() {
-        handle("e-1", "ProductViewedEvent", """{"productId":1}""")
-        handle("e-2", "ProductViewedEvent", """{"productId":1}""")
+        view("e-1", 1)
+        view("e-2", 1)
 
         assertThat(productMetricsJpaRepository.findAll().single().viewCount).isEqualTo(2L)
     }
@@ -96,45 +97,12 @@ class ProductMetricsServiceIntegrationTest @Autowired constructor(
     @DisplayName("같은 eventId 를 다시 처리하면, 집계를 반복하지 않는다 — event_handled 멱등.")
     @Test
     fun skipsDuplicateEventId() {
-        handle("e-1", "ProductLikedEvent", """{"productId":1}""")
-        handle("e-1", "ProductLikedEvent", """{"productId":1}""")
+        like("e-1", 1)
+        like("e-1", 1)
 
         assertAll(
             { assertThat(productMetricsJpaRepository.findAll().single().likeCount).isEqualTo(1L) },
             { assertThat(eventHandledJpaRepository.count()).isEqualTo(1L) },
-        )
-    }
-
-    @DisplayName("알 수 없는 eventType 은 예외 없이 무시하고, 집계와 event_handled 모두 기록하지 않는다.")
-    @Test
-    fun ignoresUnknownEventType() {
-        handle("e-1", "UnknownEvent", """{"productId":1}""")
-
-        assertAll(
-            { assertThat(productMetricsJpaRepository.findAll()).isEmpty() },
-            { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
-        )
-    }
-
-    @DisplayName("productId 없는 payload 는 예외 없이 무시하고, 집계와 event_handled 모두 기록하지 않는다.")
-    @Test
-    fun ignoresPayloadWithoutProductId() {
-        handle("e-1", "ProductLikedEvent", """{"other":1}""")
-
-        assertAll(
-            { assertThat(productMetricsJpaRepository.findAll()).isEmpty() },
-            { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
-        )
-    }
-
-    @DisplayName("items 없는 OrderCreatedEvent payload 는 예외 없이 무시하고, 집계와 event_handled 모두 기록하지 않는다.")
-    @Test
-    fun ignoresOrderPayloadWithoutItems() {
-        handle("e-1", "OrderCreatedEvent", """{"orderId":10}""")
-
-        assertAll(
-            { assertThat(productMetricsJpaRepository.findAll()).isEmpty() },
-            { assertThat(eventHandledJpaRepository.count()).isEqualTo(0L) },
         )
     }
 }

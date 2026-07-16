@@ -195,6 +195,52 @@ class RankingV1ApiE2ETest @Autowired constructor(
             assertThat(afterFirst?.get("score")).isEqualTo(10.0)
         }
 
+        @DisplayName("이월이 중단된 상태(status 소멸, 커서 잔존)에서 조회하면 폴백 응답 후 복구가 커서부터 이어서 완주한다 - 처리됐던 멤버는 중복 반영되지 않는다.")
+        @Test
+        fun resumesRecoveryFromCursor_whenRolloverInterrupted() {
+            val yesterday = today.minusDays(1)
+            // ZRANGE는 점수 오름차순: carried(100) → remaining(300)
+            val carried = createProduct("중단 전 처리된 상품", 10000L)
+            val remaining = createProduct("중단 후 남은 상품", 20000L)
+            seedScore(RankingBoard.allOf("v1", yesterday), carried.id, 100.0)
+            seedScore(RankingBoard.allOf("v1", yesterday), remaining.id, 300.0)
+            seedScore(RankingBoard.snapshotOf("v1", yesterday), carried.id, 100.0)
+            seedScore(RankingBoard.snapshotOf("v1", yesterday), remaining.id, 300.0)
+            // 이전 이월 주체가 첫 멤버까지 반영하고 죽은 상황 재현: 이월분(×0.1) 반영 + 커서 1 (status는 TTL 만료로 소멸)
+            seedScore(RankingBoard.allOf("v1", today), carried.id, 10.0)
+            seedScore(RankingBoard.snapshotOf("v1", today), carried.id, 10.0)
+            redis.opsForValue().set("ranking:rollover:cursor:v1:${today.format(DateTimeFormatter.BASIC_ISO_DATE)}", "1")
+
+            val response = getRankings("date=${dateParam(today)}")
+
+            // 폴백: 전날 보드 데이터로 즉시 응답
+            val items = (response.body?.data as? Map<*, *>)?.get("items") as? List<*>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(items).hasSize(2) },
+            )
+
+            // 복구: 커서(1)부터 이어서 완주 → DONE. 커서 앞 멤버는 다시 만나지 않아 정확히 ×0.1 유지
+            awaitUntil { redis.opsForValue().get(rolloverStatusKey(today)) == "DONE" }
+            val todayAllKey = RankingBoard.allOf("v1", today).key()
+            assertAll(
+                { assertThat(redis.opsForZSet().score(todayAllKey, carried.id.toString())).isEqualTo(10.0) },
+                { assertThat(redis.opsForZSet().score(todayAllKey, remaining.id.toString())).isEqualTo(30.0) },
+                { assertThat(redis.opsForZSet().score(RankingBoard.snapshotOf("v1", today).key(), remaining.id.toString())).isEqualTo(30.0) },
+                { assertThat(redis.hasKey("ranking:rollover:cursor:v1:${today.format(DateTimeFormatter.BASIC_ISO_DATE)}")).isFalse() },
+            )
+
+            // 복구 완료(DONE) 후 요청부터는 오늘 보드로 정상 응답
+            val afterRecovery = getRankings("date=${dateParam(today)}")
+            val afterData = afterRecovery.body?.data as? Map<*, *>
+            val afterFirst = (afterData?.get("items") as? List<*>)?.get(0) as? Map<*, *>
+            assertAll(
+                { assertThat((afterData?.get("totalCount") as? Number)?.toLong()).isEqualTo(2L) },
+                { assertThat((afterFirst?.get("productId") as? Number)?.toLong()).isEqualTo(remaining.id) },
+                { assertThat(afterFirst?.get("score")).isEqualTo(30.0) },
+            )
+        }
+
         @DisplayName("이월 status가 PROGRESS면(실행 중) 복구 트리거 없이 전날 랭킹으로 폴백만 한다.")
         @Test
         fun fallsBackWithoutRecovery_whenRolloverInProgress() {

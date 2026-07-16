@@ -90,54 +90,69 @@ class RankingApplicationServiceAdapterTest {
         verify(exactly = 1) { rankingService.getFallbackPage("v1", yesterday, 1, 20) }
         verify(exactly = 1) { rankingRolloverPort.tryMarkNotified("v1", today) }
         verify(exactly = 0) { rankingRolloverPort.tryStart(any(), any()) }
-        verify(exactly = 0) { rankingRolloverPort.carryOverSnapshot(any(), any(), any()) }
+        verify(exactly = 0) { rankingRolloverPort.carryOverSnapshot(any(), any(), any(), any()) }
     }
 
-    @DisplayName("status가 없으면(배치 실패) 전날 보드로 폴백하고, PROGRESS 선점 성공 시 활성 버전 복구를 비동기 실행 후 DONE을 찍는다.")
+    @DisplayName("status가 없으면(배치 실패) 전날 보드로 폴백하고, PROGRESS 선점 성공 시 발급받은 소유자 토큰으로 복구를 비동기 실행 후 DONE을 찍는다.")
     @Test
     fun fallsBackAndRecovers_whenRolloverNotStarted() {
         every { rankingRolloverPort.getStatus("v1", today) } returns RankingRolloverStatus.NOT_STARTED
-        every { rankingRolloverPort.tryStart("v1", today) } returns true
+        every { rankingRolloverPort.tryStart("v1", today) } returns "token-1"
         every { rankingRolloverPort.tryMarkNotified("v1", today) } returns true
-        every { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today) } returns Unit
-        every { rankingRolloverPort.complete("v1", today) } returns Unit
+        every { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") } returns true
+        every { rankingRolloverPort.complete("v1", today, "token-1") } returns true
         every { rankingService.getFallbackPage("v1", yesterday, 1, 20) } returns emptyPage(yesterday)
 
         val result = adapter.getRankingPage(RankingPageCommand(date = null, page = 1, size = 20))
 
         assertThat(result.date).isEqualTo(today)
         verify(exactly = 1) { rankingService.getFallbackPage("v1", yesterday, 1, 20) }
-        verify(timeout = 3_000L) { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today) }
-        verify(timeout = 3_000L) { rankingRolloverPort.complete("v1", today) }
+        verify(timeout = 3_000L) { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") }
+        verify(timeout = 3_000L) { rankingRolloverPort.complete("v1", today, "token-1") }
     }
 
     @DisplayName("PROGRESS 선점에 실패하면(다른 주체가 방금 선점) 복구·로깅 없이 폴백 응답만 한다.")
     @Test
     fun skipsRecovery_whenStartNotAcquired() {
         every { rankingRolloverPort.getStatus("v1", today) } returns RankingRolloverStatus.NOT_STARTED
-        every { rankingRolloverPort.tryStart("v1", today) } returns false
+        every { rankingRolloverPort.tryStart("v1", today) } returns null
         every { rankingService.getFallbackPage("v1", yesterday, 1, 20) } returns emptyPage(yesterday)
 
         adapter.getRankingPage(RankingPageCommand(date = today, page = 1, size = 20))
 
         verify(exactly = 1) { rankingService.getFallbackPage("v1", yesterday, 1, 20) }
         verify(exactly = 0) { rankingRolloverPort.tryMarkNotified(any(), any()) }
-        verify(exactly = 0) { rankingRolloverPort.carryOverSnapshot(any(), any(), any()) }
+        verify(exactly = 0) { rankingRolloverPort.carryOverSnapshot(any(), any(), any(), any()) }
     }
 
-    @DisplayName("복구 실행이 예외로 실패하면 DONE을 찍지 않는다 - PROGRESS가 TTL 만료 후 자연 재시도되도록.")
+    @DisplayName("복구 실행이 예외로 실패하면 DONE을 찍지 않는다 - 커서가 남아 다음 주체가 이어받는다.")
     @Test
     fun doesNotComplete_whenRecoveryFails() {
         every { rankingRolloverPort.getStatus("v1", today) } returns RankingRolloverStatus.NOT_STARTED
-        every { rankingRolloverPort.tryStart("v1", today) } returns true
+        every { rankingRolloverPort.tryStart("v1", today) } returns "token-1"
         every { rankingRolloverPort.tryMarkNotified("v1", today) } returns true
-        every { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today) } throws IllegalStateException("redis down")
+        every { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") } throws IllegalStateException("redis down")
         every { rankingService.getFallbackPage("v1", yesterday, 1, 20) } returns emptyPage(yesterday)
 
         adapter.getRankingPage(RankingPageCommand(date = today, page = 1, size = 20))
 
-        verify(timeout = 3_000L) { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today) }
-        verify(exactly = 0) { rankingRolloverPort.complete(any(), any()) }
+        verify(timeout = 3_000L) { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") }
+        verify(exactly = 0) { rankingRolloverPort.complete(any(), any(), any()) }
+    }
+
+    @DisplayName("복구 도중 소유권을 상실하면(carryOverSnapshot=false, 다른 주체가 인수) DONE을 찍지 않고 물러난다.")
+    @Test
+    fun doesNotComplete_whenOwnershipLost() {
+        every { rankingRolloverPort.getStatus("v1", today) } returns RankingRolloverStatus.NOT_STARTED
+        every { rankingRolloverPort.tryStart("v1", today) } returns "token-1"
+        every { rankingRolloverPort.tryMarkNotified("v1", today) } returns true
+        every { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") } returns false
+        every { rankingService.getFallbackPage("v1", yesterday, 1, 20) } returns emptyPage(yesterday)
+
+        adapter.getRankingPage(RankingPageCommand(date = today, page = 1, size = 20))
+
+        verify(timeout = 3_000L) { rankingRolloverPort.carryOverSnapshot("v1", yesterday, today, "token-1") }
+        verify(exactly = 0) { rankingRolloverPort.complete(any(), any(), any()) }
     }
 
     @DisplayName("활성 버전이 v2면 v2의 이월 status를 확인하고 v2 보드를 조회한다.")

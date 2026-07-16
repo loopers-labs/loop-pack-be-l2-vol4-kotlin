@@ -70,6 +70,16 @@ class RankingStatusMetricsExporterIntegrationTest @Autowired constructor(
         )
     }
 
+    @DisplayName("이월 status가 PROGRESS:{ownerToken} 포맷이어도 prefix로 판정해 1(PROGRESS)로 노출된다.")
+    @Test
+    fun exportsProgress_whenStatusHasOwnerToken() {
+        redis.opsForValue().set("ranking:rollover:status:v1:$today", "PROGRESS:0f8a1c2e-owner-token")
+
+        exporter.refresh()
+
+        assertThat(gaugeValue("ranking.rollover.status", "v1")).isEqualTo(1.0)
+    }
+
     @DisplayName("flip 후 재갱신하면 active 게이지가 v2=1/v1=0으로 뒤집힌다 - 시계열로 전환 시점을 추적할 수 있다.")
     @Test
     fun flipsActiveGauge_whenActiveVersionChanges() {

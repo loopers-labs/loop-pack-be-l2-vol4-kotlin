@@ -9,7 +9,9 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 class RankingServiceTest {
@@ -17,8 +19,8 @@ class RankingServiceTest {
     private lateinit var rankingRepositoryPort: RankingRepositoryPort
     private lateinit var rankingEventInboxRepositoryPort: RankingEventInboxRepositoryPort
     private lateinit var rankingWeightBoardsPort: RankingWeightBoardsPort
-    private lateinit var rankingService: RankingService
 
+    private val zone = ZoneId.of("Asia/Seoul")
     private val date = LocalDate.of(2026, 7, 14)
 
     @BeforeEach
@@ -26,7 +28,6 @@ class RankingServiceTest {
         rankingRepositoryPort = mockk()
         rankingEventInboxRepositoryPort = mockk()
         rankingWeightBoardsPort = mockk()
-        rankingService = RankingService(rankingRepositoryPort, rankingEventInboxRepositoryPort, rankingWeightBoardsPort)
 
         every { rankingEventInboxRepositoryPort.isHandled(any()) } returns false
         every { rankingEventInboxRepositoryPort.markHandled(any()) } returns Unit
@@ -34,8 +35,21 @@ class RankingServiceTest {
         every { rankingRepositoryPort.incrementScore(any(), any(), any(), any()) } returns true
     }
 
-    private fun reflect(occurredAt: ZonedDateTime, type: RankingEventType = RankingEventType.LIKE, delta: Long = 1L) {
-        rankingService.reflect(occurredAt = occurredAt, productId = 101L, type = type, delta = delta, eventId = "event-1")
+    /** 동결 게이트가 "처리 시각"을 보므로 고정 Clock으로 서비스를 만든다. now 기본값 = occurredAt (실시간 소비). */
+    private fun serviceAt(now: ZonedDateTime): RankingService = RankingService(
+        rankingRepositoryPort,
+        rankingEventInboxRepositoryPort,
+        rankingWeightBoardsPort,
+        Clock.fixed(now.toInstant(), zone),
+    )
+
+    private fun reflect(
+        occurredAt: ZonedDateTime,
+        now: ZonedDateTime = occurredAt,
+        type: RankingEventType = RankingEventType.LIKE,
+        delta: Long = 1L,
+    ) {
+        serviceAt(now).reflect(occurredAt = occurredAt, productId = 101L, type = type, delta = delta, eventId = "event-1")
     }
 
     private fun capturedEntries(version: String = "v1"): List<BoardScore> {
@@ -110,12 +124,12 @@ class RankingServiceTest {
         }
     }
 
-    @DisplayName("컷오프(23:50) 판단 - ")
+    @DisplayName("동결 게이트(발생일 23:50) 판단 - ")
     @Nested
-    inner class Cutoff {
-        @DisplayName("23:50 이전 이벤트는 오늘 all/snapshot 2개 보드에 w×delta로 적재된다.")
+    inner class FreezeGate {
+        @DisplayName("동결 전(처리 시각 < 23:50) 실시간 소비는 오늘 all/snapshot 2개 보드에 w×delta로 적재된다.")
         @Test
-        fun writesTodayBoards_whenBeforeCutoff() {
+        fun writesTodayBoards_whenBeforeFreeze() {
             reflect(ZonedDateTime.parse("2026-07-14T23:49:59+09:00[Asia/Seoul]"))
 
             val entries = capturedEntries()
@@ -127,7 +141,7 @@ class RankingServiceTest {
 
         @DisplayName("정확히 23:50:00 이벤트부터는 이중 적재된다 - 오늘 all + 내일 all/snapshot(0.1배).")
         @Test
-        fun writesDoubleBoards_whenExactlyAtCutoff() {
+        fun writesDoubleBoards_whenExactlyAtFreeze() {
             reflect(ZonedDateTime.parse("2026-07-14T23:50:00+09:00[Asia/Seoul]"))
 
             val entries = capturedEntries()
@@ -149,10 +163,56 @@ class RankingServiceTest {
             assertThat(entries.map { it.board }).contains(RankingBoard.allOf("v1", date.plusDays(1)))
         }
 
-        @DisplayName("occurredAt이 다른 타임존이어도 Asia/Seoul 기준으로 날짜/컷오프를 판단한다.")
+        @DisplayName("occurredAt은 23:50 이전이지만 컨슈머 랙으로 동결 후 처리되면, snapshot:{오늘}을 건드리지 않고 이월분을 스스로 내일 보드에 넣는다.")
+        @Test
+        fun writesDoubleBoards_whenConsumedAfterFreezeByLag() {
+            reflect(
+                occurredAt = ZonedDateTime.parse("2026-07-14T23:40:00+09:00[Asia/Seoul]"),
+                now = ZonedDateTime.parse("2026-07-14T23:55:00+09:00[Asia/Seoul]"),
+            )
+
+            val entries = capturedEntries()
+            assertThat(entries).containsExactly(
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+                BoardScore(RankingBoard.allOf("v1", date.plusDays(1)), 5L),
+                BoardScore(RankingBoard.snapshotOf("v1", date.plusDays(1)), 5L),
+            )
+        }
+
+        @DisplayName("자정을 넘긴 지연 소비도 날짜 귀속은 occurredAt 기준(어제 all)을 유지하면서 이월분은 오늘 보드에 넣는다.")
+        @Test
+        fun keepsOriginDateAttribution_whenConsumedAfterMidnight() {
+            reflect(
+                occurredAt = ZonedDateTime.parse("2026-07-14T23:40:00+09:00[Asia/Seoul]"),
+                now = ZonedDateTime.parse("2026-07-15T00:05:00+09:00[Asia/Seoul]"),
+            )
+
+            val entries = capturedEntries()
+            assertThat(entries).containsExactly(
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+                BoardScore(RankingBoard.allOf("v1", date.plusDays(1)), 5L),
+                BoardScore(RankingBoard.snapshotOf("v1", date.plusDays(1)), 5L),
+            )
+        }
+
+        @DisplayName("하루 초과 랙(처리 시각 ≥ D+1일 23:50)이면 snapshot:{D+1}마저 동결된 뒤라 이월분을 생략하고 all:{D}에만 원 점수를 반영한다.")
+        @Test
+        fun writesOriginAllOnly_whenLaggedOverOneDay() {
+            reflect(
+                occurredAt = ZonedDateTime.parse("2026-07-14T10:00:00+09:00[Asia/Seoul]"),
+                now = ZonedDateTime.parse("2026-07-15T23:50:00+09:00[Asia/Seoul]"),
+            )
+
+            val entries = capturedEntries()
+            assertThat(entries).containsExactly(
+                BoardScore(RankingBoard.allOf("v1", date), 50L),
+            )
+        }
+
+        @DisplayName("occurredAt이 다른 타임존이어도 Asia/Seoul 기준으로 날짜/동결을 판단한다.")
         @Test
         fun convertsToSeoulZone_whenDifferentZone() {
-            // UTC 14:55 = Seoul 23:55 → 컷오프 이후, 서울 기준 7/14 귀속
+            // UTC 14:55 = Seoul 23:55 → 동결 이후, 서울 기준 7/14 귀속
             reflect(ZonedDateTime.parse("2026-07-14T14:55:00Z"))
 
             val entries = capturedEntries()
@@ -177,7 +237,7 @@ class RankingServiceTest {
                 val entries = slot<List<BoardScore>>()
                 every { rankingRepositoryPort.incrementScore(any(), capture(entries), any(), any()) } returns true
 
-                rankingService.reflect(morning, 101L, type, 1L, "event-$type")
+                serviceAt(morning).reflect(morning, 101L, type, 1L, "event-$type")
 
                 assertThat(entries.captured[0].scoreDelta).isEqualTo(expectedScore)
             }
@@ -192,7 +252,7 @@ class RankingServiceTest {
             assertThat(entries.map { it.scoreDelta }).containsOnly(-50L)
         }
 
-        @DisplayName("컷오프 이후 이월분도 delta 부호를 유지한다 (-50 → -5).")
+        @DisplayName("동결 이후 이월분도 delta 부호를 유지한다 (-50 → -5).")
         @Test
         fun keepsSignOnCarryOver_whenDeltaNegative() {
             reflect(ZonedDateTime.parse("2026-07-14T23:55:00+09:00[Asia/Seoul]"), type = RankingEventType.LIKE, delta = -1L)

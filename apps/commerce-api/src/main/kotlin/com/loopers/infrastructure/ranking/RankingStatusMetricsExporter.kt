@@ -84,9 +84,10 @@ class RankingStatusMetricsExporter(
     private fun rolloverStatus(version: String, today: LocalDate): String? =
         replica.opsForValue().get("ranking:rollover:status:$version:${today.format(DateTimeFormatter.BASIC_ISO_DATE)}")
 
-    private fun statusValue(status: String?): Int = when (status) {
-        STATUS_DONE -> 2
-        STATUS_PROGRESS -> 1
+    // 이월 status는 PROGRESS:{ownerToken} 포맷이라 prefix로 판정한다 (replay의 순수 PROGRESS도 포함)
+    private fun statusValue(status: String?): Int = when {
+        status == STATUS_DONE -> 2
+        status?.startsWith(STATUS_PROGRESS) == true -> 1
         else -> 0
     }
 

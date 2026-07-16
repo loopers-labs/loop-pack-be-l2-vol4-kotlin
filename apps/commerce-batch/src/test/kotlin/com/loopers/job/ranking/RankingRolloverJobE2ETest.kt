@@ -40,6 +40,7 @@ class RankingRolloverJobE2ETest @Autowired constructor(
     private val targetAllKey = "ranking:all:v1:20260715"
     private val targetSnapshotKey = "ranking:snapshot:v1:20260715"
     private val statusKey = "ranking:rollover:status:v1:20260715"
+    private val cursorKey = "ranking:rollover:cursor:v1:20260715"
 
     @AfterEach
     fun tearDown() {
@@ -70,6 +71,53 @@ class RankingRolloverJobE2ETest @Autowired constructor(
             { assertThat(vanishedScore).isNull() },
             { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
             { assertThat(redis.getExpire(statusKey)).isGreaterThan(600L).isLessThanOrEqualTo(2 * 24 * 60 * 60L) },
+            // 완료 시 재개 커서는 삭제된다
+            { assertThat(redis.hasKey(cursorKey)).isFalse() },
+        )
+    }
+
+    @DisplayName("재개 커서가 남아 있으면(이전 실행 중단) 그 오프셋부터 이어서 이월한다 - 이미 처리된 멤버는 중복 반영되지 않는다.")
+    @Test
+    fun resumesFromCursor_withoutDuplication() {
+        jobLauncherTestUtils.job = job
+        // ZRANGE는 점수 오름차순: 103(200) → 102(500) → 101(1000)
+        redis.opsForZSet().add(snapshotKey, "103", 200.0)
+        redis.opsForZSet().add(snapshotKey, "102", 500.0)
+        redis.opsForZSet().add(snapshotKey, "101", 1000.0)
+        // 이전 실행이 첫 멤버(103)까지 반영하고 크래시한 상황 재현: 이월분 반영 + 커서 1 (status는 TTL 만료로 소멸)
+        redis.opsForZSet().add(targetAllKey, "103", 20.0)
+        redis.opsForZSet().add(targetSnapshotKey, "103", 20.0)
+        redis.opsForValue().set(cursorKey, "1")
+
+        val jobExecution = jobLauncherTestUtils.launchJob(jobParameters())
+
+        assertAll(
+            { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
+            // 103은 커서 앞이라 다시 만나지 않는다 - 두 배(40)가 아닌 정확히 20 유지
+            { assertThat(redis.opsForZSet().score(targetAllKey, "103")).isEqualTo(20.0) },
+            { assertThat(redis.opsForZSet().score(targetSnapshotKey, "103")).isEqualTo(20.0) },
+            { assertThat(redis.opsForZSet().score(targetAllKey, "102")).isEqualTo(50.0) },
+            { assertThat(redis.opsForZSet().score(targetAllKey, "101")).isEqualTo(100.0) },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
+            { assertThat(redis.hasKey(cursorKey)).isFalse() },
+        )
+    }
+
+    @DisplayName("커서가 이미 끝을 가리키면(마지막 페이지 후 DONE 전 크래시) 아무것도 반영하지 않고 즉시 DONE으로 전이한다.")
+    @Test
+    fun completesImmediately_whenCursorAlreadyAtEnd() {
+        jobLauncherTestUtils.job = job
+        redis.opsForZSet().add(snapshotKey, "101", 1280.0)
+        redis.opsForZSet().add(snapshotKey, "102", 550.0)
+        redis.opsForValue().set(cursorKey, "2")
+
+        val jobExecution = jobLauncherTestUtils.launchJob(jobParameters())
+
+        assertAll(
+            { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
+            { assertThat(redis.hasKey(targetAllKey)).isFalse() },
+            { assertThat(redis.opsForValue().get(statusKey)).isEqualTo("DONE") },
+            { assertThat(redis.hasKey(cursorKey)).isFalse() },
         )
     }
 

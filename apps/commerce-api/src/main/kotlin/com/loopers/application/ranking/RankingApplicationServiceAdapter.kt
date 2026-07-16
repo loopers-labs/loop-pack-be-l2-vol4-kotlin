@@ -98,16 +98,18 @@ class RankingApplicationServiceAdapter(
     )
 
     private fun triggerRolloverRecovery(version: String, today: LocalDate) {
-        // PROGRESS SET NX가 곧 분산 락 - 실패는 다른 인스턴스/요청이 방금 선점했다는 뜻이므로 무행동
-        if (!rankingRolloverPort.tryStart(version, today)) return
+        // PROGRESS SET NX가 곧 분산 락 - 실패(null)는 다른 인스턴스/요청이 방금 선점했다는 뜻이므로 무행동
+        val ownerToken = rankingRolloverPort.tryStart(version, today) ?: return
 
         warnRolloverIncompleteOnce(version, today, "이월 시작 흔적 없음(배치 실패) - 복구를 트리거한다")
         recoveryExecutor.execute {
             runCatching {
-                rankingRolloverPort.carryOverSnapshot(version, fromDate = today.minusDays(1), toDate = today)
-                rankingRolloverPort.complete(version, today)
+                // false = 소유권 상실(stall 후 다른 주체가 인수) - 새 소유자가 진행 중이므로 완료 처리 없이 물러난다
+                if (rankingRolloverPort.carryOverSnapshot(version, fromDate = today.minusDays(1), toDate = today, ownerToken)) {
+                    rankingRolloverPort.complete(version, today, ownerToken)
+                }
             }.onFailure {
-                // PROGRESS를 유지해 복구 재시도 폭주를 막는다 (heartbeat가 멈추므로 TTL 만료 후 자연 재시도)
+                // 순단 포기 경로는 어댑터가 status를 정리하고 커서를 남긴다 - 다음 주체(조회 트리거)가 커서부터 이어받는다
                 log.error("랭킹 이월 복구 실패. version={}, targetDate={}", version, today, it)
             }
         }

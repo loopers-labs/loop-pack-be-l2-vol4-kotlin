@@ -5,6 +5,7 @@ import com.loopers.domain.ranking.RankingRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.core.ZSetOperations
+import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.LocalDate
@@ -17,8 +18,13 @@ class RedisRankingRepository(
 ) : RankingRepository {
     override fun addScore(date: LocalDate, productId: Long, delta: Double) {
         val key = "ranking:" + date.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-        redisTemplate.opsForZSet().incrementScore(key, productId.toString(), delta)
-        redisTemplate.expire(key, Duration.ofDays(3))
+        redisTemplate.execute(
+            ADD_SCORE_SCRIPT,
+            listOf(key),
+            delta.toString(),
+            productId.toString(),
+            KEY_TTL_SECONDS.toString(),
+        )
     }
 
     override fun setScores(date: LocalDate, scores: Map<Long, Double>) {
@@ -29,5 +35,17 @@ class RedisRankingRepository(
         }.toSet()
         redisTemplate.opsForZSet().add(key, tuples)
         redisTemplate.expire(key, Duration.ofDays(3))
+    }
+
+    companion object {
+        private val ADD_SCORE_SCRIPT = DefaultRedisScript(
+            """
+            redis.call('ZINCRBY', KEYS[1], ARGV[1], ARGV[2])
+            redis.call('EXPIRE', KEYS[1], ARGV[3])
+            return 1
+            """.trimIndent(),
+            Long::class.java,
+        )
+        private val KEY_TTL_SECONDS = Duration.ofDays(3).seconds
     }
 }

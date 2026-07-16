@@ -25,6 +25,6 @@ class AdminRankingV1Controller(
 
         return rankingPolicyService.updateTodayWeights(request.toCommand())
             .let(AdminRankingV1Dto.RankingWeightsResponse::from)
-            .let(ApiResponse<AdminRankingV1Dto.RankingWeightsResponse>::success)
+            .let { ApiResponse.success(it) }
     }
 }

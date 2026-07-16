@@ -37,8 +37,8 @@ class RankingV1Controller(
 
         return rankingPage
             .map(RankingV1Dto.RankingResponse::from)
-            .let(PageResponse<RankingV1Dto.RankingResponse>::from)
-            .let(ApiResponse<PageResponse<RankingV1Dto.RankingResponse>>::success)
+            .let { PageResponse.from(it) }
+            .let { ApiResponse.success(it) }
     }
 
     private fun parseDate(value: String): LocalDate {

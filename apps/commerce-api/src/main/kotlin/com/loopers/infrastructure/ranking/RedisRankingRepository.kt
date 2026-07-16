@@ -29,4 +29,7 @@ class RedisRankingRepository(
     override fun rankOf(key: String, productId: Long): Long? =
         // ZREVRANK 는 0-based — 사용자에게 노출하는 순위는 1부터라 +1 한다.
         redisTemplate.opsForZSet().reverseRank(key, productId.toString())?.plus(1)
+
+    override fun size(key: String): Long =
+        redisTemplate.opsForZSet().zCard(key) ?: 0L
 }

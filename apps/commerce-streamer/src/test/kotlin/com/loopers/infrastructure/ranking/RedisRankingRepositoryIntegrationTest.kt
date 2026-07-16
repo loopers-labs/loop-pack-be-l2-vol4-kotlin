@@ -40,6 +40,13 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
     private fun scoreOf(rankKey: String, productId: Long): Double? =
         masterTemplate.opsForZSet().score(rankKey, productId.toString())
 
+    private fun sizeOf(rankKey: String): Long =
+        masterTemplate.opsForZSet().zCard(rankKey) ?: 0L
+
+    private fun seed(rankKey: String, productId: Long, score: Double) {
+        masterTemplate.opsForZSet().add(rankKey, productId.toString(), score)
+    }
+
     @DisplayName("점수를 누적하면,")
     @Nested
     inner class IncrementScore {
@@ -118,6 +125,49 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
 
             assertThat(masterTemplate.getExpire(key, TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
             assertThat(masterTemplate.getExpire("rank:seen:$eventId", TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
+        }
+    }
+
+    @DisplayName("이월(carry-over)하면,")
+    @Nested
+    inner class CarryOver {
+        private val yesterday = "rank:all:20260713"
+
+        @Test
+        fun `전일 점수에 이월 가중치를 곱해 다음 날 랭킹판으로 복사한다`() {
+            seed(yesterday, productId = 101L, score = 10.0)
+
+            rankingRepository.carryOver(yesterday, key, weight = 0.1, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(101L)).isCloseTo(1.0, within(1e-9))
+        }
+
+        @Test
+        fun `이월 후 유입되는 점수는 이월 점수 위에 누적된다`() {
+            seed(yesterday, productId = 101L, score = 10.0)
+            rankingRepository.carryOver(yesterday, key, weight = 0.1, ttlSeconds = ttlSeconds)
+
+            rankingRepository.incrementScoreOnce(UUID.randomUUID(), key, productId = 101L, delta = 0.7, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(101L)).isCloseTo(1.7, within(1e-9))
+        }
+
+        @Test
+        fun `전일 랭킹판이 없으면 이월은 아무것도 만들지 않는다`() {
+            rankingRepository.carryOver(yesterday, key, weight = 0.1, ttlSeconds = ttlSeconds)
+
+            assertThat(sizeOf(key)).isEqualTo(0L)
+        }
+
+        @Test
+        fun `다음 날 랭킹판이 이미 존재하면 이월은 아무것도 하지 않는다`() {
+            seed(yesterday, productId = 101L, score = 10.0)
+            seed(key, productId = 202L, score = 5.0)
+
+            rankingRepository.carryOver(yesterday, key, weight = 0.1, ttlSeconds = ttlSeconds)
+
+            assertThat(scoreOf(202L)).isEqualTo(5.0)
+            assertThat(scoreOf(101L)).isNull()
         }
     }
 }

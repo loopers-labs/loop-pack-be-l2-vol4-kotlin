@@ -13,4 +13,9 @@ interface RankingRepository {
      * 상품의 순위를 1부터 매겨 반환한다. 랭킹판에 없으면 null.
      */
     fun rankOf(key: String, productId: Long): Long?
+
+    /**
+     * 랭킹판에 담긴 상품 수를 반환한다. 랭킹판이 없으면 0.
+     */
+    fun size(key: String): Long
 }

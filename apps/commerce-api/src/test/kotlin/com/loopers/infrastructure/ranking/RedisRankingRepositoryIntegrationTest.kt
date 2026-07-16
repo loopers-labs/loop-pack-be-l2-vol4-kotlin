@@ -68,6 +68,13 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
                 RankedEntry(productId = 505L, score = 2.0),
             )
         }
+
+        @Test
+        fun `존재하지 않는 날짜의 랭킹판 조회는 빈 목록을 반환한다`() {
+            val result = rankingRepository.topN("rank:all:19990101", offset = 0, size = 10)
+
+            assertThat(result).isEmpty()
+        }
     }
 
     @DisplayName("순위를 조회하면,")
@@ -80,6 +87,26 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
             seed(productId = 101L, score = 1.0)
 
             assertThat(rankingRepository.rankOf(key, productId = 202L)).isEqualTo(1L)
+        }
+
+        @Test
+        fun `랭킹판에 없는 상품의 순위 조회는 null 을 반환한다`() {
+            seed(productId = 202L, score = 3.0)
+
+            assertThat(rankingRepository.rankOf(key, productId = 999L)).isNull()
+        }
+    }
+
+    @DisplayName("전체 항목 수를 조회하면,")
+    @Nested
+    inner class Size {
+        @Test
+        fun `랭킹판에 담긴 상품 수를 반환한다`() {
+            seed(productId = 202L, score = 3.0)
+            seed(productId = 303L, score = 2.0)
+            seed(productId = 101L, score = 1.0)
+
+            assertThat(rankingRepository.size(key)).isEqualTo(3L)
         }
     }
 }

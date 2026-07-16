@@ -3,9 +3,12 @@ package com.loopers.infrastructure.ranking
 import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.ranking.RankingRepository
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.data.redis.connection.zset.Aggregate
+import org.springframework.data.redis.connection.zset.Weights
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -32,6 +35,14 @@ class RedisRankingRepository(
     override fun removeProduct(keys: List<String>, productId: Long) {
         val member = productId.toString()
         keys.forEach { masterTemplate.opsForZSet().remove(it, member) }
+    }
+
+    override fun carryOver(sourceKey: String, destKey: String, weight: Double, ttlSeconds: Long) {
+        // 이미 오늘 점수가 쌓였다면 덮어쓰지 않는다(중복 실행·자정 후 오발동 방어).
+        if (masterTemplate.hasKey(destKey)) return
+        // ZUNIONSTORE dest 1 source WEIGHTS weight — source 가 없으면 결과가 비어 dest 를 만들지 않는다.
+        masterTemplate.opsForZSet().unionAndStore(sourceKey, emptyList(), destKey, Aggregate.SUM, Weights.of(weight))
+        masterTemplate.expire(destKey, Duration.ofSeconds(ttlSeconds))
     }
 
     private fun seenKey(eventId: UUID): String = "rank:seen:$eventId"

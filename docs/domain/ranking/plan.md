@@ -86,13 +86,13 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (commerce-api) 랭킹판에 있으나 삭제된 상품은 목록에서 제외된다
 - [x] (commerce-api) 랭킹판이 없는 날짜는 빈 목록을 반환한다
 - [x] (commerce-api) 상품 상세 조회 시 오늘 랭킹판 순위가 함께 반환된다
-- [ ] (commerce-api) 랭킹판에 없는 상품의 상세 순위는 null 이다
-- [ ] (commerce-api) 순위 조회가 실패해도(저장소 장애) 상품 상세는 정상 반환되고 순위만 null 이다
+- [x] (commerce-api) 랭킹판에 없는 상품의 상세 순위는 null 이다
+- [x] (commerce-api) 순위 조회가 실패해도(저장소 장애) 상품 상세는 정상 반환되고 순위만 null 이다
 
 ### Phase 5 — Controller E2E (`com.loopers.interfaces.api.ranking`)
 > HTTP 계약 검증. `ApiResponse` + `ApiControllerAdvice` 표준 응답. 계약은 [api-spec.md](./api-spec.md).
 
-- [ ] (commerce-api) `GET /api/v1/rankings` 가 200 과 표준 응답으로 점수 내림차순 랭킹 목록을 반환한다
+- [x] (commerce-api) `GET /api/v1/rankings` 가 200 과 표준 응답으로 점수 내림차순 랭킹 목록을 반환한다
 - [ ] (commerce-api) `date` 를 지정하면 그 날짜의 랭킹판이 조회된다
 - [ ] (commerce-api) `date` 형식이 `yyyyMMdd` 가 아니면 400 `RANKING_BAD_REQUEST` 를 반환한다
 - [ ] (commerce-api) 보존 기간 밖 날짜는 200 과 빈 목록을 반환한다

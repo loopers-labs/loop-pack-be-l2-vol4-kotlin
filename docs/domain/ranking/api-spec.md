@@ -53,7 +53,6 @@
 {
   "meta": { "result": "SUCCESS", "errorCode": null, "message": null },
   "data": {
-    "date": "20260713",
     "content": [
       {
         "rank":      1,
@@ -75,7 +74,6 @@
 
 | 필드 | 타입 | 비고 |
 |---|---|---|
-| `data.date` | String | 조회된 랭킹판의 날짜 (`yyyyMMdd`) |
 | `data.content` | Array | 점수 내림차순 랭킹 항목 목록. 랭킹판이 없거나 비어 있으면 빈 배열 `[]` |
 | `data.content[].rank` | Int | 순위. 1부터 시작 |
 | `data.content[].score` | Double | 가중 누적 점수 (근사값, `§0.3`) |

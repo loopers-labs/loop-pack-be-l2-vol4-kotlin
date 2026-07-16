@@ -19,7 +19,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class RankingFacadeTest {
-    private val rankingRepository = mockk<RankingRepository>()
+    private val rankingRepository = mockk<RankingRepository>(relaxed = true)
     private val productRepository = mockk<ProductRepository>()
     private val brandRepository = mockk<BrandRepository>()
     private val facade = RankingFacade(rankingRepository, productRepository, brandRepository)
@@ -43,7 +43,7 @@ class RankingFacadeTest {
 
             val result = facade.getRanking(date = "20260714", page = 0, size = 20)
 
-            assertThat(result).containsExactly(
+            assertThat(result.content).containsExactly(
                 RankedProductResult(productId = 202L, name = "B", price = 2000, brandName = "나이키", likeCount = 5, rank = 1, score = 3.0),
                 RankedProductResult(productId = 303L, name = "C", price = 3000, brandName = "나이키", likeCount = 1, rank = 2, score = 2.0),
             )
@@ -73,7 +73,7 @@ class RankingFacadeTest {
 
             val result = facade.getRanking(date = "20260714", page = 1, size = 2)
 
-            assertThat(result.map { it.rank }).containsExactly(3L, 4L)
+            assertThat(result.content.map { it.rank }).containsExactly(3L, 4L)
         }
 
         @Test
@@ -90,8 +90,8 @@ class RankingFacadeTest {
 
             val result = facade.getRanking(date = "20260714", page = 0, size = 20)
 
-            assertThat(result.map { it.productId }).containsExactly(303L)
-            assertThat(result.single().rank).isEqualTo(2L)
+            assertThat(result.content.map { it.productId }).containsExactly(303L)
+            assertThat(result.content.single().rank).isEqualTo(2L)
         }
 
         @Test
@@ -100,7 +100,7 @@ class RankingFacadeTest {
 
             val result = facade.getRanking(date = "20200101", page = 0, size = 20)
 
-            assertThat(result).isEmpty()
+            assertThat(result.content).isEmpty()
         }
     }
 }

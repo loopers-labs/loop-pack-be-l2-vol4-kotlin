@@ -23,6 +23,7 @@ import com.loopers.domain.ranking.RankingRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.page.PageQuery
 import com.loopers.support.page.PageResult
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -38,6 +39,8 @@ class ProductFacade(
     // 외부 도메인은 Facade 가 아니라 port 를 직접 주입해 호출한다(Facade→Facade 금지).
     private val rankingRepository: RankingRepository,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional(readOnly = true)
     fun getProducts(query: GetProductsQuery): PageResult<ProductSummaryResult> {
         val sort = query.sort ?: ProductSortType.LATEST
@@ -66,7 +69,12 @@ class ProductFacade(
             CachedProductDetail.of(product, brand).also { productCache.putDetail(it) }
         }
         val likedByMe = userId != null && likeRepository.existsByUserIdAndProductId(userId, productId)
-        val rank = rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId)
+        // 순위는 상세의 부가 정보다 — 랭킹 저장소 장애가 상세 조회를 막지 않도록 null 로 폴백한다.
+        val rank = runCatching { rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId) }
+            .getOrElse { e ->
+                log.warn("상품 {} 순위 조회 실패 — 순위 없이 상세를 반환한다: {}", productId, e.message)
+                null
+            }
 
         eventPublisher.publish(ProductEvent.Viewed(productId = productId, userId = userId))
         return ProductDetailResult(

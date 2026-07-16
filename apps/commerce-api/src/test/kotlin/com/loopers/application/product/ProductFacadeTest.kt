@@ -204,6 +204,35 @@ class ProductFacadeTest {
         }
 
         @Test
+        @DisplayName("랭킹판에 없는 상품의 상세 순위는 null 이다")
+        fun rankIsNullWhenNotRanked() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } returns null
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isNull()
+        }
+
+        @Test
+        @DisplayName("순위 조회가 실패해도(저장소 장애) 상세는 정상 반환되고 순위만 null 이다")
+        fun rankFallsBackToNullOnFailure() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } throws RuntimeException("redis down")
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isNull()
+            assertThat(result.name).isEqualTo(product.name.value)
+        }
+
+        @Test
         @DisplayName("상세 조회 시 ProductEvent.Viewed(productId·userId) 를 발행한다")
         fun publishesProductViewedEvent() {
             val product = ProductFixture.validProduct()

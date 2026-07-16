@@ -5,10 +5,12 @@ import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.ranking.RankingKey
 import com.loopers.domain.ranking.RankingRepository
+import com.loopers.support.page.PageResult
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.ceil
 
 /**
  * 랭킹판 조회를 상품 정보와 조립한다 — ZSET 에서 순위·점수를 읽고, 상품·브랜드를 배치 조회해 목록에 필요한 정보를 붙인다.
@@ -21,12 +23,18 @@ class RankingFacade(
     private val brandRepository: BrandRepository,
 ) {
     @Transactional(readOnly = true)
-    fun getRanking(date: String?, page: Int, size: Int): List<RankedProductResult> {
+    fun getRanking(date: String?, page: Int, size: Int): PageResult<RankedProductResult> {
         val key = RankingKey.of(date, LocalDate.now(SEOUL))
+        val total = rankingRepository.size(key)
+        val totalPages = if (size == 0) 0 else ceil(total.toDouble() / size).toInt()
         val offset = page.toLong() * size
         val entries = rankingRepository.topN(key, offset, size.toLong())
-        if (entries.isEmpty()) return emptyList()
+        val content = assemble(entries, offset)
+        return PageResult(content, page, size, total, totalPages)
+    }
 
+    private fun assemble(entries: List<com.loopers.domain.ranking.RankedEntry>, offset: Long): List<RankedProductResult> {
+        if (entries.isEmpty()) return emptyList()
         val products = productRepository.findAllByIds(entries.map { it.productId }).associateBy { it.id }
         val brands = brandRepository.findAllByIds(products.values.map { it.brandId }.distinct()).associateBy { it.id }
 

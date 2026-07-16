@@ -44,6 +44,8 @@
 - [x] (streamer) 주문 1건(수량 1)의 점수가 좋아요 3건의 합보다 크다 — 가중치 관계(0.7 > 0.2×3)가 정책으로 고정된다
 - [x] (commerce-api) `yyyyMMdd` 형식이 아닌 날짜 문자열로 랭킹판 키를 만들려 하면 예외가 발생한다
 - [x] (commerce-api) 날짜 문자열 없이 키를 만들면 오늘(Asia/Seoul) 날짜의 키가 된다
+- [x] (streamer) 시간별 집계는 발생 시각을 정시 버킷으로 귀속시킨다 — 10:37 신호는 10:00 버킷 (RDB SoT)
+- [x] (streamer) 좋아요 취소 증분은 버킷 좋아요 수를 0 아래로도 내린다 — 버킷을 넘는 취소가 재계산을 왜곡하지 않는다
 
 ### Phase 2 — 도메인 서비스 (`com.loopers.domain.ranking.{Aggregate}Service`)
 > 도메인 규칙 조합 + Repository 인터페이스를 통한 상태 변경.
@@ -70,6 +72,12 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (streamer) 이월 후 유입되는 점수는 이월 점수 위에 누적된다
 - [x] (streamer) 전일 랭킹판이 없으면 이월은 아무것도 만들지 않는다
 - [x] (streamer) 다음 날 랭킹판이 이미 존재하면 이월은 아무것도 하지 않는다 — 중복 실행·자정 후 오발동이 실점수를 덮어쓰지 않는다
+- [x] (streamer) 시간별 집계를 저장하면 (상품, 버킷) 행에 누적되고, 같은 버킷 재저장은 합산된다 (RDB SoT)
+- [x] (streamer) 서로 다른 시간 버킷의 수치는 섞이지 않는다
+- [x] (streamer) 특정 날짜(KST)의 상품별 신호 합계를 조회한다
+- [x] (streamer) 상품의 시간별 집계 행을 지운다 — 재실행해도 결과가 같다
+- [x] (streamer) 랭킹판 재구축은 임시 키에 쌓아 원자 교체한다 — 기존 항목이 통째로 대체되고 TTL 이 설정된다
+- [x] (streamer) 재구축할 점수가 없으면 기존 판을 건드리지 않는다
 
 ### Phase 4 — Application Facade (`com.loopers.application.ranking`)
 > 유스케이스 진입점. 신호 반영 조율(쓰기) / 랭킹 조립(읽기). 트랜잭션 경계·예외 전파.
@@ -89,6 +97,12 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (commerce-api) 랭킹판에 없는 상품의 상세 순위는 null 이다
 - [x] (commerce-api) 순위 조회가 실패해도(저장소 장애) 상품 상세는 정상 반환되고 순위만 null 이다
 - [x] (streamer) 이월 실행은 오늘 판을 소스로, 내일 판을 목적지로, 이월 가중치·보존 기간과 함께 저장소에 위임한다 — 콜드 스타트 완화
+- [ ] (streamer) 좋아요·조회·판매 반영 시 시간별 버킷이 같은 트랜잭션에서 함께 누적된다 — 발생 시각으로 귀속 (RDB SoT)
+- [ ] (streamer) 같은 eventId 재전달 시 시간별 집계도 다시 누적되지 않는다 — 기존 멱등 표식에 편승
+- [ ] (streamer) 상품 삭제 신호는 시간별 집계 행도 걷어낸다 — 재구축이 삭제 상품을 부활시키지 않는다
+- [ ] (streamer) 재구축은 날짜의 신호 합계에 가중치를 적용해 판을 다시 만든다
+- [ ] (streamer) 오늘 판 재구축에는 전일 판 이월분이 더해진다
+- [ ] (streamer) 자가 복구는 오늘 집계가 있는데 판이 없을 때만 재구축한다
 
 ### Phase 5 — Controller E2E (`com.loopers.interfaces.api.ranking`)
 > HTTP 계약 검증. `ApiResponse` + `ApiControllerAdvice` 표준 응답. 계약은 [api-spec.md](./api-spec.md).
@@ -105,6 +119,8 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (streamer) 주문 1건(수량 1) 상품이 좋아요 3건 상품보다 랭킹판에서 상위다 — 가중치가 순서에 반영되는 E2E 검증
 - [x] (streamer) 이월 스케줄은 매일 23:50 Asia/Seoul 로 예약된다 — cron 표현식이 다음 실행 시각을 그날 23:50 으로 계산한다
 - [x] (streamer) 스케줄러 실행은 오늘(Asia/Seoul) 날짜 기준으로 이월을 위임한다
+- [ ] (streamer) 소비된 행동 이벤트가 시간별 집계 테이블에 쌓인다 — 실 브로커·실 DB E2E (RDB SoT)
+- [ ] (streamer) 판을 비운 뒤 재구축하면 집계 기반 점수로 판이 되살아난다 — 실 DB·실 Redis 통합
 
 ---
 

@@ -24,4 +24,10 @@ interface RankingRepository {
      * sourceKey 가 없으면 destKey 를 만들지 않는다.
      */
     fun carryOver(sourceKey: String, destKey: String, weight: Double, ttlSeconds: Long)
+
+    /**
+     * 랭킹판을 주어진 항목들로 다시 만든다(유실 복구) — 기존 항목은 통째로 대체되고 보존 기간이 설정된다.
+     * 임시 키에 쌓아 원자 교체하므로 읽는 쪽이 만들다 만 판을 보지 않는다.
+     */
+    fun rebuild(key: String, entries: List<RankedEntry>, ttlSeconds: Long)
 }

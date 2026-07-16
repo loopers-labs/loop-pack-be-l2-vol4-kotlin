@@ -1,6 +1,7 @@
 package com.loopers.infrastructure.ranking
 
 import com.loopers.config.redis.RedisConfig
+import com.loopers.domain.ranking.RankedEntry
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.testcontainers.RedisTestContainersConfig
@@ -137,6 +138,32 @@ class RedisRankingRepositoryIntegrationTest @Autowired constructor(
 
             assertThat(masterTemplate.getExpire(key, TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
             assertThat(masterTemplate.getExpire("rank:seen:$eventId:101", TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
+        }
+    }
+
+    @DisplayName("재구축하면,")
+    @Nested
+    inner class Rebuild {
+        @Test
+        fun `기존 판이 통째로 대체되고 보존 기간이 설정된다`() {
+            // 유실 후 어중간하게 남은 잔재가 있어도 재구축 결과만 남아야 한다.
+            seed(key, productId = 999L, score = 9.9)
+
+            rankingRepository.rebuild(key, listOf(RankedEntry(101L, 3.0), RankedEntry(202L, 1.0)), ttlSeconds)
+
+            assertThat(scoreOf(101L)).isEqualTo(3.0)
+            assertThat(scoreOf(202L)).isEqualTo(1.0)
+            assertThat(scoreOf(999L)).isNull()
+            assertThat(masterTemplate.getExpire(key, TimeUnit.SECONDS)).isBetween(ttlSeconds - 10, ttlSeconds)
+        }
+
+        @Test
+        fun `재구축할 점수가 없으면 기존 판을 건드리지 않는다`() {
+            seed(key, productId = 101L, score = 5.0)
+
+            rankingRepository.rebuild(key, emptyList(), ttlSeconds)
+
+            assertThat(scoreOf(101L)).isEqualTo(5.0)
         }
     }
 

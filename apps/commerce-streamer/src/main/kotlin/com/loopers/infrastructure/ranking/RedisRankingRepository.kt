@@ -1,11 +1,13 @@
 package com.loopers.infrastructure.ranking
 
 import com.loopers.config.redis.RedisConfig
+import com.loopers.domain.ranking.RankedEntry
 import com.loopers.domain.ranking.RankingRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.redis.connection.zset.Aggregate
 import org.springframework.data.redis.connection.zset.Weights
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.core.ZSetOperations
 import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -43,6 +45,18 @@ class RedisRankingRepository(
         // ZUNIONSTORE dest 1 source WEIGHTS weight — source 가 없으면 결과가 비어 dest 를 만들지 않는다.
         masterTemplate.opsForZSet().unionAndStore(sourceKey, emptyList(), destKey, Aggregate.SUM, Weights.of(weight))
         masterTemplate.expire(destKey, Duration.ofSeconds(ttlSeconds))
+    }
+
+    override fun rebuild(key: String, entries: List<RankedEntry>, ttlSeconds: Long) {
+        if (entries.isEmpty()) return
+        val stagingKey = "$key:rebuild"
+        // 지난 재구축이 교체 직전에 죽었어도 잔재 위에 쌓지 않는다.
+        masterTemplate.delete(stagingKey)
+        val tuples = entries.map { ZSetOperations.TypedTuple.of(it.productId.toString(), it.score) }.toSet()
+        masterTemplate.opsForZSet().add(stagingKey, tuples)
+        masterTemplate.expire(stagingKey, Duration.ofSeconds(ttlSeconds))
+        // RENAME 은 원자 교체 — 읽는 쪽은 교체 전의 판 아니면 완성된 판만 본다.
+        masterTemplate.rename(stagingKey, key)
     }
 
     // 멱등 단위는 (이벤트, 상품) — 한 주문(같은 eventId)의 여러 상품 라인이 서로를 막지 않게 한다.

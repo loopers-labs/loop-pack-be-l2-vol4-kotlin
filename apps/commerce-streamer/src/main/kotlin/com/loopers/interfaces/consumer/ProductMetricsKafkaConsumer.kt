@@ -22,7 +22,6 @@ class ProductMetricsKafkaConsumer(
 ) {
     private val logger = LoggerFactory.getLogger(ProductMetricsKafkaConsumer::class.java)
 
-    // 프리미티브(Long) 필수 필드는 누락 시 0 으로 채워지므로, 계약 위반이 조용히 통과하지 않게 누락·null 을 실패로 강제한다.
     private val objectMapper = jacksonObjectMapper()
         .configure(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES, true)
         .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true)
@@ -72,7 +71,6 @@ class ProductMetricsKafkaConsumer(
     private fun occurredAt(record: ConsumerRecord<String, ByteArray>): Instant =
         if (record.timestamp() >= 0) Instant.ofEpochMilli(record.timestamp()) else Instant.now()
 
-    // 역직렬화 실패는 warn 후 skip — poison pill 이 배치 재전달로 이어지지 않게 한다.
     private inline fun <reified T : ConsumedEvent> parse(record: ConsumerRecord<String, ByteArray>): T? {
         val event = try {
             objectMapper.readValue(record.value(), T::class.java)

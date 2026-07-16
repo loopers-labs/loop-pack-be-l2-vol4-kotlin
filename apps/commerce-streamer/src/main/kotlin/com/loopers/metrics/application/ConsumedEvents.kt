@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 
-// commerce-api 가 발행하는 JSON 의 소비자 측 사본 — 필드명·eventType 값이 와이어 계약이다.
 interface ConsumedEvent {
     val eventId: String
 }

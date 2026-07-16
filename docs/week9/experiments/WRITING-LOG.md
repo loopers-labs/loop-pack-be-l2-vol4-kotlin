@@ -79,3 +79,14 @@
 - 버린 대안 & 왜:
 - 트레이드오프 / 남은 리스크:
 -->
+
+## 2026-07-16 — 이벤트 소비를 타입 계약으로 전환 + 토픽 rename
+
+### 결정 — JsonNode 손파싱·String eventType 분기를 걷어내고, 토픽별 리스너 + Jackson 다형 역직렬화로 전환한다
+
+- 배경/문제: 컨슈머가 `ConsumerRecord<Any, Any>`(실제 와이어 타입은 key String·value ByteArray)로 받고 `readTree` 손파싱 → 서비스가 String eventType 분기 + `payload["productId"]` 하드코딩. 필드명 오타·처리 누락을 컴파일러가 못 잡고, `as ByteArray` 무근거 캐스트 실패조차 catch(Exception)이 "파싱 불가 skip"으로 위장. 리스너 1개가 토픽 3개를 한 파이프로 소비해 view 폭주가 order 처리를 막는 head-of-line blocking도 존재.
+- 고른 것 & 왜: ① 토픽별 `@KafkaListener` 3개(그룹 분리 — 격리·토픽별 랙 관측·리밸런스 독립) ② 스트리머 소유 소비 계약(`ConsumedEvents.kt`) — `@JsonTypeInfo(property="eventType")` sealed(ProductEvent) + 단일 타입 토픽은 data class 직행 ③ 서비스는 타입 오버로드 `handle(event, occurredAt)` — sealed `when` 망라로 처리 누락이 컴파일 에러. 프로듀서가 `spring.json.add.type.headers=false`라 헤더 기반 공식 옵션(TYPE_MAPPINGS·DelegatingDeserializer)이 닫혀 있어 본문 discriminator가 정석 경로 (Spring Kafka serdes 문서 + Jackson 공식 다형 역직렬화 문서로 확인).
+- 버린 대안 & 왜: deserializer 단 타입화(`ErrorHandlingDeserializer` + `VALUE_DEFAULT_TYPE`) — 기능 동등하나 앱 전용 consumer factory 설정 신설 필요(베이스 modules/kafka 수정 금지) + 실패 처리(warn+skip)가 설정·헤더 검사로 흩어짐. / 프로젝션별(metrics·ranking) 컨슈머 그룹 분리 — 이번 요지(이벤트 종류별 분리)와 다른 축, Stage 3에서 랭킹이 Redis로 가며 트랜잭션 원자성이 깨질 때 재결정.
+- 함정 발견: Kotlin data class의 프리미티브 필수 필드(Long)는 JSON 누락 시 예외가 아니라 0으로 채워짐 — 테스트가 잡아냄. 컨슈머 전용 mapper에 `FAIL_ON_MISSING_CREATOR_PROPERTIES`·`FAIL_ON_NULL_FOR_PRIMITIVES`를 켜서 계약 위반이 조용히 통과하지 않게 강제.
+- 부수 결정: `catalog-events` → `product-events` rename — 코드 전체가 product 어휘(패키지·이벤트명·aggregateType "PRODUCT")인데 토픽만 catalog여서 유추 불가. week7에 직접 지은 이름이라 계약 파트너 조율 불요, 브로커 auto-create로 마이그레이션 무비용(테스트 데이터 환경).
+- 트레이드오프 / 남은 리스크: ① 컨슈머 스레드 3→9 ② 그룹 rename으로 기존 오프셋 승계 없음(latest 시작 — 측정 환경이라 무해) ③ 프로듀서·컨슈머 스키마 이중 정의는 앱 간 계약의 정상 비용.

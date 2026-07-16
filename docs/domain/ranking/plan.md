@@ -93,15 +93,15 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 > HTTP 계약 검증. `ApiResponse` + `ApiControllerAdvice` 표준 응답. 계약은 [api-spec.md](./api-spec.md).
 
 - [x] (commerce-api) `GET /api/v1/rankings` 가 200 과 표준 응답으로 점수 내림차순 랭킹 목록을 반환한다
-- [ ] (commerce-api) `date` 를 지정하면 그 날짜의 랭킹판이 조회된다
-- [ ] (commerce-api) `date` 형식이 `yyyyMMdd` 가 아니면 400 `RANKING_BAD_REQUEST` 를 반환한다
-- [ ] (commerce-api) 보존 기간 밖 날짜는 200 과 빈 목록을 반환한다
-- [ ] (commerce-api) `size` 가 상한을 넘으면 상한값으로 보정된다
-- [ ] (commerce-api) 상품 상세 응답에 `rank` 필드가 포함된다 — 랭킹판에 없는 상품은 null
-- [ ] (streamer) Kafka 로 발행된 행동 이벤트가 **랭킹 전용 consumer group** 에서 소비되어 랭킹판 점수에 반영된다 — 실 브로커·실 Redis (E2E)
-- [ ] (streamer) 같은 메시지를 재전달해도 랭킹판 점수는 한 번만 오른다 — 컨슈머 경유 멱등 E2E
-- [ ] (streamer) `PRODUCT_DELETED` 를 소비하면 랭킹판에서 그 상품이 사라진다 — 실 브로커·실 Redis
-- [ ] (streamer) 주문 1건(수량 1) 상품이 좋아요 3건 상품보다 랭킹판에서 상위다 — 가중치가 순서에 반영되는 E2E 검증
+- [x] (commerce-api) `date` 를 지정하면 그 날짜의 랭킹판이 조회된다
+- [x] (commerce-api) `date` 형식이 `yyyyMMdd` 가 아니면 400 `RANKING_BAD_REQUEST` 를 반환한다
+- [x] (commerce-api) 보존 기간 밖 날짜는 200 과 빈 목록을 반환한다
+- [x] (commerce-api) `size` 가 상한을 넘으면 상한값으로 보정된다
+- [x] (commerce-api) 상품 상세 응답에 `rank` 필드가 포함된다 — 랭킹판에 없는 상품은 null
+- [x] (streamer) Kafka 로 발행된 행동 이벤트가 **랭킹 전용 consumer group** 에서 소비되어 랭킹판 점수에 반영된다 — 실 브로커·실 Redis (E2E)
+- [x] (streamer) 같은 메시지를 재전달해도 랭킹판 점수는 한 번만 오른다 — 컨슈머 경유 멱등 E2E
+- [x] (streamer) `PRODUCT_DELETED` 를 소비하면 랭킹판에서 그 상품이 사라진다 — 실 브로커·실 Redis
+- [x] (streamer) 주문 1건(수량 1) 상품이 좋아요 3건 상품보다 랭킹판에서 상위다 — 가중치가 순서에 반영되는 E2E 검증
 
 ---
 

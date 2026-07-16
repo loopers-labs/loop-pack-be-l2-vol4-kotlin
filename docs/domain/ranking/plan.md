@@ -88,6 +88,7 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (commerce-api) 상품 상세 조회 시 오늘 랭킹판 순위가 함께 반환된다
 - [x] (commerce-api) 랭킹판에 없는 상품의 상세 순위는 null 이다
 - [x] (commerce-api) 순위 조회가 실패해도(저장소 장애) 상품 상세는 정상 반환되고 순위만 null 이다
+- [x] (streamer) 이월 실행은 오늘 판을 소스로, 내일 판을 목적지로, 이월 가중치·보존 기간과 함께 저장소에 위임한다 — 콜드 스타트 완화
 
 ### Phase 5 — Controller E2E (`com.loopers.interfaces.api.ranking`)
 > HTTP 계약 검증. `ApiResponse` + `ApiControllerAdvice` 표준 응답. 계약은 [api-spec.md](./api-spec.md).
@@ -102,6 +103,8 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (streamer) 같은 메시지를 재전달해도 랭킹판 점수는 한 번만 오른다 — 컨슈머 경유 멱등 E2E
 - [x] (streamer) `PRODUCT_DELETED` 를 소비하면 랭킹판에서 그 상품이 사라진다 — 실 브로커·실 Redis
 - [x] (streamer) 주문 1건(수량 1) 상품이 좋아요 3건 상품보다 랭킹판에서 상위다 — 가중치가 순서에 반영되는 E2E 검증
+- [x] (streamer) 이월 스케줄은 매일 23:50 Asia/Seoul 로 예약된다 — cron 표현식이 다음 실행 시각을 그날 23:50 으로 계산한다
+- [x] (streamer) 스케줄러 실행은 오늘(Asia/Seoul) 날짜 기준으로 이월을 위임한다
 
 ---
 

@@ -9,10 +9,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class RankingProperties(
     val weight: Weight = Weight(),
     val keyTtlHours: Long = 48,
+    val carryOver: CarryOver = CarryOver(),
 ) {
     data class Weight(
         val view: Double = 0.1,
         val like: Double = 0.2,
         val order: Double = 0.7,
+    )
+
+    // 이월 가중치 — 전일 상위권이 오늘 초반 실점수를 가리지 않을 만큼 작게, 빈 판은 면할 만큼.
+    data class CarryOver(
+        val weight: Double = 0.1,
     )
 }

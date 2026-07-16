@@ -6,6 +6,7 @@ import com.loopers.domain.ranking.RankingScorePolicy
 import com.loopers.domain.ranking.RankingSignal
 import com.loopers.domain.ranking.RankingWeights
 import org.springframework.stereotype.Component
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 import kotlin.math.ceil
@@ -23,6 +24,7 @@ class RankingFacade(
         RankingWeights(properties.weight.view, properties.weight.like, properties.weight.order),
     )
     private val ttlSeconds = properties.keyTtlHours * SECONDS_PER_HOUR
+    private val carryOverWeight = properties.carryOver.weight
 
     // 보존 기간으로부터 살아 있을 수 있는 일간 판 수를 도출한다 — TTL 이 바뀌어도 삭제 정리가 따라간다.
     private val retentionDays = ceil(properties.keyTtlHours / HOURS_PER_DAY).toInt()
@@ -30,6 +32,14 @@ class RankingFacade(
     fun reflect(eventId: UUID, signal: RankingSignal, productId: Long, quantity: Int, occurredAt: LocalDateTime) {
         val delta = scorePolicy.scoreOf(signal, quantity)
         rankingRepository.incrementScoreOnce(eventId, RankingKey.of(occurredAt), productId, delta, ttlSeconds)
+    }
+
+    /**
+     * 오늘 판 점수 일부를 내일 판의 출발점으로 복사한다 — 자정 직후 랭킹판이 비는 콜드 스타트를 완화한다.
+     * 내일 판이 이미 있으면 저장소가 건너뛰므로, 중복 실행이 실점수를 덮어쓰지 않는다.
+     */
+    fun carryOverToTomorrow(today: LocalDate) {
+        rankingRepository.carryOver(RankingKey.of(today), RankingKey.of(today.plusDays(1)), carryOverWeight, ttlSeconds)
     }
 
     /**

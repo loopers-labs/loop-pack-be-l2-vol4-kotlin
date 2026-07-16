@@ -7,6 +7,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -47,6 +48,17 @@ class RankingFacadeTest {
             facade.reflect(eventId, RankingSignal.ORDER, productId = 101L, quantity = 3, occurredAt = occurredAt)
 
             verify { rankingRepository.incrementScoreOnce(eventId, "rank:all:20260714", 101L, 0.7 * 3, 172_800L) }
+        }
+    }
+
+    @DisplayName("이월을 실행하면,")
+    @Nested
+    inner class CarryOverToTomorrow {
+        @Test
+        fun `오늘 판을 소스로, 내일 판을 목적지로, 이월 가중치와 보존 기간을 저장소에 위임한다`() {
+            facade.carryOverToTomorrow(LocalDate.of(2026, 7, 14))
+
+            verify { rankingRepository.carryOver("rank:all:20260714", "rank:all:20260715", 0.1, 172_800L) }
         }
     }
 

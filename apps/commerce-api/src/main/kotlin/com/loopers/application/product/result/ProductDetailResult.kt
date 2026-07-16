@@ -11,6 +11,7 @@ data class ProductDetailResult(
     val brandId: Long,
     val brandName: String,
     val likedByMe: Boolean,
+    val rank: Long? = null,
 ) {
     companion object {
         fun of(product: Product, brand: Brand, likedByMe: Boolean): ProductDetailResult =

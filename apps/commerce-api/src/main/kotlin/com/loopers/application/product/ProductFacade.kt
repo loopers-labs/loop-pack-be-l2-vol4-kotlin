@@ -18,11 +18,15 @@ import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductErrorType
 import com.loopers.domain.product.ProductEvent
 import com.loopers.domain.product.ProductSortType
+import com.loopers.domain.ranking.RankingKey
+import com.loopers.domain.ranking.RankingRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.page.PageQuery
 import com.loopers.support.page.PageResult
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 class ProductFacade(
@@ -31,6 +35,8 @@ class ProductFacade(
     private val likeRepository: LikeRepository,
     private val productCache: ProductCache,
     private val eventPublisher: DomainEventPublisher,
+    // 외부 도메인은 Facade 가 아니라 port 를 직접 주입해 호출한다(Facade→Facade 금지).
+    private val rankingRepository: RankingRepository,
 ) {
     @Transactional(readOnly = true)
     fun getProducts(query: GetProductsQuery): PageResult<ProductSummaryResult> {
@@ -60,6 +66,7 @@ class ProductFacade(
             CachedProductDetail.of(product, brand).also { productCache.putDetail(it) }
         }
         val likedByMe = userId != null && likeRepository.existsByUserIdAndProductId(userId, productId)
+        val rank = rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId)
 
         eventPublisher.publish(ProductEvent.Viewed(productId = productId, userId = userId))
         return ProductDetailResult(
@@ -70,6 +77,7 @@ class ProductFacade(
             brandId = detail.brandId,
             brandName = detail.brandName,
             likedByMe = likedByMe,
+            rank = rank,
         )
     }
 
@@ -135,5 +143,6 @@ class ProductFacade(
     companion object {
         // 캐시 대상 목록 페이지 상한 (0-based). page < N 만 캐시한다.
         private const val LIST_CACHE_MAX_PAGE = 5
+        private val SEOUL = ZoneId.of("Asia/Seoul")
     }
 }

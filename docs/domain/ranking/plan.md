@@ -81,11 +81,11 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (streamer) 상품 삭제 신호가 들어오면 오늘·어제 랭킹판에서 그 상품을 제거한다
 - [x] (commerce-api) 상품을 삭제하면 삭제 사실이 외부 이벤트(`PRODUCT_DELETED`)로 발행된다 — outbox 적재
 - [x] (commerce-api) 랭킹 조회는 점수 내림차순으로 상품 정보(이름·가격·브랜드·좋아요 수)가 조립된 목록을 반환한다
-- [ ] (commerce-api) 날짜 미지정 시 오늘(Asia/Seoul) 랭킹판을 조회한다
-- [ ] (commerce-api) 순위는 페이지를 넘어 이어진다 — 2페이지 첫 항목의 순위는 `page × size + 1` 이다
-- [ ] (commerce-api) 랭킹판에 있으나 삭제된 상품은 목록에서 제외된다
-- [ ] (commerce-api) 랭킹판이 없는 날짜는 빈 목록을 반환한다
-- [ ] (commerce-api) 상품 상세 조회 시 오늘 랭킹판 순위가 함께 반환된다
+- [x] (commerce-api) 날짜 미지정 시 오늘(Asia/Seoul) 랭킹판을 조회한다
+- [x] (commerce-api) 순위는 페이지를 넘어 이어진다 — 2페이지 첫 항목의 순위는 `page × size + 1` 이다
+- [x] (commerce-api) 랭킹판에 있으나 삭제된 상품은 목록에서 제외된다
+- [x] (commerce-api) 랭킹판이 없는 날짜는 빈 목록을 반환한다
+- [x] (commerce-api) 상품 상세 조회 시 오늘 랭킹판 순위가 함께 반환된다
 - [ ] (commerce-api) 랭킹판에 없는 상품의 상세 순위는 null 이다
 - [ ] (commerce-api) 순위 조회가 실패해도(저장소 장애) 상품 상세는 정상 반환되고 순위만 null 이다
 

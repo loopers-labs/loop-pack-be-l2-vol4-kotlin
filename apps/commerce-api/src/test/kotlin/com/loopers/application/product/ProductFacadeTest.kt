@@ -40,8 +40,11 @@ class ProductFacadeTest {
     // relaxed: put/evict(Unit) 은 no-op. get 은 기본 null(miss) 로 명시해 DB 경로로 폴백시킨다.
     private val productCache: ProductCache = mockk(relaxed = true)
     private val eventPublisher: DomainEventPublisher = mockk(relaxed = true)
+
+    // relaxed: rankOf 는 기본 null(순위 없음) 로 폴백. 순위가 필요한 테스트만 명시 stub 한다.
+    private val rankingRepository: com.loopers.domain.ranking.RankingRepository = mockk(relaxed = true)
     private val productFacade =
-        ProductFacade(productRepository, brandRepository, likeRepository, productCache, eventPublisher)
+        ProductFacade(productRepository, brandRepository, likeRepository, productCache, eventPublisher, rankingRepository)
 
     init {
         every { productCache.getDetail(any()) } returns null
@@ -184,6 +187,20 @@ class ProductFacadeTest {
             assertThat(result.name).isEqualTo(product.name.value)
             assertThat(result.price).isEqualTo(product.price.value)
             assertThat(result.brandName).isEqualTo(brand.name.value)
+        }
+
+        @Test
+        @DisplayName("상세 조회 시 오늘 랭킹판 순위가 함께 반환된다")
+        fun includesTodayRank() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } returns 3L
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isEqualTo(3L)
         }
 
         @Test

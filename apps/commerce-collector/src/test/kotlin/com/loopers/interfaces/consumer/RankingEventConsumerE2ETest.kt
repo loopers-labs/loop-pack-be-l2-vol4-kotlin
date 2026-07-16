@@ -68,9 +68,12 @@ class RankingEventConsumerE2ETest @Autowired constructor(
     @Test
     fun reflectsRankingScore_whenMessagePublished() {
         val occurredAt = daytimeOccurredAt()
+        // 같은 토픽을 쓰는 다른 E2E(ProductMetricConsumerE2ETest)의 메시지도 랭킹 컨슈머가 소비하므로,
+        // 고정 productId를 쓰면 잔여 점수가 누적된다. 테스트 전용 고유 id로 격리한다.
+        val productId = uniqueProductId()
         val payload = ProductMetricPayload(
             eventId = UUID.randomUUID().toString(),
-            productId = 1L,
+            productId = productId,
             type = "LIKE",
             delta = 1L,
             occurredAt = occurredAt,
@@ -82,17 +85,18 @@ class RankingEventConsumerE2ETest @Autowired constructor(
         // boards KV가 없으므로 기본 v1 보드에 적재된다
         val allKey = RankingBoard.allOf("v1", occurredAt.toLocalDate()).key()
         val snapshotKey = RankingBoard.snapshotOf("v1", occurredAt.toLocalDate()).key()
-        assertThat(redis.opsForZSet().score(allKey, "1")).isEqualTo(50.0)
-        assertThat(redis.opsForZSet().score(snapshotKey, "1")).isEqualTo(50.0)
+        assertThat(redis.opsForZSet().score(allKey, productId.toString())).isEqualTo(50.0)
+        assertThat(redis.opsForZSet().score(snapshotKey, productId.toString())).isEqualTo(50.0)
     }
 
     @DisplayName("동일 eventId의 메시지가 중복 발행되어도, 랭킹 점수에는 한 번만 반영된다.")
     @Test
     fun ignoresDuplicateEvent_whenSameEventIdPublishedTwice() {
         val occurredAt = daytimeOccurredAt()
+        val productId = uniqueProductId()
         val payload = ProductMetricPayload(
             eventId = UUID.randomUUID().toString(),
-            productId = 2L,
+            productId = productId,
             type = "VIEW",
             delta = 1L,
             occurredAt = occurredAt,
@@ -105,9 +109,11 @@ class RankingEventConsumerE2ETest @Autowired constructor(
         Thread.sleep(8_000L) // fetch.max.wait.ms(5s) 배치 폴링 주기를 감안해, 중복 메시지가 실제로 소비될 시간을 준다
 
         val allKey = RankingBoard.allOf("v1", occurredAt.toLocalDate()).key()
-        assertThat(redis.opsForZSet().score(allKey, "2")).isEqualTo(10.0)
+        assertThat(redis.opsForZSet().score(allKey, productId.toString())).isEqualTo(10.0)
     }
 
     private fun rankingEventInboxRepositoryContains(eventId: String): Boolean =
         rankingEventInboxJpaRepository.existsById(eventId)
+
+    private fun uniqueProductId(): Long = System.nanoTime()
 }

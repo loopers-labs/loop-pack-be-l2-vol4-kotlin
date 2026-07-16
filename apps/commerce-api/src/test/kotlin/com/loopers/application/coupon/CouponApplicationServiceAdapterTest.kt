@@ -8,6 +8,7 @@ import com.loopers.domain.coupon.CouponIssueRequest
 import com.loopers.domain.coupon.CouponIssueRequestRepositoryPort
 import com.loopers.domain.coupon.CouponIssueStatus
 import com.loopers.domain.coupon.CouponStatus
+import com.loopers.domain.coupon.CouponStockCachePort
 import com.loopers.domain.coupon.CouponTemplate
 import com.loopers.domain.coupon.CouponTemplateService
 import com.loopers.domain.coupon.CouponType
@@ -15,7 +16,6 @@ import com.loopers.domain.coupon.UserCoupon
 import com.loopers.domain.coupon.UserCouponRepositoryPort
 import com.loopers.domain.coupon.UserCouponService
 import com.loopers.domain.outbox.Outbox
-import com.loopers.infrastructure.coupon.CouponStockCache
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import io.mockk.every
@@ -36,7 +36,7 @@ class CouponApplicationServiceAdapterTest {
     private lateinit var authService: AuthService
     private lateinit var couponIssueRequestRepositoryPort: CouponIssueRequestRepositoryPort
     private lateinit var userCouponRepositoryPort: UserCouponRepositoryPort
-    private lateinit var couponStockCache: CouponStockCache
+    private lateinit var couponStockCache: CouponStockCachePort
     private lateinit var couponIssueWriter: CouponIssueWriter
     private lateinit var outboxFactory: OutboxFactory
     private lateinit var couponApplicationService: CouponApplicationServiceAdapter

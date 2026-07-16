@@ -4,6 +4,7 @@ import com.loopers.infrastructure.metric.EventHandledJpaRepository
 import com.loopers.infrastructure.metric.ProductMetricId
 import com.loopers.infrastructure.metric.ProductMetricJpaRepository
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -21,6 +22,7 @@ class ProductMetricConsumerE2ETest @Autowired constructor(
     private val productMetricJpaRepository: ProductMetricJpaRepository,
     private val eventHandledJpaRepository: EventHandledJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     @Value("\${product-metric.topic}")
     private lateinit var topic: String
@@ -28,6 +30,8 @@ class ProductMetricConsumerE2ETest @Autowired constructor(
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        // 같은 토픽을 랭킹 컨슈머도 구독하므로, 이 테스트의 메시지가 Redis 랭킹 보드에 남긴 점수도 정리한다
+        redisCleanUp.truncateAll()
     }
 
     private fun awaitUntil(timeoutMs: Long = 30_000L, intervalMs: Long = 300L, condition: () -> Boolean) {

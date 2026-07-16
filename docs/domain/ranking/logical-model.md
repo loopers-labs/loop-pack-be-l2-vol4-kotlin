@@ -60,7 +60,7 @@ rank:brand:{brandId}:{yyyyMMdd} 등 scope 확장
 | 점수 누적 (조회·좋아요·주문) | **Lua 원자 실행**: `SETNX rank:seen:{eventId}:{productId}` 가 1이면 `ZINCRBY key delta productId` + `EXPIRE`(둘 다) | commerce-streamer, **랭킹 전용 consumer group** |
 | 주문 신호의 원천 | `ORDER_PAID`(결제 확정) 이벤트 — `ORDER_CREATED` 는 내부 이벤트라 와이어에 나오지 않는다 | commerce-api (발행) |
 | 좋아요 취소 차감 | 같은 Lua 경로에 음수 delta | commerce-streamer (랭킹 그룹) |
-| 삭제 상품 정리 | `PRODUCT_DELETED` 소비 → `ZREM {오늘키} {어제키} productId` | commerce-streamer (랭킹 그룹) |
+| 삭제 상품 정리 | `PRODUCT_DELETED` 소비 → 보존 기간에서 도출한 살아 있는 일간 판 전체(+이월로 미리 만든 내일 판)에서 `ZREM productId` | commerce-streamer (랭킹 그룹) |
 | Top-N 페이지 | `ZREVRANGE key start end WITHSCORES` — `start = page × size` | commerce-api (읽기) |
 | 개별 순위 | `ZREVRANK key productId` — 0-based 반환값에 **+1 해 1-based 로 노출** | commerce-api (읽기) |
 | 전체 항목 수 | `ZCARD key` | commerce-api (읽기) |

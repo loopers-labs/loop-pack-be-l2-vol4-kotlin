@@ -28,7 +28,7 @@ class RedisRankingRepository(
             listOf(seenKey(eventId, productId), key),
             delta.toString(),
             productId.toString(),
-            ttlSecon현ds.toString(),
+            ttlSeconds.toString(),
         )
     }
 

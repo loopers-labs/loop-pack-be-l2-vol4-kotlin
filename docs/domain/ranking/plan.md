@@ -77,9 +77,9 @@ _해당 없음 — 규칙은 순수 정책 계산기(Phase 1)에 있고, 정렬�
 - [x] (streamer) 조회 신호가 들어오면 발생 시각 날짜의 랭킹판에 조회 가중치만큼 누적된다
 - [x] (streamer) 좋아요 취소 신호는 해당 날짜 랭킹판 점수를 좋아요 가중치만큼 차감한다
 - [x] (streamer) 주문 신호는 주문에 담긴 상품별로 수량 × 주문 가중치만큼 각각 누적한다 (멱등 단위 = eventId+productId)
-- [ ] (streamer) 같은 eventId 가 재전달되면 랭킹 점수가 다시 반영되지 않는다 — 자체 멱등 표식(Redis)이 걸러낸다
-- [ ] (streamer) 상품 삭제 신호가 들어오면 오늘·어제 랭킹판에서 그 상품을 제거한다
-- [ ] (commerce-api) 상품을 삭제하면 삭제 사실이 외부 이벤트(`PRODUCT_DELETED`)로 발행된다 — outbox 적재
+- [x] (streamer) 같은 eventId 가 재전달되면 랭킹 점수가 다시 반영되지 않는다 — 자체 멱등 표식(Redis)이 걸러낸다 (어댑터 Idempotency 테스트 + Facade eventId 전달로 커버, 전 경로는 Phase 5 E2E)
+- [x] (streamer) 상품 삭제 신호가 들어오면 오늘·어제 랭킹판에서 그 상품을 제거한다
+- [x] (commerce-api) 상품을 삭제하면 삭제 사실이 외부 이벤트(`PRODUCT_DELETED`)로 발행된다 — outbox 적재
 - [ ] (commerce-api) 랭킹 조회는 점수 내림차순으로 상품 정보(이름·가격·브랜드·좋아요 수)가 조립된 목록을 반환한다
 - [ ] (commerce-api) 날짜 미지정 시 오늘(Asia/Seoul) 랭킹판을 조회한다
 - [ ] (commerce-api) 순위는 페이지를 넘어 이어진다 — 2페이지 첫 항목의 순위는 `page × size + 1` 이다

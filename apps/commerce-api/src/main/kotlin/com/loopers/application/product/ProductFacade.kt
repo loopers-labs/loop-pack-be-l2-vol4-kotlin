@@ -129,6 +129,7 @@ class ProductFacade(
         product.softDelete()
         productRepository.save(product)
         productCache.evictDetail(productId)
+        eventPublisher.publish(ProductEvent.Deleted(productId = productId))
     }
 
     companion object {

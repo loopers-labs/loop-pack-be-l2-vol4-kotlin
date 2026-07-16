@@ -49,4 +49,21 @@ class RankingFacadeTest {
             verify { rankingRepository.incrementScoreOnce(eventId, "rank:all:20260714", 101L, 0.7 * 3, 172_800L) }
         }
     }
+
+    @DisplayName("상품 삭제를 반영하면,")
+    @Nested
+    inner class RemoveProduct {
+        @Test
+        fun `보존 기간 안의 모든 일간 랭킹판에서 그 상품을 제거한다`() {
+            // ttl 48h 기준: 이월로 미리 생성된 내일 판 ~ 보존 범위 과거까지 훑는다(하드코딩 '오늘·어제' 아님).
+            facade.removeProduct(productId = 101L, occurredAt = occurredAt)
+
+            verify {
+                rankingRepository.removeProduct(
+                    listOf("rank:all:20260715", "rank:all:20260714", "rank:all:20260713", "rank:all:20260712"),
+                    101L,
+                )
+            }
+        }
+    }
 }

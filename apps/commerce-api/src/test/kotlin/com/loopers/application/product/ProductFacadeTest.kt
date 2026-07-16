@@ -470,6 +470,18 @@ class ProductFacadeTest {
         }
 
         @Test
+        @DisplayName("삭제 시 PRODUCT_DELETED 이벤트를 발행한다 — 랭킹판 정리를 위한 외부 전파")
+        fun publishesDeletedEvent() {
+            val product = ProductFixture.validProduct(id = 1L)
+            every { productRepository.findById(1L) } returns product
+            every { productRepository.save(product) } returns product
+
+            productFacade.deleteProduct(productId = 1L)
+
+            verify { eventPublisher.publish(match { it is ProductEvent.Deleted && it.productId == 1L }) }
+        }
+
+        @Test
         @DisplayName("존재하지 않거나 이미 삭제된 productId 면 PRODUCT_NOT_FOUND 예외가 발생한다")
         fun throwsWhenMissing() {
             every { productRepository.findById(99L) } returns null

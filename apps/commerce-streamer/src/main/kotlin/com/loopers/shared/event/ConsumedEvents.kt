@@ -1,4 +1,4 @@
-package com.loopers.metrics.application
+package com.loopers.shared.event
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonSubTypes

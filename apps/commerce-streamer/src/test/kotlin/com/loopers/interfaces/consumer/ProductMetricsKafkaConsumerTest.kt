@@ -1,12 +1,10 @@
 package com.loopers.interfaces.consumer
 
-import com.loopers.metrics.application.OrderCreatedEvent
-import com.loopers.metrics.application.ProductEvent
 import com.loopers.metrics.application.ProductMetricsService
-import com.loopers.metrics.application.ProductViewedEvent
+import com.loopers.shared.event.OrderCreatedEvent
+import com.loopers.shared.event.ProductEvent
+import com.loopers.shared.event.ProductViewedEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.apache.kafka.common.header.internals.RecordHeaders
-import org.apache.kafka.common.record.TimestampType
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
@@ -19,32 +17,14 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
-import org.springframework.kafka.support.Acknowledgment
-import java.time.Instant
-import java.util.Optional
 
 class ProductMetricsKafkaConsumerTest {
     private val productMetricsService: ProductMetricsService = mock()
     private val consumer = ProductMetricsKafkaConsumer(productMetricsService)
-    private val acknowledgment: Acknowledgment = mock()
+    private val acknowledgment: org.springframework.kafka.support.Acknowledgment = mock()
 
     private fun record(topic: String, json: String): ConsumerRecord<String, ByteArray> =
         ConsumerRecord(topic, 0, 0, "1", json.toByteArray())
-
-    private fun recordAt(topic: String, json: String, timestamp: Long): ConsumerRecord<String, ByteArray> =
-        ConsumerRecord(
-            topic,
-            0,
-            0,
-            timestamp,
-            TimestampType.CREATE_TIME,
-            ConsumerRecord.NULL_SIZE,
-            ConsumerRecord.NULL_SIZE,
-            "1",
-            json.toByteArray(),
-            RecordHeaders(),
-            Optional.empty(),
-        )
 
     @DisplayName("product-events 의 좋아요/취소 레코드를 타입으로 역직렬화해 서비스에 위임하고, 전부 처리한 뒤 ack 한다.")
     @Test
@@ -55,8 +35,8 @@ class ProductMetricsKafkaConsumerTest {
         consumer.consumeProductEvents(listOf(record("product-events", liked), record("product-events", unliked)), acknowledgment)
 
         assertAll(
-            { verify(productMetricsService).handle(eq(ProductEvent.Liked("e-1", 1)), any()) },
-            { verify(productMetricsService).handle(eq(ProductEvent.Unliked("e-2", 1)), any()) },
+            { verify(productMetricsService).handle(eq(ProductEvent.Liked("e-1", 1))) },
+            { verify(productMetricsService).handle(eq(ProductEvent.Unliked("e-2", 1))) },
             { verify(acknowledgment).acknowledge() },
         )
     }
@@ -74,19 +54,19 @@ class ProductMetricsKafkaConsumerTest {
             items = listOf(OrderCreatedEvent.OrderLine(1, 2), OrderCreatedEvent.OrderLine(2, 3)),
         )
         assertAll(
-            { verify(productMetricsService).handle(eq(expected), any()) },
+            { verify(productMetricsService).handle(eq(expected)) },
             { verify(acknowledgment).acknowledge() },
         )
     }
 
-    @DisplayName("user-action-events 레코드는 record timestamp 를 이벤트 발생 시각으로 함께 전달한다.")
+    @DisplayName("user-action-events 의 조회 레코드를 타입으로 역직렬화해 위임한다.")
     @Test
-    fun delegatesTypedViewedEventWithRecordTimestamp() {
+    fun delegatesTypedViewedEvent() {
         val json = """{"eventId":"e-1","eventType":"ProductViewedEvent","productId":1}"""
 
-        consumer.consumeUserActionEvents(listOf(recordAt("user-action-events", json, 1721000000000)), acknowledgment)
+        consumer.consumeUserActionEvents(listOf(record("user-action-events", json)), acknowledgment)
 
-        verify(productMetricsService).handle(eq(ProductViewedEvent("e-1", 1)), eq(Instant.ofEpochMilli(1721000000000)))
+        verify(productMetricsService).handle(eq(ProductViewedEvent("e-1", 1)))
     }
 
     @DisplayName("토픽 계약에 없는 eventType 은 건너뛰고 나머지를 처리한다.")
@@ -98,8 +78,8 @@ class ProductMetricsKafkaConsumerTest {
         consumer.consumeProductEvents(listOf(record("product-events", unknown), record("product-events", liked)), acknowledgment)
 
         assertAll(
-            { verify(productMetricsService).handle(eq(ProductEvent.Liked("e-2", 1)), any()) },
-            { verify(productMetricsService, never()).handle(eq(ProductEvent.Liked("e-1", 1)), any()) },
+            { verify(productMetricsService).handle(eq(ProductEvent.Liked("e-2", 1))) },
+            { verify(productMetricsService, never()).handle(eq(ProductEvent.Liked("e-1", 1))) },
             { verify(acknowledgment).acknowledge() },
         )
     }
@@ -115,7 +95,7 @@ class ProductMetricsKafkaConsumerTest {
         )
 
         assertAll(
-            { verify(productMetricsService).handle(eq(ProductViewedEvent("e-2", 1)), any()) },
+            { verify(productMetricsService).handle(eq(ProductViewedEvent("e-2", 1))) },
             { verify(acknowledgment).acknowledge() },
         )
     }
@@ -140,7 +120,7 @@ class ProductMetricsKafkaConsumerTest {
     @DisplayName("서비스 처리 중 예외가 나면 전파하고 ack 하지 않는다 — 배치 재전달로 이어진다.")
     @Test
     fun propagatesAndSkipsAck_whenServiceFails() {
-        doThrow(RuntimeException("db down")).whenever(productMetricsService).handle(any<ProductEvent>(), any())
+        doThrow(RuntimeException("db down")).whenever(productMetricsService).handle(any<ProductEvent>())
 
         assertThrows<RuntimeException> {
             consumer.consumeProductEvents(

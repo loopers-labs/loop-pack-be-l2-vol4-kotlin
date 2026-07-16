@@ -9,7 +9,7 @@ import java.time.LocalDate
 class ProductRankingDailyRepositoryImpl(
     private val productRankingDailyJpaRepository: ProductRankingDailyJpaRepository,
 ) : ProductRankingDailyRepository {
-    override fun accumulate(rankingDate: LocalDate, productId: Long, delta: BigDecimal) {
-        productRankingDailyJpaRepository.upsertDelta(rankingDate, productId, delta)
+    override fun accumulate(rankingDate: LocalDate, productId: Long, change: BigDecimal) {
+        productRankingDailyJpaRepository.upsertChange(rankingDate, productId, change)
     }
 }

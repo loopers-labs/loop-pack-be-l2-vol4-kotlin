@@ -11,12 +11,12 @@ interface ProductRankingDailyJpaRepository : JpaRepository<ProductRankingDaily, 
     @Query(
         value = """
             insert into product_ranking_daily (ranking_date, product_id, score, created_at, updated_at)
-            values (:rankingDate, :productId, :delta, now(), now())
+            values (:rankingDate, :productId, :change, now(), now())
             on duplicate key update
-                score = score + :delta,
+                score = score + :change,
                 updated_at = now()
         """,
         nativeQuery = true,
     )
-    fun upsertDelta(rankingDate: LocalDate, productId: Long, delta: BigDecimal): Int
+    fun upsertChange(rankingDate: LocalDate, productId: Long, change: BigDecimal): Int
 }

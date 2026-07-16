@@ -16,17 +16,17 @@ class RankingAccumulateService(
     private val productRankingDailyRepository: ProductRankingDailyRepository,
 ) {
     @Transactional
-    fun accumulate(eventId: String, occurredAt: Instant, deltas: List<ScoreDelta>) {
+    fun accumulate(eventId: String, occurredAt: Instant, changes: List<ScoreChange>) {
         if (eventHandledRepository.exists(eventId, EventSubscription.RANKING)) {
             return
         }
         val eventDate = occurredAt.atZone(KST).toLocalDate()
-        deltas.forEach { delta ->
-            productRankingDailyRepository.accumulate(eventDate, delta.productId, delta.amount)
+        changes.forEach { change ->
+            productRankingDailyRepository.accumulate(eventDate, change.productId, change.amount)
             productRankingDailyRepository.accumulate(
                 eventDate.plusDays(1),
-                delta.productId,
-                delta.amount.multiply(RankingWeights.CARRY_RATE),
+                change.productId,
+                change.amount.multiply(RankingWeights.CARRY_RATE),
             )
         }
         eventHandledRepository.markHandled(eventId, EventSubscription.RANKING)
@@ -37,7 +37,7 @@ class RankingAccumulateService(
     }
 }
 
-data class ScoreDelta(
+data class ScoreChange(
     val productId: Long,
     val amount: BigDecimal,
 )

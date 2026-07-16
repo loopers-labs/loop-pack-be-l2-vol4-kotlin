@@ -17,21 +17,21 @@ class ProductMetricsService(
     @Transactional
     fun handle(event: ProductEvent) = handleOnce(event.eventId) {
         when (event) {
-            is ProductEvent.Liked -> productMetricsRepository.upsertDelta(event.productId, likeDelta = 1)
-            is ProductEvent.Unliked -> productMetricsRepository.upsertDelta(event.productId, likeDelta = -1)
+            is ProductEvent.Liked -> productMetricsRepository.accumulate(event.productId, likeChange = 1)
+            is ProductEvent.Unliked -> productMetricsRepository.accumulate(event.productId, likeChange = -1)
         }
     }
 
     @Transactional
     fun handle(event: OrderCreatedEvent) = handleOnce(event.eventId) {
         event.items.forEach { line ->
-            productMetricsRepository.upsertDelta(line.productId, salesDelta = line.quantity)
+            productMetricsRepository.accumulate(line.productId, salesChange = line.quantity)
         }
     }
 
     @Transactional
     fun handle(event: ProductViewedEvent) = handleOnce(event.eventId) {
-        productMetricsRepository.upsertDelta(event.productId, viewDelta = 1)
+        productMetricsRepository.accumulate(event.productId, viewChange = 1)
     }
 
     private inline fun handleOnce(eventId: String, aggregate: () -> Unit) {

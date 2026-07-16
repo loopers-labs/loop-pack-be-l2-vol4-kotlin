@@ -2,7 +2,7 @@ package com.loopers.interfaces.consumer
 
 import com.loopers.config.kafka.KafkaConfig
 import com.loopers.ranking.application.RankingAccumulateService
-import com.loopers.ranking.application.ScoreDelta
+import com.loopers.ranking.application.ScoreChange
 import com.loopers.ranking.domain.RankingWeights
 import com.loopers.shared.event.OrderCreatedEvent
 import com.loopers.shared.event.ProductEvent
@@ -30,7 +30,7 @@ class ProductRankingKafkaConsumer(
                 is ProductEvent.Liked -> RankingWeights.LIKE
                 is ProductEvent.Unliked -> RankingWeights.LIKE.negate()
             }
-            rankingAccumulateService.accumulate(event.eventId, occurredAt(record), listOf(ScoreDelta(event.productId, amount)))
+            rankingAccumulateService.accumulate(event.eventId, occurredAt(record), listOf(ScoreChange(event.productId, amount)))
         }
         acknowledgment.acknowledge()
     }
@@ -44,8 +44,8 @@ class ProductRankingKafkaConsumer(
     fun consumeOrderEvents(messages: List<ConsumerRecord<String, ByteArray>>, acknowledgment: Acknowledgment) {
         messages.forEach { record ->
             val event = ConsumedEventDeserializer.read(record, OrderCreatedEvent::class.java) ?: return@forEach
-            val deltas = event.items.map { line -> ScoreDelta(line.productId, RankingWeights.ORDER_LINE) }
-            rankingAccumulateService.accumulate(event.eventId, occurredAt(record), deltas)
+            val changes = event.items.map { line -> ScoreChange(line.productId, RankingWeights.ORDER_LINE) }
+            rankingAccumulateService.accumulate(event.eventId, occurredAt(record), changes)
         }
         acknowledgment.acknowledge()
     }
@@ -62,7 +62,7 @@ class ProductRankingKafkaConsumer(
             rankingAccumulateService.accumulate(
                 event.eventId,
                 occurredAt(record),
-                listOf(ScoreDelta(event.productId, RankingWeights.VIEW)),
+                listOf(ScoreChange(event.productId, RankingWeights.VIEW)),
             )
         }
         acknowledgment.acknowledge()

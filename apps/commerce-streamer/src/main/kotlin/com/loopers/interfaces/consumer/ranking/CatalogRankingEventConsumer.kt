@@ -1,6 +1,6 @@
 package com.loopers.interfaces.consumer.ranking
 
-import com.loopers.application.ranking.RankingProjectionService
+import com.loopers.application.ranking.RankingEventService
 import com.loopers.config.kafka.KafkaConfig
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.event.CatalogEventMessage
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class CatalogRankingEventConsumer(
-    private val service: RankingProjectionService,
+    private val service: RankingEventService,
     private val properties: RankingRedisProperties,
 ) {
     @KafkaListener(

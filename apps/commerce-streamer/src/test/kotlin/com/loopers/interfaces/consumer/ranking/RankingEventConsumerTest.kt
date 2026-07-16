@@ -1,6 +1,6 @@
 package com.loopers.interfaces.consumer.ranking
 
-import com.loopers.application.ranking.RankingProjectionService
+import com.loopers.application.ranking.RankingEventService
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
@@ -27,7 +27,7 @@ class RankingEventConsumerTest {
     @DisplayName("Catalog batch 전체 projection 성공 후 ack 한다")
     @Test
     fun projectsCatalogBatchBeforeAcknowledgment() {
-        val service = mockk<RankingProjectionService>()
+        val service = mockk<RankingEventService>()
         val acknowledgment = mockk<Acknowledgment>()
         val messages = listOf(catalogMessage("event-1"), catalogMessage("event-2"))
         every { service.projectCatalog(any()) } just Runs
@@ -45,7 +45,7 @@ class RankingEventConsumerTest {
     @DisplayName("Order batch의 계약 오류 index를 보존하고 ack 하지 않는다")
     @Test
     fun preservesInvalidOrderRecordIndex() {
-        val service = mockk<RankingProjectionService>()
+        val service = mockk<RankingEventService>()
         val acknowledgment = mockk<Acknowledgment>(relaxed = true)
         val messages = listOf(orderMessage("event-1"), orderMessage("event-2"), orderMessage("event-3"))
         every { service.projectOrder(messages[0]) } just Runs

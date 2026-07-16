@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component
 import java.time.Clock
 
 @Component
-class RankingProjectionService(
+class RankingEventService(
     private val repository: RankingProjectionRepository,
     properties: RankingRedisProperties,
     @param:Qualifier(RankingClockConfig.RANKING_CLOCK)

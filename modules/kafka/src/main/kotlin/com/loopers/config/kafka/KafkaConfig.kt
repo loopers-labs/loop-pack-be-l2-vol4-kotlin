@@ -14,6 +14,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.core.ProducerFactory
 import org.springframework.kafka.listener.ContainerProperties
+import org.springframework.kafka.listener.ConsumerRecordRecoverer
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
 import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.support.converter.BatchMessagingMessageConverter
@@ -27,6 +28,7 @@ class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
         const val RECORD_LISTENER = "RECORD_LISTENER_MANUAL_ACK"
+        const val RECORD_RECOVERER = "RECORD_RECOVERER"
 
         private const val MAX_POLLING_SIZE = 3000 // read 3000 msg
         private const val FETCH_MIN_BYTES = (1024 * 1024) // 1mb
@@ -67,18 +69,35 @@ class KafkaConfig {
     @Bean
     fun deadLetterPublishingRecoverer(
         kafkaTemplate: KafkaTemplate<Any, Any>,
+        handlers: List<KafkaDeadLetterHandler>,
     ): DeadLetterPublishingRecoverer {
-        return DeadLetterPublishingRecoverer(kafkaTemplate) { record, _ ->
-            TopicPartition("${record.topic()}.DLT", record.partition())
+        return DeadLetterPublishingRecoverer(kafkaTemplate) { record, exception ->
+            handlers.firstOrNull { it.supports(record) }
+                ?.destination(record, exception)
+                ?: TopicPartition("${record.topic()}.DLT", record.partition())
+        }.apply {
+            setFailIfSendResultIsError(true)
+            setVerifyPartition(false)
         }
     }
 
+    @Bean(RECORD_RECOVERER)
+    fun recordRecoverer(
+        deadLetterPublishingRecoverer: DeadLetterPublishingRecoverer,
+        handlers: List<KafkaDeadLetterHandler>,
+    ): ConsumerRecordRecoverer =
+        ConsumerRecordRecoverer { record, exception ->
+            deadLetterPublishingRecoverer.accept(record, exception)
+            handlers.firstOrNull { it.supports(record) }
+                ?.afterPublished(record, exception)
+        }
+
     @Bean
     fun defaultKafkaErrorHandler(
-        deadLetterPublishingRecoverer: DeadLetterPublishingRecoverer,
+        recordRecoverer: ConsumerRecordRecoverer,
     ): DefaultErrorHandler {
         return DefaultErrorHandler(
-            deadLetterPublishingRecoverer,
+            recordRecoverer,
             FixedBackOff(RETRY_BACKOFF_INTERVAL_MS, RETRY_ATTEMPTS),
         )
     }

@@ -100,7 +100,7 @@ subprojects {
         systemProperty("user.timezone", "Asia/Seoul")
         systemProperty("spring.profiles.active", "test")
         // docker-java 기본 API(1.32)는 Docker 29(minimum 1.40)가 거절 — 데몬이 지원하는 버전으로 고정
-        systemProperty("api.version", "1.44")
+        systemProperty("api.version", project.properties["dockerApiVersion"] as String)
         jvmArgs("-Xshare:off")
     }
 

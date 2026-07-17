@@ -27,6 +27,7 @@ class RankingKeyResolver {
     }
 
     companion object {
+        // 크로스 앱 키 계약 — commerce-api의 RankingPeriod(prefix·날짜패턴)와 반드시 동기화할 것
         const val DAILY_KEY_PREFIX = "ranking:all:v1:"
         const val HOURLY_KEY_PREFIX = "ranking:hourly:v1:"
         private val DAILY_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd")

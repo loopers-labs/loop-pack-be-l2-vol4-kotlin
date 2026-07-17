@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
 enum class RankingPeriod(val pattern: String, private val keyPrefix: String) {
+    // 크로스 앱 키 계약 — commerce-streamer의 RankingKeyResolver(prefix·날짜패턴)와 반드시 동기화할 것
     DAILY("yyyyMMdd", "ranking:all:v1:"),
     HOURLY("yyyyMMddHH", "ranking:hourly:v1:"),
     ;

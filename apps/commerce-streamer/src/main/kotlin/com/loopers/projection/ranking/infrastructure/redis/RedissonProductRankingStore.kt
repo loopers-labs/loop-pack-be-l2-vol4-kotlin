@@ -1,5 +1,6 @@
 package com.loopers.projection.ranking.infrastructure.redis
 
+import com.loopers.projection.ranking.application.RankingEntry
 import com.loopers.projection.ranking.application.RankingKey
 import com.loopers.projection.ranking.infrastructure.redis.constant.RankingRedisScripts
 import com.loopers.projection.ranking.port.ProductRankingStore
@@ -30,6 +31,32 @@ class RedissonProductRankingStore(
             productId.toString(),
             RankingKey.TTL_SECONDS.toString(),
         ) == APPLIED
+    }
+
+    override fun carryOver(
+        from: LocalDate,
+        to: LocalDate,
+        decay: Double,
+        minScore: Double,
+    ): Boolean = execute {
+        redissonClient.script.eval<Long>(
+            RScript.Mode.READ_WRITE,
+            RankingRedisScripts.CARRY_OVER,
+            RScript.ReturnType.INTEGER,
+            listOf(RankingKey.carryOverMarker(to), RankingKey.daily(from), RankingKey.daily(to)),
+            decay.toString(),
+            minScore.toString(),
+            RankingKey.TTL_SECONDS.toString(),
+        ) == APPLIED
+    }
+
+    override fun topEntries(
+        date: LocalDate,
+        limit: Int,
+    ): List<RankingEntry> = execute {
+        redissonClient.getScoredSortedSet<String>(RankingKey.daily(date))
+            .entryRangeReversed(0, limit - 1)
+            .map { RankingEntry(productId = it.value.toLong(), score = it.score) }
     }
 
     private fun <T> execute(action: () -> T): T = try {

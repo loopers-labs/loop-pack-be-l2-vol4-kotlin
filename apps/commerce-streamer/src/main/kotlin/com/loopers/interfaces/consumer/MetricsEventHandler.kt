@@ -34,12 +34,15 @@ class MetricsEventHandler(
     fun handle(envelope: EventEnvelope) {
         val eventId = envelope.eventId.toUuidOrNull()
             ?: throw malformed(envelope, "eventId 가 UUID 형식이 아니다")
+        val occurredAt = envelope.occurredAt
         when (envelope.eventType) {
-            "LIKE_CREATED" -> productMetricsFacade.increaseLike(eventId, productIdOf(envelope))
-            "LIKE_CANCELED" -> productMetricsFacade.decreaseLike(eventId, productIdOf(envelope))
-            "PRODUCT_VIEWED" -> productMetricsFacade.increaseView(eventId, productIdOf(envelope))
+            "LIKE_CREATED" -> productMetricsFacade.increaseLike(eventId, productIdOf(envelope), occurredAt)
+            "LIKE_CANCELED" -> productMetricsFacade.decreaseLike(eventId, productIdOf(envelope), occurredAt)
+            "PRODUCT_VIEWED" -> productMetricsFacade.increaseView(eventId, productIdOf(envelope), occurredAt)
             // 판매량은 결제 확정(ORDER_PAID) 기준 — 결제 미확정 주문(ORDER_CREATED)은 판매가 아니므로 집계하지 않는다.
-            "ORDER_PAID" -> productMetricsFacade.addSales(eventId, salesLinesOf(envelope))
+            "ORDER_PAID" -> productMetricsFacade.addSales(eventId, salesLinesOf(envelope), occurredAt)
+            // 삭제 상품의 시간별 집계를 걷어낸다 — 랭킹 재구축이 삭제 상품을 되살리지 않게.
+            "PRODUCT_DELETED" -> productMetricsFacade.removeProduct(eventId, productIdOf(envelope))
             else -> log.debug("처리 대상이 아닌 이벤트 타입: {}", envelope.eventType)
         }
     }

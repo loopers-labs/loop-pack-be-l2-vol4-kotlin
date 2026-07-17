@@ -1,5 +1,7 @@
 package com.loopers.application.ranking
 
+import com.loopers.domain.metrics.ProductHourlyMetricsRepository
+import com.loopers.domain.ranking.RankedEntry
 import com.loopers.domain.ranking.RankingKey
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.domain.ranking.RankingScorePolicy
@@ -18,6 +20,7 @@ import kotlin.math.ceil
 @Component
 class RankingFacade(
     private val rankingRepository: RankingRepository,
+    private val productHourlyMetricsRepository: ProductHourlyMetricsRepository,
     properties: RankingProperties,
 ) {
     private val scorePolicy = RankingScorePolicy(
@@ -40,6 +43,34 @@ class RankingFacade(
      */
     fun carryOverToTomorrow(today: LocalDate) {
         rankingRepository.carryOver(RankingKey.of(today), RankingKey.of(today.plusDays(1)), carryOverWeight, ttlSeconds)
+    }
+
+    /**
+     * 랭킹판을 시간별 집계(RDB SoT)로부터 다시 만든다 — Redis 유실 복구.
+     * 그 날짜 신호 합계에 가중치를 적용해 점수를 재계산하고, 원 이월(23:50 잡)이 넣었을
+     * 전일 시드도 전일 신호로 재계산해 더한 뒤 판을 원자 교체한다.
+     */
+    fun rebuild(date: LocalDate) {
+        val scores = linkedMapOf<Long, Double>()
+        productHourlyMetricsRepository.sumByDate(date).forEach {
+            scores[it.productId] = scorePolicy.totalScoreOf(it.viewCount, it.likeCount, it.orderQuantity)
+        }
+        productHourlyMetricsRepository.sumByDate(date.minusDays(1)).forEach {
+            val seed = scorePolicy.totalScoreOf(it.viewCount, it.likeCount, it.orderQuantity) * carryOverWeight
+            scores.merge(it.productId, seed, Double::plus)
+        }
+        val entries = scores.map { (productId, score) -> RankedEntry(productId, score) }
+        rankingRepository.rebuild(RankingKey.of(date), entries, ttlSeconds)
+    }
+
+    /**
+     * 오늘 판 유실을 감지하면 재구축한다 — "오늘 집계는 있는데 판이 없다"만 유실로 본다.
+     * 판이 살아 있거나, 집계도 없는 무활동 날이면 아무것도 하지 않는다.
+     */
+    fun recoverIfLost(today: LocalDate) {
+        if (rankingRepository.exists(RankingKey.of(today))) return
+        if (productHourlyMetricsRepository.sumByDate(today).isEmpty()) return
+        rebuild(today)
     }
 
     /**

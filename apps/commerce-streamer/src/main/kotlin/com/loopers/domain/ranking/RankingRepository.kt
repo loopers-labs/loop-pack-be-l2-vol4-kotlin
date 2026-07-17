@@ -30,4 +30,9 @@ interface RankingRepository {
      * 임시 키에 쌓아 원자 교체하므로 읽는 쪽이 만들다 만 판을 보지 않는다.
      */
     fun rebuild(key: String, entries: List<RankedEntry>, ttlSeconds: Long)
+
+    /**
+     * 랭킹판이 존재하는지 확인한다 — 유실 감지에 쓴다.
+     */
+    fun exists(key: String): Boolean
 }

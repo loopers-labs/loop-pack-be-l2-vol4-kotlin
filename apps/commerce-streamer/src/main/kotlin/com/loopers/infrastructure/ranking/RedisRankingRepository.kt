@@ -59,6 +59,8 @@ class RedisRankingRepository(
         masterTemplate.rename(stagingKey, key)
     }
 
+    override fun exists(key: String): Boolean = masterTemplate.hasKey(key)
+
     // 멱등 단위는 (이벤트, 상품) — 한 주문(같은 eventId)의 여러 상품 라인이 서로를 막지 않게 한다.
     private fun seenKey(eventId: UUID, productId: Long): String = "rank:seen:$eventId:$productId"
 

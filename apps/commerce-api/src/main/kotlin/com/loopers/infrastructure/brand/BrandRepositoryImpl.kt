@@ -28,6 +28,9 @@ class BrandRepositoryImpl(
     override fun findById(id: Long): Brand? =
         brandJpaRepository.findByIdOrNull(id)?.toDomain()
 
+    override fun findAllByIds(ids: Collection<Long>): List<Brand> =
+        brandJpaRepository.findAllById(ids).map { it.toDomain() }
+
     override fun findAll(page: Int, size: Int): PageResult<Brand> {
         val found = brandJpaRepository.findAllBy(
             PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))),

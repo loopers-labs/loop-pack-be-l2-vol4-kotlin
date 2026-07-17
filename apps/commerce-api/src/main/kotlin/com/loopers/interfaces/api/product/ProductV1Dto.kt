@@ -56,6 +56,8 @@ class ProductV1Dto {
         val brandId: Long,
         val brandName: String,
         val likedByMe: Boolean,
+        // 오늘 랭킹판 순위(1부터). 랭킹판에 없으면 null.
+        val rank: Long?,
     ) {
         companion object {
             fun from(result: ProductDetailResult): ProductDetailResponse = ProductDetailResponse(
@@ -66,6 +68,7 @@ class ProductV1Dto {
                 brandId = result.brandId,
                 brandName = result.brandName,
                 likedByMe = result.likedByMe,
+                rank = result.rank,
             )
         }
     }

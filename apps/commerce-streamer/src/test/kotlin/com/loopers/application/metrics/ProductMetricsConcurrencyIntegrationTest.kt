@@ -35,8 +35,9 @@ class ProductMetricsConcurrencyIntegrationTest @Autowired constructor(
     @Test
     fun `같은 상품에 좋아요 증가와 판매 누적이 동시에 몰려도 증분이 소실되지 않는다`() {
         val productId = 1L
+        val occurredAt = java.time.LocalDateTime.of(2026, 7, 16, 10, 0)
         // 최초 생성 경합을 배제하고 갱신 경합만 검증한다 — 행을 먼저 만들어 둔다.
-        facade.increaseView(UUID.randomUUID(), productId)
+        facade.increaseView(UUID.randomUUID(), productId, occurredAt)
 
         val likeEvents = 20
         val salesEvents = 20
@@ -48,12 +49,12 @@ class ProductMetricsConcurrencyIntegrationTest @Autowired constructor(
             (1..likeEvents).map {
                 {
                     ready.await()
-                    facade.increaseLike(UUID.randomUUID(), productId)
+                    facade.increaseLike(UUID.randomUUID(), productId, occurredAt)
                 }
             } + (1..salesEvents).map {
                 {
                     ready.await()
-                    facade.addSales(UUID.randomUUID(), listOf(SalesLine(productId, quantityPerSale)))
+                    facade.addSales(UUID.randomUUID(), listOf(SalesLine(productId, quantityPerSale)), occurredAt)
                 }
             }
         val futures = tasks.shuffled().map { task -> pool.submit { task() } }

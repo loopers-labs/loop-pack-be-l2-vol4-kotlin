@@ -7,11 +7,12 @@ import io.swagger.v3.oas.annotations.tags.Tag
 @Tag(name = "Order", description = "주문 API")
 interface OrderV1ApiSpec {
 
-    @Operation(summary = "주문 생성", description = "재고 차감 + 스냅샷 저장 (PENDING 상태)")
+    @Operation(summary = "주문 생성", description = "입장 토큰 검증 → 재고 차감 + 스냅샷 저장 (PENDING 상태)")
     fun createOrder(
         loginId: String,
         password: String,
         request: OrderV1Dto.CreateOrderRequest,
+        entryToken: String?,
     ): ApiResponse<OrderV1Dto.OrderDetailResponse>
 
     @Operation(summary = "내 주문 목록 조회", description = "기간 필터(startAt/endAt) 지원")

@@ -25,6 +25,12 @@ class ProductRepositoryImpl(
             ?.toDomain()
     }
 
+    override fun findAllByIds(ids: List<Long>): List<Product> {
+        if (ids.isEmpty()) return emptyList()
+        return productJpaRepository.findByIdInAndDeletedAtIsNull(ids)
+            .map { it.toDomain() }
+    }
+
     override fun findAll(condition: ProductSearchCondition): PageResult<Product> {
         return productQueryRepository.findAll(condition)
     }

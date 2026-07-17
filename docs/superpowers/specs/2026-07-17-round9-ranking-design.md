@@ -3,6 +3,7 @@
 - 작성일: 2026-07-17
 - 브랜치: `volume-9` (volume-8 PR #122 병합 커밋에서 시작, base=yeonjoo7로 PR 예정)
 - 범위: 랭킹 컨슈머(일간+시간 키 적재) + 랭킹 Page API(상품정보 aggregation) + 상품 상세 rank. 통합 설계 1개.
+- 변경 이력: 2026-07-17 — 구현 중 보강: date 검증 STRICT resolver(달력상 불가능한 날짜 거부), PAYMENT_SUCCEEDED 음수 수량·단가 아이템 스킵(NaN 점수의 파이프라인 배치 오염 방지). 리뷰 지적 반영.
 
 ---
 

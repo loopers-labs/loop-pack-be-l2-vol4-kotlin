@@ -48,6 +48,17 @@ spring:
 spring:
   config:
     activate:
+      on-profile: test
+  kafka:
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
+
+---
+spring:
+  config:
+    activate:
       on-profile: dev
 
 ---

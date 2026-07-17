@@ -52,6 +52,8 @@ subprojects {
     apply(plugin = "jacoco")
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
 
+    ext["testcontainers.version"] = project.properties["testcontainersVersion"]
+
     dependencyManagement {
         imports {
             mavenBom("org.springframework.cloud:spring-cloud-dependencies:${project.properties["springCloudDependenciesVersion"]}")
@@ -97,6 +99,8 @@ subprojects {
         useJUnitPlatform()
         systemProperty("user.timezone", "Asia/Seoul")
         systemProperty("spring.profiles.active", "test")
+        // docker-java 기본 API(1.32)는 Docker 29(minimum 1.40)가 거절 — 데몬이 지원하는 버전으로 고정
+        systemProperty("api.version", "1.44")
         jvmArgs("-Xshare:off")
     }
 

@@ -83,6 +83,7 @@ class MetricsEventProcessor(
 data class IncomingEvent(
     val eventId: String,
     val eventType: String,
+    val occurredAt: String,
     val payload: Map<String, Any>,
 )
 

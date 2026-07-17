@@ -29,11 +29,14 @@ class MetricsEventConsumer(
             ?: throw IllegalArgumentException("eventType header is required. topic=${record.topic()}, offset=${record.offset()}")
 
         val payload: Map<String, Any> = objectMapper.readValue(String(record.value(), Charsets.UTF_8))
+        val occurredAt = payload["occurredAt"] as? String
+            ?: throw IllegalArgumentException("occurredAt is required. topic=${record.topic()}, offset=${record.offset()}")
 
         metricsEventProcessor.process(
             IncomingEvent(
                 eventId = eventId,
                 eventType = eventType,
+                occurredAt = occurredAt,
                 payload = payload,
             ),
         )

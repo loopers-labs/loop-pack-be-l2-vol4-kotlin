@@ -11,6 +11,9 @@ class CouponIssueRequestRepositoryImpl(
     override fun findByRequestId(requestId: String): IssueRequestRecord? =
         couponIssueRequestJpaRepository.findByRequestId(requestId)?.toModel()
 
+    override fun findByRequestIdForUpdate(requestId: String): IssueRequestRecord? =
+        couponIssueRequestJpaRepository.findByRequestIdForUpdate(requestId)?.toModel()
+
     override fun save(record: IssueRequestRecord): IssueRequestRecord {
         // streamer 는 요청 행을 새로 만들지 않고, 접수된 행의 결과만 갱신한다.
         val entity = couponIssueRequestJpaRepository.findByRequestId(record.requestId)

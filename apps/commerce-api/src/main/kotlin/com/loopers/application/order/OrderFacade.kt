@@ -51,9 +51,7 @@ class OrderFacade(
         command.userCouponId?.let { userCouponId ->
             val userCoupon = userCouponRepository.findByIdForUpdate(userCouponId)
                 ?: throw CoreException(CouponErrorType.USER_COUPON_NOT_FOUND)
-            if (userCoupon.userId != user.id) {
-                throw CoreException(CouponErrorType.USER_COUPON_NOT_FOUND)
-            }
+            userCoupon.ensureOwnedBy(user.id)
             val coupon = couponRepository.findByIdIncludingDeleted(userCoupon.couponId)
                 ?: throw CoreException(CouponErrorType.COUPON_NOT_FOUND)
             val now = LocalDateTime.now()

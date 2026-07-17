@@ -150,6 +150,9 @@ class Coupon internal constructor(
             issueLimit: Long? = null,
         ): Coupon {
             validate(minOrderAmount, issueStartAt, issueEndAt, useStartAt, useEndAt, now)
+            if (issueLimit != null && issueLimit <= 0L) {
+                throw CoreException(CouponErrorType.COUPON_BAD_REQUEST, "발급 한도는 1 이상이어야 한다.")
+            }
             return Coupon(
                 name = CouponName.of(name),
                 discountPolicy = DiscountPolicy.of(discountType, discountValue),

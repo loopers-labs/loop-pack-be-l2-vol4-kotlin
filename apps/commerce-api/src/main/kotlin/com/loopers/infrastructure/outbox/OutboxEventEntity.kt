@@ -57,16 +57,54 @@ class OutboxEventEntity private constructor(
     var publishedAt: LocalDateTime? = null
         protected set
 
+    @Column(name = "retry_count", nullable = false)
+    var retryCount: Int = 0
+        protected set
+
+    @Column(name = "next_retry_at")
+    var nextRetryAt: LocalDateTime? = null
+        protected set
+
+    @Column(name = "last_error", length = LAST_ERROR_MAX_LENGTH)
+    var lastError: String? = null
+        protected set
+
     fun markPublished(at: LocalDateTime) {
         status = OutboxStatus.PUBLISHED
         publishedAt = at
     }
 
-    fun markFailed() {
+    /**
+     * 발행 실패를 기록한다 — 재시도 횟수를 늘리고 지수 백오프를 건다.
+     * 상한을 소진하면 FAILED 로 격리해 폴링 대상에서 제외한다(발행측 DLQ). 재구동은 FAILED → PENDING 수동 전환으로 한다.
+     */
+    fun recordFailure(at: LocalDateTime, cause: String) {
+        retryCount += 1
+        lastError = cause.take(LAST_ERROR_MAX_LENGTH)
+        nextRetryAt = at.plusSeconds(backoffSeconds())
+        if (retryCount >= MAX_RETRY_COUNT) {
+            status = OutboxStatus.FAILED
+        }
+    }
+
+    /** 백오프 시각이 아직 오지 않아 이번 주기에 재시도하면 안 되는 상태인지 */
+    fun isAwaitingRetry(at: LocalDateTime): Boolean = nextRetryAt?.isAfter(at) == true
+
+    /** 비재시도성 실패(라우팅 불가·payload 손상 등) — 재시도가 무의미하므로 즉시 FAILED 로 격리한다. */
+    fun failPermanently(cause: String) {
+        lastError = cause.take(LAST_ERROR_MAX_LENGTH)
         status = OutboxStatus.FAILED
     }
 
+    private fun backoffSeconds(): Long =
+        (INITIAL_BACKOFF_SECONDS shl (retryCount - 1)).coerceAtMost(MAX_BACKOFF_SECONDS)
+
     companion object {
+        private const val MAX_RETRY_COUNT = 10
+        private const val INITIAL_BACKOFF_SECONDS = 1L
+        private const val MAX_BACKOFF_SECONDS = 300L
+        private const val LAST_ERROR_MAX_LENGTH = 500
+
         fun create(
             eventId: UUID,
             aggregateType: String,

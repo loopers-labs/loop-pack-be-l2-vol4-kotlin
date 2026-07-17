@@ -33,6 +33,27 @@ class UserCouponTest {
         }
     }
 
+    @DisplayName("소유자를 검증할 때, ")
+    @Nested
+    inner class EnsureOwnedBy {
+        @DisplayName("소유자 본인이면 통과한다.")
+        @Test
+        fun passesForOwner() {
+            val userCoupon = CouponFixture.userCoupon(userId = 1L)
+
+            userCoupon.ensureOwnedBy(1L)
+        }
+
+        @DisplayName("타인의 쿠폰이면 존재를 숨기기 위해 USER_COUPON_NOT_FOUND 예외가 발생한다.")
+        @Test
+        fun throwsNotFoundForOthers() {
+            val userCoupon = CouponFixture.userCoupon(userId = 1L)
+
+            val result = assertThrows<CoreException> { userCoupon.ensureOwnedBy(2L) }
+            assertThat(result.errorType).isEqualTo(CouponErrorType.USER_COUPON_NOT_FOUND)
+        }
+    }
+
     @DisplayName("사용할 때, ")
     @Nested
     inner class Use {

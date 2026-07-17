@@ -11,6 +11,9 @@ class ProductMetricsRepositoryImpl(
     override fun findByProductId(productId: Long): ProductMetrics? =
         productMetricsJpaRepository.findByProductId(productId)?.toModel()
 
+    override fun findByProductIdForUpdate(productId: Long): ProductMetrics? =
+        productMetricsJpaRepository.findByProductIdForUpdate(productId)?.toModel()
+
     override fun save(productMetrics: ProductMetrics): ProductMetrics {
         val entity = productMetricsJpaRepository.findByProductId(productMetrics.productId)
             ?.apply { sync(productMetrics) }

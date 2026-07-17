@@ -20,6 +20,13 @@ class UserCoupon internal constructor(
     var usedAt: LocalDateTime? = usedAt
         private set
 
+    /** 소유자 검증 — 타인의 쿠폰이면 존재를 드러내지 않도록 NOT_FOUND 로 거부한다. */
+    fun ensureOwnedBy(userId: Long) {
+        if (this.userId != userId) {
+            throw CoreException(CouponErrorType.USER_COUPON_NOT_FOUND, "본인의 쿠폰이 아니다.")
+        }
+    }
+
     fun use(at: LocalDateTime) {
         if (isUsed()) {
             throw CoreException(CouponErrorType.ALREADY_USED_COUPON, "이미 사용된 쿠폰")

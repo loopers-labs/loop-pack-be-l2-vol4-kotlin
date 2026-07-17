@@ -202,6 +202,10 @@ class LikeProductUsecaseTest {
             return products[id]?.takeUnless { it.isDeleted() }
         }
 
+        override fun findActiveAllByIds(ids: List<Long>): List<ProductModel> {
+            return ids.mapNotNull { findActiveById(it) }
+        }
+
         override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> {
             return PageImpl(products.values.toList(), pageable, products.size.toLong())
         }

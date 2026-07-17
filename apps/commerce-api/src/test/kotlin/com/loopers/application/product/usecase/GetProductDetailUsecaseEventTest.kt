@@ -80,6 +80,7 @@ class GetProductDetailUsecaseEventTest {
         ).withId(10L)
         override fun save(product: ProductModel) = product
         override fun findActiveById(id: Long) = product.takeIf { id == 10L }
+        override fun findActiveAllByIds(ids: List<Long>): List<ProductModel> = ids.mapNotNull { findActiveById(it) }
         override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> =
             PageImpl(listOf(product), pageable, 1)
         override fun existsActiveById(id: Long) = id == 10L

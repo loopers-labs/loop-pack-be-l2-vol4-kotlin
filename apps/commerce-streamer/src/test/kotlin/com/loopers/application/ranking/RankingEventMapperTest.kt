@@ -59,4 +59,17 @@ class RankingEventMapperTest {
         assertThat(mapper.toEntry("""{"eventId":"e6","type":"COUPON_ISSUE_REQUESTED"}""")).isNull()
         assertThat(mapper.toEntry("""{"type":"PRODUCT_VIEWED","productId":10}""")).isNull()
     }
+
+    @DisplayName("quantity가 0 이하이거나 unitPrice가 음수인 아이템은 건너뛴다 (NaN 점수가 배치 전체를 오염시키지 않도록).")
+    @Test
+    fun skipsItemWithNonPositiveQuantityOrNegativePrice() {
+        val entry = mapper.toEntry(
+            """{"eventId":"e7","type":"PAYMENT_SUCCEEDED","items":[
+               {"productId":10,"quantity":-2,"unitPrice":15000.00},
+               {"productId":11,"quantity":1,"unitPrice":-500.00},
+               {"productId":12,"quantity":1,"unitPrice":15000.00}]}""",
+        )!!
+        assertThat(entry.deltas).hasSize(1)
+        assertThat(entry.deltas[0].productId).isEqualTo(12L)
+    }
 }

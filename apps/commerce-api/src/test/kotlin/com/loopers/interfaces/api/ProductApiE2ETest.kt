@@ -9,8 +9,11 @@ import com.loopers.domain.product.application.service.ProductService
 import com.loopers.domain.product.model.ProductSaleType
 import com.loopers.domain.product.presentation.response.ProductResponse
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
+import com.loopers.domain.ranking.vo.RankingKey
+import java.time.LocalDate
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.redisson.api.RedissonClient
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
@@ -23,6 +26,7 @@ class ProductApiE2ETest
         private val brandService: BrandService,
         private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
         private val productService: ProductService,
+        private val redissonClient: RedissonClient,
     ) : ApiTest() {
         companion object {
             private const val ENDPOINT = "/api/v1/products"
@@ -181,6 +185,44 @@ class ProductApiE2ETest
 
             assertThat(pageResponse.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
             assertThat(sizeResponse.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @Test
+        fun `오늘_랭킹판에_있는_상품_상세는_1부터_시작하는_rank를_반환한다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val second = productService.register(상품_등록_커맨드(brandId = brand.id, name = "이등 상품"))
+            val first = productService.register(상품_등록_커맨드(brandId = brand.id, name = "일등 상품", price = 20_000))
+            val rankingSet = redissonClient.getScoredSortedSet<String>(
+                RankingKey.daily(LocalDate.now(RankingKey.ZONE)),
+            )
+            rankingSet.add(5.0, first.id.toString())
+            rankingSet.add(3.0, second.id.toString())
+
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/${second.id}",
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                productResponseType,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body?.data?.rank).isEqualTo(2L)
+        }
+
+        @Test
+        fun `오늘_랭킹판에_없는_상품_상세는_rank가_null이다`() {
+            val brand = brandService.register(브랜드_등록_커맨드())
+            val product = productService.register(상품_등록_커맨드(brandId = brand.id))
+
+            val response = testRestTemplate.exchange(
+                "$ENDPOINT/${product.id}",
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                productResponseType,
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body?.data?.rank).isNull()
         }
 
         @Test

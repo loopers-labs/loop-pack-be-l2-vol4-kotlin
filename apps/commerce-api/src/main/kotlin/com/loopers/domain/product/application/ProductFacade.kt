@@ -11,12 +11,16 @@ import com.loopers.domain.product.application.info.ProductSummaryInfo
 import com.loopers.domain.product.application.service.ProductService
 import com.loopers.domain.product.application.service.StockService
 import com.loopers.domain.product.model.ProductModel
+import com.loopers.domain.ranking.port.ProductRankingReader
+import com.loopers.domain.ranking.vo.RankingKey
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import com.loopers.support.event.ProductViewedApplicationEvent
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 
 @Component
 class ProductFacade(
@@ -24,8 +28,11 @@ class ProductFacade(
     private val productService: ProductService,
     private val stockService: StockService,
     private val likeService: LikeService,
+    private val productRankingReader: ProductRankingReader,
     private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional
     fun registerProduct(command: ProductRegisterCommand): ProductInfo {
         brandService.getById(command.brandId)
@@ -54,8 +61,16 @@ class ProductFacade(
         val product = productService.getById(productId)
         val brand = brandService.getById(product.brandId)
         val likeCount = likeService.countByProductId(product.id)
+        val rank = findRankSafely(product.id)
         applicationEventPublisher.publishEvent(ProductViewedApplicationEvent(product.id))
-        return ProductDetailInfo.from(product, brand, likeCount)
+        return ProductDetailInfo.from(product, brand, likeCount, rank)
+    }
+
+    private fun findRankSafely(productId: Long): Long? = try {
+        productRankingReader.findRank(LocalDate.now(RankingKey.ZONE), productId)
+    } catch (e: Exception) {
+        log.warn("랭킹 조회 실패로 rank 없이 응답합니다. productId={}", productId, e)
+        null
     }
 
     fun findProducts(command: ProductSearchCommand): List<ProductSummaryInfo> =

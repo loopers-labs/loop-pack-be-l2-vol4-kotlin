@@ -1,5 +1,6 @@
 package com.loopers.application.metrics
 
+import com.loopers.domain.metrics.ProductHourlyMetricsRepository
 import com.loopers.domain.metrics.ProductMetricsRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.testcontainers.RedisTestContainersConfig
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -25,6 +27,7 @@ import java.util.concurrent.TimeUnit
 class ProductMetricsConcurrencyIntegrationTest @Autowired constructor(
     private val facade: ProductMetricsFacade,
     private val productMetricsRepository: ProductMetricsRepository,
+    private val productHourlyMetricsRepository: ProductHourlyMetricsRepository,
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     @AfterEach
@@ -67,5 +70,37 @@ class ProductMetricsConcurrencyIntegrationTest @Autowired constructor(
         assertThat(metrics.likeCount).isEqualTo(likeEvents.toLong())
         assertThat(metrics.salesCount).isEqualTo((salesEvents * quantityPerSale).toLong())
         assertThat(metrics.viewCount).isEqualTo(1L)
+    }
+
+    @Test
+    fun `삭제와 누적이 동시에 실행돼도 시간별 집계에 삭제 상품이 남지 않는다`() {
+        val productId = 2L
+        val occurredAt = java.time.LocalDateTime.of(2026, 7, 16, 10, 0)
+        facade.increaseView(UUID.randomUUID(), productId, occurredAt)
+
+        val salesEvents = 30
+        val pool = Executors.newFixedThreadPool(16)
+        val ready = CountDownLatch(1)
+        // 삭제 1건과 누적 N건이 어떤 순서로 섞여도 결과는 같아야 한다 —
+        // 삭제 전 누적분은 삭제가 걷어내고, 삭제 후 누적은 표식이 막는다(같은 지표 행 잠금으로 직렬화).
+        val tasks: List<() -> Unit> =
+            (1..salesEvents).map {
+                {
+                    ready.await()
+                    facade.addSales(UUID.randomUUID(), listOf(SalesLine(productId, 1)), occurredAt)
+                }
+            } + listOf(
+                {
+                    ready.await()
+                    facade.removeProduct(UUID.randomUUID(), productId)
+                },
+            )
+        val futures = tasks.shuffled().map { task -> pool.submit { task() } }
+        ready.countDown()
+        futures.forEach { it.get() }
+        pool.shutdown()
+        pool.awaitTermination(30, TimeUnit.SECONDS)
+
+        assertThat(productHourlyMetricsRepository.sumByDate(LocalDate.of(2026, 7, 16))).isEmpty()
     }
 }

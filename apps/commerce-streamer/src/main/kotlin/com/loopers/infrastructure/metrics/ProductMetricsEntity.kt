@@ -34,10 +34,12 @@ class ProductMetricsEntity private constructor(
         likeCount = metrics.likeCount
         salesCount = metrics.salesCount
         viewCount = metrics.viewCount
+        // 삭제 표식은 한 방향만 동기화한다 — 삭제 취소 이벤트는 없다.
+        if (metrics.deleted) delete()
     }
 
     fun toModel(): ProductMetrics =
-        ProductMetrics.of(productId, likeCount, salesCount, viewCount)
+        ProductMetrics.of(productId, likeCount, salesCount, viewCount, deleted = deletedAt != null)
 
     companion object {
         fun from(metrics: ProductMetrics): ProductMetricsEntity = ProductMetricsEntity(
@@ -45,6 +47,6 @@ class ProductMetricsEntity private constructor(
             likeCount = metrics.likeCount,
             salesCount = metrics.salesCount,
             viewCount = metrics.viewCount,
-        )
+        ).also { if (metrics.deleted) it.delete() }
     }
 }

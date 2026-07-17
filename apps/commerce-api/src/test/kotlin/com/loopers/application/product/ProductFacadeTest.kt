@@ -30,6 +30,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.redis.RedisConnectionFailureException
 
 @DisplayName("ProductFacade")
 class ProductFacadeTest {
@@ -218,18 +219,32 @@ class ProductFacadeTest {
         }
 
         @Test
-        @DisplayName("순위 조회가 실패해도(저장소 장애) 상세는 정상 반환되고 순위만 null 이다")
-        fun rankFallsBackToNullOnFailure() {
+        @DisplayName("순위 조회의 저장소 접근 예외는 폴백된다 — 상세는 정상 반환되고 순위만 null 이다")
+        fun rankFallsBackToNullOnInfraFailure() {
             val product = ProductFixture.validProduct(id = 1L)
             val brand = BrandFixture.validBrand()
             every { productRepository.findById(1L) } returns product
             every { brandRepository.findById(product.brandId) } returns brand
-            every { rankingRepository.rankOf(any(), 1L) } throws RuntimeException("redis down")
+            every { rankingRepository.rankOf(any(), 1L) } throws RedisConnectionFailureException("redis down")
 
             val result = productFacade.getProductDetail(productId = 1L, userId = null)
 
             assertThat(result.rank).isNull()
             assertThat(result.name).isEqualTo(product.name.value)
+        }
+
+        @Test
+        @DisplayName("순위 조회 중 인프라 외 런타임 오류는 전파된다 — 코드 결함을 성공 응답으로 가리지 않는다")
+        fun rankUnexpectedErrorPropagates() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } throws IllegalStateException("어댑터 결함")
+
+            assertThrows<IllegalStateException> {
+                productFacade.getProductDetail(productId = 1L, userId = null)
+            }
         }
 
         @Test

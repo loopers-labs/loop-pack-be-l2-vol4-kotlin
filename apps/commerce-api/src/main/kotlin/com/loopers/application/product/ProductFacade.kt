@@ -24,6 +24,7 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.page.PageQuery
 import com.loopers.support.page.PageResult
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataAccessException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -70,11 +71,13 @@ class ProductFacade(
         }
         val likedByMe = userId != null && likeRepository.existsByUserIdAndProductId(userId, productId)
         // 순위는 상세의 부가 정보다 — 랭킹 저장소 장애가 상세 조회를 막지 않도록 null 로 폴백한다.
-        val rank = runCatching { rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId) }
-            .getOrElse { e ->
-                log.warn("상품 {} 순위 조회 실패 — 순위 없이 상세를 반환한다: {}", productId, e.message)
-                null
-            }
+        // 폴백은 저장소 접근 예외(DataAccessException)로 제한한다 — 그 외 런타임 오류는 코드 결함이므로 전파해 드러낸다.
+        val rank = try {
+            rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId)
+        } catch (e: DataAccessException) {
+            log.warn("상품 {} 순위 조회 실패 — 순위 없이 상세를 반환한다: {}", productId, e.message)
+            null
+        }
 
         eventPublisher.publish(ProductEvent.Viewed(productId = productId, userId = userId))
         return ProductDetailResult(

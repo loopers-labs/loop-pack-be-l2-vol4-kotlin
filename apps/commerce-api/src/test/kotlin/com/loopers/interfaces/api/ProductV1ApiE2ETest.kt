@@ -173,6 +173,38 @@ class ProductV1ApiE2ETest @Autowired constructor(
             assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
             assertThat(response.body!!.data!!.rank).isNull()
         }
+
+        @DisplayName("캐시 히트 경로에서도 rank는 실시간 값으로 부착된다 — 캐시에 순위가 얼어붙지 않는다.")
+        @Test
+        fun refreshesRankOnCacheHit() {
+            val brand = brandRepository.save(BrandModel(name = "Nike", description = "Shoes"))
+            val product = productRepository.save(
+                ProductModel(brandId = brand.id, name = "warm", description = "d", price = BigDecimal("10000.00")),
+            )
+
+            // 1차 호출 — 캐시 미스로 상세가 캐시에 적재됨(이 시점 rank 없음)
+            val first = testRestTemplate.exchange(
+                "/api/v1/products/${product.id}",
+                HttpMethod.GET,
+                null,
+                object : ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductResponse>>() {},
+            )
+            assertThat(first.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(first.body!!.data!!.rank).isNull()
+
+            // 캐시 적재 이후 랭킹 점수 투입 → 2차 호출은 캐시 히트인데도 실시간 rank가 붙어야 한다
+            val today = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            redisTemplate.opsForZSet().add("ranking:all:v1:$today", "${product.id}", 5.0)
+
+            val second = testRestTemplate.exchange(
+                "/api/v1/products/${product.id}",
+                HttpMethod.GET,
+                null,
+                object : ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductResponse>>() {},
+            )
+            assertThat(second.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(second.body!!.data!!.rank).isEqualTo(1L)
+        }
     }
 
     private fun getProducts(url: String) = testRestTemplate.exchange(

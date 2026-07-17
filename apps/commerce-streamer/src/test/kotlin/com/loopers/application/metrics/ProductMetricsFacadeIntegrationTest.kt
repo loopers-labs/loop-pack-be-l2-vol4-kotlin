@@ -107,4 +107,17 @@ class ProductMetricsFacadeIntegrationTest @Autowired constructor(
         // 누적 지표는 남는다 — 분석 이력 보존.
         assertThat(productMetricsRepository.findByProductId(1L)!!.viewCount).isEqualTo(1L)
     }
+
+    @Test
+    fun `삭제 후 도착한 지연 신호는 시간별 집계를 되살리지 않는다`() {
+        productMetricsFacade.removeProduct(UUID.randomUUID(), productId = 1L)
+
+        // 주문 이벤트는 다른 토픽(주문 키)이라 삭제와 순서 보장이 없다 — 삭제 뒤에 도착할 수 있다.
+        productMetricsFacade.addSales(UUID.randomUUID(), listOf(SalesLine(productId = 1L, quantity = 3)), occurredAt = occurredAt)
+        productMetricsFacade.increaseView(UUID.randomUUID(), productId = 1L, occurredAt = occurredAt)
+
+        assertThat(productHourlyMetricsRepository.sumByDate(date)).isEmpty()
+        // 누적 지표는 실제 발생한 사실이므로 계속 쌓인다 — 분석 이력 보존.
+        assertThat(productMetricsRepository.findByProductId(1L)!!.salesCount).isEqualTo(3L)
+    }
 }

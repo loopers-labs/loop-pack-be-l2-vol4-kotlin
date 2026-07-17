@@ -3,18 +3,21 @@ package com.loopers.application.ranking
 import com.loopers.application.ranking.result.RankedProductResult
 import com.loopers.domain.brand.BrandRepository
 import com.loopers.domain.product.ProductRepository
+import com.loopers.domain.ranking.RankedEntry
 import com.loopers.domain.ranking.RankingKey
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.support.page.PageResult
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlin.math.ceil
 
 /**
  * 랭킹판 조회를 상품 정보와 조립한다 — ZSET 에서 순위·점수를 읽고, 상품·브랜드를 배치 조회해 목록에 필요한 정보를 붙인다.
  * 삭제/부재 상품은 목록에서 제외한다. N+1 없이 id 묶음으로 한 번에 조회한다.
+ *
+ * 의도적으로 트랜잭션을 걸지 않는다 — 경계를 메서드에 걸면 Redis I/O(size·topN) 대기 동안 DB 커넥션을 점유해
+ * 지연 시 풀 고갈로 번진다. 상품·브랜드 배치 조회는 각자 저장소 기본 readOnly 트랜잭션으로 충분하고,
+ * 두 조회 사이의 정합은 부재 상품 스킵 방어가 이미 흡수한다.
  */
 @Component
 class RankingFacade(
@@ -22,18 +25,17 @@ class RankingFacade(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
 ) {
-    @Transactional(readOnly = true)
     fun getRanking(date: String?, page: Int, size: Int): PageResult<RankedProductResult> {
         val key = RankingKey.of(date, LocalDate.now(SEOUL))
         val total = rankingRepository.size(key)
-        val totalPages = if (size == 0) 0 else ceil(total.toDouble() / size).toInt()
+        val totalPages = if (size == 0) 0 else ((total + size - 1) / size).toInt()
         val offset = page.toLong() * size
         val entries = rankingRepository.topN(key, offset, size.toLong())
         val content = assemble(entries, offset)
         return PageResult(content, page, size, total, totalPages)
     }
 
-    private fun assemble(entries: List<com.loopers.domain.ranking.RankedEntry>, offset: Long): List<RankedProductResult> {
+    private fun assemble(entries: List<RankedEntry>, offset: Long): List<RankedProductResult> {
         if (entries.isEmpty()) return emptyList()
         val products = productRepository.findAllByIds(entries.map { it.productId }).associateBy { it.id }
         val brands = brandRepository.findAllByIds(products.values.map { it.brandId }.distinct()).associateBy { it.id }

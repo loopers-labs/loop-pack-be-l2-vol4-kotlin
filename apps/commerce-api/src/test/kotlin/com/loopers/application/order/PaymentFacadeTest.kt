@@ -226,9 +226,9 @@ class PaymentFacadeTest {
             verify(exactly = 0) { orderCompensator.restore(any()) }
         }
 
-        @DisplayName("외부 결과가 성공이면 OrderEvent.Paid 를 발행한다 — 판매 집계·랭킹이 소비할 결제 확정 사실(userId·총액·라인 스냅샷 포함).")
+        @DisplayName("외부 결과가 성공이면 OrderEvent.Paid 를 정확히 1회 발행한다 — 중복 발행되면 판매 집계·랭킹이 같은 결제를 두 번 반영한다.")
         @Test
-        fun publishesOrderPaidOnSuccess() {
+        fun publishesOrderPaidExactlyOnceOnSuccess() {
             val payment = Payment(id = 10L, orderId = 1L, amount = 2000L, transactionId = "tx-1", requestedAt = LocalDateTime.now())
             val order = pendingOrder()
             every { paymentRepository.findByTransactionIdForUpdate("tx-1") } returns payment
@@ -238,7 +238,9 @@ class PaymentFacadeTest {
 
             paymentFacade.settle(PgTransaction("tx-1", PgTransactionStatus.SUCCESS, null))
 
-            verify {
+            // 내용이 다른 Paid 가 섞여 나가는 회귀까지 잡기 위해, 타입 기준 1회를 먼저 못 박는다.
+            verify(exactly = 1) { eventPublisher.publish(ofType(OrderEvent.Paid::class)) }
+            verify(exactly = 1) {
                 eventPublisher.publish(
                     match {
                         it is OrderEvent.Paid &&

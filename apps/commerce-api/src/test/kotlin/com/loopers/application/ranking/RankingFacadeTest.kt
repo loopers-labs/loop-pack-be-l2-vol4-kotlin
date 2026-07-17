@@ -95,6 +95,17 @@ class RankingFacadeTest {
         }
 
         @Test
+        fun `전체 페이지 수는 총 개수를 페이지 크기로 올림해 계산된다`() {
+            every { rankingRepository.size("rank:all:20260714") } returns 41L
+            every { rankingRepository.topN("rank:all:20260714", 0, 20) } returns emptyList()
+
+            val result = facade.getRanking(date = "20260714", page = 0, size = 20)
+
+            assertThat(result.totalPages).isEqualTo(3)
+            assertThat(result.totalElements).isEqualTo(41L)
+        }
+
+        @Test
         fun `랭킹판이 없는 날짜는 빈 목록을 반환한다`() {
             every { rankingRepository.topN("rank:all:20200101", 0, 20) } returns emptyList()
 

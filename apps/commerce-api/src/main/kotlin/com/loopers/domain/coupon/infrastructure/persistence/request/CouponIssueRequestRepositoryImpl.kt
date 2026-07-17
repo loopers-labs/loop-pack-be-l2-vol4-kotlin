@@ -19,6 +19,15 @@ class CouponIssueRequestRepositoryImpl(
         return couponIssueRequestJpaRepository.saveAndFlush(entity).toDomain()
     }
 
+    override fun insertIfAbsent(request: CouponIssueRequestModel): Int =
+        couponIssueRequestJpaRepository.insertIfAbsent(
+            requestId = request.requestId,
+            userId = request.userId,
+            couponTemplateId = request.couponTemplateId,
+            status = request.status.name,
+            requestedAt = request.requestedAt,
+        )
+
     override fun findByRequestIdOrNull(requestId: UUID): CouponIssueRequestModel? =
         couponIssueRequestJpaRepository.findByRequestId(requestId)?.toDomain()
 

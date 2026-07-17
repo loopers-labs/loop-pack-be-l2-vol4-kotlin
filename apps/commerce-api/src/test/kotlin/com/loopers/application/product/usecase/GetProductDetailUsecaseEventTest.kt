@@ -11,6 +11,8 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.product.ProductViewedEvent
+import com.loopers.domain.ranking.RankedProduct
+import com.loopers.domain.ranking.RankingQueryRepository
 import com.loopers.domain.withId
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -59,6 +61,7 @@ class GetProductDetailUsecaseEventTest {
             brandRepository = InMemoryBrandRepository(),
             productStockRepository = InMemoryProductStockRepository(),
             productCacheRepository = NoopProductCacheRepository(),
+            rankingQueryRepository = NoopRankingQueryRepository(),
             eventPublisher = eventPublisher,
         )
     }
@@ -110,5 +113,11 @@ class GetProductDetailUsecaseEventTest {
         override fun evictDetail(productId: Long) = Unit
         override fun getList(query: ProductCacheRepository.ProductListCacheQuery): ProductPageInfo? = null
         override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) = Unit
+    }
+
+    private class NoopRankingQueryRepository : RankingQueryRepository {
+        override fun page(key: String, offset: Long, size: Long): List<RankedProduct> = emptyList()
+        override fun total(key: String): Long = 0
+        override fun rank(key: String, productId: Long): Long? = null
     }
 }

@@ -20,9 +20,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import java.math.BigDecimal
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ProductV1ApiE2ETest @Autowired constructor(
@@ -30,6 +33,7 @@ class ProductV1ApiE2ETest @Autowired constructor(
     private val brandRepository: BrandRepository,
     private val productRepository: ProductRepository,
     private val productStockRepository: ProductStockRepository,
+    private val redisTemplate: RedisTemplate<String, String>,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -126,6 +130,48 @@ class ProductV1ApiE2ETest @Autowired constructor(
                 { assertThat(body.meta.message).isEqualTo("페이지 크기는 1 이상 100 이하여야 합니다.") },
                 { assertThat(body.data).isNull() },
             )
+        }
+    }
+
+    @DisplayName("GET /api/v1/products/{id}")
+    @Nested
+    inner class GetProductDetail {
+        @DisplayName("상품 상세 조회 시 오늘 일간 랭킹 순위(1-based)가 함께 반환된다.")
+        @Test
+        fun returnsProductDetailWithRank() {
+            val brand = brandRepository.save(BrandModel(name = "Nike", description = "Shoes"))
+            val ranked = productRepository.save(ProductModel(brandId = brand.id, name = "ranked", description = "d", price = BigDecimal("10000.00")))
+            val other = productRepository.save(ProductModel(brandId = brand.id, name = "other", description = "d", price = BigDecimal("10000.00")))
+            val today = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            redisTemplate.opsForZSet().add("ranking:all:v1:$today", "${other.id}", 9.0)
+            redisTemplate.opsForZSet().add("ranking:all:v1:$today", "${ranked.id}", 4.0)
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/products/${ranked.id}",
+                HttpMethod.GET,
+                null,
+                object : ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body!!.data!!.rank).isEqualTo(2L)
+        }
+
+        @DisplayName("랭킹에 없는 상품의 상세 조회는 rank=null을 반환한다.")
+        @Test
+        fun returnsNullRankWhenUnranked() {
+            val brand = brandRepository.save(BrandModel(name = "Nike", description = "Shoes"))
+            val product = productRepository.save(ProductModel(brandId = brand.id, name = "unranked", description = "d", price = BigDecimal("10000.00")))
+
+            val response = testRestTemplate.exchange(
+                "/api/v1/products/${product.id}",
+                HttpMethod.GET,
+                null,
+                object : ParameterizedTypeReference<ApiResponse<ProductV1Dto.ProductResponse>>() {},
+            )
+
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            assertThat(response.body!!.data!!.rank).isNull()
         }
     }
 

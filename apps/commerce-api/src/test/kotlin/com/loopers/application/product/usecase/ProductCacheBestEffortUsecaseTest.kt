@@ -10,6 +10,8 @@ import com.loopers.domain.product.ProductRepository
 import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
+import com.loopers.domain.ranking.RankedProduct
+import com.loopers.domain.ranking.RankingQueryRepository
 import com.loopers.domain.withId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -85,6 +87,7 @@ class ProductCacheBestEffortUsecaseTest {
             brandRepository = brandRepository,
             productStockRepository = productStockRepository,
             productCacheRepository = cacheRepository,
+            rankingQueryRepository = NoopRankingQueryRepository(),
             eventPublisher = ApplicationEventPublisher { },
         )
         val getProductsUsecase = GetProductsUsecase(
@@ -213,5 +216,11 @@ class ProductCacheBestEffortUsecaseTest {
         override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) {
             if (failOnPutList) throw IllegalStateException("list cache put failed")
         }
+    }
+
+    private class NoopRankingQueryRepository : RankingQueryRepository {
+        override fun page(key: String, offset: Long, size: Long): List<RankedProduct> = emptyList()
+        override fun total(key: String): Long = 0
+        override fun rank(key: String, productId: Long): Long? = null
     }
 }

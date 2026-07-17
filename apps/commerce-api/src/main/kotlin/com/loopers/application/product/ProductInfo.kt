@@ -11,6 +11,7 @@ data class ProductInfo(
     val price: BigDecimal,
     val stockQuantity: Int,
     val likeCount: Int,
+    val rank: Long? = null,
 ) {
     data class Brand(
         val id: Long,

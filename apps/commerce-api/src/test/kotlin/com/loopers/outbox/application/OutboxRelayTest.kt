@@ -2,6 +2,7 @@ package com.loopers.outbox.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.loopers.domain.BaseEntity
+import com.loopers.notification.NotificationSender
 import com.loopers.outbox.domain.EventMessagePublisher
 import com.loopers.outbox.domain.OutboxEvent
 import com.loopers.outbox.domain.OutboxEventRepository
@@ -26,7 +27,8 @@ class OutboxRelayTest {
     private val outboxEventRepository: OutboxEventRepository = mock()
     private val eventMessagePublisher: EventMessagePublisher = mock()
     private val objectMapper = ObjectMapper()
-    private val outboxRelay = OutboxRelay(outboxEventRepository, eventMessagePublisher, objectMapper)
+    private val notificationSender: NotificationSender = mock()
+    private val outboxRelay = OutboxRelay(outboxEventRepository, eventMessagePublisher, objectMapper, notificationSender, MAX_RETRY)
 
     private fun outboxEvent(id: Long, aggregateType: String, aggregateId: Long): OutboxEvent {
         val event = OutboxEvent(aggregateType, aggregateId, "${aggregateType}Event", """{"eventId":"e-$id"}""")
@@ -77,19 +79,43 @@ class OutboxRelayTest {
         verify(eventMessagePublisher).publish("product-events", "20", objectMapper.readTree("""{"eventId":"e-1"}"""))
     }
 
-    @DisplayName("발행이 실패하면 그 지점에서 중단하고, 성공분까지만 SENT 마킹한다 — 실패분 이후는 발행하지 않는다.")
+    @DisplayName("개별 발행이 실패하면 건너뛰고 나머지를 계속 발행한다 — 실패분은 재시도 카운트에 등록한다.")
     @Test
-    fun marksOnlySucceededAsSent_whenPublishFailsMidway() {
+    fun skipsFailedAndContinues_whenPublishFailsMidway() {
         givenPending(outboxEvent(1L, "ORDER", 10L), outboxEvent(2L, "ORDER", 20L), outboxEvent(3L, "ORDER", 30L))
         doThrow(RuntimeException("broker down")).whenever(eventMessagePublisher).publish(any(), eq("20"), any())
 
         outboxRelay.relay()
 
         assertAll(
-            { verify(eventMessagePublisher).publish(any(), eq("10"), any()) },
-            { verify(eventMessagePublisher, never()).publish(any(), eq("30"), any()) },
-            { verify(outboxEventRepository).markSent(listOf(1L)) },
+            { verify(eventMessagePublisher).publish(any(), eq("30"), any()) },
+            { verify(outboxEventRepository).markSent(listOf(1L, 3L)) },
+            { verify(outboxEventRepository).registerFailure(listOf(2L), MAX_RETRY) },
         )
+    }
+
+    @DisplayName("재시도 소진으로 FAILED 격리된 이벤트가 있으면 알림을 보낸다.")
+    @Test
+    fun notifies_whenEventsIsolatedAsFailed() {
+        givenPending(outboxEvent(1L, "ORDER", 10L))
+        doThrow(RuntimeException("broker down")).whenever(eventMessagePublisher).publish(any(), any(), any())
+        whenever(outboxEventRepository.registerFailure(listOf(1L), MAX_RETRY)).thenReturn(listOf(1L))
+
+        outboxRelay.relay()
+
+        verify(notificationSender).notify(any(), any())
+    }
+
+    @DisplayName("격리 없이 실패만 누적된 폴링에서는 알림을 보내지 않는다.")
+    @Test
+    fun doesNotNotify_whenNoEventIsolated() {
+        givenPending(outboxEvent(1L, "ORDER", 10L))
+        doThrow(RuntimeException("broker down")).whenever(eventMessagePublisher).publish(any(), any(), any())
+        whenever(outboxEventRepository.registerFailure(listOf(1L), MAX_RETRY)).thenReturn(emptyList())
+
+        outboxRelay.relay()
+
+        verifyNoInteractions(notificationSender)
     }
 
     @DisplayName("대기 이벤트가 없으면 발행도 마킹도 하지 않는다.")
@@ -125,5 +151,9 @@ class OutboxRelayTest {
         outboxRelay.relay()
 
         verify(eventMessagePublisher, never()).publish(any(), eq("20"), any())
+    }
+
+    private companion object {
+        private const val MAX_RETRY = 5
     }
 }

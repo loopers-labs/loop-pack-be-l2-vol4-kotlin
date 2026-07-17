@@ -1,5 +1,6 @@
 package com.loopers.interfaces.consumer
 
+import com.loopers.eventstore.application.EventStoreAppender
 import com.loopers.metrics.application.ProductMetricsService
 import com.loopers.shared.event.OrderCreatedEvent
 import com.loopers.shared.event.ProductEvent
@@ -20,7 +21,8 @@ import org.mockito.kotlin.whenever
 
 class ProductMetricsKafkaConsumerTest {
     private val productMetricsService: ProductMetricsService = mock()
-    private val consumer = ProductMetricsKafkaConsumer(productMetricsService)
+    private val eventStoreAppender: EventStoreAppender = mock()
+    private val consumer = ProductMetricsKafkaConsumer(productMetricsService, eventStoreAppender)
     private val acknowledgment: org.springframework.kafka.support.Acknowledgment = mock()
 
     private fun record(topic: String, json: String): ConsumerRecord<String, ByteArray> =

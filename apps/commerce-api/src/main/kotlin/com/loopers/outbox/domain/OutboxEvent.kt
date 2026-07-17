@@ -37,6 +37,10 @@ class OutboxEvent(
     @Column(name = "status", nullable = false, length = 10)
     var status: OutboxStatus = OutboxStatus.INIT
         private set
+
+    @Column(name = "retry_count", nullable = false)
+    var retryCount: Int = 0
+        private set
 }
 
-enum class OutboxStatus { INIT, SENT }
+enum class OutboxStatus { INIT, SENT, FAILED }

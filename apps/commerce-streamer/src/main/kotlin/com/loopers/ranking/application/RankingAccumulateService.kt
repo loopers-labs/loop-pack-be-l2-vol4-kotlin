@@ -1,9 +1,9 @@
 package com.loopers.ranking.application
 
 import com.loopers.ranking.domain.RankingKeys
+import com.loopers.ranking.domain.ScoreChange
 import com.loopers.ranking.infrastructure.RankingZSetRepository
 import org.springframework.stereotype.Service
-import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
 import java.time.ZonedDateTime
@@ -23,8 +23,3 @@ class RankingAccumulateService(
         rankingZSetRepository.accumulate(eventId, eventDate, recordTail, changes)
     }
 }
-
-data class ScoreChange(
-    val productId: Long,
-    val amount: BigDecimal,
-)

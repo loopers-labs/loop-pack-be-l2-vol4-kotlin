@@ -1,7 +1,7 @@
 package com.loopers.ranking
 
 import com.loopers.ranking.application.RankingAccumulateService
-import com.loopers.ranking.application.ScoreChange
+import com.loopers.ranking.domain.ScoreChange
 import com.loopers.ranking.domain.RankingKeys
 import com.loopers.ranking.domain.RankingWeights
 import com.loopers.config.redis.RedisConfig

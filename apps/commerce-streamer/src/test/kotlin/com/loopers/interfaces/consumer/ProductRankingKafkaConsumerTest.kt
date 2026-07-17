@@ -1,7 +1,7 @@
 package com.loopers.interfaces.consumer
 
 import com.loopers.ranking.application.RankingAccumulateService
-import com.loopers.ranking.application.ScoreChange
+import com.loopers.ranking.domain.ScoreChange
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.header.internals.RecordHeaders
 import org.apache.kafka.common.record.TimestampType

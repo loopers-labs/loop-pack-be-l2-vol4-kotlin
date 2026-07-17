@@ -1,8 +1,8 @@
 package com.loopers.ranking.infrastructure
 
 import com.loopers.config.redis.RedisConfig
-import com.loopers.ranking.application.ScoreChange
 import com.loopers.ranking.domain.RankingKeys
+import com.loopers.ranking.domain.ScoreChange
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.redis.connection.zset.Aggregate

@@ -6,6 +6,7 @@ import com.loopers.config.kafka.event.CatalogEvent
 import com.loopers.domain.idempotency.EventHandledModel
 import com.loopers.domain.idempotency.EventHandledRepository
 import com.loopers.domain.metrics.ProductMetricsService
+import com.loopers.domain.ranking.RankingService
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component
 @Component
 class CatalogEventConsumer(
     private val productMetricsService: ProductMetricsService,
+    private val rankingService: RankingService,
     private val eventHandledRepository: EventHandledRepository,
     private val objectMapper: ObjectMapper,
 ) {
@@ -45,9 +47,18 @@ class CatalogEventConsumer(
         }
 
         when (event.eventType) {
-            "PRODUCT_VIEWED" -> productMetricsService.incrementView(event.productId)
-            "PRODUCT_LIKED" -> productMetricsService.incrementLike(event.productId)
-            "PRODUCT_UNLIKED" -> productMetricsService.decrementLike(event.productId)
+            "PRODUCT_VIEWED" -> {
+                productMetricsService.incrementView(event.productId)
+                rankingService.recordView(event.productId)
+            }
+            "PRODUCT_LIKED" -> {
+                productMetricsService.incrementLike(event.productId)
+                rankingService.recordLike(event.productId)
+            }
+            "PRODUCT_UNLIKED" -> {
+                productMetricsService.decrementLike(event.productId)
+                rankingService.recordUnlike(event.productId)
+            }
             else -> log.warn("[Consumer] 알 수 없는 catalog 이벤트 타입: {}", event.eventType)
         }
 

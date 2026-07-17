@@ -6,6 +6,7 @@ import com.loopers.config.kafka.event.OrderEvent
 import com.loopers.domain.idempotency.EventHandledModel
 import com.loopers.domain.idempotency.EventHandledRepository
 import com.loopers.domain.metrics.ProductMetricsService
+import com.loopers.domain.ranking.RankingService
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component
 @Component
 class OrderEventConsumer(
     private val productMetricsService: ProductMetricsService,
+    private val rankingService: RankingService,
     private val eventHandledRepository: EventHandledRepository,
     private val objectMapper: ObjectMapper,
 ) {
@@ -48,6 +50,7 @@ class OrderEventConsumer(
             "ORDER_COMPLETED" -> {
                 event.items.forEach { item ->
                     productMetricsService.addOrder(item.productId, item.quantity, item.price * item.quantity)
+                    rankingService.recordOrder(item.productId, item.quantity, item.price)
                 }
             }
             "ORDER_CREATED", "ORDER_CANCELLED" -> {

@@ -43,6 +43,12 @@ class RankingPeriodTest {
             .isInstanceOf(CoreException::class.java)
         assertThatThrownBy { RankingPeriod.HOURLY.resolveDate("20260717", now) }
             .isInstanceOf(CoreException::class.java)
+        assertThatThrownBy { RankingPeriod.DAILY.resolveDate("20260431", now) }
+            .isInstanceOf(CoreException::class.java)
+        assertThatThrownBy { RankingPeriod.DAILY.resolveDate("20260230", now) }
+            .isInstanceOf(CoreException::class.java)
+        assertThatThrownBy { RankingPeriod.HOURLY.resolveDate("2026043114", now) }
+            .isInstanceOf(CoreException::class.java)
         assertThat(RankingPeriod.DAILY.resolveDate("20260716", now)).isEqualTo("20260716")
     }
 }

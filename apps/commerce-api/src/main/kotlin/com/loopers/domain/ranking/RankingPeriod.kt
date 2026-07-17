@@ -4,14 +4,18 @@ import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 enum class RankingPeriod(val pattern: String, private val keyPrefix: String) {
     DAILY("yyyyMMdd", "ranking:all:v1:"),
     HOURLY("yyyyMMddHH", "ranking:hourly:v1:"),
     ;
 
+    private val formatter: DateTimeFormatter =
+        DateTimeFormatter.ofPattern(pattern.replace("yyyy", "uuuu"))
+            .withResolverStyle(ResolverStyle.STRICT)
+
     fun resolveDate(date: String?, now: ZonedDateTime): String {
-        val formatter = DateTimeFormatter.ofPattern(pattern)
         if (date.isNullOrBlank()) return now.format(formatter)
         if (date.length != pattern.length) {
             throw CoreException(ErrorType.BAD_REQUEST, "date는 $pattern 형식이어야 합니다.")

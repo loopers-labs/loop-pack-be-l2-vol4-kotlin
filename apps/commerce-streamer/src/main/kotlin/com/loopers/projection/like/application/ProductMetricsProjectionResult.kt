@@ -9,8 +9,5 @@ data class ProductMetricsProjectionResult(
 
         fun duplicate(): ProductMetricsProjectionResult =
             ProductMetricsProjectionResult(ProductMetricsProjectionStatus.DUPLICATE)
-
-        fun stale(): ProductMetricsProjectionResult =
-            ProductMetricsProjectionResult(ProductMetricsProjectionStatus.STALE)
     }
 }

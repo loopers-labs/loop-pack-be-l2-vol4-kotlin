@@ -9,16 +9,10 @@ import org.springframework.stereotype.Component
 class ProductLikeCountProjectionRepositoryImpl(
     private val productLikeCountJpaRepository: ProductLikeCountJpaRepository,
 ) : ProductLikeCountProjectionRepository {
-    override fun increment(productId: Long): Int =
-        productLikeCountJpaRepository.increment(productId)
-
-    override fun decrement(productId: Long): Int =
-        productLikeCountJpaRepository.decrement(productId)
-
     override fun applyDelta(
         productId: Long,
         likeDelta: Int,
-        salesDelta: Int,
+        salesDelta: Long,
         viewDelta: Int,
         occurredAt: ZonedDateTime,
     ): ProductMetricsUpdateStatus {
@@ -32,16 +26,25 @@ class ProductLikeCountProjectionRepositoryImpl(
         if (updatedRows == 1) {
             return ProductMetricsUpdateStatus.APPLIED
         }
-        if (!productLikeCountJpaRepository.existsById(productId)) {
-            return ProductMetricsUpdateStatus.MISSING
-        }
-        val freshCandidates = productLikeCountJpaRepository.countFreshDeltaCandidates(
+
+        val insertedRows = productLikeCountJpaRepository.insertDeltaIfAbsent(
             productId = productId,
             likeDelta = likeDelta,
             salesDelta = salesDelta,
             viewDelta = viewDelta,
             occurredAt = occurredAt,
         )
-        return if (freshCandidates > 0) ProductMetricsUpdateStatus.INVALID else ProductMetricsUpdateStatus.STALE
+        if (insertedRows == 1) {
+            return ProductMetricsUpdateStatus.APPLIED
+        }
+
+        val retriedRows = productLikeCountJpaRepository.applyDelta(
+            productId = productId,
+            likeDelta = likeDelta,
+            salesDelta = salesDelta,
+            viewDelta = viewDelta,
+            occurredAt = occurredAt,
+        )
+        return if (retriedRows == 1) ProductMetricsUpdateStatus.APPLIED else ProductMetricsUpdateStatus.INVALID
     }
 }

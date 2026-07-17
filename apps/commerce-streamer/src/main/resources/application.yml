@@ -1,20 +1,12 @@
 server:
   shutdown: graceful
-  tomcat:
-    threads:
-      max: 200 # 최대 워커 스레드 수 (default : 200)
-      min-spare: 10 # 최소 유지 스레드 수 (default : 10)
-    connection-timeout: 1m # 연결 타임아웃 (ms) (default : 60000ms = 1m)
-    max-connections: 8192 # 최대 동시 연결 수 (default : 8192)
-    accept-count: 100 # 대기 큐 크기 (default : 100)
-    keep-alive-timeout: 60s # 60s
-  max-http-request-header-size: 8KB
+  port: 8083
 
 spring:
   main:
     web-application-type: servlet
   application:
-    name: commerce-api
+    name: commerce-streamer
   profiles:
     active: local
   config:
@@ -24,10 +16,15 @@ spring:
       - kafka.yml
       - logging.yml
       - monitoring.yml
-
-demo-kafka:
-  test:
-    topic-name: demo.internal.topic-v1
+  kafka:
+    consumer:
+      group-id: commerce-streamer
+      auto-offset-reset: latest
+      enable-auto-commit: false
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
 
 ---
 spring:
@@ -52,7 +49,3 @@ spring:
   config:
     activate:
       on-profile: prd
-
-springdoc:
-  api-docs:
-    enabled: false

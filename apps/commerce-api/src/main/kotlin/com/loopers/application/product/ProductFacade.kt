@@ -1,12 +1,14 @@
 package com.loopers.application.product
 
 import com.loopers.domain.brand.BrandService
+import com.loopers.domain.event.ProductViewedEvent
 import com.loopers.domain.product.ProductDetailService
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductSortType
 import com.loopers.infrastructure.brand.BrandCacheManager
 import com.loopers.infrastructure.product.ProductCacheInfo
 import com.loopers.infrastructure.product.ProductCacheManager
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
@@ -18,9 +20,16 @@ class ProductFacade(
     private val brandService: BrandService,
     private val productCacheManager: ProductCacheManager,
     private val brandCacheManager: BrandCacheManager,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     fun getProductDetail(productId: Long): ProductDetailInfo {
+        val detail = resolveProductDetail(productId)
+        eventPublisher.publishEvent(ProductViewedEvent(userId = null, productId = productId))
+        return detail
+    }
+
+    private fun resolveProductDetail(productId: Long): ProductDetailInfo {
         productCacheManager.getDetail(productId)?.let { return ProductDetailInfo.from(it) }
 
         val product = productService.getProduct(productId)

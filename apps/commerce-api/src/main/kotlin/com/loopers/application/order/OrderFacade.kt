@@ -3,11 +3,14 @@ package com.loopers.application.order
 import com.loopers.domain.brand.BrandService
 import com.loopers.domain.coupon.CouponTemplateService
 import com.loopers.domain.coupon.IssuedCouponService
+import com.loopers.domain.event.OrderCreatedEvent
+import com.loopers.domain.event.OrderItemSnapshot
 import com.loopers.domain.order.OrderCreationService
 import com.loopers.domain.order.OrderService
 import com.loopers.domain.payment.PaymentService
 import com.loopers.domain.product.ProductService
 import com.loopers.infrastructure.product.ProductCacheManager
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,6 +24,7 @@ class OrderFacade(
     private val issuedCouponService: IssuedCouponService,
     private val couponTemplateService: CouponTemplateService,
     private val productCacheManager: ProductCacheManager,
+    private val eventPublisher: ApplicationEventPublisher,
 ) {
 
     @Transactional
@@ -53,6 +57,22 @@ class OrderFacade(
         paymentService.createPayment(orderId = savedOrder.id, amount = savedOrder.totalPrice)
 
         items.forEach { productCacheManager.evictDetail(it.productId) }
+
+        eventPublisher.publishEvent(
+            OrderCreatedEvent(
+                orderId = savedOrder.id,
+                userId = userId,
+                totalPrice = savedOrder.totalPrice,
+                items = savedOrder.orderItems.map {
+                    OrderItemSnapshot(
+                        productId = it.productId,
+                        productName = it.productName,
+                        quantity = it.quantity,
+                        price = it.productPrice,
+                    )
+                },
+            ),
+        )
 
         return OrderDetailInfo.from(savedOrder)
     }

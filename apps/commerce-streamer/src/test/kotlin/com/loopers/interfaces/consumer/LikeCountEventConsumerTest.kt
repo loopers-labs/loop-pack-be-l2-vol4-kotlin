@@ -14,6 +14,8 @@ import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.support.Acknowledgment
 import java.util.UUID
@@ -100,6 +102,71 @@ class LikeCountEventConsumerTest {
     }
 
     @Test
+    fun `좋아요_수_uniform_envelope는_payload의_delta를_projection한_뒤_ack한다`() {
+        val projectionService = mockk<ProductMetricsProjectionService>()
+        val commandSlot = slot<ProductMetricsProjectionCommand>()
+        val acknowledgment = CountingAcknowledgment()
+        every { projectionService.project(capture(commandSlot)) } returns ProductMetricsProjectionResult.applied()
+        val consumer = LikeCountEventConsumer(projectionService, objectMapper)
+
+        consumer.consume(
+            ProductMetricsKafkaEvent(
+                eventId = UUID.randomUUID(),
+                eventType = EVENT_TYPE,
+                aggregateType = "PRODUCT",
+                aggregateId = PRODUCT_ID,
+                payload = """{"productId":$PRODUCT_ID,"userId":$USER_ID,"delta":-1}""",
+                createdAt = "2026-07-17T10:00:00+09:00[Asia/Seoul]",
+            ),
+            acknowledgment,
+        )
+
+        val delta = commandSlot.captured.deltas.single()
+        assertThat(delta.productId).isEqualTo(PRODUCT_ID)
+        assertThat(delta.likeDelta).isEqualTo(-1)
+        assertThat(acknowledgment.count).isEqualTo(1)
+        verify(exactly = 1) { projectionService.project(any()) }
+    }
+
+    @Test
+    fun `좋아요_수_payload가_유효하지_않으면_ack하지_않고_예외를_전파한다`() {
+        val projectionService = mockk<ProductMetricsProjectionService>()
+        val acknowledgment = CountingAcknowledgment()
+        val consumer = LikeCountEventConsumer(projectionService, objectMapper)
+
+        assertThrows<IllegalArgumentException> {
+            consumer.consume(
+                ProductMetricsKafkaEvent(
+                    eventId = UUID.randomUUID(),
+                    eventType = EVENT_TYPE,
+                    aggregateType = "PRODUCT",
+                    aggregateId = PRODUCT_ID,
+                    payload = "{}",
+                ),
+                acknowledgment,
+            )
+        }
+
+        assertThat(acknowledgment.count).isZero()
+        verify(exactly = 0) { projectionService.project(any()) }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = [0, 2])
+    fun `좋아요_증감값이_마이너스_1이나_1이_아니면_projection과_ack을_하지_않는다`(invalidDelta: Int) {
+        val projectionService = mockk<ProductMetricsProjectionService>()
+        val acknowledgment = CountingAcknowledgment()
+        val consumer = LikeCountEventConsumer(projectionService, objectMapper)
+
+        assertThrows<IllegalArgumentException> {
+            consumer.consume(event(delta = invalidDelta), acknowledgment)
+        }
+
+        assertThat(acknowledgment.count).isZero()
+        verify(exactly = 0) { projectionService.project(any()) }
+    }
+
+    @Test
     fun `중복_이벤트는_projection_noop_이후_ack한다`() {
         val projectionService = mockk<ProductMetricsProjectionService>()
         val acknowledgment = CountingAcknowledgment()
@@ -152,7 +219,55 @@ class LikeCountEventConsumerTest {
 
         assertThat(acknowledgment.count).isEqualTo(1)
         assertThat(commandSlot.captured.deltas).hasSize(2)
-        assertThat(commandSlot.captured.deltas.map { it.salesDelta }).containsExactly(2, 1)
+        assertThat(commandSlot.captured.deltas.map { it.salesDelta }).containsExactly(2L, 1L)
+    }
+
+    @Test
+    fun `정수_범위를_넘는_주문_수량을_sales_delta에_그대로_보존한다`() {
+        val projectionService = mockk<ProductMetricsProjectionService>()
+        val commandSlot = slot<ProductMetricsProjectionCommand>()
+        val acknowledgment = CountingAcknowledgment()
+        every { projectionService.project(capture(commandSlot)) } returns ProductMetricsProjectionResult.applied()
+        val consumer = LikeCountEventConsumer(projectionService, objectMapper)
+        val largeQuantity = Int.MAX_VALUE.toLong() + 1
+
+        consumer.consume(
+            ProductMetricsKafkaEvent(
+                eventId = UUID.randomUUID(),
+                eventType = "ORDER_PAID_V1",
+                aggregateType = "ORDER",
+                aggregateId = 100L,
+                payload = """{"orderId":100,"items":[{"productId":10,"quantity":$largeQuantity}]}""",
+            ),
+            acknowledgment,
+        )
+
+        assertThat(commandSlot.captured.deltas.single().salesDelta).isEqualTo(largeQuantity)
+        assertThat(acknowledgment.count).isEqualTo(1)
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = [0, -1])
+    fun `주문_수량이_양수가_아니면_projection과_ack을_하지_않는다`(invalidQuantity: Long) {
+        val projectionService = mockk<ProductMetricsProjectionService>()
+        val acknowledgment = CountingAcknowledgment()
+        val consumer = LikeCountEventConsumer(projectionService, objectMapper)
+
+        assertThrows<IllegalArgumentException> {
+            consumer.consume(
+                ProductMetricsKafkaEvent(
+                    eventId = UUID.randomUUID(),
+                    eventType = "ORDER_PAID_V1",
+                    aggregateType = "ORDER",
+                    aggregateId = 100L,
+                    payload = """{"orderId":100,"items":[{"productId":10,"quantity":$invalidQuantity}]}""",
+                ),
+                acknowledgment,
+            )
+        }
+
+        assertThat(acknowledgment.count).isZero()
+        verify(exactly = 0) { projectionService.project(any()) }
     }
 
     private fun event(

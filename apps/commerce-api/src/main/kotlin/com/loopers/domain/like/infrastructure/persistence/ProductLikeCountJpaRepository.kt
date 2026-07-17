@@ -48,32 +48,4 @@ interface ProductLikeCountJpaRepository : JpaRepository<ProductLikeCountJpaEntit
 
     @Query(value = "select count(*) from likes", nativeQuery = true)
     fun countLikeRows(): Long
-
-    @Modifying(clearAutomatically = true)
-    @Query(
-        value = """
-            update product_metrics
-            set like_count = like_count + 1,
-                updated_at = current_timestamp
-            where product_id = :productId
-        """,
-        nativeQuery = true,
-    )
-    fun increment(
-        @Param("productId") productId: Long,
-    ): Int
-
-    @Modifying(clearAutomatically = true)
-    @Query(
-        value = """
-            update product_metrics
-            set like_count = like_count - 1,
-                updated_at = current_timestamp
-            where product_id = :productId and like_count > 0
-        """,
-        nativeQuery = true,
-    )
-    fun decrement(
-        @Param("productId") productId: Long,
-    ): Int
 }

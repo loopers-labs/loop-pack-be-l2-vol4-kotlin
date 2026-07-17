@@ -3,8 +3,10 @@ package com.loopers.support.event
 import com.loopers.domain.brand.application.service.BrandService
 import com.loopers.domain.brand.support.BrandSteps.Companion.브랜드_등록_커맨드
 import com.loopers.domain.order.application.OrderFacade
+import com.loopers.domain.order.infrastructure.persistence.OrderJpaRepository
 import com.loopers.domain.order.support.OrderSteps.Companion.주문_생성_커맨드
 import com.loopers.domain.order.support.OrderSteps.Companion.주문항목_생성_커맨드
+import com.loopers.domain.payment.application.PaymentResultHandler
 import com.loopers.domain.payment.application.service.PaymentService
 import com.loopers.domain.product.application.ProductFacade
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
@@ -12,16 +14,21 @@ import com.loopers.domain.user.application.service.UserService
 import com.loopers.domain.user.support.UserSteps.Companion.사용자_회원가입
 import com.loopers.support.outbox.OutboxRepository
 import com.loopers.support.outbox.event.CommerceOutboxEventType
+import com.loopers.support.outbox.persistence.OutboxEventJpaRepository
+import com.loopers.support.outbox.OutboxEventStatus
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 
 @SpringBootTest(
     properties = ["commerce-events.outbox-relay.enabled=false"],
 )
+@Import(OrderCreatedRollbackProbe::class)
 class CommerceApplicationEventOutboxIntegrationTest
     @Autowired
     constructor(
@@ -30,12 +37,43 @@ class CommerceApplicationEventOutboxIntegrationTest
         private val productFacade: ProductFacade,
         private val orderFacade: OrderFacade,
         private val paymentService: PaymentService,
+        private val paymentResultHandler: PaymentResultHandler,
         private val outboxRepository: OutboxRepository,
+        private val outboxEventJpaRepository: OutboxEventJpaRepository,
+        private val orderJpaRepository: OrderJpaRepository,
+        private val rollbackProbe: OrderCreatedRollbackProbe,
         private val databaseCleanUp: DatabaseCleanUp,
     ) {
         @AfterEach
         fun tearDown() {
+            rollbackProbe.disable()
             databaseCleanUp.truncateAllTables()
+        }
+
+        @Test
+        fun `주문과_발행가능_outbox는_같은_트랜잭션에서_관찰되고_함께_롤백된다`() {
+            val user = userService.signUp(사용자_회원가입())
+            val product = registerProduct(initialStock = 10)
+            rollbackProbe.enable()
+
+            assertThatThrownBy {
+                orderFacade.placeOrder(
+                    주문_생성_커맨드(
+                        userId = user.id,
+                        items = listOf(주문항목_생성_커맨드(productId = product.id, quantity = 1)),
+                    ),
+                )
+            }.isInstanceOf(IllegalStateException::class.java)
+                .hasMessage("forced rollback after outbox observation")
+
+            assertThat(rollbackProbe.observedOutboxCount).isEqualTo(1)
+            assertThat(orderJpaRepository.count()).isZero()
+            assertThat(
+                outboxEventJpaRepository.findAllByTypeAndStatus(
+                    CommerceOutboxEventType.ORDER_CREATED_V1.name,
+                    OutboxEventStatus.PENDING,
+                ),
+            ).isEmpty()
         }
 
         @Test
@@ -47,6 +85,8 @@ class CommerceApplicationEventOutboxIntegrationTest
             val events = outboxRepository.findPendingByType(CommerceOutboxEventType.PRODUCT_VIEWED_V1.name)
             assertThat(events).hasSize(1)
             assertThat(events.single().aggregateId).isEqualTo(product.id)
+            assertThat(events.single().topicName).isEqualTo("catalog-events")
+            assertThat(events.single().partitionKey).isEqualTo(product.id.toString())
             assertThat(events.single().payload).contains(""""productId":${product.id}""")
         }
 
@@ -67,6 +107,8 @@ class CommerceApplicationEventOutboxIntegrationTest
             assertThat(second.id).isEqualTo(first.id)
             assertThat(events).hasSize(1)
             assertThat(events.single().aggregateId).isEqualTo(first.id)
+            assertThat(events.single().topicName).isEqualTo("order-events")
+            assertThat(events.single().partitionKey).isEqualTo(first.id.toString())
         }
 
         @Test
@@ -82,11 +124,13 @@ class CommerceApplicationEventOutboxIntegrationTest
             paymentService.request(order.id)
             paymentService.assignTransactionKey(order.id, "tx-order-paid-1")
 
-            paymentService.approveByTransactionKey("tx-order-paid-1")
+            paymentResultHandler.approve("tx-order-paid-1")
 
             val events = outboxRepository.findPendingByType(CommerceOutboxEventType.ORDER_PAID_V1.name)
             assertThat(events).hasSize(1)
             assertThat(events.single().aggregateId).isEqualTo(order.id)
+            assertThat(events.single().topicName).isEqualTo("order-events")
+            assertThat(events.single().partitionKey).isEqualTo(order.id.toString())
             assertThat(events.single().payload).contains(
                 """"orderId":${order.id}""",
                 """"productId":${product.id}""",

@@ -86,7 +86,9 @@ class PaymentFacadeTest {
     @Test
     fun `승인_콜백은_결제를_승인하고_주문을_확정한다`() {
         val fixture = fixture()
-        every { fixture.orderPort.getPayableOrder(1L, 10L) } returns 주문_도메인_생성(id = 10L, orderedUserId = 1L)
+        val order = 주문_도메인_생성(id = 10L, orderedUserId = 1L)
+        every { fixture.orderPort.getPayableOrder(1L, 10L) } returns order
+        every { fixture.orderPort.getPendingOrder(10L) } returns order
         every { fixture.gatewayPort.request(any()) } returns PaymentGatewayResult(
             transactionKey = "20260625:TR:test01",
             status = PaymentGatewayStatus.PENDING,
@@ -104,7 +106,9 @@ class PaymentFacadeTest {
     @Test
     fun `중복_승인_콜백은_주문_확정을_반복하지_않는다`() {
         val fixture = fixture()
-        every { fixture.orderPort.getPayableOrder(1L, 10L) } returns 주문_도메인_생성(id = 10L, orderedUserId = 1L)
+        val order = 주문_도메인_생성(id = 10L, orderedUserId = 1L)
+        every { fixture.orderPort.getPayableOrder(1L, 10L) } returns order
+        every { fixture.orderPort.getPendingOrder(10L) } returns order
         every { fixture.gatewayPort.request(any()) } returns PaymentGatewayResult(
             transactionKey = "20260625:TR:test01",
             status = PaymentGatewayStatus.PENDING,

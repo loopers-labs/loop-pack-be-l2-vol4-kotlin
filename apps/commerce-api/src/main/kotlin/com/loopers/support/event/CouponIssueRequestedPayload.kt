@@ -1,8 +1,8 @@
-package com.loopers.domain.coupon.application.service
+package com.loopers.support.event
 
 import java.util.UUID
 
-data class CouponIssueRequestPayload(
+internal data class CouponIssueRequestedPayload(
     val requestId: UUID,
     val userId: Long,
     val couponTemplateId: Long,

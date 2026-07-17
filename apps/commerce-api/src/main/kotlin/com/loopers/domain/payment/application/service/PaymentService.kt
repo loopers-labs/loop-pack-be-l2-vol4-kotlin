@@ -7,14 +7,11 @@ import com.loopers.domain.payment.model.PaymentModel
 import com.loopers.domain.payment.port.PaymentRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import com.loopers.support.event.PaymentApprovedApplicationEvent
-import com.loopers.support.event.PaymentFailedApplicationEvent
 import com.loopers.support.outbox.OutboxEventModel
 import com.loopers.support.outbox.OutboxRepository
 import java.time.ZonedDateTime
 import java.util.UUID
 import org.slf4j.LoggerFactory
-import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -22,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional
 class PaymentService(
     private val paymentRepository: PaymentRepository,
     private val outboxRepository: OutboxRepository,
-    private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
     private val log = LoggerFactory.getLogger(PaymentService::class.java)
 
@@ -41,7 +37,7 @@ class PaymentService(
     fun markUnknown(orderId: Long, reason: String?): PaymentModel {
         val payment = paymentRepository.save(getByOrderId(orderId).markUnknown(reason))
         outboxRepository.save(
-            OutboxEventModel(
+            OutboxEventModel.internal(
                 type = PaymentOutboxEventType.PAYMENT_STATUS_SYNC_REQUESTED.name,
                 aggregateType = PaymentOutboxAggregate.TYPE,
                 aggregateId = payment.id,
@@ -59,7 +55,6 @@ class PaymentService(
         val saved = paymentRepository.save(transitioned)
         if (changed) {
             savePaymentResultEvent(saved, PaymentOutboxEventType.PAYMENT_APPROVED.name)
-            applicationEventPublisher.publishEvent(PaymentApprovedApplicationEvent(saved.id, saved.orderId))
         }
         return PaymentTransitionResult(saved, changed)
     }
@@ -72,7 +67,6 @@ class PaymentService(
         val saved = paymentRepository.save(transitioned)
         if (changed) {
             savePaymentResultEvent(saved, PaymentOutboxEventType.PAYMENT_FAILED.name)
-            applicationEventPublisher.publishEvent(PaymentFailedApplicationEvent(saved.id, saved.orderId))
         }
         return PaymentTransitionResult(saved, changed)
     }
@@ -91,7 +85,7 @@ class PaymentService(
 
     @Transactional
     fun markEventProcessed(eventId: UUID) {
-        outboxRepository.markPublished(eventId, ZonedDateTime.now())
+        outboxRepository.markInternalProcessed(eventId, ZonedDateTime.now())
     }
 
     @Transactional
@@ -100,7 +94,7 @@ class PaymentService(
             outboxRepository.findPendingByType(PaymentOutboxEventType.PAYMENT_FAILED.name)
         events.forEach { event ->
             log.info("결제 결과 이벤트 소비: type={}, aggregateId={}, payload={}", event.type, event.aggregateId, event.payload)
-            outboxRepository.markPublished(event.eventId, ZonedDateTime.now())
+            outboxRepository.markInternalProcessed(event.eventId, ZonedDateTime.now())
         }
         return events.size
     }
@@ -117,7 +111,7 @@ class PaymentService(
 
     private fun savePaymentResultEvent(payment: PaymentModel, type: String) {
         outboxRepository.save(
-            OutboxEventModel(
+            OutboxEventModel.internal(
                 type = type,
                 aggregateType = PaymentOutboxAggregate.TYPE,
                 aggregateId = payment.id,

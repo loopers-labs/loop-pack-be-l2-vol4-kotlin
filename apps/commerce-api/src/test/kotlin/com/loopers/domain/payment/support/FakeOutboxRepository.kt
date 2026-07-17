@@ -22,48 +22,87 @@ class FakeOutboxRepository : OutboxRepository {
         events.filter { it.type == type && it.status == OutboxEventStatus.PENDING }
 
     override fun claimPublishable(
-        publishableTypes: Set<String>,
         now: ZonedDateTime,
+        claimExpiredBefore: ZonedDateTime,
         limit: Int,
     ): List<OutboxEventModel> {
         val indexes = events
             .withIndex()
             .filter { (_, event) ->
-                event.type in publishableTypes &&
+                event.publishable &&
                     (
                         event.status == OutboxEventStatus.PENDING ||
-                            (event.status == OutboxEventStatus.FAILED && event.nextRetryAt?.let { it <= now } == true)
+                            (event.status == OutboxEventStatus.FAILED && event.nextRetryAt?.let { it <= now } == true) ||
+                            (
+                                event.status == OutboxEventStatus.PUBLISHING &&
+                                    event.claimedAt?.let { it <= claimExpiredBefore } != false
+                            )
                     )
             }
             .take(limit)
             .map { it.index }
         indexes.forEach { index ->
-            events[index] = events[index].copy(status = OutboxEventStatus.PUBLISHING)
+            events[index] = events[index].copy(
+                status = OutboxEventStatus.PUBLISHING,
+                claimId = UUID.randomUUID(),
+                claimedAt = now,
+            )
         }
         return indexes.map { events[it] }
     }
 
-    override fun markPublished(eventId: UUID, publishedAt: ZonedDateTime) {
-        val index = events.indexOfFirst { it.eventId == eventId }
+    override fun markPublished(eventId: UUID, claimId: UUID, publishedAt: ZonedDateTime): Boolean {
+        val index = events.indexOfFirst {
+            it.eventId == eventId && it.status == OutboxEventStatus.PUBLISHING && it.claimId == claimId
+        }
         if (index >= 0) {
             events[index] = events[index].copy(
                 status = OutboxEventStatus.PUBLISHED,
                 publishedAt = publishedAt,
                 nextRetryAt = null,
                 lastError = null,
+                claimId = null,
+                claimedAt = null,
             )
         }
+        return index >= 0
     }
 
-    override fun markFailed(eventId: UUID, error: String, nextRetryAt: ZonedDateTime) {
-        val index = events.indexOfFirst { it.eventId == eventId }
+    override fun markFailed(
+        eventId: UUID,
+        claimId: UUID,
+        error: String,
+        nextRetryAt: ZonedDateTime,
+        maxPublishAttempts: Int,
+    ): Boolean {
+        val index = events.indexOfFirst {
+            it.eventId == eventId && it.status == OutboxEventStatus.PUBLISHING && it.claimId == claimId
+        }
         if (index >= 0) {
+            val retryCount = events[index].retryCount + 1
+            val exhausted = retryCount >= maxPublishAttempts
             events[index] = events[index].copy(
-                status = OutboxEventStatus.FAILED,
-                retryCount = events[index].retryCount + 1,
-                nextRetryAt = nextRetryAt,
+                status = if (exhausted) OutboxEventStatus.DEAD else OutboxEventStatus.FAILED,
+                retryCount = retryCount,
+                nextRetryAt = if (exhausted) null else nextRetryAt,
                 lastError = error,
+                claimId = null,
+                claimedAt = null,
             )
         }
+        return index >= 0
+    }
+
+    override fun markInternalProcessed(eventId: UUID, processedAt: ZonedDateTime): Boolean {
+        val index = events.indexOfFirst {
+            it.eventId == eventId && it.status == OutboxEventStatus.PENDING && !it.publishable
+        }
+        if (index >= 0) {
+            events[index] = events[index].copy(
+                status = OutboxEventStatus.PUBLISHED,
+                publishedAt = processedAt,
+            )
+        }
+        return index >= 0
     }
 }

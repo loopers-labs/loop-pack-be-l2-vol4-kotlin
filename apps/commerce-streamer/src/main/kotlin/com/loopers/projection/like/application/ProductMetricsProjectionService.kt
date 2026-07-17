@@ -23,7 +23,7 @@ class ProductMetricsProjectionService(
             return ProductMetricsProjectionResult.duplicate()
         }
 
-        val statuses = command.deltas.map { delta ->
+        val statuses = command.deltas.sortedBy { it.productId }.map { delta ->
             productLikeCountProjectionRepository.applyDelta(
                 productId = delta.productId,
                 likeDelta = delta.likeDelta,
@@ -32,14 +32,10 @@ class ProductMetricsProjectionService(
                 occurredAt = command.occurredAt,
             )
         }
-        if (statuses.any { it == ProductMetricsUpdateStatus.MISSING || it == ProductMetricsUpdateStatus.INVALID }) {
+        if (statuses.any { it == ProductMetricsUpdateStatus.INVALID }) {
             throw ProductMetricsProjectionException("상품 metrics 집계 행을 갱신할 수 없습니다.")
         }
 
-        return if (statuses.all { it == ProductMetricsUpdateStatus.STALE }) {
-            ProductMetricsProjectionResult.stale()
-        } else {
-            ProductMetricsProjectionResult.applied()
-        }
+        return ProductMetricsProjectionResult.applied()
     }
 }

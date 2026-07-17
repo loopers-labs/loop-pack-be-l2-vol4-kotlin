@@ -35,12 +35,7 @@ class LikeCountEventConsumer(
     private fun ProductMetricsKafkaEvent.toCommandOrNull(): ProductMetricsProjectionCommand? {
         val occurredAt = createdAt?.let { ZonedDateTime.parse(it) } ?: ZonedDateTime.now()
         val deltas = when (eventType) {
-            LIKE_COUNT_CHANGED_EVENT_TYPE -> listOf(
-                ProductMetricsDelta(
-                    productId = requireNotNull(productId) { "productId is required." },
-                    likeDelta = requireNotNull(delta) { "delta is required." },
-                ),
-            )
+            LIKE_COUNT_CHANGED_EVENT_TYPE -> listOf(likeCountDelta())
 
             PRODUCT_VIEWED_EVENT_TYPE -> listOf(
                 ProductMetricsDelta(
@@ -52,6 +47,7 @@ class LikeCountEventConsumer(
             )
 
             ORDER_PAID_EVENT_TYPE -> orderPaidPayload().items.map {
+                require(it.quantity > 0) { "quantity must be positive." }
                 ProductMetricsDelta(
                     productId = it.productId,
                     salesDelta = it.quantity,
@@ -71,6 +67,21 @@ class LikeCountEventConsumer(
 
     private fun ProductMetricsKafkaEvent.productViewedPayload(): ProductViewedPayload =
         payload?.let { objectMapper.readValue(it) } ?: ProductViewedPayload(productId = productId)
+
+    private fun ProductMetricsKafkaEvent.likeCountDelta(): ProductMetricsDelta {
+        val parsed = payload?.let { objectMapper.readValue<LikeCountChangedPayload>(it) } ?: LikeCountChangedPayload(
+            productId = requireNotNull(productId) { "productId is required." },
+            userId = requireNotNull(userId) { "userId is required." },
+            delta = requireNotNull(delta) { "delta is required." },
+        )
+        requireNotNull(parsed.userId) { "userId is required." }
+        val likeDelta = requireNotNull(parsed.delta) { "delta is required." }
+        require(likeDelta == -1 || likeDelta == 1) { "delta must be -1 or 1." }
+        return ProductMetricsDelta(
+            productId = requireNotNull(parsed.productId) { "productId is required." },
+            likeDelta = likeDelta,
+        )
+    }
 
     private fun ProductMetricsKafkaEvent.orderPaidPayload(): OrderPaidPayload =
         payload?.let { objectMapper.readValue(it) } ?: OrderPaidPayload(items = emptyList())

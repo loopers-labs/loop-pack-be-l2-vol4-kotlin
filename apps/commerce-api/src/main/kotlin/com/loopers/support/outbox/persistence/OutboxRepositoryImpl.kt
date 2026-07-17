@@ -27,35 +27,59 @@ class OutboxRepositoryImpl(
 
     @Transactional
     override fun claimPublishable(
-        publishableTypes: Set<String>,
         now: ZonedDateTime,
+        claimExpiredBefore: ZonedDateTime,
         limit: Int,
     ): List<OutboxEventModel> {
-        if (publishableTypes.isEmpty()) return emptyList()
         val events = outboxEventJpaRepository.findPublishableForUpdate(
-            publishableTypes = publishableTypes,
             pendingStatus = OutboxEventStatus.PENDING,
             failedStatus = OutboxEventStatus.FAILED,
+            publishingStatus = OutboxEventStatus.PUBLISHING,
             now = now,
+            claimExpiredBefore = claimExpiredBefore,
             pageable = PageRequest.of(0, limit),
         )
-        events.forEach { it.markPublishing() }
+        events.forEach { it.markPublishing(claimId = UUID.randomUUID(), claimedAt = now) }
         return outboxEventJpaRepository.saveAllAndFlush(events).map { it.toDomain() }
     }
 
     @Transactional
-    override fun markPublished(eventId: UUID, publishedAt: ZonedDateTime) {
-        outboxEventJpaRepository.findByEventId(eventId)?.let { entity ->
-            entity.markPublished(publishedAt)
-            outboxEventJpaRepository.saveAndFlush(entity)
-        }
-    }
+    override fun markPublished(
+        eventId: UUID,
+        claimId: UUID,
+        publishedAt: ZonedDateTime,
+    ): Boolean = outboxEventJpaRepository.markPublishedByClaim(
+        eventId = eventId,
+        claimId = claimId,
+        publishingStatus = OutboxEventStatus.PUBLISHING,
+        publishedStatus = OutboxEventStatus.PUBLISHED,
+        publishedAt = publishedAt,
+    ) == 1
 
     @Transactional
-    override fun markFailed(eventId: UUID, error: String, nextRetryAt: ZonedDateTime) {
-        outboxEventJpaRepository.findByEventId(eventId)?.let { entity ->
-            entity.markFailed(error, nextRetryAt)
-            outboxEventJpaRepository.saveAndFlush(entity)
-        }
-    }
+    override fun markFailed(
+        eventId: UUID,
+        claimId: UUID,
+        error: String,
+        nextRetryAt: ZonedDateTime,
+        maxPublishAttempts: Int,
+    ): Boolean = outboxEventJpaRepository.markFailedByClaim(
+        eventId = eventId,
+        claimId = claimId,
+        publishingStatus = OutboxEventStatus.PUBLISHING,
+        failedStatus = OutboxEventStatus.FAILED,
+        deadStatus = OutboxEventStatus.DEAD,
+        error = error,
+        nextRetryAt = nextRetryAt,
+        maxPublishAttempts = maxPublishAttempts,
+    ) == 1
+
+    @Transactional
+    override fun markInternalProcessed(eventId: UUID, processedAt: ZonedDateTime): Boolean =
+        outboxEventJpaRepository.markInternalProcessed(
+            eventId = eventId,
+            pendingStatus = OutboxEventStatus.PENDING,
+            publishedStatus = OutboxEventStatus.PUBLISHED,
+            processedAt = processedAt,
+        ) == 1
 }

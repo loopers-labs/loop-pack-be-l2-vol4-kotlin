@@ -6,6 +6,8 @@ import java.util.UUID
 interface CouponIssueRequestRepository {
     fun save(request: CouponIssueRequestModel): CouponIssueRequestModel
 
+    fun insertIfAbsent(request: CouponIssueRequestModel): Int
+
     fun findByRequestIdOrNull(requestId: UUID): CouponIssueRequestModel?
 
     fun findByRequestIdAndUserIdOrNull(requestId: UUID, userId: Long): CouponIssueRequestModel?

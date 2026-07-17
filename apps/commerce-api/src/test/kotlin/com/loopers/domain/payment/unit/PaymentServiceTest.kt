@@ -57,6 +57,9 @@ class PaymentServiceTest {
         assertThat(duplicated.changed).isFalse()
         assertThat(outboxRepository.events).hasSize(1)
         assertThat(outboxRepository.events.first().type).isEqualTo(PaymentOutboxEventType.PAYMENT_APPROVED.name)
+        assertThat(outboxRepository.events.first().publishable).isFalse()
+        assertThat(outboxRepository.events.first().topicName).isNull()
+        assertThat(outboxRepository.events.first().partitionKey).isNull()
         assertThat(paymentRepository.lockedOrderIds).containsExactly(1L)
         assertThat(paymentRepository.lockedTransactionKeys).containsExactly(
             "20260625:TR:test01",
@@ -131,5 +134,9 @@ class PaymentServiceTest {
         assertThat(paymentRepository.findByExternalTransactionKeyOrNull("20260625:TR:test01")?.status)
             .isEqualTo(PaymentStatus.FAILED)
         assertThat(outboxRepository.events).hasSize(1)
+        assertThat(outboxRepository.events.single().type).isEqualTo(PaymentOutboxEventType.PAYMENT_FAILED.name)
+        assertThat(outboxRepository.events.single().publishable).isFalse()
+        assertThat(outboxRepository.events.single().topicName).isNull()
+        assertThat(outboxRepository.events.single().partitionKey).isNull()
     }
 }

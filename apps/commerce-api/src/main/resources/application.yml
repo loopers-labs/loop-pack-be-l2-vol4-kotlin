@@ -54,6 +54,12 @@ payment:
 commerce-events:
   outbox-relay:
     enabled: true
+    max-publish-attempts: 5
+  coupon-issue-request:
+    topic-name: coupon-issue-requests
+    dlt-topic-name: coupon-issue-requests.DLT
+    partitions: 3
+    replicas: 1
 
 commerce:
   waiting-queue:
@@ -82,6 +88,11 @@ spring:
   config:
     activate:
       on-profile: test
+  kafka:
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
 
 commerce-events:
   outbox-relay:

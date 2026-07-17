@@ -4,6 +4,10 @@ import com.loopers.domain.payment.application.info.PaymentInfo
 import com.loopers.domain.payment.application.service.PaymentService
 import com.loopers.domain.payment.port.PaymentCompensationPort
 import com.loopers.domain.payment.port.PaymentOrderPort
+import com.loopers.support.event.CommerceEventOrderItem
+import com.loopers.support.event.PaymentApprovedApplicationEvent
+import com.loopers.support.event.PaymentFailedApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,12 +22,23 @@ class PaymentResultHandler(
     private val paymentService: PaymentService,
     private val paymentOrderPort: PaymentOrderPort,
     private val paymentCompensationPort: PaymentCompensationPort,
+    private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
     @Transactional
     fun approve(transactionKey: String): PaymentInfo {
         val result = paymentService.approveByTransactionKey(transactionKey)
         if (result.changed) {
+            val order = paymentOrderPort.getPendingOrder(result.payment.orderId)
             paymentOrderPort.markOrdered(result.payment.orderId)
+            applicationEventPublisher.publishEvent(
+                PaymentApprovedApplicationEvent(
+                    paymentId = result.payment.id,
+                    orderId = result.payment.orderId,
+                    items = order.items.map {
+                        CommerceEventOrderItem(productId = it.productId, quantity = it.quantity.value)
+                    },
+                ),
+            )
         }
         return PaymentInfo.from(result.payment)
     }
@@ -36,6 +51,12 @@ class PaymentResultHandler(
             paymentOrderPort.markPaymentFailed(order.id)
             paymentCompensationPort.restore(order)
             paymentOrderPort.detachCoupon(order.id)
+            applicationEventPublisher.publishEvent(
+                PaymentFailedApplicationEvent(
+                    paymentId = result.payment.id,
+                    orderId = result.payment.orderId,
+                ),
+            )
         }
         return PaymentInfo.from(result.payment)
     }

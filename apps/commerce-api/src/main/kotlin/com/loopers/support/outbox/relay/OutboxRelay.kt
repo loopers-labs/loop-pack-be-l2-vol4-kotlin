@@ -2,8 +2,8 @@ package com.loopers.support.outbox.relay
 
 import com.loopers.support.outbox.OutboxEventModel
 import com.loopers.support.outbox.OutboxRepository
-import com.loopers.support.outbox.event.OutboxEventRouting
 import java.time.ZonedDateTime
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.TransactionDefinition
@@ -17,56 +17,78 @@ class OutboxRelay(
     private val properties: OutboxRelayProperties,
     transactionManager: PlatformTransactionManager,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val transactionTemplate = TransactionTemplate(transactionManager).apply {
         propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
     }
 
-    fun publishOnce(): Int {
-        val events = claimPublishableEvents()
+    fun publishOnce(now: ZonedDateTime = ZonedDateTime.now()): Int {
+        val events = claimPublishableEvents(now)
         check(!TransactionSynchronizationManager.isActualTransactionActive()) {
             "Outbox relay must publish outside an active transaction."
         }
-        return events.count { event -> publishAndMark(event) }
+        return events.count { event -> publishAndMark(event, now) }
     }
 
-    private fun claimPublishableEvents(): List<OutboxEventModel> =
+    private fun claimPublishableEvents(now: ZonedDateTime): List<OutboxEventModel> =
         transactionTemplate.execute {
             outboxRepository.claimPublishable(
-                publishableTypes = OutboxEventRouting.publishableTypes,
-                now = ZonedDateTime.now(),
+                now = now,
+                claimExpiredBefore = now.minus(properties.relayClaimLease),
                 limit = properties.relayBatchSize,
             )
         } ?: emptyList()
 
-    private fun publishAndMark(event: OutboxEventModel): Boolean =
+    private fun publishAndMark(
+        event: OutboxEventModel,
+        now: ZonedDateTime,
+    ): Boolean =
         try {
             publisher.publish(event)
-            markPublished(event)
-            true
+            markPublished(event, now)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
-            markFailed(event, e)
+            markFailed(event, e, now)
             false
         } catch (e: Exception) {
-            markFailed(event, e)
+            markFailed(event, e, now)
             false
         }
 
-    private fun markPublished(event: OutboxEventModel) {
-        transactionTemplate.executeWithoutResult {
-            outboxRepository.markPublished(event.eventId, ZonedDateTime.now())
-        }
-    }
+    private fun markPublished(
+        event: OutboxEventModel,
+        publishedAt: ZonedDateTime,
+    ): Boolean = transactionTemplate.execute {
+        outboxRepository.markPublished(
+            eventId = event.eventId,
+            claimId = checkNotNull(event.claimId) { "Claimed outbox event must have a claimId." },
+            publishedAt = publishedAt,
+        )
+    } ?: false
 
     private fun markFailed(
         event: OutboxEventModel,
         cause: Exception,
+        now: ZonedDateTime,
     ) {
-        transactionTemplate.executeWithoutResult {
+        val marked = transactionTemplate.execute {
             outboxRepository.markFailed(
                 eventId = event.eventId,
+                claimId = checkNotNull(event.claimId) { "Claimed outbox event must have a claimId." },
                 error = cause.message ?: cause::class.java.simpleName,
-                nextRetryAt = ZonedDateTime.now().plus(properties.relayRetryDelay),
+                nextRetryAt = now.plus(properties.relayRetryDelay),
+                maxPublishAttempts = properties.maxPublishAttempts,
+            )
+        } ?: false
+        val publishAttempts = event.retryCount + 1
+        if (marked && publishAttempts >= properties.maxPublishAttempts) {
+            log.error(
+                "Outbox event moved to DEAD after {} publish attempts. eventId={}, type={}, topic={}",
+                publishAttempts,
+                event.eventId,
+                event.type,
+                event.topicName,
+                cause,
             )
         }
     }

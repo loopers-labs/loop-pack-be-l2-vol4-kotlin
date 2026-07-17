@@ -49,7 +49,7 @@ class ProductFacade(
         productService.softDelete(productId)
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun getProduct(productId: Long): ProductDetailInfo {
         val product = productService.getById(productId)
         val brand = brandService.getById(product.brandId)

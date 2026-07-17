@@ -19,7 +19,14 @@ import java.util.UUID
     name = "outbox_events",
     indexes = [
         Index(name = "idx_outbox_events_type_status_created_at", columnList = "event_type, event_status, created_at"),
-        Index(name = "idx_outbox_events_status_next_retry_at", columnList = "event_status, next_retry_at"),
+        Index(
+            name = "idx_outbox_events_status_next_retry_event_created",
+            columnList = "event_status, next_retry_at, event_created_at, id",
+        ),
+        Index(
+            name = "idx_outbox_events_status_claimed_event_created",
+            columnList = "event_status, claimed_at, event_created_at, id",
+        ),
     ],
     uniqueConstraints = [
         UniqueConstraint(name = "uk_outbox_events_event_id", columnNames = ["event_id"]),
@@ -28,14 +35,18 @@ import java.util.UUID
 class OutboxEventJpaEntity(
     @Column(name = "event_id", nullable = false, updatable = false)
     var eventId: UUID,
-    @Column(name = "event_type", nullable = false)
+    @Column(name = "event_type", nullable = false, updatable = false)
     var type: String,
-    @Column(name = "aggregate_type", nullable = false)
+    @Column(name = "aggregate_type", nullable = false, updatable = false)
     var aggregateType: String,
-    @Column(name = "aggregate_id", nullable = false)
+    @Column(name = "aggregate_id", nullable = false, updatable = false)
     var aggregateId: Long,
+    @Column(name = "topic_name", updatable = false)
+    var topicName: String? = null,
+    @Column(name = "partition_key", updatable = false)
+    var partitionKey: String? = null,
     @Lob
-    @Column(name = "payload", nullable = false)
+    @Column(name = "payload", nullable = false, updatable = false)
     var payload: String,
     @Enumerated(EnumType.STRING)
     @Column(name = "event_status", nullable = false)
@@ -49,25 +60,17 @@ class OutboxEventJpaEntity(
     var lastError: String? = null,
     @Column(name = "published_at")
     var publishedAt: ZonedDateTime? = null,
-    @Column(name = "event_created_at", nullable = false)
+    @Column(name = "claim_id")
+    var claimId: UUID? = null,
+    @Column(name = "claimed_at")
+    var claimedAt: ZonedDateTime? = null,
+    @Column(name = "event_created_at", nullable = false, updatable = false)
     var eventCreatedAt: ZonedDateTime,
 ) : BaseEntity() {
-    fun markPublishing() {
+    fun markPublishing(claimId: UUID, claimedAt: ZonedDateTime) {
         status = OutboxEventStatus.PUBLISHING
-    }
-
-    fun markPublished(publishedAt: ZonedDateTime) {
-        status = OutboxEventStatus.PUBLISHED
-        this.publishedAt = publishedAt
-        nextRetryAt = null
-        lastError = null
-    }
-
-    fun markFailed(error: String, nextRetryAt: ZonedDateTime) {
-        status = OutboxEventStatus.FAILED
-        retryCount += 1
-        this.nextRetryAt = nextRetryAt
-        lastError = error
+        this.claimId = claimId
+        this.claimedAt = claimedAt
     }
 
     fun toDomain(): OutboxEventModel = OutboxEventModel(
@@ -76,12 +79,16 @@ class OutboxEventJpaEntity(
         type = type,
         aggregateType = aggregateType,
         aggregateId = aggregateId,
+        topicName = topicName,
+        partitionKey = partitionKey,
         payload = payload,
         status = status,
         retryCount = retryCount,
         nextRetryAt = nextRetryAt,
         lastError = lastError,
         publishedAt = publishedAt,
+        claimId = claimId,
+        claimedAt = claimedAt,
         createdAt = eventCreatedAt,
     )
 
@@ -91,12 +98,16 @@ class OutboxEventJpaEntity(
             type = event.type,
             aggregateType = event.aggregateType,
             aggregateId = event.aggregateId,
+            topicName = event.topicName,
+            partitionKey = event.partitionKey,
             payload = event.payload,
             status = event.status,
             retryCount = event.retryCount,
             nextRetryAt = event.nextRetryAt,
             lastError = event.lastError,
             publishedAt = event.publishedAt,
+            claimId = event.claimId,
+            claimedAt = event.claimedAt,
             eventCreatedAt = event.createdAt,
         )
     }

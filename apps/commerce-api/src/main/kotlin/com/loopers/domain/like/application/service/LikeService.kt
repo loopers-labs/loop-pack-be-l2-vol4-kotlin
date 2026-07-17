@@ -6,8 +6,8 @@ import com.loopers.domain.like.port.LikeRepository
 import com.loopers.domain.like.port.ProductLikeCountRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
-import com.loopers.support.outbox.OutboxEventModel
-import com.loopers.support.outbox.OutboxRepository
+import com.loopers.support.event.LikeChangedApplicationEvent
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional
 class LikeService(
     private val likeRepository: LikeRepository,
     private val productLikeCountRepository: ProductLikeCountRepository,
-    private val outboxRepository: OutboxRepository,
+    private val applicationEventPublisher: ApplicationEventPublisher = ApplicationEventPublisher { },
 ) {
     @Transactional
     fun like(
@@ -25,7 +25,7 @@ class LikeService(
         val like = createLike(userId, productId)
         val inserted = likeRepository.save(like)
         if (inserted == 1) {
-            saveLikeCountChangedEvent(userId = userId, productId = productId, delta = 1)
+            publishLikeChanged(userId = userId, productId = productId, delta = 1)
         }
         return like
     }
@@ -38,7 +38,7 @@ class LikeService(
         createLike(userId, productId)
         val deleted = likeRepository.delete(userId, productId)
         if (deleted == 1) {
-            saveLikeCountChangedEvent(userId = userId, productId = productId, delta = -1)
+            publishLikeChanged(userId = userId, productId = productId, delta = -1)
         }
     }
 
@@ -68,23 +68,17 @@ class LikeService(
             throw CoreException(ErrorType.BAD_REQUEST, e.message, e)
         }
 
-    private fun saveLikeCountChangedEvent(
+    private fun publishLikeChanged(
         userId: Long,
         productId: Long,
         delta: Int,
     ) {
-        outboxRepository.save(
-            OutboxEventModel(
-                type = LIKE_COUNT_CHANGED_V1,
-                aggregateType = PRODUCT_AGGREGATE,
-                aggregateId = productId,
-                payload = """{"productId":$productId,"userId":$userId,"delta":$delta}""",
+        applicationEventPublisher.publishEvent(
+            LikeChangedApplicationEvent(
+                userId = userId,
+                productId = productId,
+                delta = delta,
             ),
         )
-    }
-
-    companion object {
-        const val LIKE_COUNT_CHANGED_V1 = "LIKE_COUNT_CHANGED_V1"
-        private const val PRODUCT_AGGREGATE = "PRODUCT"
     }
 }

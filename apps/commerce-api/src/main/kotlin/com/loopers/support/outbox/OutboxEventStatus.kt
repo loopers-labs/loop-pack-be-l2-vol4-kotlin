@@ -5,4 +5,5 @@ enum class OutboxEventStatus {
     PUBLISHING,
     PUBLISHED,
     FAILED,
+    DEAD,
 }

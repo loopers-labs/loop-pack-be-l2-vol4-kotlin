@@ -1,10 +1,11 @@
 package com.loopers.metrics.application
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.loopers.metrics.domain.EventHandled
 import com.loopers.metrics.domain.EventHandledRepository
 import com.loopers.metrics.domain.ProductMetricsRepository
-import org.slf4j.LoggerFactory
+import com.loopers.metrics.domain.EventSubscription
+import com.loopers.shared.event.OrderCreatedEvent
+import com.loopers.shared.event.ProductEvent
+import com.loopers.shared.event.ProductViewedEvent
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -13,42 +14,31 @@ class ProductMetricsService(
     private val eventHandledRepository: EventHandledRepository,
     private val productMetricsRepository: ProductMetricsRepository,
 ) {
-    private val logger = LoggerFactory.getLogger(ProductMetricsService::class.java)
+    @Transactional
+    fun handle(event: ProductEvent) = handleOnce(event.eventId) {
+        when (event) {
+            is ProductEvent.Liked -> productMetricsRepository.accumulate(event.productId, likeChange = 1)
+            is ProductEvent.Unliked -> productMetricsRepository.accumulate(event.productId, likeChange = -1)
+        }
+    }
 
     @Transactional
-    fun handle(eventId: String, eventType: String, payload: JsonNode) {
-        if (eventHandledRepository.exists(eventId)) {
+    fun handle(event: OrderCreatedEvent) = handleOnce(event.eventId) {
+        event.items.forEach { line ->
+            productMetricsRepository.accumulate(line.productId, salesChange = line.quantity)
+        }
+    }
+
+    @Transactional
+    fun handle(event: ProductViewedEvent) = handleOnce(event.eventId) {
+        productMetricsRepository.accumulate(event.productId, viewChange = 1)
+    }
+
+    private inline fun handleOnce(eventId: String, aggregate: () -> Unit) {
+        if (eventHandledRepository.exists(eventId, EventSubscription.METRICS)) {
             return
         }
-        when (eventType) {
-            "ProductLikedEvent" ->
-                productMetricsRepository.upsertDelta(requiredLong(payload, "productId", eventId) ?: return, likeDelta = 1)
-            "ProductUnlikedEvent" ->
-                productMetricsRepository.upsertDelta(requiredLong(payload, "productId", eventId) ?: return, likeDelta = -1)
-            "ProductViewedEvent" ->
-                productMetricsRepository.upsertDelta(requiredLong(payload, "productId", eventId) ?: return, viewDelta = 1)
-            "OrderCreatedEvent" -> (payload["items"] ?: return skipMissingField("items", eventId)).forEach {
-                productMetricsRepository.upsertDelta(it["productId"].asLong(), salesDelta = it["quantity"].asLong())
-            }
-            else -> {
-                logger.warn("알 수 없는 eventType — skip (eventType={}, eventId={})", eventType, eventId)
-                return
-            }
-        }
-        eventHandledRepository.save(EventHandled(eventId))
-    }
-
-    // 프로듀서 계약상 항상 존재하는 필드 — 누락은 이상 payload 신호이므로 NPE 로 배치 전체를 재전달시키지 않고 warn + skip 만 한다.
-    private fun requiredLong(payload: JsonNode, field: String, eventId: String): Long? {
-        val node = payload[field]
-        if (node == null) {
-            skipMissingField(field, eventId)
-            return null
-        }
-        return node.asLong()
-    }
-
-    private fun skipMissingField(field: String, eventId: String) {
-        logger.warn("{} 없는 payload — skip (eventId={})", field, eventId)
+        aggregate()
+        eventHandledRepository.markHandled(eventId, EventSubscription.METRICS)
     }
 }

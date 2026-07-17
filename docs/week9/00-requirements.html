@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Round 9 요구사항 정리 — 실시간 상품 랭킹 · Redis Sorted Set</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.q{background:var(--blue-bg2);border-color:var(--blue-bg)}
+  .note.q .tag{color:var(--blue-deep)} .note.q strong{color:var(--blue-deep)}
+  .note.q .ask{font-size:18px;font-weight:700;color:var(--blue-deep);letter-spacing:-.02em;
+    display:block;margin-bottom:8px;line-height:1.45}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .checklist{list-style:none;margin:24px 0;padding:0}
+  .checklist li{position:relative;display:block;padding:13px 16px 13px 48px;margin-bottom:8px;
+    background:var(--g50);border:1px solid var(--g200);border-radius:14px;font-size:15px;
+    line-height:1.62;color:var(--g700);font-weight:500}
+  .checklist li .box{position:absolute;left:16px;top:14px;width:20px;height:20px;border-radius:6px;
+    border:2px solid var(--g300);background:var(--white)}
+  .checklist li.done{background:var(--blue-bg);border-color:#cfe4ff}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:6px;height:11px;
+    border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+  .checklist li .tag{float:right;font-family:var(--mono);font-size:10.5px;font-weight:700;
+    color:var(--g500);background:var(--g100);padding:3px 9px;border-radius:7px;margin-left:10px}
+  .checklist li.must .tag{color:var(--blue-deep);background:#d8e9ff}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .term{white-space:normal}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  .xlink{display:flex;align-items:center;gap:15px;text-decoration:none;margin:14px 0;
+    padding:18px 22px;border-radius:18px;background:var(--blue-bg2);border:1px solid var(--blue-bg);transition:.18s}
+  .xlink:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .xlink .ic{flex:none;width:40px;height:40px;border-radius:12px;background:var(--blue);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:18px}
+  .xlink .t{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.04em;display:block;margin-bottom:3px}
+  .xlink .h{font-size:15.5px;font-weight:700;color:var(--g900);line-height:1.4;display:block}
+  .xlink .h small{display:block;font-size:13px;font-weight:500;color:var(--g600);margin-top:3px}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 9 · 요구사항 명세</span>
+      <h1 class="title">무엇을 해야 하는가<br><span class="hl">실시간 상품 랭킹 · Redis Sorted Set</span></h1>
+      <p class="lede">Round 9의 테마는 <b>R7의 Kafka → collector 파이프라인이 수집하는 유저 행동 이벤트</b>를 기반으로, <b>Redis Sorted Set에 랭킹 점수를 실시간 갱신</b>하고 <b>API가 ZSET을 조회해 Top-N·개별 순위를 제공</b>하는 것입니다. 이 문서는 개념 설명이 아니라 <b>해야 할 일 · 합격 기준 · 판단해야 할 것</b>을 MECE하게 정리한 명세·체크리스트입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">테마</span><span class="v">실시간 랭킹 · 점수 집계</span></div>
+        <div class="chip"><span class="k">핵심 자료구조</span><span class="v">Redis Sorted Set</span></div>
+        <div class="chip"><span class="k">데이터 소스</span><span class="v">R7 Kafka → collector</span></div>
+        <div class="chip"><span class="k">집계 단위</span><span class="v">일간 (이번엔 일간만)</span></div>
+        <div class="chip"><span class="k">키 · TTL</span><span class="v">ranking:all:yyyyMMdd · 2d</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a class="cur" href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a href="02-design-decisions.html"><span class="n">02</span>설계 결정</a>
+    <a href="checklist.md"><span class="n">—</span>구현 체크리스트</a>
+    <a href="experiments/WRITING-LOG.md"><span class="n">—</span>Writing Log</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">한눈에 보기 — Must vs Nice + 전체 파이프라인</a></li>
+      <li><a href="#s2">왜 Redis ZSET인가 (RDB ORDER BY의 한계)</a></li>
+      <li><a href="#s3">Step 1 — Consumer → ZSET 실시간 적재</a></li>
+      <li><a href="#s4">스코어 모델 — 가중치 합산</a></li>
+      <li><a href="#s5">시간의 양자화 & 콜드 스타트</a></li>
+      <li><a href="#s6">Step 2 — Ranking API</a></li>
+      <li><a href="#s7">검증 & 재사용 자산 (R7·R8)</a></li>
+      <li><a href="#s8">Technical Writing · 제출</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S0 · TLDR ===================== -->
+  <section id="s0" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">0</div>
+      <div><p class="sec-eyebrow">TL;DR</p><h2 class="sec">핵심 요구사항 — 이것만 20줄</h2></div>
+    </div>
+
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><span class="tag">MUST</span>조회·좋아요·주문 <b>이벤트를 소비해 상품별 점수를 실시간 누적</b>한다 (일간 랭킹판)</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span>점수 델타 = <b>Weight × Score</b> — view 0.1×1 · like 0.2×1 · order 0.6×(price×amount). <b>예시 수치 — 우리 기준 재산정 + 근거 기록</b></li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span>랭킹판 키 = <span class="term">ranking:all:{yyyyMMdd}</span> — <b>KST 이벤트 발생 시각</b> 기준 · <b>TTL 2일</b></li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><span class="term">GET /api/v1/rankings?date=&amp;size=&amp;page=</span> — Top-N 페이지 + <b>상품 정보(이름·가격·브랜드) 조합</b>. date 미지정 = 오늘</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>상품 상세 응답에 현재 순위</b> 포함 — 랭킹에 없으면 <b>null</b></li>
+      <li class="must"><span class="box"></span><span class="tag">TEST</span>E2E — 이벤트 발행 → 점수 반영 → API 조회까지 한 흐름으로 검증</li>
+      <li class="must"><span class="box"></span><span class="tag">TEST</span>일자 변경 — 자정이 지나도 <span class="term">?date=전일</span> 조회가 정상</li>
+      <li class="must"><span class="box"></span><span class="tag">TEST</span>가중치 반영 — <b>주문 1건 &gt; 좋아요 3건</b>이 순위로 확인</li>
+      <li><span class="box"></span><span class="tag">NICE</span>실시간 가중치 조절 · 시간(1h) 단위 랭킹 · 콜드 스타트 carry-over (23:50, 어제×0.1)</li>
+      <li class="must"><span class="box"></span><span class="tag">SUBMIT</span>GitHub Issue(4포맷 중 1) + 블로그(TL;DR 필수) — <b>"왜 그렇게 판단했나"</b> 중심</li>
+    </ul>
+
+    <div class="note">
+      <span class="tag">읽는 법</span>
+      위 10줄이 합격선의 전부입니다. 아래 1~8절은 이 10줄을 <strong>어떻게·왜</strong>로 풀어낸 것 — 구현 순서는 <span class="term">checklist.md</span>(단계적 검증 로드맵), 판단 근거는 <span class="term">experiments/WRITING-LOG.md</span>에 쌓습니다.
+    </div>
+  </section>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">SCOPE AT A GLANCE</p><h2 class="sec">한눈에 보기 — Must vs Nice + 전체 파이프라인</h2></div>
+    </div>
+
+    <p class="lead">랭킹은 <strong>쓰기(이벤트 → 점수 누적)</strong>와 <strong>읽기(Top-N·개별 순위 조회)</strong>가 분리된 시스템입니다. R7이 만든 이벤트 파이프라인을 <strong>독립 컨슈머</strong>(<span class="term">ProductRankingKafkaConsumer</span>, metrics와 별도 groupId)로 구독해 ZSET 점수를 갱신하고, API는 그 ZSET을 읽기만 합니다.</p>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">MUST</span> 무조건 구현</h4>
+        <p>Kafka Consumer → Redis ZSET 실시간 적재(일간 키·TTL·가중치 스코어) · 랭킹 페이지 조회 API · 상품 상세에 순위 표시. 이 세 축이 Round 9의 합격선입니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">NICE</span> 시간 되면</h4>
+        <p>실시간 Weight 조절 · 시간(1h) 단위 랭킹 · 콜드 스타트 완화 스케줄러(23:50 Score Carry-Over). Must가 끝난 뒤에 손댑니다.</p>
+      </div>
+    </div>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="PIPELINE">
+        <svg viewBox="0 0 1140 250" role="img" aria-label="Round 9 랭킹 파이프라인: commerce-api가 조회·좋아요·주문 이벤트를 Kafka로 발행, commerce-collector(streamer)가 소비해 product_metrics upsert(R7)와 Redis ZSET 랭킹 점수 갱신(R9), commerce-api가 ZREVRANGE로 Top-N, ZREVRANK로 개별 순위 조회">
+          <defs>
+            <marker id="r9a1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <!-- row 1: write path -->
+          <text x="8" y="26" class="svg-l" fill="#8B95A1">쓰기 경로 — 이벤트가 점수가 되는 과정</text>
+          <rect x="8"   y="38" width="188" height="86" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="8" y="38" width="188" height="86"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-api</div><div class="s">조회·좋아요·주문 이벤트 발행</div></div></foreignObject>
+
+          <rect x="238" y="38" width="150" height="86" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="238" y="38" width="150" height="86"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Kafka</div><div class="s">product · order · user-action</div></div></foreignObject>
+
+          <rect x="430" y="38" width="200" height="86" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="430" y="38" width="200" height="86"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-streamer</div><div class="s">독립 컨슈머 · (event_id, subscription) 멱등</div></div></foreignObject>
+
+          <rect x="672" y="20" width="212" height="52" rx="14" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="672" y="20" width="212" height="52"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">product_metrics upsert</div><div class="s">R7 기존 집계</div></div></foreignObject>
+
+          <rect x="672" y="90" width="212" height="52" rx="14" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="672" y="90" width="212" height="52"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Redis ZSET 점수 갱신</div><div class="s">R9 · ZINCRBY</div></div></foreignObject>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#r9a1)">
+            <path d="M196,81 L236,81"></path>
+            <path d="M388,81 L428,81"></path>
+            <path d="M630,66 L670,52"></path>
+            <path d="M630,96 L670,112"></path>
+          </g>
+
+          <!-- row 2: read path -->
+          <text x="8" y="176" class="svg-l" fill="#8B95A1">읽기 경로 — 점수를 랭킹으로 보여주는 과정</text>
+          <rect x="672" y="184" width="212" height="52" rx="14" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="672" y="184" width="212" height="52"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Redis ZSET</div><div class="s">ranking:all:yyyyMMdd</div></div></foreignObject>
+
+          <rect x="924" y="184" width="208" height="52" rx="14" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="924" y="184" width="208" height="52"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-api</div><div class="s">ZREVRANGE · ZREVRANK</div></div></foreignObject>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#r9a1)">
+            <path d="M884,210 L922,210"></path>
+          </g>
+          <text x="1028" y="176" text-anchor="middle" class="svg-l" fill="#3182F6">Top-N · 개별 순위</text>
+        </svg>
+        <figcaption>랭킹은 <b>streamer가 이벤트를 소비하며 ZSET 점수를 갱신</b>(쓰기)하고, <b>API는 ZSET을 읽어</b> Top-N·개별 순위를 제공(읽기)한다. <b>product_metrics 집계(R7)는 그대로 두고</b>, 랭킹은 <b>별도 독립 컨슈머</b>가 같은 토픽을 자기 groupId로 소비해 갱신한다(metrics에 얹는 게 아님).</figcaption>
+      </div>
+    </figure>
+
+    <div class="note key">
+      <span class="tag">왜 RDB가 아니라 Redis ZSET인가 (핵심 프레이밍)</span>
+      랭킹은 <strong>조회 빈도가 매우 높고</strong>(홈 메인·인기순 정렬 등), <span class="term">GROUP BY + ORDER BY</span>는 데이터가 쌓일수록 느려져 DB 과부하로 이어집니다. ZSET은 <strong>정렬을 자료구조가 내장</strong>(삽입/수정 O(log N))해 실시간 반영과 다양한 조회(Top-N·개별 순위·범위)를 O(log N)~O(N)에 제공합니다.
+    </div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">WHY SORTED SET</p><h2 class="sec">왜 Redis ZSET인가</h2></div>
+    </div>
+
+    <p class="lead">ZSET은 <span class="term">(member, score)</span> 쌍을 <strong>score 기준 정렬 상태로 유지</strong>합니다. member는 상품 ID, score는 랭킹 점수 — 이 둘이 "실시간 갱신 + 정렬 조회"를 동시에 해결합니다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>명령</th><th>역할</th><th>키 · 의미</th></tr></thead>
+        <tbody>
+          <tr><td>ZINCRBY</td><td>점수 누적 (실시간 집계)</td><td>ranking:all:{date} {delta} {productId}</td></tr>
+          <tr><td>ZREVRANGE</td><td>Top-N 조회 (내림차순)</td><td>WITHSCORES · O(N)</td></tr>
+          <tr><td>ZREVRANK</td><td>특정 상품의 순위 (0-based)</td><td>없으면 null</td></tr>
+          <tr><td>ZSCORE</td><td>특정 상품의 점수</td><td>ranking:all:{date} {productId}</td></tr>
+          <tr><td>ZCARD</td><td>랭킹 진입 상품 수</td><td>운영 지표 겸용</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">DB</span> ORDER BY</h4>
+        <p>정합성은 높지만 데이터가 쌓일수록 <b>느려지고</b>, 조회 빈도가 높아 <b>DB 과부하</b>로 이어짐. 초기·소규모에만 적합.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">ZSET</span> Redis</h4>
+        <p>정렬 <b>내장</b>(별도 인덱스 불필요) · 실시간 반영 · Top-N/개별 순위/범위 검색 다양하게 지원. 대규모 트래픽에 적합(메모리 사용 ↑는 트레이드오프).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">STEP 1 · WRITE PATH</p><h2 class="sec">Consumer → ZSET 실시간 적재</h2></div>
+    </div>
+
+    <p class="lead">조회·좋아요·주문 이벤트를 소비해 <strong>일간 키 ZSET에 점수를 누적</strong>합니다. 각 이벤트에 <strong>Weight와 Score</strong>를 정하고, <span class="term">ZINCRBY</span>로 반영합니다.</p>
+
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>Consumer → ZSET 적재</b> — 이벤트 소비 시 일간 키 <span class="term">ranking:all:{yyyyMMdd}</span>에 <span class="term">ZINCRBY</span>로 점수 누적</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>날짜별 키 계산</b> — 이벤트 발생 시각(KST) 기준 <span class="term">yyyyMMdd</span> 키를 산출하는 기능</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>TTL 설정</b> — 윈도우의 1.5~2배. 일간이면 <span class="term">TTL 2Day</span>. 키 생성 시점에 만료 부여</li>
+      <li><span class="box"></span><span class="tag">NICE</span><b>배치 리스너로 스루풋 ↑</b> — 단건 처리는 ZSET/DB 연산이 과다. 배치로 정제 후 반영 <em>(R7 collector가 이미 배치 리스너 — 재사용)</em></li>
+    </ul>
+
+    <div class="note key">
+      <span class="tag">재사용 — 이미 R7에 배치 소비 지점이 있다</span>
+      <span class="term">commerce-streamer</span>에는 <strong>이미 배치 리스너</strong>(<span class="term">BATCH_LISTENER</span>, 토픽 <span class="term">product-events</span>·<span class="term">order-events</span>·<span class="term">user-action-events</span>, <span class="term">(event_id, subscription)</span> 복합키 멱등)가 있습니다. Round 9 랭킹은 <span class="term">ProductMetricsKafkaConsumer</span>에 얹는 게 아니라 <strong>독립 컨슈머 <span class="term">ProductRankingKafkaConsumer</span></strong>(groupId <span class="term">commerce-streamer-ranking-*</span>)가 같은 토픽을 자기 그룹으로 소비합니다 — "Nice-to-Have 배치 리스너"는 사실상 확보되어 있습니다.
+    </div>
+
+    <div class="note">
+      <span class="tag">스펙 고정값</span>
+      <strong>KEY</strong> = <span class="term">ranking:all:{yyyyMMdd}</span> · <strong>TTL</strong> = 2Day · <strong>score delta</strong> = 이벤트별 <span class="term">Weight × Score</span>(다음 절). 좋아요 취소 같은 <em>감소 이벤트</em>를 어떻게 반영할지(대칭 차감 여부)는 결정 사항 — Writing Log에 근거.
+    </div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">SCORE MODEL</p><h2 class="sec">스코어 모델 — 가중치 합산</h2></div>
+    </div>
+
+    <p class="lead">좋아요·구매·조회는 <strong>스케일이 달라</strong> 단순 합산 시 특정 지표가 전체를 지배합니다. 그래서 지표별 <strong>가중치(Weight)</strong>를 곱해 단일 점수로 합산합니다 — 서비스 전략이 곧 가중치입니다.</p>
+
+    <blockquote>
+      <p>Score(p) = W(view)·Count(view) + W(like)·Count(like) + W(order)·Value(order)</p>
+      <cite>총합 1이 되도록 설계 · W = Weight(가중치)</cite>
+    </blockquote>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>이벤트</th><th>Weight (예시)</th><th>Score</th></tr></thead>
+        <tbody>
+          <tr><td>조회 view</td><td>0.1</td><td>1 (가장 흔함 → 낮게)</td></tr>
+          <tr><td>좋아요 like</td><td>0.2</td><td>1 (구매보다 약한 신호)</td></tr>
+          <tr><td>주문 order</td><td>0.6~0.7</td><td>price × amount (정규화 시 log)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <span class="tag">⚠ 예시 수치를 그대로 베끼지 말 것</span>
+      요구사항의 <strong>0.1 / 0.2 / 0.6</strong>은 예시입니다. 주문 Score를 <span class="term">price × amount</span>로 두면 고가 상품이 조회·좋아요를 압도하므로 <strong>log 정규화</strong> 등으로 스케일을 맞출지 판단하고, 우리 서비스 기준으로 가중치를 정해 <strong>근거를 Writing Log에 남깁니다</strong>. (글감: "우리의 랭킹 지표는 이렇게 구성된다")
+    </div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">TIME QUANTIZATION · COLD START</p><h2 class="sec">시간의 양자화 &amp; 콜드 스타트</h2></div>
+    </div>
+
+    <p class="lead">랭킹은 <strong>언제부터 언제까지의 집계</strong>인지가 명확해야 의미가 있습니다. 단순 누적만 하면 오래된 상품이 계속 상위를 독식(<em>롱테일</em>)하고 신상품은 노출 기회를 잃습니다.</p>
+
+    <h3>시간의 양자화 — 일간 키 분리</h3>
+    <p>집계를 일정 단위(일·주·월)로 나눠 관리합니다. 이번엔 <strong>일간</strong>: 오늘 점수와 어제 점수를 <span class="term">ranking:all:20250906</span> / <span class="term">ranking:all:20250907</span>처럼 <strong>키로 분리</strong>하고, TTL로 메모리를 관리합니다. 시간 단위로 잘라야 <strong>공정성</strong>과 <strong>신선도</strong>가 확보됩니다.</p>
+
+    <h3>콜드 스타트 — 윈도우가 막 바뀐 순간</h3>
+    <div class="note q">
+      <span class="ask">자정에 새 키로 넘어가면 점수가 0인데, 그 순간의 랭킹은 무슨 의미가 있는가?</span>
+      윈도우 시작 시점엔 대부분 상품 점수가 0이라 랭킹이 의미 없어지고, 유저는 <strong>어제 인기 상품</strong>도 보길 기대합니다. 랭킹에 못 든 상품은 클릭·구매가 안 생기는 <strong>악순환</strong>에 빠질 수 있습니다.
+    </div>
+
+    <h3>해결 — Score Carry-Over</h3>
+    <p>새 키 생성 시 <strong>전날 점수의 일부를 작은 가중치로 복사</strong>합니다. 가중치를 작게 둬 오늘 점수가 금방 상위로 올라갈 수 있게 합니다.</p>
+    <div class="note">
+      <span class="tag">ZUNIONSTORE 예시</span>
+      <span class="term">ZUNIONSTORE ranking:all:20250907 1 ranking:all:20250906 WEIGHTS 0.1 AGGREGATE SUM</span> — 어제 키의 점수에 0.1을 곱해 오늘 키로 복사. 예: 어제 100/50 → 오늘 시작 10/5. <strong>Nice-to-Have 스케줄러</strong>로 23:50에 미리 다음 랭킹판을 생성하는 방식.
+    </div>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FULL TIMELINE">
+        <svg viewBox="0 0 1140 604" role="img" aria-label="요구사항 전체 타임라인: 7월 14일 첫 이벤트가 오늘 판을 생성해 하루 종일 ZINCRBY로 점수가 누적되고, 23시 50분 carry-over가 어제 점수의 10퍼센트로 내일 판을 미리 생성하며, 자정 이후 새 이벤트는 내일 판에 쌓인다. 어제 판은 읽기 전용으로 하루 더 살다가 TTL 2일로 만료된다">
+          <defs>
+            <marker id="r9t1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#3182F6"></path>
+            </marker>
+          </defs>
+
+          <!-- day axis -->
+          <text x="365" y="24" text-anchor="middle" class="svg-l" fill="#4E5968">7/14 (오늘)</text>
+          <text x="755" y="24" text-anchor="middle" class="svg-l" fill="#4E5968">7/15 (내일)</text>
+          <text x="1045" y="24" text-anchor="middle" class="svg-l" fill="#8B95A1">7/16 ~</text>
+          <g stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="5 5">
+            <line x1="170" y1="36" x2="170" y2="530"></line>
+            <line x1="560" y1="36" x2="560" y2="530"></line>
+            <line x1="950" y1="36" x2="950" y2="530"></line>
+          </g>
+          <text x="170" y="48" text-anchor="middle" class="svg-s" fill="#8B95A1">00:00</text>
+          <text x="560" y="48" text-anchor="middle" class="svg-s" fill="#8B95A1">00:00</text>
+          <text x="950" y="48" text-anchor="middle" class="svg-s" fill="#8B95A1">00:00</text>
+
+          <!-- events lane -->
+          <text x="8" y="72" class="svg-l" fill="#8B95A1">이벤트 → Weight×Score 델타</text>
+          <line x1="190" y1="88" x2="1120" y2="88" stroke="#E5E8EB" stroke-width="2"></line>
+          <g fill="#8B95A1">
+            <circle cx="210" cy="88" r="5"></circle><circle cx="260" cy="88" r="5"></circle>
+            <circle cx="320" cy="88" r="5"></circle><circle cx="390" cy="88" r="5"></circle>
+            <circle cx="455" cy="88" r="5"></circle><circle cx="515" cy="88" r="5"></circle>
+            <circle cx="625" cy="88" r="5"></circle><circle cx="690" cy="88" r="5"></circle>
+            <circle cx="760" cy="88" r="5"></circle><circle cx="840" cy="88" r="5"></circle>
+            <circle cx="905" cy="88" r="5"></circle>
+          </g>
+          <circle cx="575" cy="88" r="7" fill="#3182F6"></circle>
+          <text x="575" y="112" text-anchor="middle" class="svg-s" fill="#1B64DA">00:00:03 view p42</text>
+
+          <!-- board A -->
+          <text x="190" y="142" class="svg-l" fill="#1B64DA">ranking:all:20260714</text>
+          <rect x="190" y="152" width="370" height="36" rx="10" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <text x="375" y="175" text-anchor="middle" class="svg-s" fill="#1B64DA">오늘 판 — 이벤트마다 ZINCRBY 누적</text>
+          <rect x="560" y="152" width="384" height="36" rx="10" fill="#F2F4F6" stroke="#E5E8EB"></rect>
+          <text x="752" y="175" text-anchor="middle" class="svg-s" fill="#6B7684">어제 판 — 갱신 없음 · ?date=20260714 조회 전용</text>
+          <text x="962" y="176" class="svg-l" fill="#C9303C">✕ TTL 만료</text>
+          <text x="190" y="208" class="svg-s" fill="#6B7684">첫 이벤트가 키 생성 + TTL 2일 부여</text>
+
+          <!-- board A snapshots -->
+          <rect x="190" y="222" width="150" height="60" rx="12" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="206" y="246" class="svg-s" fill="#8B95A1">00:00:03 — 1개</text>
+          <text x="206" y="268" class="svg-s" fill="#4E5968">p42  0.1</text>
+          <rect x="360" y="222" width="160" height="106" rx="12" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="376" y="246" class="svg-s" fill="#8B95A1">23:50 — 하루 누적</text>
+          <text x="376" y="270" class="svg-s" fill="#4E5968">p3  502.6</text>
+          <text x="376" y="292" class="svg-s" fill="#4E5968">p2  135.4</text>
+          <text x="376" y="314" class="svg-s" fill="#4E5968">p1  131.0</text>
+
+          <!-- carry-over arrow -->
+          <path d="M535,190 L535,338" stroke="#3182F6" stroke-width="2.5" fill="none" marker-end="url(#r9t1)"></path>
+          <text x="548" y="270" class="svg-l" fill="#1B64DA">23:50 carry-over (Nice)</text>
+          <text x="548" y="290" class="svg-s" fill="#6B7684">ZUNIONSTORE WEIGHTS 0.1</text>
+          <text x="548" y="308" class="svg-s" fill="#C9303C">+ EXPIRE 2d 재부여 필수</text>
+
+          <!-- board B -->
+          <text x="535" y="358" class="svg-l" fill="#0A8F5B">ranking:all:20260715</text>
+          <rect x="535" y="366" width="25" height="36" rx="8" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <rect x="560" y="366" width="390" height="36" rx="10" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <text x="755" y="389" text-anchor="middle" class="svg-s" fill="#1B64DA">오늘 판 — 시딩 점수 위에 ZINCRBY 누적</text>
+          <rect x="950" y="366" width="180" height="36" rx="10" fill="#F2F4F6" stroke="#E5E8EB"></rect>
+          <text x="1040" y="389" text-anchor="middle" class="svg-s" fill="#6B7684">어제 판 →</text>
+
+          <!-- board B snapshots -->
+          <rect x="560" y="418" width="180" height="106" rx="12" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <text x="576" y="442" class="svg-s" fill="#0A8F5B">00:00 시딩 (어제×0.1)</text>
+          <text x="576" y="466" class="svg-s" fill="#4E5968">p3  50.3</text>
+          <text x="576" y="488" class="svg-s" fill="#4E5968">p2  13.5</text>
+          <text x="576" y="510" class="svg-s" fill="#4E5968">p1  13.1</text>
+          <rect x="770" y="418" width="190" height="106" rx="12" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="786" y="442" class="svg-s" fill="#8B95A1">00:00:03 첫 이벤트 후</text>
+          <text x="786" y="466" class="svg-s" fill="#4E5968">p3 50.3 · p2 13.5</text>
+          <text x="786" y="488" class="svg-s" fill="#4E5968">p1 13.1 · p42 0.1</text>
+          <text x="786" y="510" class="svg-s" fill="#0A8F5B">빈 판 아님 — 자연스러운 새벽 랭킹</text>
+
+          <!-- bottom notes -->
+          <text x="8" y="560" class="svg-s" fill="#C9303C">carry-over 미구현(Must만)이면 00:00:03의 20260715 판 = { p42: 0.1 } 하나 → 콜드 스타트 (빈 랭킹 응답 계약 필요)</text>
+          <text x="8" y="586" class="svg-s" fill="#1B64DA">읽기: GET /rankings → 오늘 판 ZREVRANGE · 상품 상세 → ZREVRANK(없으면 null) · ?date=어제 → 어제 판 (이걸 위해 TTL이 1일이 아니라 2일)</text>
+        </svg>
+        <figcaption>요구사항 종합 — <b>키는 첫 쓰기에 lazy 생성</b>되고(+TTL 2일), 하루 동안 <b>누적만</b> 하며, 자정 경계는 <b>새 키로의 전환</b>(삭제 아님)이다. carry-over는 그 경계의 빈 판을 <b>어제×0.1로 미리 채워두는</b> 선택 장치이고, TTL 만료는 역할이 끝난 판의 <b>청소</b>다.</figcaption>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">STEP 2 · READ PATH</p><h2 class="sec">Ranking API</h2></div>
+    </div>
+
+    <p class="lead">ZSET을 읽어 랭킹을 제공합니다. 핵심은 <strong>ZSET에는 상품 ID·점수만 있으므로</strong>, 응답에는 <strong>상품 정보를 조합(Aggregation)</strong>해서 내려줘야 한다는 점입니다.</p>
+
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>랭킹 페이지 조회</b> — <span class="term">GET /api/v1/rankings?date=yyyyMMdd&amp;size=20&amp;page=1</span> — <span class="term">ZREVRANGE</span> 기반 Top-N 페이지네이션</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>상품 정보 Aggregation</b> — 단순 상품 ID가 아니라 <b>상품명·가격·브랜드 등 상품 정보를 조합</b>해 반환</li>
+      <li class="must"><span class="box"></span><span class="tag">MUST</span><b>상품 상세에 순위 추가</b> — 상품 상세 조회 시 <span class="term">ZREVRANK</span>로 현재 순위 포함. <b>랭킹에 없으면 null</b></li>
+    </ul>
+
+    <div class="note">
+      <span class="tag">Aggregation 판단 포인트</span>
+      Top-N 상품 ID로 상품 정보를 가져올 때 <strong>N번 조회 vs 일괄(IN) 조회</strong>, 그리고 R7 <span class="term">product_metrics</span>·상품 캐시를 재사용할지 결정합니다. ZSET 조회는 빠른데 Aggregation에서 N+1이 나면 의미가 없습니다.
+    </div>
+  </section>
+
+  <!-- ===================== S7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">VERIFICATION · REUSE</p><h2 class="sec">검증 &amp; 재사용 자산 (R7·R8)</h2></div>
+    </div>
+
+    <p class="lead">과제 체크리스트가 명시한 검증 항목입니다. 각각을 재현 가능한 테스트로 남기고, 랭킹 도메인은 <strong>새로 만들지 않아도 되는 R7·R8 자산</strong> 위에 얹습니다.</p>
+
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><span class="tag">TEST</span><b>E2E 흐름</b> — 이벤트 발행 → ZSET 점수 반영 → API 조회까지 정상 동작하는가</li>
+      <li class="must"><span class="box"></span><span class="tag">TEST</span><b>일자 변경</b> — 날짜가 바뀌어도 이전 날짜의 랭킹 조회가 정상 동작하는가</li>
+      <li class="must"><span class="box"></span><span class="tag">TEST</span><b>가중치 반영</b> — 가중치가 의도대로 순서에 반영되는가 (예: 주문 1건 &gt; 좋아요 3건)</li>
+    </ul>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>필요 기능</th><th>재사용 자산</th><th>경로</th></tr></thead>
+        <tbody>
+          <tr><td>이벤트 배치 소비</td><td>ProductMetricsKafkaConsumer · ProductRankingKafkaConsumer (BATCH_LISTENER · 독립 groupId · 복합키 멱등)</td><td>commerce-streamer · interfaces/consumer</td></tr>
+          <tr><td>랭킹 적재 진입점</td><td>RankingAccumulateService.accumulate(eventId, occurredAt, changes)</td><td>commerce-streamer · ranking/application</td></tr>
+          <tr><td>멱등 테이블</td><td>EventHandled ((event_id, subscription) 복합키 · EventSubscription{METRICS, RANKING})</td><td>commerce-streamer · metrics/domain</td></tr>
+          <tr><td>Redis ZSET 연산</td><td>OrderQueueRepository (masterRedisTemplate · opsForZSet · Lua)</td><td>commerce-api · queue/infrastructure/redis</td></tr>
+          <tr><td>상품 정보 조합</td><td>product 상세 캐시 · product_metrics</td><td>commerce-api · product · commerce-streamer</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key">
+      <span class="tag">배치 위치 판단</span>
+      랭킹 갱신(쓰기)은 <span class="term">commerce-streamer</span>(collector) 쪽 신규 <span class="term">ranking</span> 패키지, 조회(읽기)는 <span class="term">commerce-api</span>의 <span class="term">com.loopers.ranking.{domain,application,infrastructure,interfaces}</span>에 둡니다. ZSET 갱신은 <span class="term">product_metrics</span> 집계와 <strong>같은 소비 트랜잭션/배치 안</strong>에서 처리할지(정합성 vs 결합도)를 결정 — Writing Log.
+    </div>
+  </section>
+
+  <!-- ===================== S8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">WRITING · SUBMISSION</p><h2 class="sec">Technical Writing · 제출</h2></div>
+    </div>
+
+    <p class="lead">구현과 별개로 <strong>글쓰기 자산</strong>이 제출물입니다. GitHub Issue 4포맷 중 1개 + 블로그 글. "무엇을 했다"가 아니라 <strong>"왜 그렇게 판단했나"</strong> 중심으로 씁니다.</p>
+
+    <ul class="checklist">
+      <li class="must"><span class="box"></span><span class="tag">SUBMIT</span><b>GitHub Issue</b> — Design Doc / Retrospective / Challenge Story / Benchmark Report 중 1개</li>
+      <li class="must"><span class="box"></span><span class="tag">SUBMIT</span><b>블로그 글</b> — TL;DR 필수. 코드 비교·흐름도·전후 예시 자유</li>
+    </ul>
+
+    <div class="note">
+      <span class="tag">주제 후보 (왜 중심)</span>
+      누적 랭킹의 롱테일 문제 · 시간의 양자화는 왜 필요한가 · 콜드 스타트를 어떻게 푸는가 · 우리의 랭킹 지표 구성 근거 · 실시간 랭킹 구현 · 상품 10만 개일 때 ZSET 메모리(상위 N만 유지?) · Top-N을 매번 ZREVRANGE vs 주기 캐싱 트레이드오프. → 결정 시점마다 <span class="term">experiments/WRITING-LOG.md</span>에 축적.
+    </div>
+
+    <a class="xlink" href="checklist.md">
+      <span class="ic">→</span>
+      <span><span class="t">실행 체크리스트</span><span class="h">구현 체크리스트 — Step 1·2 + 검증 + 열린 결정<small>재사용 자산 매핑과 진입 전 확정할 결정 포함.</small></span></span>
+    </a>
+    <a class="xlink" href="experiments/WRITING-LOG.md">
+      <span class="ic">→</span>
+      <span><span class="t">의사결정 로그</span><span class="h">Writing Log — 왜 그렇게 판단했나<small>글쓰기 소재이자 결정 근거 축적. 결정 시점에 기록.</small></span></span>
+    </a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 9 요구사항 정리 — 실시간 상품 랭킹 · Redis Sorted Set<br>
+    무엇을 · 합격 기준 · 판단할 것 중심 명세 · 실행은 checklist.md · 결정은 experiments/WRITING-LOG.md
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

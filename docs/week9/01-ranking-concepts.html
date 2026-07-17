@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>랭킹 개념 — 랭킹판은 언제 만들어지는가 (구현 방식 MECE 지도)</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.q{background:var(--blue-bg2);border-color:var(--blue-bg)}
+  .note.q .tag{color:var(--blue-deep)} .note.q strong{color:var(--blue-deep)}
+  .note.q .ask{font-size:18px;font-weight:700;color:var(--blue-deep);letter-spacing:-.02em;
+    display:block;margin-bottom:8px;line-height:1.45}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  .tbl-wrap.scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .xlink{display:flex;align-items:center;gap:15px;text-decoration:none;margin:14px 0;
+    padding:18px 22px;border-radius:18px;background:var(--blue-bg2);border:1px solid var(--blue-bg);transition:.18s}
+  .xlink:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .xlink .ic{flex:none;width:40px;height:40px;border-radius:12px;background:var(--blue);color:#fff;
+    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:18px}
+  .xlink .t{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.04em;display:block;margin-bottom:3px}
+  .xlink .h{font-size:15.5px;font-weight:700;color:var(--g900);line-height:1.4;display:block}
+  .xlink .h small{display:block;font-size:13px;font-weight:500;color:var(--g600);margin-top:3px}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>ROUND 9 · 개념 정리</span>
+      <h1 class="title">랭킹판은<br><span class="hl">언제 만들어지는가</span></h1>
+      <p class="lede">"랭킹 = Redis ZSET"이 아닙니다. ZSET은 여러 구현 방식 중 하나일 뿐입니다. 이 문서는 랭킹 구현 방식을 <b>"정렬된 랭킹판이 만들어지는 시점"</b>이라는 단일 축으로 MECE하게 4분류하고, 각 방식의 <b>실제 사례(게임 리더보드 · Instagram Trending · 멜론 차트)</b>와 트레이드오프를 검증된 공식 출처로 정리합니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">분류 축</span><span class="v">랭킹판 생성 시점 (조회/이벤트/윈도우/스케줄)</span></div>
+        <div class="chip"><span class="k">방식</span><span class="v">4가지 + 하이브리드(조합)</span></div>
+        <div class="chip"><span class="k">사례</span><span class="v">게임 리더보드 · Instagram · 멜론</span></div>
+        <div class="chip"><span class="k">Round 9 선택</span><span class="v">B — 쓰기 시점 즉시 갱신 (ZSET)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a class="cur" href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a href="02-design-decisions.html"><span class="n">02</span>설계 결정</a>
+    <a href="checklist.md"><span class="n">—</span>구현 체크리스트</a>
+    <a href="experiments/WRITING-LOG.md"><span class="n">—</span>Writing Log</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">분류 축 — 랭킹판이 만들어지는 시점 (MECE 지도)</a></li>
+      <li><a href="#s2">방식 A — 조회 시점 계산 (DB ORDER BY)</a></li>
+      <li><a href="#s3">방식 B — 쓰기 시점 즉시 갱신 (Redis ZSET)</a></li>
+      <li><a href="#s4">방식 C — 스트림 윈도우 집계 (준실시간)</a></li>
+      <li><a href="#s5">방식 D — 주기 배치 스냅샷 (멜론 차트)</a></li>
+      <li><a href="#s6">하이브리드 — 시점의 조합 (Carry-Over 포함)</a></li>
+      <li><a href="#s7">비교표 &amp; 선택 가이드 — Round 9는 왜 B인가</a></li>
+      <li><a href="#s8">예시로 보는 4방식 — 같은 계산, 다른 시점</a></li>
+      <li><a href="#s9">참고문헌 (전부 실재 확인)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">CLASSIFICATION AXIS</p><h2 class="sec">분류 축 — 랭킹판이 만들어지는 시점</h2></div>
+    </div>
+
+    <p class="lead">어떤 랭킹 시스템이든 결국 <strong>"정렬된 결과(랭킹판)를 언제 만드는가"</strong>로 갈립니다. 랭킹판이 만들어질 수 있는 시점은 <strong>조회가 왔을 때 · 이벤트가 올 때마다 · 윈도우가 닫힐 때 · 스케줄이 돌 때</strong> — 이 넷뿐이므로, 이 축은 상호배제(같은 랭킹판이 두 시점에 만들어질 수 없음)이면서 전체포괄(다섯 번째 시점이 없음)인 MECE 분류가 됩니다.</p>
+
+    <blockquote>
+      <p>집계(점수 누적)와 발행(정렬판 생성)은 별개의 축이다.<br>"집계는 계속, 반영은 한 번씩"이 가능한 이유.</p>
+      <cite>멜론: 이용량은 연속 수집 · 차트는 매시 정각 발행 — 집계 연속 + 발행 주기</cite>
+    </blockquote>
+
+    <p>ZSET은 자료구조가 정렬을 내장해서 <strong>집계와 발행이 한 몸</strong>(점수를 올리는 순간 순위도 바뀜)입니다. 반면 방식 C·D는 <strong>집계는 계속 하되 랭킹판 발행은 주기적으로</strong> 합니다 — "실시간으로 굳이 반영 안 하고 한 번씩 반영"이라는 직관이 정확히 이 지점입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="MECE MAP">
+        <svg viewBox="0 0 1140 500" role="img" aria-label="랭킹 구현 방식 4분류 타임라인: 같은 이벤트 스트림에 대해 방식 B는 이벤트마다, 방식 C는 윈도우가 닫힐 때, 방식 D는 스케줄 시각에 랭킹판을 만들고, 방식 A는 미리 만들지 않고 조회 순간에 계산한다">
+          <!-- event stream -->
+          <text x="8" y="24" class="svg-l" fill="#8B95A1">이벤트 스트림 (조회 · 좋아요 · 주문)</text>
+          <line x1="290" y1="46" x2="1120" y2="46" stroke="#D1D6DB" stroke-width="2"></line>
+          <g fill="#8B95A1">
+            <circle cx="320" cy="46" r="6"></circle><circle cx="395" cy="46" r="6"></circle>
+            <circle cx="455" cy="46" r="6"></circle><circle cx="560" cy="46" r="6"></circle>
+            <circle cx="620" cy="46" r="6"></circle><circle cx="760" cy="46" r="6"></circle>
+            <circle cx="850" cy="46" r="6"></circle><circle cx="985" cy="46" r="6"></circle>
+            <circle cx="1055" cy="46" r="6"></circle>
+          </g>
+          <text x="1120" y="26" text-anchor="end" class="svg-s" fill="#B0B8C1">시간 →</text>
+
+          <!-- row B -->
+          <rect x="8" y="86" width="262" height="72" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="8" y="86" width="262" height="72"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">B · 쓰기 시점 즉시 갱신</div><div class="s">Redis ZSET · 신선도 초 단위</div></div></foreignObject>
+          <line x1="290" y1="122" x2="1120" y2="122" stroke="#E5E8EB" stroke-width="2"></line>
+          <g stroke="#3182F6" stroke-width="3">
+            <line x1="320" y1="110" x2="320" y2="134"></line><line x1="395" y1="110" x2="395" y2="134"></line>
+            <line x1="455" y1="110" x2="455" y2="134"></line><line x1="560" y1="110" x2="560" y2="134"></line>
+            <line x1="620" y1="110" x2="620" y2="134"></line><line x1="760" y1="110" x2="760" y2="134"></line>
+            <line x1="850" y1="110" x2="850" y2="134"></line><line x1="985" y1="110" x2="985" y2="134"></line>
+            <line x1="1055" y1="110" x2="1055" y2="134"></line>
+          </g>
+          <text x="290" y="152" class="svg-s" fill="#3182F6">이벤트가 올 때마다 랭킹판 갱신 (집계 = 발행)</text>
+
+          <!-- row C -->
+          <rect x="8" y="192" width="262" height="72" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="8" y="192" width="262" height="72"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">C · 스트림 윈도우 집계</div><div class="s">Flink · Kafka Streams · 분 단위</div></div></foreignObject>
+          <line x1="290" y1="228" x2="1120" y2="228" stroke="#E5E8EB" stroke-width="2"></line>
+          <g stroke="#D1D6DB" stroke-width="1.5" stroke-dasharray="4 4">
+            <line x1="290" y1="206" x2="290" y2="250"></line><line x1="498" y1="206" x2="498" y2="250"></line>
+            <line x1="706" y1="206" x2="706" y2="250"></line><line x1="914" y1="206" x2="914" y2="250"></line>
+          </g>
+          <g stroke="#15C47E" stroke-width="4">
+            <line x1="498" y1="214" x2="498" y2="242"></line><line x1="706" y1="214" x2="706" y2="242"></line>
+            <line x1="914" y1="214" x2="914" y2="242"></line><line x1="1118" y1="214" x2="1118" y2="242"></line>
+          </g>
+          <text x="290" y="258" class="svg-s" fill="#0A8F5B">집계는 계속 · 발행은 윈도우가 닫힐 때 한 번 (Window Top-N)</text>
+
+          <!-- row D -->
+          <rect x="8" y="298" width="262" height="72" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="8" y="298" width="262" height="72"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">D · 주기 배치 스냅샷</div><div class="s">멜론 차트 · 시간/일 단위</div></div></foreignObject>
+          <line x1="290" y1="334" x2="1120" y2="334" stroke="#E5E8EB" stroke-width="2"></line>
+          <g stroke="#6B7684" stroke-width="4">
+            <line x1="706" y1="320" x2="706" y2="348"></line><line x1="1118" y1="320" x2="1118" y2="348"></line>
+          </g>
+          <text x="706" y="312" text-anchor="middle" class="svg-s" fill="#6B7684">매시 정각</text>
+          <text x="290" y="364" class="svg-s" fill="#6B7684">집계는 계속(로그 축적) · 스케줄 시각에 전체 재계산해 스냅샷 발행</text>
+
+          <!-- row A -->
+          <rect x="8" y="404" width="262" height="72" rx="16" fill="#FEEFEF" stroke="#f8d4d4"></rect>
+          <foreignObject x="8" y="404" width="262" height="72"><div class="fo red" xmlns="http://www.w3.org/1999/xhtml"><div class="t">A · 조회 시점 계산</div><div class="s">DB ORDER BY · 대규모에선 위험</div></div></foreignObject>
+          <line x1="290" y1="440" x2="1120" y2="440" stroke="#E5E8EB" stroke-width="2"></line>
+          <g fill="none" stroke="#F04452" stroke-width="2.5">
+            <circle cx="430" cy="440" r="9"></circle><circle cx="880" cy="440" r="9"></circle>
+          </g>
+          <text x="430" y="420" text-anchor="middle" class="svg-s" fill="#C9303C">조회 요청</text>
+          <text x="880" y="420" text-anchor="middle" class="svg-s" fill="#C9303C">조회 요청</text>
+          <text x="290" y="470" class="svg-s" fill="#C9303C">랭킹판을 미리 만들지 않음 · 조회 순간마다 정렬 계산</text>
+        </svg>
+        <figcaption>같은 이벤트 스트림이라도 <b>랭킹판을 만드는 시점</b>이 다르다. 아래로 갈수록 발행 주기가 길어지고(신선도 ↓), 대신 <b>발행 1회의 계산을 몰아서</b> 하게 된다. A만 유일하게 "미리 만들지 않는" 방식.</figcaption>
+      </div>
+    </figure>
+
+    <div class="note key">
+      <span class="tag">이 분류가 MECE인 이유</span>
+      랭킹판 생성은 반드시 어떤 <strong>트리거</strong>에 의해 일어나고, 시스템에서 가능한 트리거는 <strong>① 읽기 요청 ② 쓰기(이벤트) ③ 시간 경계(윈도우) ④ 스케줄</strong>— 이 4종뿐입니다. ③과 ④는 언뜻 같아 보이지만, ③은 <em>이벤트의 발생 시각으로 구간을 나눠 그 구간의 집계를 발행</em>(스트림 처리기의 event-time 윈도우)하고 ④는 <em>발행 시각에 저장소를 통째로 재계산</em>(배치)한다는 점에서 계산 주체와 입력이 다릅니다. 하이브리드는 다섯 번째 부류가 아니라 <strong>두 시점의 조합</strong>입니다(6절).
+    </div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">A · COMPUTE-ON-READ</p><h2 class="sec">방식 A — 조회 시점 계산 (DB ORDER BY)</h2></div>
+    </div>
+
+    <p class="lead">랭킹판을 미리 만들지 않고, 조회가 올 때마다 <span class="term">GROUP BY + ORDER BY + LIMIT</span>으로 계산합니다. 구현 비용이 0에 가깝고 항상 최신 데이터를 보지만, <strong>조회마다 정렬 비용을 다시 치릅니다</strong>.</p>
+
+    <p>MySQL은 ORDER BY를 <strong>인덱스로 해소할 수 있으면 정렬 없이</strong> 처리하고, 그렇지 못하면 <span class="term">filesort</span>(메모리 정렬, 결과가 크면 임시 디스크 파일 사용)로 처리합니다<a class="cite" href="#s9">[9]</a>. 즉 "정렬 컬럼에 인덱스가 있는가"가 성능을 가르는데, 랭킹 점수는 <strong>조회·좋아요·주문을 가중 합산한 파생값</strong>이라 원본 테이블에 인덱스를 걸 대상 자체가 없습니다 — 집계(GROUP BY)를 먼저 해야 정렬 대상이 생기고, 그 집계가 조회마다 반복됩니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="A · ON-READ">
+        <svg viewBox="0 0 1040 278" role="img" aria-label="조회 시점 계산: product_metrics 테이블에 카운터가 쌓여 있고, 조회 요청이 올 때마다 가중 합 점수 계산과 ORDER BY 정렬을 다시 실행해 Top-3을 응답한다">
+          <defs>
+            <marker id="rcA1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <text x="8" y="24" class="svg-l" fill="#8B95A1">쓰기 쪽 — 카운터만 계속 쌓임 (collector)</text>
+          <rect x="8" y="40" width="356" height="176" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="30" y="72" class="svg-l" fill="#6B7684">product_metrics</text>
+          <line x1="26" y1="86" x2="346" y2="86" stroke="#E5E8EB" stroke-width="1.5"></line>
+          <text x="30" y="110" class="svg-s" fill="#8B95A1">id    view   like  sales</text>
+          <text x="30" y="138" class="svg-s" fill="#4E5968">p1   1,200    40      5</text>
+          <text x="30" y="164" class="svg-s" fill="#4E5968">p2     300    90     12</text>
+          <text x="30" y="190" class="svg-s" fill="#4E5968">p3   5,000    10      1</text>
+
+          <text x="388" y="112" text-anchor="middle" class="svg-l" fill="#1B64DA">조회</text>
+          <text x="388" y="126" text-anchor="middle" class="svg-l" fill="#1B64DA">요청</text>
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rcA1)">
+            <path d="M364,140 L410,140"></path>
+            <path d="M772,128 L806,128"></path>
+          </g>
+
+          <rect x="412" y="40" width="358" height="176" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <text x="434" y="72" class="svg-l" fill="#1B64DA">조회 순간 계산 — 매 요청 반복</text>
+          <text x="434" y="100" class="svg-s" fill="#4E5968">score = 0.1·v + 0.2·l + 0.6·s</text>
+          <text x="434" y="128" class="svg-s" fill="#4E5968">p3 → 500 + 2 + 0.6  = 502.6</text>
+          <text x="434" y="152" class="svg-s" fill="#4E5968">p1 → 120 + 8 + 3.0  = 131.0</text>
+          <text x="434" y="176" class="svg-s" fill="#4E5968">p2 →  30 + 18 + 7.2 =  55.2</text>
+          <text x="434" y="202" class="svg-s" fill="#C9303C">ORDER BY score DESC → filesort</text>
+
+          <rect x="808" y="40" width="224" height="176" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <text x="830" y="72" class="svg-l" fill="#0A8F5B">응답 Top-3</text>
+          <text x="830" y="106" class="svg-s" fill="#4E5968">1위  p3  502.6</text>
+          <text x="830" y="134" class="svg-s" fill="#4E5968">2위  p1  131.0</text>
+          <text x="830" y="162" class="svg-s" fill="#4E5968">3위  p2   55.2</text>
+
+          <text x="520" y="256" text-anchor="middle" class="svg-s" fill="#C9303C">파란 박스 전체가 조회마다 다시 실행된다 — 100 req/s 면 초당 100번의 전체 스캔 + 정렬</text>
+        </svg>
+        <figcaption><b>방식 A</b> — 카운터는 쌓여 있지만 <b>점수 합성·정렬은 조회 순간</b>. score가 계산식이라 인덱스를 못 타고, 계산 비용을 모든 조회자가 매번 치른다.</figcaption>
+      </div>
+    </figure>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">FIT</span> 잘 맞는 곳</h4>
+        <p>데이터가 작고 조회 빈도가 낮은 곳 — 어드민 통계 화면, 초기 서비스, 배치 리포트. <b>가장 단순한 방식이 정답인 구간이 분명히 있습니다</b>(YAGNI).</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">LIMIT</span> 무너지는 곳</h4>
+        <p>홈 메인처럼 <b>조회 빈도가 매우 높은</b> 랭킹. 조회마다 집계+정렬이 반복돼 데이터 증가와 함께 응답이 느려지고 DB 전체를 위협 — Round 9 요구사항이 ZSET을 요구하는 배경(00 문서 2절).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">B · COMPUTE-ON-WRITE</p><h2 class="sec">방식 B — 쓰기 시점 즉시 갱신 (Redis ZSET)</h2></div>
+    </div>
+
+    <p class="lead">이벤트가 올 때마다 <strong>정렬을 내장한 자료구조</strong>에 점수를 반영합니다. 갱신 순간 순위가 이미 정해져 있으므로 읽기는 "정렬된 것을 꺼내기"만 하면 됩니다. <strong>Round 9가 채택한 방식</strong>입니다.</p>
+
+    <p>Redis 공식 문서는 Sorted Set을 리더보드의 대표 자료구조로 문서화합니다 — 삽입/갱신 <span class="term">O(log N)</span>, 범위 조회 <span class="term">O(log N + M)</span>이라 전체 크기와 무관하게 Top-10이든 특정 구간이든 빠르게 꺼낼 수 있습니다<a class="cite" href="#s9">[1][2]</a>. AWS도 게임 리더보드 아키텍처에서 같은 패턴을 공식 가이드로 제공합니다: DB 앞단의 ElastiCache(Redis) Sorted Set이 <strong>높은 조회율을 흡수해 DB 자원을 보호</strong>하고, 순위 재계산을 자료구조가 실시간으로 처리합니다<a class="cite" href="#s9">[3]</a>.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="B · ON-WRITE">
+        <svg viewBox="0 0 1040 300" role="img" aria-label="쓰기 시점 즉시 갱신: 주문 이벤트가 delta +60으로 환산되어 ZINCRBY로 ZSET에 반영되고, 자료구조가 즉시 재정렬되어 p2가 2위로 올라온다. 읽기는 ZREVRANGE로 꺼내기만 한다">
+          <defs>
+            <marker id="rcB1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <rect x="8" y="40" width="292" height="176" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="30" y="72" class="svg-l" fill="#6B7684">이벤트 1건</text>
+          <text x="30" y="102" class="svg-s" fill="#4E5968">OrderCreatedEvent</text>
+          <text x="30" y="126" class="svg-s" fill="#4E5968">productId=2 · price=100 · qty=1</text>
+          <line x1="26" y1="146" x2="278" y2="146" stroke="#E5E8EB" stroke-width="1.5"></line>
+          <text x="30" y="174" class="svg-s" fill="#1B64DA">delta = 0.6 × (100×1)</text>
+          <text x="30" y="198" class="svg-l" fill="#1B64DA">= +60.0</text>
+
+          <text x="352" y="106" text-anchor="middle" class="svg-l" fill="#1B64DA">ZINCRBY</text>
+          <text x="352" y="122" text-anchor="middle" class="svg-s" fill="#6B7684">+60 → "2"</text>
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rcB1)">
+            <path d="M300,136 L406,136"></path>
+            <path d="M700,136 L744,136"></path>
+          </g>
+
+          <rect x="408" y="40" width="290" height="176" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="430" y="72" class="svg-l" fill="#6B7684">ZSET 반영 전</text>
+          <text x="430" y="106" class="svg-s" fill="#4E5968">1위  p3  502.6</text>
+          <text x="430" y="134" class="svg-s" fill="#4E5968">2위  p1  131.0</text>
+          <text x="430" y="162" class="svg-s" fill="#1B64DA">3위  p2   75.4  ← 대상</text>
+          <text x="430" y="196" class="svg-s" fill="#8B95A1">ranking:all:20260714</text>
+
+          <text x="722" y="118" text-anchor="middle" class="svg-s" fill="#0A8F5B">즉시</text>
+          <text x="722" y="132" text-anchor="middle" class="svg-s" fill="#0A8F5B">재정렬</text>
+
+          <rect x="746" y="40" width="286" height="176" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <text x="768" y="72" class="svg-l" fill="#1B64DA">ZSET 반영 후 (O(log N))</text>
+          <text x="768" y="106" class="svg-s" fill="#4E5968">1위  p3  502.6</text>
+          <text x="768" y="134" class="svg-l" fill="#1B64DA">2위  p2  135.4  ↑</text>
+          <text x="768" y="162" class="svg-s" fill="#4E5968">3위  p1  131.0  ↓</text>
+          <text x="768" y="196" class="svg-s" fill="#8B95A1">순위가 이미 정해져 있는 상태</text>
+
+          <text x="520" y="262" text-anchor="middle" class="svg-s" fill="#0A8F5B">읽기: ZREVRANGE ranking:all:20260714 0 2 WITHSCORES — 계산이 아니라 꺼내기</text>
+        </svg>
+        <figcaption><b>방식 B</b> — 이벤트가 <b>델타(+60)로 환산되어 쓰기 순간 반영</b>되고 자료구조가 정렬을 유지한다. 주문 1건이 좋아요 수백 건을 제치는 순위 역전이 <b>초 단위로</b> 일어난다.</figcaption>
+      </div>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>특성</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td>신선도</td><td>초 단위 — 이벤트 반영 즉시 순위 변화</td></tr>
+          <tr><td>쓰기 비용</td><td>이벤트마다 O(log N) 갱신 (쓰기 증폭 발생 — 배치 소비로 완화)</td></tr>
+          <tr><td>읽기 비용</td><td>Top-N = ZREVRANGE, 개별 순위 = ZREVRANK — 계산이 아니라 조회</td></tr>
+          <tr><td>제약</td><td>메모리 상주(용량 = 비용) · score는 단일 숫자여야 함 → 가중 합산으로 단일화</td></tr>
+          <tr><td>대표 사례</td><td>게임 리더보드 (Redis 공식 use case, AWS 공식 아키텍처)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span class="tag">"실시간"의 실제 의미</span>
+      이 방식이 실시간인 건 <strong>집계와 발행이 한 몸</strong>이기 때문입니다. 점수를 올리는 연산(<span class="term">ZINCRBY</span>)이 곧 순위 변경입니다. 대신 <em>랭킹 점수 산식이 바뀌면 이미 쌓인 점수를 소급 재계산할 수 없다</em>는 약점이 있습니다 — 산식이 자주 바뀌는 랭킹(추천성 랭킹)에 이 방식이 안 쓰이는 이유이자, Round 9 Nice-to-Have "실시간 Weight 조절"이 <em>미래 이벤트에만</em> 적용되는 이유입니다.
+    </div>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">C · STREAM WINDOWED</p><h2 class="sec">방식 C — 스트림 윈도우 집계 (준실시간)</h2></div>
+    </div>
+
+    <p class="lead">스트림 처리기(Flink · Kafka Streams)가 이벤트를 <strong>시간 윈도우로 잘라 계속 집계</strong>하고, <strong>윈도우가 닫힐 때 그 구간의 Top-N을 발행</strong>합니다. "집계는 계속 하되 반영은 한 번씩"을 처리기 차원에서 지원하는 방식입니다.</p>
+
+    <p>Flink 공식 문서의 <strong>Window Top-N</strong>이 이 패턴 그 자체입니다: 일반(연속) Top-N이 레코드가 올 때마다 갱신 결과를 내보내는 것과 달리, Window Top-N은 <strong>중간 결과를 내보내지 않고 윈도우가 끝날 때 최종 Top-N만 발행</strong>하며, 끝난 윈도우의 중간 상태를 즉시 정리해 성능이 더 좋습니다<a class="cite" href="#s9">[4][5]</a>. Kafka Streams도 tumbling(겹침 없음) · hopping(겹침 있음) 윈도우로 같은 구조를 제공합니다<a class="cite" href="#s9">[6]</a> — hopping을 쓰면 "최근 1시간 랭킹을 5분마다 갱신" 같은 <em>슬라이딩 최신성</em>도 가능합니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="C · WINDOWED">
+        <svg viewBox="0 0 1040 342" role="img" aria-label="스트림 윈도우 집계: 14시 00분부터 10분 윈도우 동안 이벤트가 들어오며 윈도우 상태에 점수가 계속 집계되고, 14시 10분 윈도우가 닫히는 순간 최종 Top-N 한 번만 발행되어 서빙 스토어에 저장된다. 다음 윈도우는 상태 0부터 다시 시작한다">
+          <defs>
+            <marker id="rcC1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <line x1="60" y1="60" x2="1010" y2="60" stroke="#D1D6DB" stroke-width="2"></line>
+          <g stroke="#B0B8C1" stroke-width="1.5" stroke-dasharray="4 4">
+            <line x1="80" y1="44" x2="80" y2="210"></line>
+            <line x1="540" y1="44" x2="540" y2="210"></line>
+            <line x1="1000" y1="44" x2="1000" y2="76"></line>
+          </g>
+          <text x="80" y="34" text-anchor="middle" class="svg-l" fill="#6B7684">14:00</text>
+          <text x="540" y="34" text-anchor="middle" class="svg-l" fill="#0A8F5B">14:10 — 윈도우 닫힘</text>
+          <text x="1000" y="34" text-anchor="middle" class="svg-l" fill="#6B7684">14:20</text>
+
+          <g fill="#8B95A1">
+            <circle cx="140" cy="60" r="6"></circle><circle cx="220" cy="60" r="6"></circle>
+            <circle cx="300" cy="60" r="6"></circle><circle cx="390" cy="60" r="6"></circle>
+            <circle cx="470" cy="60" r="6"></circle>
+          </g>
+          <text x="140" y="86" text-anchor="middle" class="svg-s" fill="#8B95A1">view p7</text>
+          <text x="220" y="102" text-anchor="middle" class="svg-s" fill="#8B95A1">view p7</text>
+          <text x="300" y="86" text-anchor="middle" class="svg-s" fill="#8B95A1">like p7</text>
+          <text x="390" y="102" text-anchor="middle" class="svg-s" fill="#8B95A1">view p9</text>
+          <text x="470" y="86" text-anchor="middle" class="svg-s" fill="#8B95A1">order p9(100)</text>
+
+          <rect x="80" y="122" width="420" height="88" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="102" y="150" class="svg-l" fill="#6B7684">윈도우 상태 — 집계는 계속, 발행은 안 함</text>
+          <text x="102" y="176" class="svg-s" fill="#4E5968">p7 = 0.1×2 + 0.2      =  0.4</text>
+          <text x="102" y="198" class="svg-s" fill="#4E5968">p9 = 0.1 + 0.6×100    = 60.1</text>
+
+          <text x="770" y="140" text-anchor="middle" class="svg-s" fill="#8B95A1">새 윈도우 14:10~14:20 — 상태 0부터 다시</text>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rcC1)">
+            <path d="M540,210 L540,238"></path>
+            <path d="M700,278 L744,278"></path>
+          </g>
+
+          <rect x="400" y="240" width="300" height="76" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="400" y="240" width="300" height="76"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">최종 Top-N 1회 발행</div><div class="s">1위 p9 60.1 · 2위 p7 0.4</div></div></foreignObject>
+
+          <rect x="746" y="240" width="286" height="76" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="746" y="240" width="286" height="76"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">서빙 스토어 (Redis·테이블)</div><div class="s">API는 최신 윈도우 결과만 읽음</div></div></foreignObject>
+        </svg>
+        <figcaption><b>방식 C</b> — 윈도우 동안 상태에 <b>집계만 계속</b>하다가, 닫히는 순간 <b>최종 Top-N을 한 번만 발행</b>(중간 결과 없음). "집계는 계속, 반영은 한 번씩"의 구현체.</figcaption>
+      </div>
+    </figure>
+
+    <h3>실제 사례 — Instagram Trending</h3>
+    <p>Instagram의 트렌딩(해시태그·장소 랭킹)은 <strong>미디어 생성 이벤트 스트림</strong>을 샤딩된 스트림 처리 파이프라인(전처리 → 해시태그 파싱 → 시간 집계 카운터 축적)에 태우고, 후보들을 모아 <strong>KL divergence 점수로 정렬</strong>해 트렌딩 목록을 만듭니다. 시간당 게시물 3개 미만의 롱테일 해시태그는 카운터 자체를 유지하지 않는 식으로 메모리를 90% 이상 절약합니다<a class="cite" href="#s9">[7]</a>. 단순 누적 점수가 아니라 <em>"평소 대비 얼마나 튀는가"</em>가 점수라는 점 — 랭킹 지표 설계가 자료구조 선택보다 상위 결정임을 보여주는 사례입니다.</p>
+
+    <div class="note key">
+      <span class="tag">B와 C의 실질적 경계</span>
+      B는 <strong>저장소(Redis)가 정렬을 유지</strong>하고, C는 <strong>처리기(Flink 등)가 윈도우 상태로 집계를 유지</strong>합니다. C는 산식이 복잡하거나(추세 점수·정규화) 윈도우 의미론(event-time, 지각 이벤트 처리)이 필요할 때 강하고, 대신 스트림 처리기라는 <em>운영해야 할 시스템이 하나 더</em> 생깁니다. Round 9 규모에서 C를 도입하면 과잉 설계 — collector가 이미 이벤트를 소비하고 있으므로 B로 충분합니다.
+    </div>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">D · PERIODIC BATCH SNAPSHOT</p><h2 class="sec">방식 D — 주기 배치 스냅샷 (멜론 차트)</h2></div>
+    </div>
+
+    <p class="lead">이용 기록은 계속 쌓되, <strong>스케줄 시각에 전체를 재계산해 랭킹판 스냅샷을 발행</strong>하고 다음 발행까지 그 판을 그대로 서빙합니다. 음원 차트가 대표 사례입니다.</p>
+
+    <p>멜론 TOP100의 공식 집계 기준: <strong>"최근 24시간 동안의 이용량과 최근 1시간의 이용량을 반영한 차트이며, 이용량은 스트리밍 40%+다운로드 60%를 기준으로 집계, 매 시간 업데이트 됩니다."</strong> 그리고 <strong>"이용자가 적은 심야와 이른 오전 01시~07시에는 최근 24시간 이용량을 100% 반영한 차트를 발행합니다."</strong><a class="cite" href="#s9">[8]</a></p>
+
+    <figure>
+      <div class="fig-box" data-fig="MELON PATTERN">
+        <svg viewBox="0 0 1040 216" role="img" aria-label="멜론 차트 패턴: 이용 로그를 연속 수집하고, 매시 정각 집계 배치가 24시간과 1시간 이용량을 가중 합산해 TOP100 스냅샷을 발행하며, 다음 발행까지 모든 사용자가 같은 차트를 본다">
+          <defs>
+            <marker id="rc5a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <rect x="8" y="40" width="228" height="90" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="8" y="40" width="228" height="90"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">이용 로그 수집</div><div class="s">스트리밍 · 다운로드 (연속)</div></div></foreignObject>
+
+          <rect x="288" y="40" width="256" height="90" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="288" y="40" width="256" height="90"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">매시 정각 집계 배치</div><div class="s">24h 이용량 + 1h 이용량 가중 합산</div></div></foreignObject>
+
+          <rect x="596" y="40" width="212" height="90" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="596" y="40" width="212" height="90"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">TOP100 스냅샷 발행</div><div class="s">다음 정각까지 고정</div></div></foreignObject>
+
+          <rect x="860" y="40" width="172" height="90" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="860" y="40" width="172" height="90"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">서빙</div><div class="s">모두 같은 차트를 봄</div></div></foreignObject>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rc5a)">
+            <path d="M236,85 L286,85"></path>
+            <path d="M544,85 L594,85"></path>
+            <path d="M808,85 L858,85"></path>
+          </g>
+
+          <text x="520" y="176" text-anchor="middle" class="svg-s" fill="#6B7684">01~07시(이용자 적은 시간대)는 24h 이용량 100% 반영 — 소수 이용으로 순위가 튀는 왜곡을 배치 규칙으로 차단</text>
+        </svg>
+        <figcaption><b>집계는 연속, 발행은 매시 정각</b>. 발행 주기와 반영 비율(24h vs 1h)이 코드가 아니라 <b>정책</b>의 영역임을 보여준다.</figcaption>
+      </div>
+    </figure>
+
+    <div class="note key">
+      <span class="tag">핵심 인사이트 — 실시간성을 일부러 낮춘다</span>
+      멜론은 기술적으로 실시간 차트를 못 만들어서 매시간 발행하는 게 아닙니다. 심야 01~07시에 1시간 반영분을 아예 꺼버리는 규칙<a class="cite" href="#s9">[8]</a>은 <strong>이용자가 적은 시간대에 소수의 집중 이용이 순위를 흔드는 왜곡을 막기 위한 정책적 선택</strong>입니다. 랭킹에서 실시간성은 항상 좋은 게 아니라 <strong>어뷰징 표면적을 넓히는 비용</strong>이기도 합니다 — Round 9의 "시간의 양자화"(일간 키로 자르기)도 같은 계열의 판단입니다. 정렬 인프라를 직접 구현하는 대신, RDB/DW의 배치 결과를 스냅샷 테이블이나 <span class="term">materialized view</span>(전체 재계산 후 통째 교체, <span class="term">CONCURRENTLY</span> 옵션으로 조회 차단 없이 갱신)로 서빙하는 것이 이 방식의 전형적 구현입니다<a class="cite" href="#s9">[10]</a>.
+    </div>
+
+    <figure>
+      <div class="fig-box" data-fig="D · SNAPSHOT">
+        <svg viewBox="0 0 1040 250" role="img" aria-label="주기 배치 스냅샷의 서빙: 15시에 발행된 ranking_snapshot 테이블에 rank가 저장돼 있고, 읽기는 계산 없이 최신 스냅샷을 그대로 반환하며, 16시 정각 배치가 전체를 재계산해 통째로 교체한다">
+          <defs>
+            <marker id="rcD1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <rect x="8" y="40" width="360" height="170" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <text x="30" y="72" class="svg-l" fill="#6B7684">ranking_snapshot (published 15:00)</text>
+          <line x1="26" y1="86" x2="350" y2="86" stroke="#E5E8EB" stroke-width="1.5"></line>
+          <text x="30" y="112" class="svg-s" fill="#8B95A1">rank   id    score</text>
+          <text x="30" y="138" class="svg-s" fill="#4E5968">  1    p3    502.6</text>
+          <text x="30" y="162" class="svg-s" fill="#4E5968">  2    p1    131.0</text>
+          <text x="30" y="186" class="svg-s" fill="#4E5968">  3    p2     55.2</text>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rcD1)">
+            <path d="M368,125 L412,125"></path>
+            <path d="M718,125 L762,125"></path>
+          </g>
+
+          <rect x="414" y="58" width="304" height="134" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="414" y="58" width="304" height="134"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">읽기 — 저장된 순위 그대로</div><div class="s">WHERE published_at = 최신 · 계산 없음</div><div class="s">15:00~15:59 모든 사용자 동일 응답</div></div></foreignObject>
+
+          <rect x="764" y="58" width="268" height="134" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="764" y="58" width="268" height="134"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">16:00 정각 — 배치 재계산</div><div class="s">A의 쿼리를 1회 실행 → 통째 교체</div><div class="s">산식 변경도 이때 전체 소급</div></div></foreignObject>
+
+          <text x="520" y="238" text-anchor="middle" class="svg-s" fill="#6B7684">멜론: 매시 정각 발행 · 01~07시는 24h 100% 반영판 발행 — 발행 규칙 자체가 정책</text>
+        </svg>
+        <figcaption><b>방식 D</b> — 읽기는 <b>rank가 저장된 스냅샷을 그대로</b> 반환. 발행 주기 사이에는 아무리 이용량이 쌓여도 순위가 고정이고, 그 고정이 <b>안정성·공정성이라는 기능</b>이다.</figcaption>
+      </div>
+    </figure>
+
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">FIT</span> 잘 맞는 곳</h4>
+        <p>순위의 <b>공정성·안정성이 신선도보다 중요한</b> 랭킹 — 음원 차트, 베스트셀러, 주간/월간 랭킹, 정산이 걸린 순위. 스냅샷이라 <b>"그 시각의 차트"를 재현·감사할 수 있음</b>도 큰 장점.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">LIMIT</span> 무너지는 곳</h4>
+        <p>지금 뜨는 것을 보여줘야 하는 곳(급상승 검색어·라이브 리더보드). 발행 주기(1시간)보다 빠른 변화는 전부 뭉개짐. 재계산 배치 자체도 데이터가 크면 무거워짐.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">HYBRID = COMBINATION</p><h2 class="sec">하이브리드 — 시점의 조합</h2></div>
+    </div>
+
+    <p class="lead">하이브리드는 다섯 번째 방식이 아니라 <strong>두 시점의 조합</strong>입니다. 전형은 "배치가 만든 베이스판 + 실시간 델타" — 배치의 안정성과 실시간의 신선도를 나눠 갖습니다.</p>
+
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">D+B</span> 베이스판 + 델타</h4>
+        <p>배치(D)가 주기적으로 기준 랭킹판을 만들고, 그 위에 실시간 이벤트(B)를 증분 반영. 산식 변경·보정은 다음 배치에서 소급 적용 가능 — B 단독의 "소급 불가" 약점을 배치가 메꿈.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">B+D</span> 실시간 쓰기 + 주기 발행</h4>
+        <p>ZSET엔 실시간으로 쓰되, 사용자에게 보이는 Top-N은 주기 캐싱으로 발행(Round 9 Nice-to-Have "Top-N 캐싱"). 쓰기는 B, 읽기 노출은 D의 리듬 — 순위 깜빡임(flapping)도 줄어듦.</p>
+      </div>
+    </div>
+
+    <h3>Round 9의 Carry-Over도 미니 하이브리드다</h3>
+    <p>날짜가 바뀌는 순간 새 일간 키는 비어 있습니다(콜드 스타트). Round 9 Nice-to-Have의 Score Carry-Over는 자정 직전 <strong>오늘 판의 점수를 10%로 감쇠해 내일 판의 초기값으로 복사</strong>합니다 — <span class="term">ZUNIONSTORE</span>가 입력 ZSET의 점수에 <span class="term">WEIGHTS</span> 배수를 곱해 합산(<span class="term">AGGREGATE SUM</span>이 기본)하는 것을 그대로 이용합니다<a class="cite" href="#s9">[11]</a>. "스케줄이 만든 베이스판(어제×0.1) + 실시간 델타(오늘 ZINCRBY)" — D+B 조합의 축소판입니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="CARRY-OVER">
+        <svg viewBox="0 0 1040 232" role="img" aria-label="Score Carry-Over: 23시 50분에 오늘 랭킹판 점수를 0.1배로 감쇠해 내일 키의 초기판을 만들고, 자정 이후 내일의 실시간 이벤트가 ZINCRBY로 그 위에 누적된다">
+          <defs>
+            <marker id="rc6a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#B0B8C1"></path>
+            </marker>
+          </defs>
+          <rect x="8" y="30" width="256" height="90" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="8" y="30" width="256" height="90"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">ranking:all:{오늘}</div><div class="s">하루치 누적 점수 ZSET</div></div></foreignObject>
+
+          <rect x="392" y="30" width="300" height="90" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
+          <foreignObject x="392" y="30" width="300" height="90"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">ranking:all:{내일} 초기판</div><div class="s">어제 점수 × 0.1 (감쇠 복사)</div></div></foreignObject>
+
+          <rect x="392" y="150" width="300" height="62" rx="14" fill="#F9FAFB" stroke="#E5E8EB"></rect>
+          <foreignObject x="392" y="150" width="300" height="62"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">내일의 실시간 이벤트</div><div class="s">ZINCRBY 로 초기판 위에 누적</div></div></foreignObject>
+
+          <rect x="800" y="30" width="232" height="90" rx="16" fill="#E8F3FF" stroke="#cfe4ff"></rect>
+          <foreignObject x="800" y="30" width="232" height="90"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">내일 아침 랭킹</div><div class="s">빈 판 없이 자연스러운 초기 순위</div></div></foreignObject>
+
+          <g stroke="#B0B8C1" stroke-width="2" fill="none" marker-end="url(#rc6a)">
+            <path d="M264,75 L390,75"></path>
+            <path d="M542,148 L542,124"></path>
+            <path d="M692,75 L798,75"></path>
+          </g>
+          <text x="327" y="62" text-anchor="middle" class="svg-l" fill="#3182F6">23:50 스케줄</text>
+          <text x="327" y="94" text-anchor="middle" class="svg-s" fill="#6B7684">ZUNIONSTORE WEIGHTS 0.1</text>
+        </svg>
+        <figcaption>스케줄(D)이 만든 감쇠 베이스판 위에 실시간(B) 델타가 쌓인다 — <b>하이브리드는 조합이지 새 부류가 아니다</b>.</figcaption>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ===================== S7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">COMPARISON &amp; DECISION</p><h2 class="sec">비교표 &amp; 선택 가이드</h2></div>
+    </div>
+
+    <p class="lead">네 방식은 우열이 아니라 <strong>"신선도가 얼마나 가치 있는 랭킹인가"</strong>에 대한 답의 차이입니다. 같은 회사가 랭킹마다 다른 방식을 씁니다 — 게임 리더보드는 B, 음원 차트는 D.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>방식</th><th>랭킹판 생성</th><th>신선도</th><th>비용의 위치</th><th>강점</th><th>대표 사례</th></tr></thead>
+        <tbody>
+          <tr><td>A · 조회 시점</td><td>조회 요청마다</td><td>항상 최신</td><td>읽기마다 집계+정렬</td><td>구현 비용 0 · 항상 정합</td><td>어드민 통계 · 소규모</td></tr>
+          <tr><td>B · 쓰기 시점</td><td>이벤트마다</td><td>초</td><td>쓰기마다 O(log N) + 메모리 상주</td><td>읽기가 계산이 아닌 조회</td><td>게임 리더보드 (Redis·AWS)</td></tr>
+          <tr><td>C · 윈도우</td><td>윈도우 닫힐 때</td><td>분 (윈도우 크기)</td><td>스트림 처리기 운영</td><td>복잡한 산식 · event-time 의미론</td><td>Instagram Trending</td></tr>
+          <tr><td>D · 배치 스냅샷</td><td>스케줄마다</td><td>시간/일</td><td>발행 시점에 전체 재계산</td><td>안정성 · 왜곡 통제 · 재현/감사</td><td>멜론 TOP100</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>선택 가이드 — 질문 두 개면 갈린다</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">Q1</span> 순위 변화가 초 단위로 가치 있는가?</h4>
+        <p>예 → B (또는 분 단위면 C). 아니오 → D부터 검토. "실시간이면 좋지"가 아니라 <b>실시간이라서 사용자 행동이 달라지는가</b>로 판단 — 아니라면 실시간성은 비용+어뷰징 표면적일 뿐.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">Q2</span> 조회 규모가 DB로 감당되는가?</h4>
+        <p>감당되면 A로 시작해도 됨(YAGNI). 홈 노출처럼 조회가 지배적이면 랭킹판을 미리 만들어두는 B/C/D 중 택일 — 읽기 경로에서 계산을 치우는 게 공통 원리.</p>
+      </div>
+    </div>
+
+    <div class="note key">
+      <span class="tag">Round 9가 B인 이유 (요구사항 역산)</span>
+      ① 상품 상세에 <strong>개별 순위</strong>(<span class="term">ZREVRANK</span>)를 실시간으로 보여줘야 함 — D의 스냅샷 테이블로도 되지만 발행 주기만큼 낡음, ② collector가 <strong>이미 이벤트를 소비 중</strong>이라 쓰기 지점 추가 비용이 최소, ③ 스트림 처리기(C)를 새로 세울 규모가 아님, ④ 일간 키 + TTL로 <strong>시간 양자화는 D의 안정성 감각을 일부 차용</strong>. 결론: B를 기본으로, D의 정책(양자화·carry-over)을 섞은 형태가 Round 9의 설계입니다.
+    </div>
+
+    <a class="xlink" href="00-requirements.html">
+      <span class="ic">←</span>
+      <span><span class="t">요구사항으로</span><span class="h">00 — Round 9 요구사항 명세<small>Round 9의 Must/Nice와 스펙 고정값은 00 문서 기준.</small></span></span>
+    </a>
+  </section>
+
+  <!-- ===================== S8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">EXAMPLES · SAME MATH, DIFFERENT MOMENT</p><h2 class="sec">예시로 보는 4방식 — 같은 계산, 다른 시점</h2></div>
+    </div>
+
+    <p class="lead">네 방식 모두 결국 같은 계산 — <strong>점수 합성(가중 합) + 정렬 + 자르기</strong> — 을 합니다. 차이는 <strong>그 계산을 누가, 언제, 몇 번 치르느냐</strong>뿐입니다. R7이 이미 만든 <span class="term">product_metrics</span>(<span class="term">view_count</span>·<span class="term">like_count</span>·<span class="term">sales_count</span> upsert)를 공통 소재로, 우리 프로젝트 기준의 예시입니다.</p>
+
+    <h3>A · 조회 시점 계산 — 조회자가 매번 치른다</h3>
+    <p>카운터(metric)는 collector가 계속 쌓고 있고, <strong>점수 합성과 정렬만 조회 순간에</strong> 합니다. 지금 코드베이스로 오늘 당장 가능한 형태입니다.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">ranking-on-read.sql — 매 조회마다 실행됨</span>
+      </div>
+<pre><span class="kw">SELECT</span> product_id,
+       <span class="st">0.1</span> * view_count + <span class="st">0.2</span> * like_count + <span class="st">0.6</span> * sales_count <span class="kw">AS</span> score
+<span class="kw">FROM</span> product_metrics
+<span class="kw">ORDER BY</span> score <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="st">20</span>;  <span class="cm">-- score는 계산식 → 인덱스 불가 → 전 상품 스캔 + filesort</span></pre>
+    </div>
+    <p><span class="term">score</span>가 파생 계산식이라 <strong>ORDER BY가 인덱스를 탈 수 없고</strong>, 매 요청이 전 상품 스캔 + filesort<a class="cite" href="#s9">[9]</a>가 됩니다. 참고로 카운터조차 없이 이벤트 로그를 조회 시점에 <span class="term">GROUP BY</span>로 집계하는 더 원시적인 변형도 A에 속합니다 — "카운터는 쌓아두고 정렬만 조회 시"가 실무에서 더 흔한 변형입니다.</p>
+
+    <h3>B · 쓰기 시점 즉시 갱신 — 이벤트마다 증분으로 치른다 (Round 9)</h3>
+    <p>점수 계산이 <strong>쓰기 시점으로 이동</strong>합니다. 독립 컨슈머(<span class="term">ProductRankingKafkaConsumer</span> → <span class="term">RankingAccumulateService</span>)가 이벤트를 소비하며 증분을 적재하는 그 코드입니다 (metrics 집계와는 별도 그룹·별도 트랜잭션).</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">RankingWriter.kt — 이벤트 소비 지점에서 실행됨</span>
+      </div>
+<pre><span class="kw">val</span> delta = <span class="kw">when</span> (eventType) {
+    <span class="st">"ProductViewedEvent"</span> -&gt; <span class="st">0.1</span> * <span class="st">1</span>
+    <span class="st">"ProductLikedEvent"</span>  -&gt; <span class="st">0.2</span> * <span class="st">1</span>
+    <span class="st">"OrderCreatedEvent"</span>  -&gt; <span class="st">0.6</span> * (price * quantity)
+    <span class="kw">else</span> -&gt; <span class="kw">return</span>
+}
+redisTemplate.opsForZSet().<span class="fn">incrementScore</span>(<span class="st">"ranking:all:20260714"</span>, productId.toString(), delta)
+<span class="cm">// 읽기: ZREVRANGE ranking:all:20260714 0 19 WITHSCORES — 계산이 아니라 꺼내기</span></pre>
+    </div>
+    <p>ZSET이 정렬을 유지하므로 읽기는 조회일 뿐입니다<a class="cite" href="#s9">[1]</a>. 단 이 방식이 성립하려면 <strong>산식이 이벤트 단위의 덧셈으로 분해 가능</strong>해야 하고(증분 합산), 가중치를 바꿔도 이미 쌓인 점수는 소급되지 않습니다.</p>
+
+    <h3>C · 스트림 윈도우 집계 — 윈도우가 닫힐 때 처리기가 치른다</h3>
+    <p>집계는 윈도우 동안 계속 하되, <strong>발행은 윈도우가 닫히는 순간 한 번</strong>입니다. Flink SQL Window Top-N 그대로<a class="cite" href="#s9">[4]</a>.</p>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">window-topn.sql (Flink) — 10분 윈도우 종료 시마다 발행</span>
+      </div>
+<pre><span class="kw">SELECT</span> * <span class="kw">FROM</span> (
+  <span class="kw">SELECT</span> *, <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
+           <span class="kw">PARTITION BY</span> window_start, window_end <span class="kw">ORDER BY</span> score <span class="kw">DESC</span>) <span class="kw">AS</span> rn
+  <span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> window_start, window_end, product_id,
+           <span class="fn">SUM</span>(<span class="kw">CASE</span> event_type <span class="kw">WHEN</span> <span class="st">'view'</span> <span class="kw">THEN</span> <span class="st">0.1</span>
+                               <span class="kw">WHEN</span> <span class="st">'like'</span> <span class="kw">THEN</span> <span class="st">0.2</span>
+                               <span class="kw">ELSE</span> <span class="st">0.6</span> * price * quantity <span class="kw">END</span>) <span class="kw">AS</span> score
+    <span class="kw">FROM TABLE</span>(<span class="fn">TUMBLE</span>(<span class="kw">TABLE</span> events, <span class="fn">DESCRIPTOR</span>(event_time), <span class="kw">INTERVAL</span> <span class="st">'10'</span> <span class="kw">MINUTE</span>))
+    <span class="kw">GROUP BY</span> window_start, window_end, product_id
+  )
+) <span class="kw">WHERE</span> rn &lt;= <span class="st">20</span>;  <span class="cm">-- 중간 결과 없음 · 윈도우 종료 시 최종 Top-20만</span></pre>
+    </div>
+    <p>발행된 Top-N을 Redis나 서빙 테이블에 써두고, API는 최신 윈도우의 결과만 읽습니다. 조회·좋아요·주문을 <span class="term">CASE</span>로 가중하는 산식 부분은 A·B와 동일하다는 점에 주목 — <strong>계산은 같고 시점만 다릅니다</strong>.</p>
+
+    <h3>D · 주기 배치 스냅샷 — 스케줄러가 시간당 한 번 치른다 (멜론 패턴)</h3>
+    <div class="code">
+      <div class="code-bar">
+        <span class="dot" style="background:#F04452"></span>
+        <span class="dot" style="background:#FFB836"></span>
+        <span class="dot" style="background:#15C47E"></span>
+        <span class="fn">RankingSnapshotScheduler.kt — 매시 정각 1회 실행됨</span>
+      </div>
+<pre><span class="kw">@Scheduled</span>(cron = <span class="st">"0 0 * * * *"</span>)
+<span class="kw">fun</span> <span class="fn">publishRankingSnapshot</span>() {
+    <span class="kw">val</span> top100 = jdbcTemplate.<span class="fn">query</span>(<span class="st">"""
+        SELECT product_id,
+               0.1 * view_count + 0.2 * like_count + 0.6 * sales_count AS score
+        FROM product_metrics
+        ORDER BY score DESC
+        LIMIT 100
+    """</span>)
+    rankingSnapshotRepository.<span class="fn">replaceAll</span>(publishedAt = now, rows = top100)
+}
+<span class="cm">// 읽기: SELECT * FROM ranking_snapshot WHERE published_at = 최신 — rank 컬럼 그대로 반환</span></pre>
+    </div>
+    <p>배치 안의 쿼리가 <strong>A의 쿼리 그대로</strong>라는 게 핵심입니다. A는 그 계산을 모든 조회자가 매번 치르고, D는 스케줄러가 시간당 한 번 치른 뒤 결과를 저장합니다. 읽기는 저장된 순위를 그대로 반환하고, 산식이 바뀌면 <strong>다음 발행 때 전체가 소급 재계산</strong>됩니다 — B가 못 하는 것. RDB라면 스냅샷 테이블 대신 <span class="term">materialized view</span> 교체로도 같은 구조를 만듭니다<a class="cite" href="#s9">[10]</a>.</p>
+
+    <div class="note key">
+      <span class="tag">한 줄 요약</span>
+      <strong>A = 조회자가 매번 · B = 이벤트마다 증분으로 · C = 윈도우 닫힐 때 처리기가 · D = 스케줄러가 주기마다.</strong> 계산식(가중 합 + 정렬 + Top-N)은 넷 다 같습니다. 그래서 방식 선택은 계산의 문제가 아니라 <strong>비용을 어느 시점에 청구하느냐</strong>의 문제입니다.
+    </div>
+  </section>
+
+  <!-- ===================== S9 ===================== -->
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">REFERENCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+
+    <p class="lead">아래 출처는 전부 <strong>실제 URL을 확인한 뒤</strong> 기재했습니다 (공식 문서 + 빅테크 공식 채널만).</p>
+
+    <a class="ref primary" href="https://redis.io/docs/latest/develop/use-cases/leaderboard/" target="_blank" rel="noopener">
+      <span class="n">1</span>
+      <span class="b"><b>Redis Docs — Redis leaderboard (use case)</b> · Sorted Set 기반 리더보드 공식 use case: O(log N) 갱신, ZADD/ZREVRANGE/ZREVRANK 패턴
+      <span class="src">https://redis.io/docs/latest/develop/use-cases/leaderboard/</span></span>
+    </a>
+    <a class="ref primary" href="https://redis.io/docs/latest/develop/data-types/sorted-sets/" target="_blank" rel="noopener">
+      <span class="n">2</span>
+      <span class="b"><b>Redis Docs — Sorted sets</b> · 자료구조 공식 레퍼런스 (score 정렬 유지, 연산 복잡도)
+      <span class="src">https://redis.io/docs/latest/develop/data-types/sorted-sets/</span></span>
+    </a>
+    <a class="ref primary" href="https://aws.amazon.com/blogs/database/building-a-real-time-gaming-leaderboard-with-amazon-elasticache-for-redis/" target="_blank" rel="noopener">
+      <span class="n">3</span>
+      <span class="b"><b>AWS Database Blog — Build a real-time gaming leaderboard with Amazon ElastiCache for Redis</b> · 방식 B의 공식 아키텍처 사례 (DB 부하 오프로드)
+      <span class="src">https://aws.amazon.com/blogs/database/building-a-real-time-gaming-leaderboard-with-amazon-elasticache-for-redis/</span></span>
+    </a>
+    <a class="ref primary" href="https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/queries/window-topn/" target="_blank" rel="noopener">
+      <span class="n">4</span>
+      <span class="b"><b>Apache Flink Docs — Window Top-N</b> · 중간 결과 없이 윈도우 종료 시 최종 Top-N만 발행 — "집계는 계속, 반영은 한 번씩"의 공식 명세
+      <span class="src">https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/queries/window-topn/</span></span>
+    </a>
+    <a class="ref" href="https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/queries/topn/" target="_blank" rel="noopener">
+      <span class="n">5</span>
+      <span class="b"><b>Apache Flink Docs — Top-N</b> · 연속(레코드마다 갱신) Top-N — Window Top-N과의 대비 기준
+      <span class="src">https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/queries/topn/</span></span>
+    </a>
+    <a class="ref" href="https://www.confluent.io/blog/windowing-in-kafka-streams/" target="_blank" rel="noopener">
+      <span class="n">6</span>
+      <span class="b"><b>Confluent — Windowing in Kafka Streams</b> · tumbling/hopping 윈도우 의미론 (Kafka vendor 공식)
+      <span class="src">https://www.confluent.io/blog/windowing-in-kafka-streams/</span></span>
+    </a>
+    <a class="ref primary" href="https://instagram-engineering.com/trending-on-instagram-b749450e6d93" target="_blank" rel="noopener">
+      <span class="n">7</span>
+      <span class="b"><b>Instagram Engineering — Trending on Instagram</b> · 스트림 파이프라인 + 시간 집계 카운터 + KL divergence 랭킹, 롱테일 카운터 드롭으로 메모리 90%+ 절약
+      <span class="src">https://instagram-engineering.com/trending-on-instagram-b749450e6d93</span></span>
+    </a>
+    <a class="ref primary" href="https://www.melon.com/chart/index.htm" target="_blank" rel="noopener">
+      <span class="n">8</span>
+      <span class="b"><b>멜론 — 멜론차트 TOP100 (집계 기준 안내)</b> · "24시간+1시간 이용량 · 매 시간 업데이트 · 01~07시는 24시간 100% 반영" 원문 (페이지 내 차트 안내 문구, 2026-07-14 확인)
+      <span class="src">https://www.melon.com/chart/index.htm</span></span>
+    </a>
+    <a class="ref" href="https://dev.mysql.com/doc/refman/8.4/en/order-by-optimization.html" target="_blank" rel="noopener">
+      <span class="n">9</span>
+      <span class="b"><b>MySQL 8.4 Reference Manual — ORDER BY Optimization</b> · 인덱스로 정렬 해소 vs filesort(임시 디스크 파일) 동작
+      <span class="src">https://dev.mysql.com/doc/refman/8.4/en/order-by-optimization.html</span></span>
+    </a>
+    <a class="ref" href="https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html" target="_blank" rel="noopener">
+      <span class="n">10</span>
+      <span class="b"><b>PostgreSQL Docs — REFRESH MATERIALIZED VIEW</b> · 스냅샷 전체 교체 + CONCURRENTLY(조회 차단 없는 갱신) — 방식 D의 전형적 구현 수단
+      <span class="src">https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html</span></span>
+    </a>
+    <a class="ref" href="https://redis.io/docs/latest/commands/zunionstore/" target="_blank" rel="noopener">
+      <span class="n">11</span>
+      <span class="b"><b>Redis Docs — ZUNIONSTORE</b> · WEIGHTS 배수 곱 + AGGREGATE SUM(기본) — Score Carry-Over의 근거 명령
+      <span class="src">https://redis.io/docs/latest/commands/zunionstore/</span></span>
+    </a>
+
+    <div class="note">
+      <span class="tag">확인하지 못해 뺀 것</span>
+      국내 기술블로그(우아한형제들·카카오·토스 등)의 <strong>ZSET 랭킹 구현기 공식 글은 이번 검색에서 확인하지 못해 인용하지 않았습니다</strong> (개인 블로그는 다수 존재하나 인용 기준 미달). 멜론의 <em>내부 구현</em>(어떤 저장소·배치 프레임워크인지)도 공개 자료를 찾지 못했으므로, 본문 5절은 멜론이 공식 공개한 <em>집계 정책</em>까지만 다뤘습니다.
+    </div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 9 개념 정리 — 랭킹판은 언제 만들어지는가<br>
+    조회 시점 · 쓰기 시점 · 윈도우 · 배치 스냅샷 + 하이브리드 · 출처 전수 실재 확인
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -23,6 +23,19 @@ class OutboxEventRepositoryImpl(
         outboxEventJpaRepository.updateStatusByIdIn(OutboxStatus.SENT, ids)
 
     @Transactional
+    override fun registerFailure(ids: List<Long>, maxRetry: Int): List<Long> {
+        if (ids.isEmpty()) {
+            return emptyList()
+        }
+        outboxEventJpaRepository.incrementRetryCountByIdIn(ids)
+        val exhausted = outboxEventJpaRepository.findRetryExhaustedIds(ids, maxRetry)
+        if (exhausted.isNotEmpty()) {
+            outboxEventJpaRepository.updateStatusByIdIn(OutboxStatus.FAILED, exhausted)
+        }
+        return exhausted
+    }
+
+    @Transactional
     override fun deleteSentBefore(threshold: ZonedDateTime): Int =
         outboxEventJpaRepository.deleteByStatusAndCreatedAtBefore(OutboxStatus.SENT, threshold)
 }

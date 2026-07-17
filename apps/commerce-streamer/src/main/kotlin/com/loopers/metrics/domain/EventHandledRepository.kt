@@ -1,7 +1,7 @@
 package com.loopers.metrics.domain
 
 interface EventHandledRepository {
-    fun exists(eventId: String): Boolean
+    fun exists(eventId: String, subscription: EventSubscription): Boolean
 
-    fun save(eventHandled: EventHandled): EventHandled
+    fun markHandled(eventId: String, subscription: EventSubscription)
 }

@@ -14,19 +14,20 @@ const SPREAD_BASE = parseInt(__ENV.SPREAD_BASE || '900010'); // +1 ~ +10
 const PRICE = 10000;
 
 const MODE = __ENV.MODE || 'measure';
+const SCALE = parseFloat(__ENV.SCALE || '1'); // 혼합 런: 총 도착률에서 이 암이 차지하는 비율 (hot 0.7 + spread 0.3 두 프로세스 동시 실행)
 
 const rampScenario = {
     executor: 'ramping-arrival-rate',
-    startRate: 100,
+    startRate: Math.round(100 * SCALE),
     timeUnit: '1s',
-    preAllocatedVUs: 300,
-    maxVUs: 2000,
+    preAllocatedVUs: Math.round(300 * SCALE) || 50,
+    maxVUs: Math.round(2000 * SCALE) || 300,
     gracefulStop: '10s',
     stages: [
-        { target: 100, duration: '1m' },
-        { target: 200, duration: '1m' },
-        { target: 400, duration: '1m' },
-        { target: 800, duration: '1m' },
+        { target: Math.round(100 * SCALE), duration: '1m' },
+        { target: Math.round(200 * SCALE), duration: '1m' },
+        { target: Math.round(400 * SCALE), duration: '1m' },
+        { target: Math.round(800 * SCALE), duration: '1m' },
     ],
 };
 

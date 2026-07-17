@@ -1,5 +1,5 @@
 package com.loopers.metrics.domain
 
 interface ProductMetricsRepository {
-    fun upsertDelta(productId: Long, likeDelta: Long = 0, salesDelta: Long = 0, viewDelta: Long = 0)
+    fun accumulate(productId: Long, likeChange: Long = 0, salesChange: Long = 0, viewChange: Long = 0)
 }

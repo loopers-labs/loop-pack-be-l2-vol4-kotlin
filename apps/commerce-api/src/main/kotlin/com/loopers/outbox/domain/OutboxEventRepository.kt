@@ -9,5 +9,7 @@ interface OutboxEventRepository {
 
     fun markSent(ids: List<Long>): Int
 
+    fun registerFailure(ids: List<Long>, maxRetry: Int): List<Long>
+
     fun deleteSentBefore(threshold: ZonedDateTime): Int
 }

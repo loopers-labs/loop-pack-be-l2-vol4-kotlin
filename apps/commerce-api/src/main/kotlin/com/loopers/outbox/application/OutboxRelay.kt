@@ -1,12 +1,14 @@
 package com.loopers.outbox.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.loopers.notification.NotificationSender
 import com.loopers.outbox.domain.EventMessagePublisher
 import com.loopers.outbox.domain.EventTopics
 import com.loopers.outbox.domain.OutboxEventRepository
 import com.loopers.outbox.domain.OutboxStatus
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -18,6 +20,8 @@ class OutboxRelay(
     private val outboxEventRepository: OutboxEventRepository,
     private val eventMessagePublisher: EventMessagePublisher,
     private val objectMapper: ObjectMapper,
+    private val notificationSender: NotificationSender,
+    @Value("\${outbox.relay.max-retry:5}") private val maxRetry: Int,
 ) {
     private val logger = LoggerFactory.getLogger(OutboxRelay::class.java)
 
@@ -28,6 +32,7 @@ class OutboxRelay(
             return
         }
         val sentIds = mutableListOf<Long>()
+        val failedIds = mutableListOf<Long>()
         for (event in pending) {
             try {
                 eventMessagePublisher.publish(
@@ -41,16 +46,23 @@ class OutboxRelay(
                 break
             } catch (e: Exception) {
                 logger.warn(
-                    "outbox 발행 실패 — 중단 후 재시도 대기 (id={}, eventType={}): {}",
+                    "outbox 발행 실패 — 건너뛰고 재시도 카운트 (id={}, eventType={}): {}",
                     event.id,
                     event.eventType,
                     e.javaClass.simpleName,
                 )
-                break
+                failedIds += event.id
             }
         }
         if (sentIds.isNotEmpty()) {
             outboxEventRepository.markSent(sentIds)
+        }
+        val isolated = outboxEventRepository.registerFailure(failedIds, maxRetry)
+        if (isolated.isNotEmpty()) {
+            notificationSender.notify(
+                "outbox 발행 ${maxRetry}회 소진 — FAILED 격리",
+                "ids=$isolated (payload 보존, 수동 재처리 대상)",
+            )
         }
     }
 

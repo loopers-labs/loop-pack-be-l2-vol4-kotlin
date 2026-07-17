@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage 3 — Redis ZSET 실시간 랭킹 설계 플랜</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  .fig-wide figcaption{max-width:720px;margin-left:auto;margin-right:auto}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  .tbl-wrap.scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Round 9 · 실시간 랭킹 · 설계 플랜</span>
+      <h1 class="title">Stage 3<br><span class="hl">Redis ZSET 랭킹 설계</span></h1>
+      <p class="lede">Stage 1(MySQL) 실측이 지목한 병목을 입력으로, <b>쓰기·읽기 경로의 큰 그림</b>과 <b>컴포넌트별 구현 방식</b>, 그리고 구현 전에 닫아야 할 <b>열린 결정 4개</b>를 정리한 검토용 플랜입니다. 구현은 이 문서 확정 후 시작합니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">STATUS</span><span class="v">설계 검토 대기 (2026-07-16)</span></div>
+        <div class="chip"><span class="k">BASE</span><span class="v">feature/week09-ranking-stage1-mysql (6744aca)</span></div>
+        <div class="chip"><span class="k">INPUT</span><span class="v">EXP-02 AWS 본런 실측 + checklist.md 열린 결정</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a href="02-load-test-plan.html"><span class="n">02</span>측정 플랜</a>
+    <a href="03-stage1-implementation.html"><span class="n">03</span>Stage 1 구현</a>
+    <a href="04-stage1-local-measurement.html"><span class="n">04</span>Stage 1 측정</a>
+    <a class="cur" href="05-stage3-redis-design.html"><span class="n">05</span>Stage 3 설계</a>
+    <a href="06-event-store-recovery-dlq-design.html"><span class="n">06</span>원천 저장·유실 방지</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">설계 입력 — 실측이 지목한 것</a></li>
+      <li><a href="#s2">큰 그림 ① — 쓰기 경로 시퀀스</a></li>
+      <li><a href="#s3">큰 그림 ② — 읽기 경로 시퀀스</a></li>
+      <li><a href="#s4">판정 흐름 — 플로우차트 · 날짜 경계</a></li>
+      <li><a href="#s5">컴포넌트별 구현 방식</a></li>
+      <li><a href="#s6">열린 결정 4 — 검토 요청</a></li>
+      <li><a href="#s7">Nice-to-Have 3종 설계</a></li>
+      <li><a href="#s8">검증 · 재측정 계획</a></li>
+      <li><a href="#s9">작업 순서</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ================================================== 1 -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">WHY REDIS</p><h2 class="sec">설계 입력 — 실측이 지목한 것</h2></div>
+    </div>
+
+    <p class="lead">이 설계는 "ZSET이 좋다더라"가 아니라, 오늘(07-16) AWS 본런에서 측정한 Stage 1의 구체적 병목 4개를 각각 어떤 Redis 연산이 해소하는지의 대응표에서 출발합니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>Stage 1 실측 병목</th><th>수치 (EXP-02, 07-16)</th><th>Stage 3 대응</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>읽기 천장</td>
+            <td>~280rps에서 붕괴 (p95 3.19s) — 앱 CPU 10%뿐인데 MySQL 지연 증폭이 Hikari 40/40을 잠식</td>
+            <td>랭킹 페이지가 MySQL 커넥션 풀에서 빠짐 — ZRANGE REV는 O(log N + size)<a href="#r2" class="cite">[2]</a></td>
+          </tr>
+          <tr>
+            <td>개별 순위 O(rank)</td>
+            <td>COUNT(score &gt; 내 score)가 하위권에서 31qps, FORCE INDEX로도 521qps — 순위만큼 스캔하는 구조 자체는 불변</td>
+            <td>ZCOUNT는 스킵 리스트에서 O(log N)<a href="#r3" class="cite">[3]</a> — 순위와 무관한 상수적 비용</td>
+          </tr>
+          <tr>
+            <td>쓰기 소비 천장</td>
+            <td>RANKING 구독만 랙 발산 (1,402→2,555), 드레인 ~185 events/s &lt; 1× 유입 기준 220/s — dual write 2행 upsert 트랜잭션 비용</td>
+            <td>ZINCRBY는 인메모리 O(log N)<a href="#r1" class="cite">[1]</a> — 디스크 upsert·트랜잭션·커넥션 획득이 사라짐</td>
+          </tr>
+          <tr>
+            <td>옵티마이저 리스크</td>
+            <td>동일 행 추정치(49,938)에서 uk ref를 잘못 선택 — FORCE INDEX 없으면 17× 열화</td>
+            <td>플랜 선택 자체가 없음 — 자료구조가 곧 실행 계획</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">이미 닫힌 결정 (재논의 없음)</span>
+      스코어 모델 <strong>view 0.1 / like 0.2 / 주문 line당 0.7</strong> · 좋아요 취소 <strong>대칭 차감(−0.2)</strong> · Aggregation <strong>IN 일괄 1회</strong> · 응답 계약 <strong>빈 랭킹 = 빈 배열, 미진입 rank = null</strong>. Stage 1 구현·측정을 그대로 승계하며, ZSET 전환은 <em>저장소만 교체</em>합니다. <strong>carry-over는 이번에 dual write → 23:50 스냅샷 + tail 병합으로 교체</strong>했습니다(§6-D3 · 아래).
+    </div>
+
+    <div class="note"><span class="tag">범위</span>
+      과제 Must = Consumer→ZSET 적재(Step 1) + Ranking API(Step 2). Nice 중 <strong>carry 스케줄러(콜드 스타트 완화)는 기본 carry 설계로 승격</strong>했습니다(§4·§6-D3). 나머지 2종(Weight 조절 · 1시간 랭킹)은 §7에서 설계만 하고, 구현 여부는 Must 완료 후 별도 판단합니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 2 -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">BIG PICTURE · WRITE</p><h2 class="sec">큰 그림 ① — 쓰기 경로 시퀀스</h2></div>
+    </div>
+
+    <p class="lead">쓰기 경로에서 바뀌는 것은 딱 한 곳 — RankingAccumulateService의 저장소가 MySQL upsert 2행에서 Redis Lua 스크립트 1회 호출로 바뀝니다. Kafka 컨슈머 3개(구독 분리)는 무변경입니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.A — WRITE PATH">
+        <svg viewBox="0 0 1360 650" role="img" aria-label="쓰기 경로 시퀀스 다이어그램: 사용자 행동이 이벤트로 발행되고 Kafka를 거쳐 컨슈머가 Redis Lua 스크립트로 원자 적재하는 흐름">
+          <defs>
+            <marker id="aw1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#3182F6" stroke-width="1.6"/></marker>
+            <marker id="aw2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#8B95A1" stroke-width="1.6"/></marker>
+          </defs>
+          <!-- lifelines -->
+          <line x1="80" y1="78" x2="80" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="260" y1="78" x2="260" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="520" y1="78" x2="520" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="780" y1="78" x2="780" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="1070" y1="78" x2="1070" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="1280" y1="78" x2="1280" y2="620" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <!-- heads -->
+          <rect x="16" y="10" width="128" height="60" rx="14" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="16" y="10" width="128" height="60"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">사용자</span></div></foreignObject>
+          <rect x="188" y="10" width="144" height="60" rx="14" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="188" y="10" width="144" height="60"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">commerce-api</span><span class="s">이벤트 발행</span></div></foreignObject>
+          <rect x="448" y="10" width="144" height="60" rx="14" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="448" y="10" width="144" height="60"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">Kafka</span><span class="s">토픽 3개</span></div></foreignObject>
+          <rect x="658" y="10" width="244" height="60" rx="14" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <foreignObject x="658" y="10" width="244" height="60"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:12.5px">ProductRankingKafkaConsumer</span></div></foreignObject>
+          <rect x="960" y="10" width="220" height="60" rx="14" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <foreignObject x="960" y="10" width="220" height="60"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:12.5px">RankingAccumulateService</span></div></foreignObject>
+          <rect x="1208" y="10" width="144" height="60" rx="14" fill="#E7F9F1" stroke="#bfeeda"/>
+          <foreignObject x="1208" y="10" width="144" height="60"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><span class="t">Redis 마스터</span><span class="s">ZSET + Lua</span></div></foreignObject>
+
+          <!-- m1 -->
+          <line x1="80" y1="112" x2="254" y2="112" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="170" y="102" text-anchor="middle" class="svg-t" style="font-size:12.5px" fill="#333D4B">상품 조회 · 좋아요 · 주문</text>
+          <!-- m2 -->
+          <line x1="260" y1="152" x2="514" y2="152" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="387" y="142" text-anchor="middle" class="svg-t" style="font-size:12.5px" fill="#333D4B">이벤트 발행 — eventId 포함</text>
+          <text x="387" y="168" text-anchor="middle" class="svg-s" fill="#8B95A1">product / order / user-action-events</text>
+          <!-- m3 -->
+          <line x1="520" y1="210" x2="774" y2="210" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="647" y="200" text-anchor="middle" class="svg-t" style="font-size:12.5px" fill="#333D4B">배치 폴링 — 리스너 3개</text>
+          <text x="647" y="226" text-anchor="middle" class="svg-s" fill="#8B95A1">groupId: commerce-streamer-ranking-*</text>
+          <!-- m4 -->
+          <line x1="780" y1="262" x2="1064" y2="262" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="922" y="252" text-anchor="middle" class="svg-s" fill="#4E5968">accumulate(eventId, occurredAt, changes)</text>
+          <!-- m5 -->
+          <line x1="1070" y1="300" x2="1274" y2="300" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="1172" y="290" text-anchor="middle" class="svg-s" fill="#4E5968">EVALSHA — 스크립트 1회</text>
+          <!-- redis activation -->
+          <rect x="1273" y="306" width="14" height="190" rx="4" fill="#E7F9F1" stroke="#15C47E"/>
+          <!-- lua note box -->
+          <rect x="720" y="320" width="480" height="176" rx="16" fill="#fff" stroke="#bfeeda"/>
+          <foreignObject x="720" y="320" width="480" height="176">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="height:100%;padding:16px 22px;box-sizing:border-box;text-align:left;line-height:1.55">
+              <div style="font-family:var(--sans);font-weight:700;font-size:13px;color:#0A8F5B;margin-bottom:8px">Lua 안 — 단일 원자 블록 (Redis 단일 스레드)</div>
+              <div style="font-family:var(--mono);font-size:11.5px;color:#4E5968">
+                ① SET ranking:handled:{eventId} NX — 실패 = 중복, 즉시 0 반환<br>
+                ② ZINCRBY ranking:all:{오늘} +Δ (change 마다)<br>
+                ③ 23:50~00:00이면 ZINCRBY tail:{오늘} +Δ — grace 꼬리<br>
+                ④ 키 TTL 미부여 시 EXPIREAT — 키 날짜 +2일 자정
+              </div>
+            </div>
+          </foreignObject>
+          <!-- m6 return -->
+          <line x1="1273" y1="524" x2="1076" y2="524" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#aw2)"/>
+          <text x="1172" y="514" text-anchor="middle" class="svg-s" fill="#8B95A1">1 = 신규 처리 / 0 = 중복 스킵</text>
+          <!-- m7 return -->
+          <line x1="1070" y1="560" x2="786" y2="560" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#aw2)"/>
+          <!-- m8 ack -->
+          <line x1="780" y1="600" x2="526" y2="600" stroke="#3182F6" stroke-width="1.6" marker-end="url(#aw1)"/>
+          <text x="647" y="590" text-anchor="middle" class="svg-s" fill="#4E5968">acknowledge — 배치 오프셋 커밋</text>
+        </svg>
+      </div>
+      <figcaption><b>쓰기 경로.</b> 컨슈머·구독 분리·가중치 판정(Stage 1)은 그대로, 저장소 호출만 MySQL upsert → <b>Lua 스크립트 1회</b>로 교체. 멱등 판정·오늘 적재·(자정 직전 구간이면)tail 적재·TTL이 한 블록에서 원자 실행됩니다. <b>내일 키로의 carry(×0.1)는 per-event가 아니라 23:50/00:00 스케줄러가</b> 담당합니다(§6-D3).</figcaption>
+    </figure>
+
+    <div class="note"><span class="tag">Stage 1과의 차이</span>
+      Stage 1은 <span class="term">@Transactional</span> 안에서 event_handled 조회 → upsert 2행 → markHandled를 MySQL 한 트랜잭션으로 묶었습니다. Stage 3은 저장소가 Redis이므로 <strong>같은 원자성을 Lua 스크립트가 대신</strong>합니다<a href="#r5" class="cite">[5]</a> — 트랜잭션 획득·커밋·디스크 반영이 전부 사라지는 것이 쓰기 천장(~185/s) 해소의 핵심 가설입니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 3 -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">BIG PICTURE · READ</p><h2 class="sec">큰 그림 ② — 읽기 경로 시퀀스</h2></div>
+    </div>
+
+    <p class="lead">읽기는 두 종류입니다. Top-N 페이지는 ZRANGE REV + 상품 IN 조회 1회, 상품 상세의 개별 순위는 ZSCORE + ZCOUNT로 O(log N)에 끝냅니다. API 계약(URL·응답 형태)은 Stage 1과 동일합니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.B — READ PATH">
+        <svg viewBox="0 0 1000 680" role="img" aria-label="읽기 경로 시퀀스 다이어그램: 랭킹 페이지 조회와 상품 상세 개별 순위 조회가 Redis 레플리카와 MySQL을 사용하는 흐름">
+          <defs>
+            <marker id="ar1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#3182F6" stroke-width="1.6"/></marker>
+            <marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#8B95A1" stroke-width="1.6"/></marker>
+          </defs>
+          <line x1="80" y1="80" x2="80" y2="650" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="300" y1="80" x2="300" y2="650" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="545" y1="80" x2="545" y2="650" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="790" y1="80" x2="790" y2="650" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <line x1="930" y1="80" x2="930" y2="650" stroke="#D1D6DB" stroke-dasharray="4 4"/>
+          <rect x="14" y="12" width="132" height="60" rx="14" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="14" y="12" width="132" height="60"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">사용자</span></div></foreignObject>
+          <rect x="218" y="12" width="164" height="60" rx="14" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <foreignObject x="218" y="12" width="164" height="60"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:12.5px">RankingController</span><span class="s">상세는 ProductController</span></div></foreignObject>
+          <rect x="461" y="12" width="168" height="60" rx="14" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <foreignObject x="461" y="12" width="168" height="60"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:12.5px">RankingQueryService</span></div></foreignObject>
+          <rect x="716" y="12" width="148" height="60" rx="14" fill="#E7F9F1" stroke="#bfeeda"/>
+          <foreignObject x="716" y="12" width="148" height="60"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><span class="t">Redis 레플리카</span><span class="s">REPLICA_PREFERRED</span></div></foreignObject>
+          <rect x="864" y="12" width="130" height="60" rx="14" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="864" y="12" width="130" height="60"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">MySQL</span><span class="s">product</span></div></foreignObject>
+
+          <!-- top-N flow -->
+          <line x1="80" y1="112" x2="294" y2="112" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="188" y="102" text-anchor="middle" class="svg-s" fill="#4E5968">GET /api/v1/rankings?date=&amp;page=&amp;size=</text>
+          <line x1="300" y1="150" x2="539" y2="150" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="420" y="140" text-anchor="middle" class="svg-s" fill="#4E5968">getPage(date, page, size)</text>
+          <line x1="545" y1="192" x2="784" y2="192" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="664" y="182" text-anchor="middle" class="svg-s" fill="#4E5968">ZRANGE {키} REV WITHSCORES — offset~offset+size-1</text>
+          <line x1="784" y1="228" x2="551" y2="228" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <text x="664" y="218" text-anchor="middle" class="svg-s" fill="#8B95A1">(productId, score) × size — O(log N + size)</text>
+          <line x1="545" y1="268" x2="924" y2="268" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="735" y="258" text-anchor="middle" class="svg-s" fill="#4E5968">findAllActiveByIdIn — IN 일괄 1회</text>
+          <line x1="924" y1="302" x2="551" y2="302" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <text x="735" y="292" text-anchor="middle" class="svg-s" fill="#8B95A1">상품명 · 가격 · likeCount</text>
+          <rect x="415" y="322" width="260" height="42" rx="12" fill="#F4F9FF" stroke="#cfe4ff"/>
+          <foreignObject x="415" y="322" width="260" height="42"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s">조립: rank = offset+i+1 · 삭제 상품 제외</span></div></foreignObject>
+          <line x1="545" y1="392" x2="86" y2="392" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <text x="310" y="382" text-anchor="middle" class="svg-s" fill="#8B95A1">items[] — 빈 랭킹이면 빈 배열</text>
+
+          <!-- divider -->
+          <line x1="40" y1="428" x2="960" y2="428" stroke="#E5E8EB"/>
+          <rect x="330" y="414" width="340" height="28" rx="14" fill="#F2F4F6"/>
+          <text x="500" y="433" text-anchor="middle" class="svg-l" fill="#6B7684">상품 상세 — 개별 순위 (findTodayRank)</text>
+
+          <!-- detail flow -->
+          <line x1="80" y1="474" x2="294" y2="474" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="188" y="464" text-anchor="middle" class="svg-s" fill="#4E5968">GET /api/v1/products/{productId}</text>
+          <line x1="300" y1="512" x2="539" y2="512" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="420" y="502" text-anchor="middle" class="svg-s" fill="#4E5968">findTodayRank(productId)</text>
+          <line x1="545" y1="552" x2="784" y2="552" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="664" y="542" text-anchor="middle" class="svg-s" fill="#4E5968">ZSCORE — 미진입이면 rank = null</text>
+          <line x1="545" y1="592" x2="784" y2="592" stroke="#3182F6" stroke-width="1.6" marker-end="url(#ar1)"/>
+          <text x="664" y="582" text-anchor="middle" class="svg-s" fill="#4E5968">ZCOUNT (내 score, +inf) + 1 — 동점 동순위</text>
+          <line x1="545" y1="632" x2="86" y2="632" stroke="#8B95A1" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+          <text x="310" y="622" text-anchor="middle" class="svg-s" fill="#8B95A1">rank 포함 상세 응답 (미진입 = 필드 생략)</text>
+        </svg>
+      </div>
+      <figcaption><b>읽기 경로.</b> 랭킹 조회는 <b>레플리카 우선</b> 커넥션(defaultRedisTemplate)으로 쓰기 트래픽과 분리. 상품 정보 조립(IN 1회)만 MySQL에 남습니다 — 다음 병목 후보로 §8에서 측정 대상.</figcaption>
+    </figure>
+
+    <div class="note"><span class="tag">개별 순위를 ZREVRANK가 아니라 ZCOUNT로 하는 이유</span>
+      Stage 1의 상세 순위 계약은 <strong>동점 동순위(competition ranking)</strong>입니다 (score가 같으면 같은 순위). <span class="term">ZREVRANK</span>는 동점을 사전순으로 줄 세운 서수를 반환해 계약이 깨집니다. <span class="term">ZCOUNT (내 score, +inf) + 1</span>은 같은 O(log N)으로 계약을 보존합니다<a href="#r3" class="cite">[3]</a>. 상세는 §6-D4에서 최종 확정.
+    </div>
+  </section>
+
+  <!-- ================================================== 4 -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">FLOW</p><h2 class="sec">판정 흐름 — 플로우차트 · 날짜 경계</h2></div>
+    </div>
+
+    <p class="lead">이벤트 1건이 소비될 때의 판정 흐름 전체가 Lua 원자 블록 하나에 들어갑니다. 중복 판정과 점수 반영 사이에 어떤 장애가 끼어도 "반은 반영된" 상태가 생기지 않습니다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG.C — CONSUME FLOW">
+        <svg viewBox="0 0 940 620" role="img" aria-label="이벤트 소비 판정 플로우차트: 멱등 키 SET NX로 중복을 거르고 오늘·내일 키에 ZINCRBY 후 TTL을 조건부 부여하는 흐름">
+          <defs>
+            <marker id="af1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#6B7684" stroke-width="1.6"/></marker>
+          </defs>
+          <!-- start -->
+          <rect x="350" y="14" width="240" height="52" rx="26" fill="#fff" stroke="#B0B8C1"/>
+          <foreignObject x="350" y="14" width="240" height="52"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:13px">이벤트 1건 수신</span><span class="s">eventId · ScoreChange 목록</span></div></foreignObject>
+          <line x1="470" y1="66" x2="470" y2="94" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <!-- lua boundary -->
+          <rect x="80" y="98" width="780" height="392" rx="18" fill="#F4F9FF" stroke="#3182F6" stroke-dasharray="7 5"/>
+          <text x="100" y="124" class="svg-l" fill="#1B64DA">REDIS LUA — 단일 원자 블록 (EVALSHA 1회)</text>
+          <!-- N1 -->
+          <rect x="320" y="140" width="300" height="54" rx="14" fill="#fff" stroke="#cfe4ff"/>
+          <foreignObject x="320" y="140" width="300" height="54"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:12px;color:#1B64DA">SET ranking:handled:{eventId}</span><span class="s">NX · EX 172800 (2일)</span></div></foreignObject>
+          <line x1="470" y1="194" x2="470" y2="216" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <!-- D1 diamond -->
+          <polygon points="470,216 590,262 470,308 350,262" fill="#fff" stroke="#B0B8C1"/>
+          <foreignObject x="380" y="240" width="180" height="44"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:13px">이미 처리된 이벤트?</span></div></foreignObject>
+          <!-- yes → skip -->
+          <line x1="590" y1="262" x2="700" y2="262" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <text x="640" y="252" text-anchor="middle" class="svg-l" fill="#C9303C">YES</text>
+          <rect x="704" y="236" width="130" height="52" rx="14" fill="#FEEFEF" stroke="#f8d4d4"/>
+          <foreignObject x="704" y="236" width="130" height="52"><div class="fo red" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:13px">스킵</span><span class="s">0 반환</span></div></foreignObject>
+          <!-- no ↓ -->
+          <line x1="470" y1="308" x2="470" y2="330" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <text x="484" y="324" class="svg-l" fill="#0A8F5B">NO</text>
+          <!-- N2 -->
+          <rect x="320" y="334" width="300" height="44" rx="14" fill="#fff" stroke="#cfe4ff"/>
+          <foreignObject x="320" y="334" width="300" height="44"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:12px;color:#1B64DA">ZINCRBY 오늘 키 +Δ — change 마다</span></div></foreignObject>
+          <line x1="470" y1="378" x2="470" y2="396" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <!-- N3 -->
+          <rect x="320" y="400" width="300" height="44" rx="14" fill="#fff" stroke="#cfe4ff"/>
+          <foreignObject x="320" y="400" width="300" height="44"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11.5px;color:#1B64DA">23:50~00:00이면 ZINCRBY tail:{오늘} +Δ</span></div></foreignObject>
+          <line x1="470" y1="444" x2="470" y2="466" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <!-- D2 as conditional box -->
+          <rect x="150" y="446" width="150" height="44" rx="14" fill="#E7F9F1" stroke="#bfeeda"/>
+          <foreignObject x="150" y="446" width="150" height="44"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11.5px">TTL 미부여 키만<br>EXPIREAT 부여</span></div></foreignObject>
+          <line x1="320" y1="422" x2="300" y2="422" stroke="#6B7684" stroke-width="0"/>
+          <path d="M 470 466 L 470 470" stroke="none"/>
+          <line x1="470" y1="466" x2="470" y2="466" stroke="none"/>
+          <path d="M 320 422 Q 225 422 225 446" fill="none" stroke="#6B7684" stroke-width="1.3" stroke-dasharray="3 3"/>
+          <!-- end -->
+          <line x1="470" y1="490" x2="470" y2="516" stroke="#6B7684" stroke-width="1.6" marker-end="url(#af1)"/>
+          <rect x="340" y="520" width="260" height="52" rx="26" fill="#E8F3FF" stroke="#cfe4ff"/>
+          <foreignObject x="340" y="520" width="260" height="52"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t" style="font-size:13px">배치 계속 → acknowledge</span><span class="s">오프셋 커밋</span></div></foreignObject>
+          <!-- skip to end -->
+          <path d="M 769 288 L 769 546 L 604 546" fill="none" stroke="#6B7684" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#af1)"/>
+        </svg>
+      </div>
+      <figcaption><b>이벤트 소비 판정.</b> 멱등 키가 게이트 — SET NX 실패(이미 존재)면 점수 연산 자체가 실행되지 않습니다. TTL은 매 이벤트 재설정하지 않고 <b>미부여 시에만</b> EXPIREAT(키 날짜 +2일 자정)로 부여합니다.</figcaption>
+    </figure>
+
+    <h3>날짜 경계와 콜드 스타트 — 23:50 스냅샷 + tail 병합이 만드는 그림</h3>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG.D — DATE BOUNDARY">
+        <svg viewBox="0 0 1000 330" role="img" aria-label="날짜 경계 타임라인: 오늘 키는 단일 적재로 자라고, 내일 키는 23:50 스냅샷으로 pre-warm된 뒤 00:00에 tail 구간이 병합되어 자정에 조회 대상이 전환되고 이전 키는 TTL로 만료되는 흐름">
+          <defs>
+            <marker id="at1" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L8,4.5 L0,9" fill="none" stroke="#6B7684" stroke-width="1.6"/></marker>
+          </defs>
+          <!-- axis -->
+          <line x1="60" y1="252" x2="950" y2="252" stroke="#B0B8C1" stroke-width="1.6" marker-end="url(#at1)"/>
+          <line x1="140" y1="244" x2="140" y2="260" stroke="#6B7684" stroke-width="1.6"/>
+          <line x1="500" y1="244" x2="500" y2="260" stroke="#6B7684" stroke-width="1.6"/>
+          <line x1="860" y1="244" x2="860" y2="260" stroke="#6B7684" stroke-width="1.6"/>
+          <text x="140" y="282" text-anchor="middle" class="svg-l" fill="#4E5968">D 00:00</text>
+          <text x="500" y="282" text-anchor="middle" class="svg-l" fill="#4E5968">D+1 00:00</text>
+          <text x="860" y="282" text-anchor="middle" class="svg-l" fill="#4E5968">D+2 00:00</text>
+          <!-- midnight line -->
+          <line x1="500" y1="40" x2="500" y2="244" stroke="#F04452" stroke-width="1.4" stroke-dasharray="6 4"/>
+          <text x="500" y="30" text-anchor="middle" class="svg-t" style="font-size:12.5px" fill="#C9303C">자정 전환 — 새 키에 이미 전일 점수의 10%</text>
+          <!-- 23:50 snapshot tick -->
+          <line x1="470" y1="60" x2="470" y2="244" stroke="#F59F00" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="470" y="52" text-anchor="middle" class="svg-s" fill="#B8860B">23:50 스냅샷</text>
+          <!-- key D bar -->
+          <text x="52" y="98" text-anchor="end" class="svg-s" fill="#4E5968" transform="translate(0,0)"></text>
+          <rect x="140" y="76" width="360" height="44" rx="10" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="140" y="76" width="360" height="44"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11.5px;color:#1B64DA">ranking:all:{D} — 조회 대상 · +Δ 적재</span></div></foreignObject>
+          <rect x="500" y="76" width="360" height="44" rx="10" fill="#F9FAFB" stroke="#D1D6DB" stroke-dasharray="5 4"/>
+          <foreignObject x="500" y="76" width="360" height="44"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11.5px">?date={D} 전일 조회 구간 → EXPIREAT 만료</span></div></foreignObject>
+          <!-- key D+1 bar -->
+          <rect x="140" y="150" width="360" height="44" rx="10" fill="#E7F9F1" stroke="#15C47E" stroke-dasharray="5 4"/>
+          <foreignObject x="140" y="150" width="360" height="44"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11px">ranking:all:{D+1} — 23:50 스냅샷 ×0.1 + 00:00 tail 병합</span></div></foreignObject>
+          <rect x="500" y="150" width="450" height="44" rx="10" fill="#E8F3FF" stroke="#3182F6"/>
+          <foreignObject x="500" y="150" width="450" height="44"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="s" style="font-size:11.5px;color:#1B64DA">조회 대상 전환 — 웜 스타트 (콜드 스타트 완화)</span></div></foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>날짜 경계.</b> 키 선택은 이벤트 <b>발생 시각(KST)</b> 기준 — 자정 직전 발생·직후 소비된 이벤트는 전일 키로 갑니다(Stage 1과 동일). 23:50 스냅샷이 놓치는 건 "발생시각 23:50~00:00"이 아니라 <b>스냅샷(소비시각 23:50) 이후 오늘 키에 들어온 모든 증분</b>이라, 보정은 <b>벽시계 [23:50,00:00) 소비분을 tail 키로</b> 게이팅해 00:00에 ×0.1로 병합합니다. <b>잔여 갭</b> = 오늘분을 00:00 이후 깊게 지연 소비한 이벤트의 내일 seed 10% 누락 — 랙에 유계, seed 한정이라 수용합니다(dual write는 이 갭이 0이었던 게 원래 채택 이유). TTL을 "생성 후 2일"이 아니라 <b>키 날짜 +2일 자정 EXPIREAT</b>로 두는 이유: 내일 키는 오늘 생성되므로 상대 TTL 2일이면 D+1 데이터의 전일 조회 구간(D+2)이 잘립니다.</figcaption>
+    </figure>
+
+    <div class="note key"><span class="tag">EXP-02 정산이 검증해 준 것 (dual write 시절)</span>
+      dual write carry는 07-16 AWS 본런에서 <strong>42,670건 × 0.1이 소수점까지 정확히</strong> 내일판에 적재됨을 확인했습니다 (carry_ratio 0.100000) — 이 수치는 <strong>이전(dual write) 설계의 실측</strong>입니다. 스케줄러 전환 후에는 검증 대상이 바뀝니다: <strong>23:50 스냅샷(오늘×0.1) + 00:00 tail 병합(tail×0.1)의 합이 같은 ×0.1 비율</strong>을 내는지, 병합 멱등 가드가 이중 가산을 막는지를 재정산합니다(§5·§8). double 오차 허용치(ε)는 그대로 적용됩니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 5 -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">HOW TO BUILD</p><h2 class="sec">컴포넌트별 구현 방식</h2></div>
+    </div>
+
+    <p class="lead">변경 파일은 7개, 그중 신규 3개. 컨슈머·컨트롤러·가중치는 무변경입니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>앱</th><th>파일</th><th>작업</th></tr></thead>
+        <tbody>
+          <tr><td>streamer</td><td><span class="term">ranking/infrastructure/RankingZSetRepository.kt</span> + <span class="term">resources/ranking-accumulate.lua</span></td><td>신규 — Lua 실행부</td></tr>
+          <tr><td>streamer</td><td><span class="term">ranking/application/RankingAccumulateService.kt</span></td><td>수정 — 저장소 교체, @Transactional 제거, tail 윈도우 판정 추가</td></tr>
+          <tr><td>streamer</td><td><span class="term">ranking/scheduler/RankingCarryScheduler.kt</span></td><td>신규 — 23:50 스냅샷(ZUNIONSTORE ×0.1) + 00:00 tail 병합(SET NX 가드)</td></tr>
+          <tr><td>streamer</td><td><span class="term">ProductRankingKafkaConsumer.kt</span> · <span class="term">RankingWeights.kt</span></td><td>무변경</td></tr>
+          <tr><td>api</td><td><span class="term">ranking/infrastructure/RankingZSetReader.kt</span></td><td>신규 — ZRANGE REV · ZSCORE · ZCOUNT</td></tr>
+          <tr><td>api</td><td><span class="term">ranking/application/RankingQueryService.kt</span></td><td>수정 — MySQL 조회 → ZSET 조회</td></tr>
+          <tr><td>api</td><td><span class="term">ranking/interfaces/RankingController.kt</span></td><td>무변경 — 응답 계약 동일</td></tr>
+          <tr><td>양쪽</td><td><span class="term">product_ranking_daily</span> 엔티티·리포지토리 경로</td><td>D2 결정에 따라 제거</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>① 키 설계</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>키</th><th>타입</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td><span class="term">ranking:all:{yyyyMMdd}</span></td><td>ZSET</td><td>member = productId 문자열, score = 가중 점수. KST 날짜, EXPIREAT = 키 날짜 +2일 자정</td></tr>
+          <tr><td><span class="term">tail:{yyyyMMdd}</span></td><td>ZSET</td><td>23:50~00:00 소비분만 누적(grace 꼬리). 00:00 병합 후 DEL 또는 +1일 짧은 TTL</td></tr>
+          <tr><td><span class="term">carry:merged:{yyyyMMdd}</span></td><td>STRING</td><td>00:00 tail 병합 멱등 가드. SET NX 성공 시에만 병합 실행 — 스케줄러 재실행 시 이중 가산 차단</td></tr>
+          <tr><td><span class="term">ranking:handled:{eventId}</span></td><td>STRING</td><td>멱등 장부 (D1 채택 시). SET NX · EX 172800</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>키 포맷 함수는 3줄짜리이므로 두 앱에 각각 둡니다 — <span class="term">modules/*</span>는 베이스 템플릿이라 수정 금지이고, 3줄 중복이 공유 모듈 신설보다 쌉니다.</p>
+
+    <h3>② 쓰기 — Lua 스크립트 (스케치)</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">ranking-accumulate.lua — 검토용 스케치 (구현 시 TDD로 확정)</span></div>
+      <pre><span class="cm">-- KEYS: [1] 오늘 키 · [2] tail 키(자정 직전 구간만) · [3] 멱등 키</span>
+<span class="cm">-- ARGV: [1] 멱등 TTL(초) · [2] 오늘 키 EXPIREAT · [3] tail 키 EXPIREAT</span>
+<span class="cm">--       [4] tail 기록 여부(1=23:50~00:00) · [5..] (productId, delta) 반복</span>
+<span class="kw">if</span> <span class="kw">not</span> redis.call(<span class="st">'SET'</span>, KEYS[3], <span class="st">'1'</span>, <span class="st">'NX'</span>, <span class="st">'EX'</span>, ARGV[1]) <span class="kw">then</span>
+  <span class="kw">return</span> 0
+<span class="kw">end</span>
+<span class="kw">local</span> tail = ARGV[4] == <span class="st">'1'</span>
+<span class="kw">for</span> i = 5, #ARGV, 2 <span class="kw">do</span>
+  redis.call(<span class="st">'ZINCRBY'</span>, KEYS[1], ARGV[i + 1], ARGV[i])
+  <span class="kw">if</span> tail <span class="kw">then</span> redis.call(<span class="st">'ZINCRBY'</span>, KEYS[2], ARGV[i + 1], ARGV[i]) <span class="kw">end</span>
+<span class="kw">end</span>
+<span class="kw">if</span> redis.call(<span class="st">'PTTL'</span>, KEYS[1]) == -1 <span class="kw">then</span> redis.call(<span class="st">'EXPIREAT'</span>, KEYS[1], ARGV[2]) <span class="kw">end</span>
+<span class="kw">if</span> tail <span class="kw">and</span> redis.call(<span class="st">'PTTL'</span>, KEYS[2]) == -1 <span class="kw">then</span> redis.call(<span class="st">'EXPIREAT'</span>, KEYS[2], ARGV[3]) <span class="kw">end</span>
+<span class="kw">return</span> 1</pre>
+    </div>
+    <p>실행부는 R8의 <span class="term">OrderQueueRepository</span> 패턴을 그대로 씁니다 — <span class="term">@Qualifier(REDIS_TEMPLATE_MASTER)</span> + <span class="term">DefaultRedisScript</span><a href="#r6" class="cite">[6]</a>. 주문처럼 change가 여러 개인 이벤트는 (productId, delta) 쌍을 ARGV로 펼쳐 <strong>이벤트당 스크립트 1회</strong>로 처리합니다. steady-state에서는 오늘 키 ZINCRBY 1회뿐이고, 벽시계 23:50~00:00 구간에서만 tail 키에 한 번 더 씁니다 — 내일 키로의 ×0.1 carry는 이 스크립트가 아니라 아래 스케줄러가 담당합니다.</p>
+
+    <h3>②-b carry 스케줄러 (스케치) — 23:50 스냅샷 + 00:00 tail 병합</h3>
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">RankingCarryScheduler — 검토용 스케치</span></div>
+      <pre><span class="cm">-- 23:50 (pre-warm): 내일 키를 오늘×0.1로 덮어쓴다 → 자정 전에 non-empty</span>
+<span class="cm">--   destination 덮어쓰기라 멱등(재실행해도 오늘 키에서 재계산)</span>
+ZUNIONSTORE ranking:all:{D+1} 1 ranking:all:{D} WEIGHTS 0.1
+
+<span class="cm">-- 00:00 (grace close): tail 구간을 ×0.1로 병합 — additive라 멱등 가드 필수</span>
+<span class="kw">if</span> SET carry:merged:{D+1} 1 NX <span class="kw">then</span>
+  ZUNIONSTORE ranking:all:{D+1} 2 ranking:all:{D+1} tail:{D} WEIGHTS 1 0.1
+  DEL tail:{D}
+<span class="kw">end</span></pre>
+    </div>
+    <p>스냅샷 ZUNIONSTORE는 destination을 덮어쓰므로 재실행에 안전합니다(23:5x 구간에 내일 키로 들어오는 live 증분이 없어 overwrite가 손실을 만들지 않음 — 이벤트는 발생일이 아직 D라 오늘 키로 감). 00:00 병합은 <strong>additive</strong>라 재실행 시 tail이 이중 가산되므로 <span class="term">SET NX carry:merged:{D+1}</span> 가드로 1회만 실행합니다. 병합은 단일 ZUNIONSTORE 명령이라 그 시점 live 증분과의 경합에도 원자적입니다.</p>
+
+    <h3>③ 읽기 — 레플리카 우선 조회</h3>
+    <p>조회는 <span class="term">defaultRedisTemplate</span>(REPLICA_PREFERRED)로 — 이미 redis 모듈에 마스터/레플리카 분리가 준비되어 있고, 인프라 노드에도 레플리카(6380)가 떠 있습니다. 페이지 조회 <span class="term">reverseRangeWithScores(key, offset, offset+size-1)</span>, 개별 순위는 <span class="term">score()</span> 후 <span class="term">ZCOUNT</span> (exclusive 하한은 <span class="term">Range.Bound.exclusive</span>). rank 계산 <span class="term">offset + i + 1</span>과 IN 일괄 조립은 Stage 1 코드가 그대로 남습니다.</p>
+
+    <div class="note warn"><span class="tag">계약 미세 변화 2건 — 수용 제안</span>
+      <strong>① 동점 내부 나열 순서</strong>: MySQL은 tie-break가 productId 숫자 오름차순이었지만 ZSET은 member 문자열 사전순입니다 ("10" &lt; "9"). 순위 값 자체는 동점 동순위로 동일하고 나열 순서만 달라집니다 — zero-padding 같은 우회는 과도하다고 보고 수용을 제안합니다. <strong>② score의 double 오차</strong>: BigDecimal 정확 연산 → IEEE 754 double 누적이 되므로 0.1+0.2 급 오차가 생깁니다. 응답에서 소수 4자리 반올림, 측정 정산은 허용 오차(ε) 비교로 전환합니다.
+    </div>
+
+    <h3>④ 서비스 계층 변화</h3>
+    <p><span class="term">RankingAccumulateService</span>는 <span class="term">@Transactional</span>과 event_handled 조회가 빠지고 Lua 호출 한 줄이 됩니다 — 발생일 계산과 <strong>tail 윈도우 판정(now ∈ [23:50,00:00))</strong>이 키·플래그 계산으로 들어갑니다. 내일 키 carry(스냅샷·병합)는 <span class="term">RankingCarryScheduler</span>가 별도로 맡습니다. <span class="term">RankingQueryService</span>는 시그니처·반환 타입(<span class="term">RankingPageInfo</span>) 불변, 내부 조회원만 교체됩니다. 컨트롤러 테스트는 무수정 통과가 목표입니다.</p>
+  </section>
+
+  <!-- ================================================== 6 -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">DECISIONS</p><h2 class="sec">열린 결정 4 — 검토 요청</h2></div>
+    </div>
+
+    <p class="lead">구현 전에 닫아야 할 결정 4개입니다. 각각 추천안을 표시했지만, 특히 D1과 D3은 정산 방식·멘토 답변과 얽혀 있어 확정을 받고 진행하겠습니다.</p>
+
+    <h3>D1. 멱등 장부 위치 — 점수 저장소를 따라간다</h3>
+    <div class="cols">
+      <div class="col x">
+        <h4><span class="mk">A</span>MySQL event_handled 유지</h4>
+        <p>Stage 1의 장부를 그대로 사용. <strong>SQL 정산이 유지</strong>되고 METRICS 구독과 장부가 한 테이블. 그러나 점수는 Redis, 장부는 MySQL — <strong>ZINCRBY 성공 후 커밋 실패 → 재전달 → 이중 가산</strong> 창이 구조적으로 존재합니다. 순서를 뒤집으면(장부 먼저) 유실 창으로 바뀔 뿐, 두 시스템에 걸친 원자성은 만들 수 없습니다.</p>
+      </div>
+      <div class="col o">
+        <h4><span class="mk">B ✓</span>Redis Lua 통합 (추천)</h4>
+        <p>멱등 판정(SET NX)과 점수 반영이 <strong>한 원자 블록</strong> — "반만 반영"이라는 상태 자체가 없습니다. 이것이 B의 핵심 이점입니다. <span class="term">단, 과거에 B의 부수 이점으로 들었던 "재소비 재구축"은 재평가가 필요</span>합니다 — <span class="term">event_handled</span>가 <strong>(event_id, subscription) 복합키</strong>로 분리된 뒤로는 A(장부 MySQL 유지)에서도 <strong>RANKING 구독 행만 지우고 replay하면 metrics 멱등을 건드리지 않고 랭킹만 재구축</strong>할 수 있어(열린 결정 7이 이미 이렇게 풀림), 재구축은 더 이상 B만의 이점이 아닙니다. 즉 D1은 <strong>단일 원자 블록 vs 정산 방식</strong> 트레이드오프로 판단합니다. 비용: 멱등 키 메모리(오늘 본런 규모 4.3만 건/런 기준 수 MB 수준, TTL 2일 자동 청소) + <strong>정산이 SQL → redis-cli로 바뀜</strong>.</p>
+      </div>
+    </div>
+    <p>Stage 1에서 장부가 MySQL이었던 것은 점수 저장소가 MySQL이라 같은 트랜잭션이 공짜였기 때문입니다. 저장소가 옮겨가면 장부도 따라가는 것이 같은 원칙의 적용입니다. 단, RANKING 구독이 event_handled에서 빠지므로 <strong>METRICS=RANKING 카운트 대조 정산은 "MySQL 카운트 vs Redis 키 수" 대조로 바뀝니다</strong> — 이 비용을 수용할지가 판단 지점입니다.</p>
+
+    <h3>D2. Stage 1 MySQL 경로 — 교체 vs 병행</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">A ✓</span>교체 — 삭제 (추천)</h4>
+        <p><span class="term">product_ranking_daily</span> 적재·조회 경로를 제거. Replace, Don't Deprecate. Stage 1 대비 측정·EXP-03 대조 런은 <strong>커밋 6744aca 체크아웃</strong>으로 수행하면 되므로 코드를 남길 이유가 없습니다.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">B</span>플래그 병행</h4>
+        <p><span class="term">ranking.store=mysql|redis</span> 토글로 양쪽 유지. 같은 프로세스에서 A/B가 되지만, 제출물에 죽은 경로 + 분기 유지비가 남습니다. 측정이 커밋 단위로 가능한 이상 YAGNI 위반.</p>
+      </div>
+    </div>
+
+    <h3>D3. carry-over — <span style="color:var(--blue-deep)">확정: 23:50 스냅샷 + tail ZSET grace 병합</span></h3>
+    <p style="margin:0 0 14px">dual write(이벤트당 오늘 +Δ, 내일 +Δ×0.1)에서 <strong>스케줄러 방식으로 교체</strong>합니다. 결정 이유와 대가를 함께 남깁니다.</p>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">✓</span>스냅샷 + tail 병합 (채택)</h4>
+        <p>23:50 <span class="term">ZUNIONSTORE 내일 = 오늘×0.1</span>로 pre-warm(멱등, destination 덮어쓰기) → 23:50~00:00 소비분을 <span class="term">tail 키</span>에 모아 00:00에 <span class="term">ZUNIONSTORE 내일 += tail×0.1</span>(SET NX 가드로 1회) 병합. <strong>과제 Nice 원문("23:50 스케줄러") 부합 + steady-state 쓰기 증폭 제거</strong>(이벤트당 ZINCRBY 2회 → 1회, tail은 하루 10분만). 실무 패턴 = 윈도우 스냅샷 집계<a href="#r7" class="cite">[7]</a> + grace period<a href="#r8" class="cite">[8]</a> / allowed lateness·side output<a href="#r9" class="cite">[9]</a>.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">기각</span>dual write (이전안)</h4>
+        <p>장점은 뚜렷했음 — 누락 창 0 · 배치 실패 모드 없음 · 멱등 상속. 그러나 <strong>이벤트당 내일 키 ZINCRBY가 상시 붙는 쓰기 증폭</strong>과 과제 원문 불일치가 대가였습니다. Replace, Don't Deprecate — 경로를 남기지 않고 교체합니다. (07-16 EXP-02의 carry_ratio 0.100000 실측은 이 방식 것 → §5 재정산 대상)</p>
+      </div>
+    </div>
+    <div class="note warn"><span class="tag">교체가 되살린 것 — 완화책 명시</span>
+      <strong>배치 실패 모드</strong>: 스냅샷은 overwrite라 멱등, 00:00 병합은 additive라 <span class="term">SET NX carry:merged:{D+1}</span> 가드로 이중 가산 차단. 스케줄러 전체 미실행(노드 다운) 시 내일 키 콜드 → 첫 live 이벤트가 warm-up + 다음 tick 캐치업, 배치 실패는 <a href="06-event-store-recovery-dlq-design.html" style="color:var(--blue-deep);font-weight:700">06</a>의 알림 원칙(alert 인터페이스+로그 구현) 동일 적용. <strong>잔여 갭</strong>: 오늘분을 00:00 이후 깊게 지연 소비한 이벤트는 내일 seed 10%에서 누락 — 랙에 유계·seed 한정이라 수용(dual write는 이 갭이 0이었음).
+    </div>
+
+    <h3>D4. 개별 순위 의미론</h3>
+    <div class="cols">
+      <div class="col o">
+        <h4><span class="mk">A ✓</span>ZCOUNT + 1 (추천)</h4>
+        <p>동점 동순위 — Stage 1에서 확정한 계약을 그대로 보존. O(log N)으로 비용 동일<a href="#r3" class="cite">[3]</a>. ZSCORE + ZCOUNT 2회 왕복(레플리카)로 충분해 Lua 불필요.</p>
+      </div>
+      <div class="col x">
+        <h4><span class="mk">B</span>ZREVRANK</h4>
+        <p>왕복 1회에 서수 순위 — 업계 리더보드에서 흔한 방식이지만 동점을 사전순으로 줄 세워 <strong>Stage 1 계약(동점 동순위)이 깨집니다</strong>. 계약을 바꿀 근거가 없으므로 기각.</p>
+      </div>
+    </div>
+
+    <div class="note key"><span class="tag">checklist.md 열린 결정과의 대응</span>
+      #3 ZSET 갱신 위치 → <strong>구독 분리로 이미 해소</strong> (RANKING 컨슈머가 metrics와 독립) · #4 TTL 부여 방식 → <strong>Lua 내 조건부 EXPIREAT로 해소</strong> (§4) · #7 유실·복구 → <strong>복합키로 랭킹 독립 재소비 경로 이미 확보</strong> (RANKING 구독 행만 정리 후 replay — D1 선택과 무관, D1-B는 장부가 ZSET과 함께 사라져 정리 단계가 생략될 뿐).
+    </div>
+
+    <div class="note"><span class="tag">복구 원천과의 연결 (별도 설계 → 06 문서)</span>
+      재구축은 "이벤트를 다시 흘려보낼 수 있다"를 전제로 합니다. 그 <strong>복구 원천을 유실 없이 남기는 설계</strong>는 이 문서 범위를 벗어나 <a href="06-event-store-recovery-dlq-design.html" style="color:var(--blue-deep);font-weight:700">06 — 원천 저장·유실 방지</a>에서 다룹니다. 요지: 1차 복구는 <strong>Kafka replay</strong>(retention 내 offset 되감기 — RANKING 멱등 장부만 정리하면 이중 가산 없음. 복합키라 metrics는 무영향), 장기 복구는 <strong>DB event store</strong>. 발행 구간은 outbox 상태(FAILED)로, 소비 구간은 Kafka DLQ로 이벤트를 버리지 않습니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 7 -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">NICE TO HAVE</p><h2 class="sec">Nice-to-Have 3종 설계</h2></div>
+    </div>
+
+    <p class="lead">Must 완료 후에만 구현합니다. 여기서는 설계 방향만 고정해 두고, 각각 착수 여부를 별도로 판단합니다.</p>
+
+    <h3>N1. 실시간 Weight 조절</h3>
+    <p>재기동 없는 가중치 변경. 후보 3안 중 <strong>Redis HASH + 로컬 캐시</strong>를 추천합니다.</p>
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>안</th><th>방식</th><th>평가</th></tr></thead>
+        <tbody>
+          <tr><td>(a) ✓ Redis HASH</td><td><span class="term">ranking:config:weights</span>를 관리 API가 HSET, 컨슈머는 60초 로컬 캐시로 참조</td><td>다중 인스턴스 일관 · 이미 있는 인프라 · 반영 지연 ≤ 60s 수용</td></tr>
+          <tr><td>(b) 관리 API + 인메모리</td><td>AtomicReference 교체</td><td>인스턴스 간 불일치 · 재기동 시 소실 — 기각</td></tr>
+          <tr><td>(c) Spring Cloud Config</td><td>/refresh 갱신</td><td>이 요구 하나에 의존성 도입 — 과도, 기각</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>구현 시 <span class="term">RankingWeights</span> object 상수가 조회 컴포넌트(WeightProvider)로 바뀌는 변경이 컨슈머에 발생합니다 — Must 구현에서는 미리 추상화하지 않습니다 (조기 추상화 금지).</p>
+
+    <h3>N2. 1시간 단위 랭킹</h3>
+    <p>키 <span class="term">ranking:all:{yyyyMMddHH}</span>, TTL은 "윈도우 1.5~2배" 규칙대로 2~3시간. Lua ARGV에 시간 키 1개를 추가해 <strong>이벤트당 ZINCRBY 1회 증가</strong>로 끝납니다. 시간 버킷 간 carry는 요구에 없으므로 넣지 않습니다. API는 <span class="term">?unit=hourly</span> 또는 별도 엔드포인트 — 착수 시 결정.</p>
+
+    <h3>N3. 콜드 스타트 완화 스케줄러 — <span style="color:var(--blue-deep)">기본 carry 설계로 승격</span></h3>
+    <p>이 Nice 항목은 더 이상 "선택"이 아니라 §6-D3에서 확정한 <strong>기본 carry 메커니즘</strong>입니다 — 23:50 스냅샷(pre-warm) + 00:00 tail 병합(grace close). 자정 직후 빈 랭킹판 방지라는 목적을 스냅샷이 자정 전에 달성하고, tail이 스냅샷 이후 증분을 메웁니다. 설계·트레이드오프·완화책은 §4·§5·§6-D3 참조.</p>
+  </section>
+
+  <!-- ================================================== 8 -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">VERIFY & MEASURE</p><h2 class="sec">검증 · 재측정 계획</h2></div>
+    </div>
+
+    <p class="lead">테스트는 Stage 1의 18개(스트리머 9 + api 9)를 이관하는 것이 골격이고, 측정은 EXP-02와 같은 시나리오·시드로 Stage 1 수치와 1:1 대조합니다.</p>
+
+    <h3>테스트 (TDD)</h3>
+    <ul class="checklist">
+      <li><span class="box"></span><b>streamer 통합 (Testcontainers Redis)</b> — 신규 이벤트 → 오늘 키 점수·TTL / 중복 eventId → 무변화 / 좋아요 취소 −0.2 / 주문 멀티라인 ARGV 전개 / <b>tail 윈도우 판정</b>(23:50~00:00에만 tail 적재) / <b>carry 스케줄러</b>(23:50 스냅샷 ×0.1 · 00:00 병합 멱등 가드로 재실행 시 무증가)</li>
+      <li><span class="box"></span><b>api 통합</b> — 페이지 rank·정렬 / <span class="term">?date=</span> 전일 조회 / 빈 랭킹 = 빈 배열 / 상세 동점 동순위 / 미진입 rank null</li>
+      <li><span class="box"></span><b>E2E (Kafka + Redis)</b> — 과제 검증 3종: 발행→적재→조회 / 일자 변경 후 전일 조회(+ 스냅샷·tail 병합으로 내일 키 웜 스타트) / 가중치 순서 반영 (주문 1건 0.7 &gt; 좋아요 3건 0.6)</li>
+    </ul>
+
+    <h3>재측정 — Stage 1 대비 기대 가설</h3>
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>지표</th><th>Stage 1 실측 (07-16)</th><th>Stage 3 가설</th></tr></thead>
+        <tbody>
+          <tr><td>읽기 천장</td><td>~280rps (p95 3.19s 붕괴)</td><td>대폭 상승 — 병목이 상품 IN 조회(MySQL)로 이동하는 지점 측정</td></tr>
+          <tr><td>개별 순위 비용</td><td>O(rank) — 하위권 31qps</td><td>O(log N) — 순위 무관 균일</td></tr>
+          <tr><td>쓰기 소비</td><td>드레인 ~185/s &lt; 220/s, RANKING 랙 발산</td><td>발산 소멸 — 구독별 랙 그래프로 재확인</td></tr>
+          <tr><td>Hikari 풀</td><td>40/40 소진 + pending 161</td><td>랭킹 트래픽 이탈로 소진 해소</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">측정 자산 변경분</span>
+      ① Redis 시드: <span class="term">perf-seed-ranking.sql</span>과 동치 분포(멱법칙)를 <span class="term">redis-cli --pipe</span> ZADD로 적재하는 스크립트 신규. ② 정산: <span class="term">verify-ranking.sql</span> → redis-cli 기반(ZCARD · 표본 score · <strong>스냅샷+tail 병합 후 내일 ×0.1 비율</strong> · handled 키 수)으로 재작성, <strong>double 오차 ε 허용</strong>. ③ 랙 샘플러·run-meta 계약은 그대로. 본런 여부·시점은 EXP-03 계획과 함께 별도 확정 — <strong>이 플랜 승인이 측정 실행 승인은 아닙니다</strong>.
+    </div>
+  </section>
+
+  <!-- ================================================== 9 -->
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">EXECUTION ORDER</p><h2 class="sec">작업 순서</h2></div>
+    </div>
+
+    <p class="lead">열린 결정(§6) 확정 후, 쓰기 경로부터 한 칸씩 닫습니다. 각 스텝은 "작동 동작 1개 + 통과 테스트 1개"가 완료 조건입니다.</p>
+
+    <ul class="checklist">
+      <li><span class="box"></span><span class="tag">결정</span><b>§6 열린 결정 확정</b> — D1(멱등 위치)·D4(순위 의미론). D3(carry)는 <b>스냅샷+tail로 확정</b></li>
+      <li><span class="box"></span><span class="tag">준비</span><b>브랜치 분기</b> — stage1-mysql에서 <span class="term">feature/week09-ranking-stage3-redis</span></li>
+      <li><span class="box"></span><span class="tag">쓰기</span><b>RankingZSetRepository + Lua</b> — Testcontainers 통합 테스트로 스크립트 확정 (DoD: 이벤트 1건 → ZINCRBY 반영)</li>
+      <li><span class="box"></span><span class="tag">쓰기</span><b>RankingAccumulateService 교체</b> — 스트리머 테스트 9개 이관 + tail 윈도우 판정</li>
+      <li><span class="box"></span><span class="tag">쓰기</span><b>RankingCarryScheduler 신규</b> — 23:50 스냅샷 + 00:00 tail 병합(SET NX 가드) (DoD: 병합 멱등 통합 테스트 green)</li>
+      <li><span class="box"></span><span class="tag">읽기</span><b>RankingQueryService 교체</b> — api 테스트 9개 이관 + 동점·미진입 계약 테스트</li>
+      <li><span class="box"></span><span class="tag">정리</span><b>Stage 1 MySQL 경로 제거</b> — D2 확정 시</li>
+      <li><span class="box"></span><span class="tag">검증</span><b>E2E + 과제 검증 3종</b> — Kafka+Redis Testcontainers</li>
+      <li><span class="box"></span><span class="tag">측정</span><b>측정 자산(Redis 시드·verify) 작성</b> — 본런은 별도 확정 후</li>
+      <li><span class="box"></span><span class="tag">제출</span><b>비교표(Stage 1↔3) + PR</b> — pr 스킬 경유, Technical Writing 소재 정리</li>
+    </ul>
+  </section>
+
+  <!-- ================================================== REFS -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <a class="ref primary" id="r1" href="https://redis.io/docs/latest/commands/zincrby/" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>Redis — ZINCRBY</b> — 시간 복잡도 O(log N), 멤버 부재 시 생성 후 증분.<span class="src">https://redis.io/docs/latest/commands/zincrby/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r2" href="https://redis.io/docs/latest/commands/zrange/" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>Redis — ZRANGE</b> — REV·WITHSCORES 옵션, O(log N + M).<span class="src">https://redis.io/docs/latest/commands/zrange/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r3" href="https://redis.io/docs/latest/commands/zcount/" target="_blank" rel="noopener"><span class="n">3</span><span class="b"><b>Redis — ZCOUNT</b> — O(log N), exclusive 경계 "(score" 문법.<span class="src">https://redis.io/docs/latest/commands/zcount/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r4" href="https://redis.io/docs/latest/commands/expire/" target="_blank" rel="noopener"><span class="n">4</span><span class="b"><b>Redis — EXPIRE</b> — TTL 의미론과 NX/XX 옵션 (Redis 7.0+).<span class="src">https://redis.io/docs/latest/commands/expire/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r5" href="https://redis.io/docs/latest/develop/programmability/eval-intro/" target="_blank" rel="noopener"><span class="n">5</span><span class="b"><b>Redis — Scripting with Lua</b> — 스크립트 실행의 원자성 보장.<span class="src">https://redis.io/docs/latest/develop/programmability/eval-intro/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r6" href="https://docs.spring.io/spring-data/redis/reference/redis/scripting.html" target="_blank" rel="noopener"><span class="n">6</span><span class="b"><b>Spring Data Redis — Scripting</b> — DefaultRedisScript · RedisTemplate.execute 패턴.<span class="src">https://docs.spring.io/spring-data/redis/reference/redis/scripting.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r7" href="https://redis.io/docs/latest/develop/use-cases/leaderboard/" target="_blank" rel="noopener"><span class="n">7</span><span class="b"><b>Redis — Leaderboard use case</b> — per-window 키(daily/weekly)가 스스로 만료, ZUNIONSTORE로 윈도우 집계. carry 스냅샷의 근거 패턴.<span class="src">https://redis.io/docs/latest/develop/use-cases/leaderboard/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r8" href="https://kafka.apache.org/31/javadoc/org/apache/kafka/streams/kstream/Windows.html" target="_blank" rel="noopener"><span class="n">8</span><span class="b"><b>Apache Kafka — Windows (grace period)</b> — 윈도우는 stream_time ≥ window_end + grace_period까지 늦은 이벤트를 수용. tail 병합의 개념 원전.<span class="src">https://kafka.apache.org/31/javadoc/org/apache/kafka/streams/kstream/Windows.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r9" href="https://nightlies.apache.org/flink/flink-docs-master/docs/dev/datastream/operators/windows/" target="_blank" rel="noopener"><span class="n">9</span><span class="b"><b>Apache Flink — Windows (Allowed Lateness · side output)</b> — 워터마크 통과 후에도 allowed lateness 내 이벤트 반영, 늦은 데이터를 side output으로 분리. tail 구간을 따로 모으는 방식의 원전.<span class="src">https://nightlies.apache.org/flink/flink-docs-master/docs/dev/datastream/operators/windows/</span><span class="pr p1">1차 출처</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 9 · Stage 3 Redis ZSET 설계 플랜 — 검토용 · 2026-07-16<br>
+    입력: EXP-02 AWS 본런 실측 (run-meta) · checklist.md 열린 결정 · Redis 공식 문서 6건 (URL 실재 확인)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

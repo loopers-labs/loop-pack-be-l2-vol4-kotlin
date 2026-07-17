@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository
 class ProductMetricsRepositoryImpl(
     private val productMetricsJpaRepository: ProductMetricsJpaRepository,
 ) : ProductMetricsRepository {
-    override fun upsertDelta(productId: Long, likeDelta: Long, salesDelta: Long, viewDelta: Long) {
-        productMetricsJpaRepository.upsertDelta(productId, likeDelta, salesDelta, viewDelta)
+    override fun accumulate(productId: Long, likeChange: Long, salesChange: Long, viewChange: Long) {
+        productMetricsJpaRepository.upsertChanges(productId, likeChange, salesChange, viewChange)
     }
 }

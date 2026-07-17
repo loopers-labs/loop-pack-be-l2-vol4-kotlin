@@ -2,10 +2,14 @@ package com.loopers.config.kafka
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import org.springframework.kafka.annotation.EnableKafka
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.ConsumerFactory
@@ -27,6 +31,8 @@ import java.util.HashMap
 class KafkaConfig {
     companion object {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
+        const val DLT_KAFKA_TEMPLATE = "DLT_KAFKA_TEMPLATE"
+        const val DLT_PRODUCER_FACTORY = "DLT_PRODUCER_FACTORY"
         const val RECORD_LISTENER = "RECORD_LISTENER_MANUAL_ACK"
         const val RECORD_RECOVERER = "RECORD_RECOVERER"
 
@@ -41,10 +47,22 @@ class KafkaConfig {
     }
 
     @Bean
+    @Primary
     fun producerFactory(
         kafkaProperties: KafkaProperties,
     ): ProducerFactory<Any, Any> {
         val props: Map<String, Any> = HashMap(kafkaProperties.buildProducerProperties())
+        return DefaultKafkaProducerFactory(props)
+    }
+
+    @Bean(DLT_PRODUCER_FACTORY)
+    fun deadLetterProducerFactory(
+        kafkaProperties: KafkaProperties,
+    ): ProducerFactory<Any, Any> {
+        val props = HashMap(kafkaProperties.buildProducerProperties())
+            .apply {
+                put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer::class.java)
+            }
         return DefaultKafkaProducerFactory(props)
     }
 
@@ -57,9 +75,15 @@ class KafkaConfig {
     }
 
     @Bean
+    @Primary
     fun kafkaTemplate(producerFactory: ProducerFactory<Any, Any>): KafkaTemplate<Any, Any> {
         return KafkaTemplate(producerFactory)
     }
+
+    @Bean(DLT_KAFKA_TEMPLATE)
+    fun deadLetterKafkaTemplate(
+        @Qualifier(DLT_PRODUCER_FACTORY) producerFactory: ProducerFactory<Any, Any>,
+    ): KafkaTemplate<Any, Any> = KafkaTemplate(producerFactory)
 
     @Bean
     fun jsonMessageConverter(objectMapper: ObjectMapper): ByteArrayJsonMessageConverter {
@@ -68,7 +92,7 @@ class KafkaConfig {
 
     @Bean
     fun deadLetterPublishingRecoverer(
-        kafkaTemplate: KafkaTemplate<Any, Any>,
+        @Qualifier(DLT_KAFKA_TEMPLATE) kafkaTemplate: KafkaTemplate<Any, Any>,
         handlers: List<KafkaDeadLetterHandler>,
     ): DeadLetterPublishingRecoverer {
         return DeadLetterPublishingRecoverer(kafkaTemplate) { record, exception ->
@@ -94,7 +118,7 @@ class KafkaConfig {
 
     @Bean
     fun defaultKafkaErrorHandler(
-        recordRecoverer: ConsumerRecordRecoverer,
+        @Qualifier(RECORD_RECOVERER) recordRecoverer: ConsumerRecordRecoverer,
     ): DefaultErrorHandler {
         return DefaultErrorHandler(
             recordRecoverer,

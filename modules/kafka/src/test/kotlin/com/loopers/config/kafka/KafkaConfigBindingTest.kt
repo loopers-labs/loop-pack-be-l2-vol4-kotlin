@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
+import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
+import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.listener.ContainerProperties
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
 import org.springframework.kafka.listener.DefaultErrorHandler
@@ -62,6 +64,20 @@ class KafkaConfigBindingTest {
                 .isEqualTo(ByteArrayDeserializer::class.java)
             assertThat(consumerProperties[ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG])
                 .isEqualTo(false)
+        }
+    }
+
+    @Test
+    fun `DLT_전용_producer는_byte_array를_그대로_직렬화한다`() {
+        contextRunner.run { context ->
+            @Suppress("UNCHECKED_CAST")
+            val producerFactory = context.getBean(
+                KafkaConfig.DLT_PRODUCER_FACTORY,
+                DefaultKafkaProducerFactory::class.java,
+            ) as DefaultKafkaProducerFactory<Any, Any>
+
+            assertThat(producerFactory.configurationProperties[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG])
+                .isEqualTo(ByteArraySerializer::class.java)
         }
     }
 

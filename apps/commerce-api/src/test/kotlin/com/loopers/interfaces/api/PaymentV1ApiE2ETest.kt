@@ -6,12 +6,15 @@ import com.loopers.application.payment.PaymentResult
 import com.loopers.application.payment.PaymentStatus
 import com.loopers.application.payment.PaymentTransactionInfo
 import com.loopers.domain.payment.PaymentRepository
+import com.loopers.domain.queue.EntryToken
+import com.loopers.domain.queue.EntryTokenRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
 import com.loopers.infrastructure.stock.StockJpaEntity
 import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.interfaces.api.user.UserV1Dto
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -38,7 +41,9 @@ class PaymentV1ApiE2ETest @Autowired constructor(
     private val fakePaymentGateway: FakePaymentGateway,
     private val productJpaRepository: ProductJpaRepository,
     private val stockJpaRepository: StockJpaRepository,
+    private val entryTokenRepository: EntryTokenRepository,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     companion object {
         private const val PAYMENT_ENDPOINT = "/api/v1/payments"
@@ -46,25 +51,26 @@ class PaymentV1ApiE2ETest @Autowired constructor(
         private const val USER_ENDPOINT = "/api/v1/users"
         private const val LOGIN_ID = "seondays"
         private const val PASSWORD = "Password1!"
+        private const val QUEUE_TOKEN = "test-queue-token"
     }
 
     @AfterEach
     fun tearDown() {
         fakePaymentGateway.reset()
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     @DisplayName("POST /api/v1/payments")
     @Nested
     inner class RequestPayment {
-        @DisplayName("인증된 사용자가 결제 요청하면 PENDING 상태의 Payment를 반환한다.")
+        @DisplayName("인증된 사용자가 결제를 요청하면 REQUESTED 상태의 Payment를 생성한다.")
         @Test
-        fun requestPayment_returnsPendingPayment() {
+        fun requestPayment_createsRequestedPayment() {
             // arrange
             val headers = signUpAndGetAuthHeaders()
             val product = saveProductWithStock(price = 10_000L, stock = 10)
             val orderId = placeOrder(headers, product.id)
-            fakePaymentGateway.nextStatus = PaymentStatus.PENDING
 
             val request = mapOf(
                 "orderId" to orderId,
@@ -81,16 +87,16 @@ class PaymentV1ApiE2ETest @Autowired constructor(
                 responseType,
             )
 
-            // assert
+            // assert : 결제 요청은 비동기 처리이므로 접수 직후에는 REQUESTED 상태이다.
+            // (REQUESTED -> PENDING 전이는 PaymentRequestProcessorTest 가 검증한다.)
             val data = response.body?.data!!
             val savedPayment = paymentRepository.findByOrderId(orderId.toLong())
             assertAll(
                 { assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED) },
-                { assertThat(data["status"]).isEqualTo("PENDING") },
-                { assertThat(data["transactionKey"]).isNotNull() },
+                { assertThat(data["status"]).isEqualTo("REQUESTED") },
                 { assertThat(data["orderId"]).isEqualTo(orderId) },
                 { assertThat(savedPayment).isNotNull() },
-                { assertThat(savedPayment!!.status).isEqualTo(PaymentStatus.PENDING) },
+                { assertThat(savedPayment!!.status).isEqualTo(PaymentStatus.REQUESTED) },
             )
         }
 
@@ -152,16 +158,22 @@ class PaymentV1ApiE2ETest @Autowired constructor(
             birthDate = java.time.LocalDate.of(1990, 1, 1),
             email = "seondays@example.com",
         )
-        testRestTemplate.exchange(
+        val signUpResponse = testRestTemplate.exchange(
             USER_ENDPOINT,
             HttpMethod.POST,
             jsonEntity(signUpRequest),
             object : ParameterizedTypeReference<ApiResponse<UserV1Dto.SignUpResponse>>() {},
         )
+        val userId = signUpResponse.body?.data?.id
+            ?: error("회원 가입 응답에 id가 없습니다.")
+        // 주문 API 가 대기열 입장 토큰을 요구하므로, 테스트에서는 토큰을 직접 발급해 둔다.
+        entryTokenRepository.save(userId, EntryToken(QUEUE_TOKEN))
+
         return HttpHeaders().apply {
             contentType = MediaType.APPLICATION_JSON
             set("X-Loopers-LoginId", LOGIN_ID)
             set("X-Loopers-LoginPw", PASSWORD)
+            set("X-Loopers-QueueToken", QUEUE_TOKEN)
         }
     }
 

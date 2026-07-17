@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>이벤트 파이프라인 안정화 — 원천 저장 · 장애 fallback · 복구 설계</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:640px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+  .note.ok{background:var(--green-bg);border-color:#bfeeda}
+  .note.ok .tag{color:var(--green-deep)} .note.ok strong{color:var(--green-deep)}
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:13.5px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:10.5px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  .fig-wide figcaption{max-width:720px;margin-left:auto;margin-right:auto}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)} .ref.bt .n{background:var(--green)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .cols.three{grid-template-columns:1fr 1fr 1fr}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col.g{background:var(--green-bg);border-color:#bfeeda}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)} .col.g h4{color:var(--green-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff} .col.g h4 .mk{background:var(--green);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  .tbl-wrap.scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols,.cols.three{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>Round 9 · 이벤트 파이프라인 안정화 · 설계</span>
+      <h1 class="title">이벤트 파이프라인 안정화<br><span class="hl">원천 저장 · 장애 fallback · 복구</span></h1>
+      <p class="lede">랭킹·metric은 이벤트를 소비해 만든 <b>파생 상태</b>입니다. 이 파생 상태를 위협하는 세 가지 — <b>① 이벤트 유실 · ② Redis 장애로 서빙 불가 · ③ 파생 상태 파손</b> — 을 각각 다른 장치로 막습니다. 세 위협과 데이터 3종을 MECE하게 묶은 통합 설계입니다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">STATUS</span><span class="v">설계 정리 (2026-07-17) · 구현 별도 세션</span></div>
+        <div class="chip"><span class="k">3 축</span><span class="v">유실 방지 · 장애 서빙 · 사후 복구</span></div>
+        <div class="chip"><span class="k">저장소</span><span class="v">MySQL 먼저 (A·B·C)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a href="02-load-test-plan.html"><span class="n">02</span>측정 플랜</a>
+    <a href="03-stage1-implementation.html"><span class="n">03</span>Stage 1 구현</a>
+    <a href="04-stage1-local-measurement.html"><span class="n">04</span>Stage 1 측정</a>
+    <a href="05-stage3-redis-design.html"><span class="n">05</span>Stage 3 설계</a>
+    <a class="cur" href="06-event-store-recovery-dlq-design.html"><span class="n">06</span>파이프라인 안정화</a>
+  </div>
+
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">배경 — 3-축 프레임</a></li>
+      <li><a href="#s2">데이터 3종 지도 (A·B·C)</a></li>
+      <li><a href="#s3">위협 ① 유실 방지 — 발행 + 소비</a></li>
+      <li><a href="#s4">원천 저장 (A) — 복구 SoT</a></li>
+      <li><a href="#s5">위협 ② 장애 중 서빙 — 집계 fallback (C)</a></li>
+      <li><a href="#s6">위협 ③ 복구 — replay & 컷오버</a></li>
+      <li><a href="#s7">실패 이력 (B) + 알림</a></li>
+      <li><a href="#s8">저장소 결정 — MySQL 먼저</a></li>
+      <li><a href="#s9">열린 결정 — 검토 요청</a></li>
+      <li><a href="#s10">작업 순서 & 범위</a></li>
+      <li><a href="#refs">참고문헌</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ================================================== 1 -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">WHY · FRAME</p><h2 class="sec">배경 — 3-축 프레임</h2></div>
+    </div>
+
+    <p class="lead">랭킹(Redis ZSET)과 metric은 Kafka 이벤트를 소비해 만든 <em>파생 상태(projection)</em>입니다. 진실은 이벤트 스트림에 있고, 저장소들은 그걸 접어 만든 결과일 뿐입니다. 이 관점을 잡으면 "무엇을 지켜야 하나"가 세 가지로 갈립니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>위협 (상호 배타)</th><th>무엇이 깨지나</th><th>대응 장치</th><th>담당 §</th></tr></thead>
+        <tbody>
+          <tr><td>① 이벤트 유실</td><td>발행·소비 실패로 이벤트가 파이프라인에서 사라짐 → projection이 애초에 틀림</td><td>Outbox 상태 격리(발행) + Kafka DLQ(소비)</td><td>§3</td></tr>
+          <tr><td>② Redis 장애</td><td>ZSET을 못 읽어 랭킹 서빙 자체가 멈춤 (스파이크 중엔 치명적)</td><td>집계 fallback projection(C) + read circuit</td><td>§5</td></tr>
+          <tr><td>③ 파생 상태 파손</td><td>ZSET/metric이 유실·오염 → 되살릴 원천이 필요</td><td>replay 3소스(Kafka · event store · C) + 컷오버</td><td>§6</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">이 세 축이 MECE인 이유</span>
+      ①은 <strong>이벤트가 저장소에 닿기 전</strong>, ②는 <strong>장애가 지속되는 동안(서빙)</strong>, ③은 <strong>장애가 끝난 뒤(재구축)</strong> — 실패 생애주기의 서로 겹치지 않는 세 구간을 각각 덮습니다. ②와 ③을 섞으면 안 됩니다: ②는 "죽어 있는 동안 계속 보여주기", ③은 "살아난 뒤 되살리기"로 목적이 다릅니다.
+    </div>
+
+    <div class="note"><span class="tag">범위 · 우선순위 (밀어붙이는 규칙)</span>
+      이 문서 전체는 <strong>과제 Must가 아니라 후속 안정화</strong>입니다. Must는 여전히 <strong>05의 Consumer→ZSET 적재 + Ranking API</strong>입니다. 그것을 먼저 구현·측정해 닫은 뒤, 이 안정화를 별도 세션에서 진행합니다. 단 <strong>원천 저장(A)과 서빙 fallback(C)은 둘 다 구현 대상</strong>으로 확정됐습니다 — Technical Writing의 핵심 소재이기도 합니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 2 -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">DATA MAP</p><h2 class="sec">데이터 3종 지도 (A·B·C)</h2></div>
+    </div>
+
+    <p class="lead">이 설계에는 성격이 다른 세 데이터가 있습니다. 이걸 하나로 뭉뚱그리면 "복구 원천"과 "서빙용 집계"를 같은 것으로 착각하게 됩니다 — 실제로는 shape·소비자·용도·멱등이 전부 다릅니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>데이터</th><th>shape</th><th>먹이는 소비자</th><th>용도</th><th>멱등 근거</th></tr></thead>
+        <tbody>
+          <tr><td><span class="term">A</span> 원천 event store</td><td>raw event append (무가중)</td><td>metrics consumer에 얹기</td><td><strong>복구 후 재구축</strong> (실시간 서빙 안 함)</td><td>event_id = row PK (자연)</td></tr>
+          <tr><td><span class="term">C</span> 집계 fallback</td><td>집계 <span class="term">(productId, date, score)</span> (가중)</td><td>독립 배치 consumer (~0.5s)</td><td><strong>장애 중 읽기 서빙</strong> · 트렌드 추종</td><td>별도 inbox 원장 (§5)</td></tr>
+          <tr><td><span class="term">B</span> 실패 이력</td><td>실패 레코드 + 예외 헤더</td><td>DLT consumer</td><td><strong>운영 관측</strong> · 재처리 판단</td><td>해당 없음 (소량)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">관계 — SoT 하나, projection 둘</span>
+      <strong>Kafka(+ A 원천 저장) = source of truth</strong>. <strong>Redis ZSET(05)과 C 집계 MySQL = 둘 다 그 로그에서 파생된 projection</strong>입니다. 그래서 둘이 잠깐 어긋나도 "충돌"이 아니라 lag 차이일 뿐이고, 화해는 병합이 아니라 <strong>로그 재생(replay)</strong>으로 합니다 — split-brain이 원리적으로 안 생깁니다. A는 raw(무가중)라 자기 자신이 곧 멱등 원장이고, C는 사전 집계(가중)라 <em>가중치 계산 로직</em>을 Redis 경로와 공유해야 합니다(§5 로직 단일화).
+    </div>
+
+    <div class="note"><span class="tag">A와 C를 왜 안 합치나</span>
+      A는 "정확한 재구축을 위한 raw 로그", C는 "빠른 서빙을 위한 사전 집계"입니다. A로 서빙하려면 매 조회마다 <span class="term">SUM(가중치) GROUP BY productId</span> — Stage 1a의 O(N) 스캔이라 장애 중 서빙에 부적합합니다. 반대로 C만으로는 가중치 변경 재계산·retention 초과 복구가 안 됩니다. <strong>둘은 대체가 아니라 역할 분담</strong>이라 각각 둡니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 3 -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">THREAT ① · LOSS</p><h2 class="sec">위협 ① 유실 방지 — 발행 + 소비</h2></div>
+    </div>
+
+    <p class="lead">유실 방지는 하나의 장치가 아니라 <strong>파이프라인의 두 구간</strong>에서 각각 일어납니다. 발행 실패는 Kafka가 죽은 상황일 수 있어 Kafka DLQ로 못 막습니다 — 그래서 발행은 <em>outbox 상태</em>, 소비는 <em>Kafka DLQ</em>로 지킵니다.</p>
+
+    <figure class="fig-wide">
+      <div class="fig-box" data-fig="FIG.A — TWO GUARDS">
+        <svg viewBox="0 0 1180 470" role="img" aria-label="이벤트 파이프라인 유실 방지 두 구간: 발행 구간은 outbox 상태로, 소비 구간은 Kafka DLQ로 이벤트를 버리지 않는다">
+          <defs>
+            <marker id="ar" markerWidth="10" markerHeight="10" refX="7.5" refY="4.5" orient="auto"><path d="M0,0 L8.5,4.5 L0,9" fill="none" stroke="#3182F6" stroke-width="1.7"/></marker>
+            <marker id="arr" markerWidth="10" markerHeight="10" refX="7.5" refY="4.5" orient="auto"><path d="M0,0 L8.5,4.5 L0,9" fill="none" stroke="#F04452" stroke-width="1.7"/></marker>
+          </defs>
+          <rect x="14" y="150" width="546" height="150" rx="20" fill="#F4F9FF" stroke="#cfe4ff"/>
+          <rect x="620" y="150" width="546" height="150" rx="20" fill="#F9FAFB" stroke="#E5E8EB"/>
+          <text x="34" y="178" class="svg-l" fill="#1B64DA">발행 구간 — Outbox 상태 격리</text>
+          <text x="640" y="178" class="svg-l" fill="#4E5968">소비 구간 — Kafka DLQ 격리</text>
+          <rect x="40" y="206" width="220" height="74" rx="15" fill="#fff" stroke="#cfe4ff"/>
+          <foreignObject x="40" y="206" width="220" height="74"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><span class="t">commerce-api</span><span class="s">비즈니스 + outbox INSERT (원자)</span></div></foreignObject>
+          <rect x="314" y="206" width="192" height="74" rx="15" fill="#fff" stroke="#cfe4ff"/>
+          <foreignObject x="314" y="206" width="192" height="74"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">Kafka</span><span class="s">product / order / user-action</span></div></foreignObject>
+          <rect x="646" y="206" width="220" height="74" rx="15" fill="#fff" stroke="#E5E8EB"/>
+          <foreignObject x="646" y="206" width="220" height="74"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><span class="t">metrics consumer</span><span class="s">저장 얹기 · EVENTSTORE 멱등</span></div></foreignObject>
+          <rect x="932" y="206" width="212" height="74" rx="15" fill="#E7F9F1" stroke="#bfeeda"/>
+          <foreignObject x="932" y="206" width="212" height="74"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><span class="t">원천 event store (A)</span><span class="s">MySQL · append</span></div></foreignObject>
+          <line x1="260" y1="243" x2="308" y2="243" stroke="#3182F6" stroke-width="1.7" marker-end="url(#ar)"/>
+          <line x1="506" y1="243" x2="640" y2="243" stroke="#3182F6" stroke-width="1.7" marker-end="url(#ar)"/>
+          <line x1="866" y1="243" x2="926" y2="243" stroke="#3182F6" stroke-width="1.7" marker-end="url(#ar)"/>
+          <line x1="150" y1="206" x2="150" y2="120" stroke="#F04452" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+          <text x="162" y="150" class="svg-s" fill="#C9303C">N회 실패</text>
+          <rect x="40" y="40" width="330" height="70" rx="15" fill="#FEEFEF" stroke="#f8d4d4"/>
+          <foreignObject x="40" y="40" width="330" height="70"><div class="fo red" xmlns="http://www.w3.org/1999/xhtml"><span class="t">outbox_event · status = FAILED</span><span class="s">payload 보존 + 알림 · 자동 재시도 제외</span></div></foreignObject>
+          <line x1="756" y1="280" x2="756" y2="360" stroke="#F04452" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+          <text x="768" y="330" class="svg-s" fill="#C9303C">N회 재시도 소진</text>
+          <rect x="612" y="378" width="330" height="70" rx="15" fill="#FEEFEF" stroke="#f8d4d4"/>
+          <foreignObject x="612" y="378" width="330" height="70"><div class="fo red" xmlns="http://www.w3.org/1999/xhtml"><span class="t">&lt;topic&gt;-dlt + 실패 이력 (B)</span><span class="s">예외·원본 헤더 자동 · DLT consumer 적재 + 알림</span></div></foreignObject>
+          <text x="590" y="30" text-anchor="middle" class="svg-l" fill="#8B95A1">두 구간 모두 "실패해도 버리지 않는다"</text>
+        </svg>
+      </div>
+      <figcaption><b>두 안전장치.</b> 발행 실패는 Kafka DLQ로 격리할 수 없어 <b>outbox 테이블 상태(FAILED)</b>가 격리소, 소비 후 저장 실패는 Kafka가 살아있으니 <b>Kafka DLQ</b>가 격리소입니다.</figcaption>
+    </figure>
+
+    <h3>발행 구간 — Outbox FAILED 상태</h3>
+    <div class="note"><span class="tag">먼저 — 유실은 지금도 안 난다</span>
+      현재 <span class="term">OutboxRelay</span>는 발행 실패 시 <span class="term">break</span> 후 <span class="term">markSent</span>를 안 하므로, 실패분은 <strong>INIT 상태로 남아 다음 폴링에서 계속 재시도</strong>됩니다. 즉 발행 실패로 이벤트가 사라지진 않습니다. FAILED 상태 추가의 실익은 유실 방지가 아니라 아래 둘입니다.
+    </div>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">1</span>Head-of-line blocking 해소</h4><p>지금은 실패 시 <span class="term">break</span>라 맨 앞 독약 레코드 하나가 <strong>뒤 전부를 영원히 막습니다.</strong> N회 초과분을 <span class="term">FAILED</span>로 빼면 나머지가 다시 흐릅니다.</p></div>
+      <div class="col o"><h4><span class="mk">2</span>관측 · 알림</h4><p>계속 실패하는 레코드를 <strong>사람이 인지</strong>하도록 FAILED 전이 시 <span class="term">NotificationSender</span>로 알립니다.</p></div>
+    </div>
+    <ul class="checklist">
+      <li><span class="box"></span><b>OutboxStatus에 <span class="term">FAILED</span> + <span class="term">retry_count</span> 컬럼</b> <span class="tag">schema</span></li>
+      <li><span class="box"></span>relay 시도마다 <b>retry_count++</b>, <b>N회 초과 시 FAILED 마킹 + 알림</b></li>
+      <li><span class="box"></span>FAILED는 <b>자동 폴링 재시도 제외</b> — 수동 재처리 대상</li>
+      <li><span class="box"></span><b><span class="term">break</span> 정책 재검토</b> — aggregate 다르면 독립이니 실패분만 건너뜀. 같은 파티션 키 순서 보존이 필요하면 그 키만 막음</li>
+    </ul>
+
+    <h3>소비 구간 — 배치 리스너 DLQ</h3>
+    <div class="note warn"><span class="tag">배치 리스너의 두 제약</span>
+      streamer consumer가 모두 배치 리스너(<span class="term">isBatchListener=true</span>)입니다. ① 편한 <span class="term">@RetryableTopic</span>(non-blocking)은 <strong>배치 리스너 미지원</strong><a href="#r2" class="cite">[2]</a>. ② 배치 DLQ는 실패 레코드를 담아 <strong><span class="term">BatchListenerFailedException</span>을 던져야</strong> — 안 던지면 실패 하나에 배치 전체가 통째로 재시도됩니다.<a href="#r1" class="cite">[1]</a>
+    </div>
+    <div class="note ok"><span class="tag">"대상·시도·예외"는 프레임워크가 헤더로 준다</span>
+      <span class="term">DeadLetterPublishingRecoverer</span>가 DLT 레코드에 자동 첨부 — <strong>DLT_EXCEPTION_FQCN · _MESSAGE · _STACKTRACE</strong> + <strong>DLT_ORIGINAL_TOPIC · _PARTITION · _OFFSET · _CONSUMER_GROUP</strong>. 직접 만들 필요 없이 "어떤 대상이 뭘 시도했는데 무슨 예외로 실패했나"가 확보됩니다.<a href="#r1" class="cite">[1]</a>
+    </div>
+    <ul class="checklist">
+      <li><span class="box"></span><span class="term">DefaultErrorHandler(recoverer, FixedBackOff(간격, N회))</span> + <span class="term">addNotRetryableExceptions(...)</span> — 소진 시 <span class="term">&lt;topic&gt;-dlt</span>, 재시도 무의미 예외는 바로 DLT<a href="#r1" class="cite">[1]</a></li>
+      <li><span class="box"></span>배치에서 실패 인덱스 <span class="term">BatchListenerFailedException</span>으로 지정 — 성공분 재처리 방지</li>
+    </ul>
+  </section>
+
+  <!-- ================================================== 4 -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">SOURCE OF TRUTH</p><h2 class="sec">원천 저장 (A) — 복구 SoT</h2></div>
+    </div>
+
+    <p class="lead">A는 복구를 위한 raw 이벤트 append 로그입니다. 파일 로그가 아니라 "데이터" — 순서대로 재생 가능하고 유실 불허가 핵심입니다. 발단은 조회(<span class="term">ProductViewedEvent</span>)로, 현재 <span class="term">@Async</span>+<span class="term">AFTER_COMMIT</span> 직접 발행이라 실패 시 warn 로그만 남기고 버려집니다.</p>
+
+    <h3>저장 위치 — metrics consumer에 얹기 (accepted-risk)</h3>
+    <p>전용 consumer·새 원천 토픽을 만들지 않고, 이미 3토픽(조회·좋아요·주문)을 받는 <span class="term">ProductMetricsKafkaConsumer</span>의 각 리스너에서 <span class="term">EventSubscription.EVENTSTORE</span> + <span class="term">handleOnce(eventId, EVENTSTORE)</span>로 append합니다. metrics가 이미 이 멱등 패턴이라 재시도 중복이 없습니다.</p>
+
+    <div class="note warn"><span class="tag">결합의 대가 — 명시적으로 감수 + 분리 트리거</span>
+      SoT를 metrics consumer에 얹으면 <strong>복구 소스가 복구 대상(metrics)과 실패 모드를 공유</strong>합니다 — metrics 로직의 독약 레코드가 "그 metrics를 복구할 원천"의 적재까지 DLT로 보냅니다. SoT는 실패 표면이 가장 작아야 한다는 원칙과는 반대 방향입니다. <strong>그럼에도 지금은 감수</strong>합니다(전용 consumer 추가 = YAGNI). 대신 두 가지를 문서로 못박습니다: ① event store append를 리스너에서 <strong>가장 먼저·최소 로직</strong>으로 수행해 자기 실패 확률을 낮춘다. ② <strong>분리 트리거</strong> — DLT에서 "metrics 로직 실패로 event store까지 막힌" 사례가 관측되면 그때 thin 전용 consumer로 승격한다.
+    </div>
+
+    <div class="note ok"><span class="tag">A는 자기 자신이 멱등 원장</span>
+      raw append는 <strong>event_id를 row PK</strong>로 두면 <span class="term">INSERT ... ON DUPLICATE KEY UPDATE id=id</span>가 중복을 무해화합니다 — 별도 dedup 테이블이 필요 없습니다 (실서비스 like 아카이브에서 관찰되는 패턴<a href="#r3" class="cite">[3]</a>). 이 점이 <strong>가중 집계인 C와 결정적으로 다릅니다</strong>: C는 <span class="term">score += Δ</span>라 재적용이 이중 가산이므로 별도 inbox가 필요합니다(§5).
+    </div>
+  </section>
+
+  <!-- ================================================== 5 -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">THREAT ② · AVAILABILITY</p><h2 class="sec">위협 ② 장애 중 서빙 — 집계 fallback (C)</h2></div>
+    </div>
+
+    <p class="lead">Redis 전체(master+replica)가 죽은 동안에도 랭킹이 트렌드를 따라가야 합니다 — 드라마 광고·PPL·라이브 커머스 스파이크는 랭킹이 가장 중요한 순간이자 정지가 가장 눈에 띄는 순간입니다. 그래서 C는 <strong>Kafka를 독립 소비해 항상 ~0.5s 뒤처진 warm standby</strong>로 유지합니다 — Redis에 의존하지 않으니 Redis가 죽어도 계속 자랍니다.</p>
+
+    <div class="note key"><span class="tag">먼저 — 단일 replica 죽음은 C 트리거가 아니다</span>
+      현재 <span class="term">RedisConfig</span>는 정적 master/replica + <strong><span class="term">ReadFrom.REPLICA_PREFERRED</span></strong>입니다. 이건 strict가 아니라 "replica 없으면 <strong>마스터로 fallback</strong>"이라, replica 하나 죽으면 읽기가 마스터로 흡수돼 살아남습니다. 따라서 C(MySQL)는 <strong>master까지 실패한 total Redis 소실</strong>에서만 뜨는 최후 읽기 경로입니다. (이 전제 — REPLICA_PREFERRED의 마스터 fallback — 은 replica kill 실측 1회로 확인 필요, §9.)
+    </div>
+
+    <h3>먹이는 방식 — 배치 소비 (~0.5s)</h3>
+    <p>핵심은 <strong>per-event 증분이 아니라 마이크로 배치</strong>입니다. per-event MySQL upsert는 Stage 1의 쓰기 천장(드레인 185/s)을 재현하지만, 배치로 묶으면 그 병목을 우회합니다. "0.5초"는 Kafka가 공짜로 줍니다 — <span class="term">fetch.max.wait.ms</span>(브로커가 이 시간까지만 모으고 응답, 기본 500ms) + <span class="term">max.poll.records</span>(건수 상한)<a href="#r4" class="cite">[4]</a>. 데이터 적으면 ~500ms마다, 스파이크로 많으면 즉시 차서 sub-second로 — <strong>평소 0.5s / 스파이크 시 더 빠르게</strong>가 자동입니다.</p>
+
+    <h3>멱등 — inbox 패턴 + ack 순서</h3>
+    <p>C는 집계라 <span class="term">event_id</span>가 row 키가 아닙니다(키는 <span class="term">(date, productId)</span>). 그래서 <strong>별도 inbox 원장</strong>을 score upsert와 <em>같은 트랜잭션</em>에 넣어 재전달 이중 가산을 막습니다. ack는 트랜잭션에 못 묶이므로(2PC 없이 불가) <strong>커밋 후에만</strong> 호출하고, 정확성은 트랜잭션 안 멱등이 책임집니다.</p>
+
+    <div class="code">
+      <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">RankingFallbackConsumer — 검토용 스케치 (구현 시 TDD로 확정)</span></div>
+      <pre><span class="cm">// ① 리스너는 비-트랜잭셔널: 커밋과 ack의 순서를 손으로 보장</span>
+<span class="kw">@KafkaListener</span>(batch)
+<span class="kw">fun</span> <span class="fn">consume</span>(records, ack) {
+  rankingFallbackService.applyBatch(records)  <span class="cm">// @Transactional — 리턴 = 커밋 완료</span>
+  ack.acknowledge()                            <span class="cm">// 커밋 후에만 ack (실패해도 재전달→멱등 흡수)</span>
+}
+
+<span class="cm">// ② 집계 + inbox 를 한 트랜잭션에</span>
+<span class="kw">@Transactional</span>
+<span class="kw">fun</span> <span class="fn">applyBatch</span>(records) {
+  <span class="kw">val</span> fresh  = records.filter { inbox.insertIfAbsent(it.eventId) }  <span class="cm">// inbox = dedup 원장</span>
+  <span class="kw">val</span> deltas = fresh.groupBy { it.productId }
+                     .map { (id, es) -> id <span class="kw">to</span> es.sumOf { RankingWeights.delta(it) } }
+  rankingDailyDao.bulkUpsertAdd(deltas)   <span class="cm">// score += Δ (오늘) · +Δ×carry (내일)</span>
+}   <span class="cm">// inbox insert + score upsert 가 함께 커밋되거나 함께 롤백</span></pre>
+    </div>
+
+    <div class="note ok"><span class="tag">= at-least-once + 멱등 sink = effectively-once</span>
+      커밋 후 <strong>ack 실패·크래시·리밸런스</strong> → 같은 배치 재전달 → inbox에 event_id가 이미 있어 Δ=0 → score 불변. 트랜잭션 <strong>중간 실패</strong> → inbox·score 함께 롤백 → 깨끗이 재시도. ack는 원자성의 일부가 아니라 재시도 트리거일 뿐입니다. inbox 원장도 랭킹 윈도우 지나면 <span class="term">DELETE</span>로 청소(daily 키와 동일). <strong>@TransactionalEventListener는 쓰지 않습니다</strong> — 순차 호출로 이미 "커밋 후 ack"가 되고, AFTER_COMMIT은 롤백 불가 + Acknowledgment를 이벤트에 실어야 하는 레이어 냄새만 더합니다.
+    </div>
+
+    <h3>로직 단일화 — 드리프트 방지 (우리 항목 2)</h3>
+    <p>이제 가중치(view 0.1 / like 0.2 / order 0.7)와 carry(+Δ×0.1)가 <strong>Redis 실시간 경로(05)와 C 배치 경로 두 곳</strong>에 존재합니다. 둘이 어긋나면 fallback이 다른 랭킹을 줍니다. 그래서 이벤트→가중 델타 계산을 <strong>단일 컴포넌트(<span class="term">RankingWeights.delta()</span>)에서 산출</strong>하고, 양쪽이 그 값을 쓰게 합니다. 05에서도 가중치는 이미 JVM에서 계산해 Lua ARGV로 넘기므로(Lua는 ZINCRBY만), 이 계산기를 공용 origin으로 두면 두 경로가 정의상 같은 델타를 씁니다.</p>
+
+    <h3>read circuit — 읽기에만, total-loss에만</h3>
+    <div class="cols">
+      <div class="col o"><h4><span class="mk">읽기</span>circuit 대상</h4><p>랭킹 조회가 Redis(replica→master fallback 포함)를 다 소진하고도 실패 → circuit open → <strong>C(MySQL)에서 서빙</strong>. 재구축 완료 기준으로 close(§6).</p></div>
+      <div class="col x"><h4><span class="mk">쓰기</span>circuit 아님</h4><p>쓰기(Redis ZINCRBY)는 circuit이 아니라 <strong>Kafka backpressure</strong> — Redis 죽으면 ack 안 하고 lag 쌓다가 복구 후 드레인. MySQL로 우회하지 않음(C는 별도 배치가 이미 먹이고 있음).</p></div>
+    </div>
+    <div class="note warn"><span class="tag">fallback 중 개별 순위는 저하됨</span>
+      상품 상세의 개별 순위를 C(MySQL)에서 주면 Stage 1의 <span class="term">COUNT(score &gt; 내 score)</span> = <strong>O(rank)</strong>로 떨어집니다. Redis <span class="term">ZCOUNT</span>의 O(log N)이 아닙니다. 드문 total-loss 동안만이라 수용하되, 명시된 저하입니다.
+    </div>
+
+    <div class="note"><span class="tag">근거 — 실서비스 선례</span>
+      "Redis 실시간 hot store → 소비 종료 후 MySQL 영구 저장"은 LINE LIVE에서 확인되는 구조입니다 — sorted set으로 이벤트를 쌓고 방송 종료 시 전량 MySQL 정규화 테이블로 이관<a href="#r3" class="cite">[3]</a>. Redis 자체 영속(RDB/AOF)은 <strong>재시작 복구</strong>용이지 <strong>죽어 있는 동안의 서빙</strong>이 아니라는 점<a href="#r5" class="cite">[5]</a>이 C(별도 저장소가 읽기를 이어받음)의 존재 이유입니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 6 -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">THREAT ③ · RECOVERY</p><h2 class="sec">위협 ③ 복구 — replay & 컷오버</h2></div>
+    </div>
+
+    <p class="lead">Redis가 total loss에서 돌아오면 <strong>비어 있습니다.</strong> 재구축 소스와 "언제 읽기를 Redis로 되돌릴지"를 정해야 합니다. 세 재구축 소스를 역할로 나눕니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>재구축 소스</th><th>커버 범위</th><th>비용 · 특성</th></tr></thead>
+        <tbody>
+          <tr><td>C 집계 → ZSET 복사</td><td>1차 · 가장 빠름</td><td>C는 이미 ~0.5s 뒤 warm — 그대로 ZSET에 부어 즉시 복원. carry 로직 일치 필요</td></tr>
+          <tr><td>Kafka replay (offset 리셋)</td><td>retention 내 정합성 보정</td><td>05 D1-B(Redis 멱등)면 유실 시 함께 사라져 재소비로 이중 가산 없이 재구축</td></tr>
+          <tr><td>A event store replay</td><td>retention 초과 · 장기</td><td>가중치 변경 재계산도 여기서. 느리지만 완전</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">컷오버 게이팅 — "ping 됨"이 아니라 "재구축 완료"</span>
+      읽기를 Redis로 되돌리는 기준은 <strong>Redis 재구축 완료</strong>여야 합니다. ping 되자마자 flip하면 절반만 채워진 ZSET을 서빙합니다. 순서: ① Redis 복구 감지 → ② C→ZSET 복사(+필요 시 Kafka replay로 보정) → ③ <strong>재구축 완료 확인 후에만</strong> read circuit close → Redis 서빙 재개. 그 사이 읽기는 C가 계속 담당합니다.
+    </div>
+
+    <div class="note ok"><span class="tag">왜 split-brain이 없나 (재확인)</span>
+      복구가 "Redis와 MySQL을 병합"이 아니라 "<strong>로그(Kafka/A)에서 재생</strong>"이기 때문입니다. Redis도 C도 로그의 파생 projection이라, 복구 시점에 둘이 달라도 그건 lag일 뿐 충돌이 아닙니다 — 권위는 항상 이벤트 로그에 있습니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 7 -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">OPS · FAILURE LOG</p><h2 class="sec">실패 이력 (B) + 알림</h2></div>
+    </div>
+
+    <p class="lead">알림을 로그로 끝내지 않고 <strong>이벤트로 처리한 뒤 DB에 적재</strong>합니다. DLT 토픽 자체가 실패 이벤트 스트림이므로, <span class="term">&lt;topic&gt;-dlt</span>를 구독하는 DLT consumer가 헤더를 읽어 실패 이력(B)에 남기고 알립니다.</p>
+
+    <ul class="checklist">
+      <li><span class="box"></span><b>DLT consumer</b> → <span class="term">DLT_EXCEPTION_*</span> · <span class="term">DLT_ORIGINAL_*</span> 헤더 파싱 → <b>실패 이력(B) MySQL 적재</b> → <span class="term">NotificationSender.notify(...)</span></li>
+      <li><span class="box"></span><span class="term">NotificationSender</span> 인터페이스 + <span class="term">LoggingNotificationSender</span> 구현체까지만 (실제 채널은 추후) <span class="tag">범위 고정</span></li>
+    </ul>
+
+    <div class="note"><span class="tag">B를 A와 섞지 않는 이유</span>
+      A는 대량 append(복구 원천), B는 소량·예외적(운영 판단). 한 테이블에 몰면 대량 write와 예외 이력이 서로의 보관·조회 정책을 방해합니다. B는 "어떤 대상이 뭘 시도했는데 무슨 예외로 실패했나"라 검색·집계 관점이 어울립니다.
+    </div>
+
+    <div class="note key"><span class="tag">같은 알림 원칙이 적용되는 다른 배치 — carry 스케줄러</span>
+      <a href="05-stage3-redis-design.html#s6" style="color:var(--blue-deep);font-weight:700">05 §6-D3</a>에서 랭킹 carry를 dual write → <strong>23:50 스냅샷 + 00:00 tail 병합</strong> 스케줄러로 교체했습니다. 이 스케줄러는 <strong>여기서 정한 실패 알림 원칙(NotificationSender 인터페이스 + 로그 구현)을 배치 실패에 그대로 적용</strong>합니다 — 스냅샷/병합 잡이 실패하면 알리고, 00:00 병합은 <span class="term">SET NX carry:merged:{D+1}</span> 가드로 재실행 시 이중 가산을 막습니다. 다만 <strong>carry 꼬리 보정은 Redis tail ZSET로 자체 완결</strong>하므로, 이 문서의 event store(A) 재적재에는 <strong>의존하지 않습니다</strong> — 복구 원천(A)과는 별개 경로입니다. A는 metric/랭킹 <em>전체</em> 재구축용, tail은 날짜 경계 seed 보정용으로 스코프가 다릅니다.
+    </div>
+  </section>
+
+  <!-- ================================================== 8 -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">STORAGE</p><h2 class="sec">저장소 결정 — MySQL 먼저</h2></div>
+    </div>
+
+    <p class="lead">A·B·C 셋 다 우선 MySQL, 테이블만 분리합니다. 이유는 "없는 병목을 위해 인프라를 늘리지 않는다"입니다.</p>
+
+    <div class="tbl-wrap scroll">
+      <table>
+        <thead><tr><th>후보</th><th>판단</th><th>결론</th></tr></thead>
+        <tbody>
+          <tr><td>MySQL</td><td>운영 중, 추가 인프라 0. append + 시간 파티셔닝(월별, 오래된 파티션 드롭)이 로그성 데이터 정석. C는 집계 upsert + 인덱스가 Stage 1 자산 그대로. 복구 재생의 순서·정확성 검증이 쉬움</td><td>채택 (A·B·C)</td></tr>
+          <tr><td>MongoDB</td><td>문서 삽입·샤딩 편의. 단 write 우위는 <strong>샤딩 규모(수억 건/일)</strong>에서만 유의미. MySQL이 못 버틸 근거 없음</td><td>학습 목적일 때만 (A) 한정</td></tr>
+          <tr><td>Elasticsearch</td><td>write 특화가 <strong>아님 — 검색·집계 특화</strong>. 역색인으로 write 무겁고 near-real-time 색인이라 즉시 정확 재생 부적합</td><td>원천(A)에서 배제</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><span class="tag">④ raw event store(A) YAGNI 판단 — 유지</span>
+      checklist #7이 "전일 조회까지만 요구, 과거는 TTL 소실 수용"이라, <strong>retention 초과 재구축은 하드 요구가 아닙니다.</strong> 그럼 Kafka replay + C만으로도 복구가 되고, A의 순수 추가 가치는 "retention 초과 복구 · 가중치 변경 재계산 · <strong>지금 버려지는 조회 이벤트 포획</strong>" 셋입니다. 이번엔 <strong>A를 유지</strong>합니다(사용자 결정: A·C 둘 다 구현 대상) — 특히 조회 이벤트 포획은 독립적 가치가 있습니다. 다만 "왜 유지하는가"의 근거를 이 세 항목으로 한정해 둡니다(무한 확장 금지).
+    </div>
+  </section>
+
+  <!-- ================================================== 9 -->
+  <section id="s9" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <div><p class="sec-eyebrow">OPEN</p><h2 class="sec">열린 결정 — 검토 요청</h2></div>
+    </div>
+
+    <h3>E1. 조회 원천의 유실 방지 수준</h3>
+    <div class="cols">
+      <div class="col x"><h4><span class="mk">a</span>조회도 발행 outbox 편입</h4><p>producer 유실까지 막힘. 대신 <span class="term">getDetail()</span>의 <span class="term">readOnly</span> 트랜잭션이 <strong>쓰기 트랜잭션이 됨</strong> — 고트래픽 조회에 outbox INSERT 부하. Stage 3의 읽기 부하 감소 방향과 상충.</p></div>
+      <div class="col o"><h4><span class="mk">b ?</span>producer 유실 허용, 소비 저장만 DLQ</h4><p>"Kafka까지 온 것만 확실히 저장". 읽기 경로에 쓰기 안 얹음. 발행 유실은 감수(조회 가중치 0.1로 낮음). <strong>결정 필요.</strong></p></div>
+    </div>
+
+    <h3>E2. C 컷오버 자동화 수준</h3>
+    <p>read circuit의 open/close를 자동(재구축 완료 감지)으로 할지, 초기엔 <strong>수동 플래그</strong>로 두고 관측만 자동화할지. 자동 flip은 "재구축 완료" 판정 로직이 필요 — 초기엔 보수적으로 수동 승인 후 close를 권장.</p>
+
+    <h3>E3. 재시도 파라미터</h3>
+    <p>발행 FAILED 임계 N, 소비 <span class="term">FixedBackOff</span> 간격·횟수, C 배치의 <span class="term">max.poll.records</span>·<span class="term">fetch.max.wait.ms</span>. 실측 없이 보수값(예: 소비 3회/1s · C 배치 500건/500ms)으로 두고 조정.</p>
+
+    <h3>E4. 검증 미결 — REPLICA_PREFERRED fallback</h3>
+    <p>"단일 replica 죽음 → 마스터 읽기 fallback"이라는 §5 전제는 <strong>replica(6380) kill 후 읽기 성공 테스트 1회</strong>로 확인해야 합니다. 실패로 나오면 단일 replica 죽음도 C 트리거가 되어 범위가 넓어집니다.</p>
+  </section>
+
+  <!-- ================================================== 10 -->
+  <section id="s10" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">10</div>
+      <div><p class="sec-eyebrow">ORDER · SCOPE</p><h2 class="sec">작업 순서 & 범위</h2></div>
+    </div>
+
+    <p class="lead">05의 Must(ZSET 적재 + Ranking API)를 먼저 닫은 뒤 별도 세션. 각 단계는 통합테스트 1개 green을 닫힌 칸으로 잡습니다.</p>
+
+    <ul class="checklist">
+      <li><span class="box"></span><span class="tag">선행</span><b>05 Must 완료</b> — Consumer→ZSET + Ranking API + 측정 (이 문서는 그 후)</li>
+      <li><span class="box"></span><span class="tag">A</span><b>원천 event store 테이블 + metrics consumer 저장 얹기</b> — EVENTSTORE handleOnce, 3리스너 각각, MySQL append (event_id PK 멱등)</li>
+      <li><span class="box"></span><span class="tag">유실</span><b>소비 DLQ</b> — DefaultErrorHandler + DeadLetterPublishingRecoverer + BatchListenerFailedException</li>
+      <li><span class="box"></span><span class="tag">B</span><b>DLT consumer + 실패 이력 + 알림</b> — 헤더 파싱 → B 적재 → NotificationSender(로그)</li>
+      <li><span class="box"></span><span class="tag">유실</span><b>발행 outbox FAILED 확장</b> — status/retry_count + N회 격리 + 알림 + break 정책 재검토</li>
+      <li><span class="box"></span><span class="tag">C</span><b>집계 fallback consumer</b> — 배치 소비 + inbox 트랜잭션 + 커밋후 ack + <span class="term">RankingWeights.delta()</span> 공용화 (05 Lua 경로와 단일 origin)</li>
+      <li><span class="box"></span><span class="tag">C</span><b>read circuit + 컷오버</b> — total-loss 트리거, 재구축 완료 게이팅, 상세순위 O(rank) 저하 명시</li>
+      <li><span class="box"></span><span class="tag">검증</span><b>replay & 복구</b> — C→ZSET 복사 · Kafka replay · event store replay 역할 확인 + replica kill fallback 테스트(E4)</li>
+    </ul>
+
+    <div class="note key"><span class="tag">확정된 것 (재논의 없음)</span>
+      3-축 = <strong>유실 방지(§3) · 장애 서빙(§5) · 복구(§6)</strong> · 데이터 3종 = <strong>A 원천(SoT) · B 실패이력 · C 집계 fallback</strong> · A·C <strong>둘 다 구현 대상</strong> · Kafka(+A) = SoT, Redis·C = 파생 projection(split-brain 없음) · C 멱등 = <strong>inbox + 커밋후 ack</strong>(effectively-once) · 가중치·carry = <strong>단일 계산기 공용</strong> · C 트리거 = <strong>total Redis 소실만</strong>(단일 replica는 REPLICA_PREFERRED→master) · 저장소 = <strong>A·B·C 모두 MySQL 먼저</strong> · 이 문서 전체 = <strong>Must(05) 후속</strong>.
+    </div>
+  </section>
+
+  <!-- ================================================== REFS -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">SOURCES</p><h2 class="sec">참고문헌</h2></div>
+    </div>
+    <p style="font-size:14px;color:var(--g500);margin-bottom:18px">Spring Boot 3.4.4 / Spring for Apache Kafka 3.3.x 기준. 아래 URL은 모두 실재 확인함. 실서비스 내부 구조 주장은 공개 공식 출처로만 뒷받침하고, 사설 리버스 엔지니어링 분석은 인용 근거로 쓰지 않음.</p>
+    <a class="ref primary" id="r1" href="https://docs.spring.io/spring-kafka/reference/kafka/annotation-error-handling.html" target="_blank" rel="noopener"><span class="n">1</span><span class="b"><b>Spring Kafka — Handling Exceptions</b> — DefaultErrorHandler · FixedBackOff · DeadLetterPublishingRecoverer(DLT_* 헤더) · 배치 BatchListenerFailedException · addNotRetryableExceptions.<span class="src">https://docs.spring.io/spring-kafka/reference/kafka/annotation-error-handling.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r2" href="https://docs.spring.io/spring-kafka/reference/retrytopic.html" target="_blank" rel="noopener"><span class="n">2</span><span class="b"><b>Spring Kafka — Non-Blocking Retries</b> — @RetryableTopic 동작과 "배치 리스너 미지원" 명시.<span class="src">https://docs.spring.io/spring-kafka/reference/retrytopic.html</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref bt" id="r3" href="https://engineering.linecorp.com/en/blog/the-architecture-behind-chatting-on-line-live/" target="_blank" rel="noopener"><span class="n">3</span><span class="b"><b>LINE Engineering — The architecture behind chatting on LINE LIVE</b> — Redis Cluster sorted set으로 실시간 이벤트 저장, 종료 후 전량 MySQL 정규화 테이블로 이관(hot store → durable store).<span class="src">https://engineering.linecorp.com/en/blog/the-architecture-behind-chatting-on-line-live/</span><span class="pr bt">빅테크 기술블로그</span></span></a>
+    <a class="ref primary" id="r4" href="https://kafka.apache.org/41/configuration/consumer-configs/" target="_blank" rel="noopener"><span class="n">4</span><span class="b"><b>Apache Kafka — Consumer Configs</b> — fetch.max.wait.ms(브로커 최대 대기, 기본 500ms) · fetch.min.bytes · max.poll.records. 마이크로 배치 cadence의 근거.<span class="src">https://kafka.apache.org/41/configuration/consumer-configs/</span><span class="pr p1">1차 출처</span></span></a>
+    <a class="ref primary" id="r5" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener"><span class="n">5</span><span class="b"><b>Redis — Persistence (RDB/AOF)</b> — RDB는 주기 스냅샷(재시작 시 최근 수분 유실 가능), AOF는 append 로그 재생. "재시작 복구"이지 "장애 중 서빙"이 아님을 뒷받침.<span class="src">https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/</span><span class="pr p1">1차 출처</span></span></a>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Round 9 · 이벤트 파이프라인 안정화 (원천 저장 · 장애 fallback · 복구) — 2026-07-17<br>
+    3-축 MECE: 유실 방지 · 장애 서빙 · 사후 복구 · 데이터 3종 A·B·C · 공식 문서 5건 (URL 실재 확인)
+  </footer>
+
+</div>
+
+<script>
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

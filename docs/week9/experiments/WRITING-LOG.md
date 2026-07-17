@@ -96,8 +96,43 @@
 ### 결정 — 한 컨슈머가 두 프로젝션을 한 트랜잭션으로 처리하던 구조를, 구독별 컨슈머 그룹 + 구독별 멱등 기록으로 분리한다
 
 - 배경/문제: `ProductMetricsService.handle()` 하나가 metrics 카운터와 랭킹 dual write 를 같은 트랜잭션에서 처리 — ① 두 책임이 운명공동체(랭킹 지연 = metrics 랙) ② `event_handled` 가 컨슈머 공용이라 랭킹만 재처리(replay) 불가능 ③ Stage 3 에서 랭킹이 Redis 로 가면 어차피 한 트랜잭션이 성립 불가. 결정적으로 두 구독이 원하는 기록이 다름 — metrics 는 종류별 카운터, ranking 은 균일한 점수 델타.
-- 고른 것 & 왜: ① `ProductRankingKafkaConsumer` 신설(그룹 `commerce-streamer-ranking-{topic}`) — 경계에서 이벤트를 `ScoreDelta(productId, amount)` 로 변환해 `RankingAccumulateService.accumulate()` 에 위임 (서비스 입력 = 그 구독이 원하는 기록 그 자체) ② `event_handled` 를 `(event_id, subscription)` 복합키로 — 구독별 처리 기록이라 "이 이벤트가 각 프로젝션에 반영됐는가"를 구독별로 검증 가능 ③ 구분자는 String 이 아니라 `EventSubscription { METRICS, RANKING }` enum(@Enumerated STRING). bare `Subscription` 은 커머스 도메인의 구독 결제와 충돌해 도메인 자격어를 붙임. Pub/Sub 의 topic→subscription 모델과 동일한 어휘.
+- 고른 것 & 왜: ① `ProductRankingKafkaConsumer` 신설(그룹 `commerce-streamer-ranking-{topic}`) — 경계에서 이벤트를 `ScoreChange(productId, amount)` 로 변환해 `RankingAccumulateService.accumulate()` 에 위임 (서비스 입력 = 그 구독이 원하는 기록 그 자체) ② `event_handled` 를 `(event_id, subscription)` 복합키로 — 구독별 처리 기록이라 "이 이벤트가 각 프로젝션에 반영됐는가"를 구독별로 검증 가능 ③ 구분자는 String 이 아니라 `EventSubscription { METRICS, RANKING }` enum(@Enumerated STRING). bare `Subscription` 은 커머스 도메인의 구독 결제와 충돌해 도메인 자격어를 붙임. Pub/Sub 의 topic→subscription 모델과 동일한 어휘.
 - 버린 대안 & 왜: 단일 컨슈머 유지(metrics-ranking 원자성) — 그 원자성을 사용하는 소비자가 없음(정산 검증도 k6 카운터 대 저장소 대사). / handler 문자열 상수 — 방금 String eventType 분기를 걷어낸 것과 같은 이유로 기각.
 - 함정: 분리하는 순간 복합키 전환은 선택이 아니라 필수 — 단일 PK(event_id)면 둘째 구독의 insert 가 PK 충돌 → 롤백 → 재전달 무한루프.
 - 부수 정리: 아키텍처 훅이 domain 레이어의 JPA import 위반을 검출(기존 EventHandled 가 domain 에 @Entity 로 존재) → 엔티티를 `metrics/infrastructure` 로 이동, domain 엔 enum + 순수 인터페이스(`exists`/`markHandled`)만. 소비 계약(`ConsumedEvents`)은 두 구독이 공유하므로 `shared/event` 로 이동. 역직렬화는 `ConsumedEventDeserializer` 오브젝트로 단일화.
 - 트레이드오프 / 남은 리스크: ① 브로커 읽기 2배·이벤트당 트랜잭션 1→2 ② metrics-ranking 간 원자성 소멸(사용처 없음 확인) ③ Stage 3 에서 RANKING 구독의 멱등 기록을 MySQL 에 둘지 Redis(Lua dedup+ZINCRBY)로 옮길지는 열린 결정.
+
+## 2026-07-16 — carry-over dual write 유지 + 하이브리드(배치 마커) 설계는 측정 후 fallback 으로
+
+### 결정 — 무조건 dual write(오늘판 +Δ · 내일판 +0.1Δ)를 그대로 두고, EXP-03 측정에서 병목으로 나올 때만 하이브리드로 전환한다
+
+- 배경/문제: dual write 는 이벤트당 upsert 2회 — "매번 두 번 쓰는 비용" 문제 제기. 대안으로 "특정 시점까지 단일 쓰기 → 배치로 내일판 일괄 생성(×0.1) → 그 이후만 dual write" 하이브리드를 검토.
+- 검토한 하이브리드의 구멍과 보정: ① 최초 제안(마지막 저장 metric id 를 워터마크로 배치 끝점/dual write 시작점 분리)은 auto-increment id 가 커밋 순서와 일치하지 않아(갭·교차 커밋) 경계 유실 가능 → 기각. ② 보정판: 배치가 `INSERT INTO 내일판 SELECT ×0.1` + 완료 마커 insert 를 한 트랜잭션으로 원자화, 컨슈머는 eventDate+1 마커 존재 여부로 단일/dual 을 스위치, 배치 실행 순간의 race 는 RANKING 구독만 ~수 초 pause 로 직렬화(구독 분리가 이걸 가능하게 함).
+- 고른 것 & 왜: 현행 유지. 하이브리드는 쓰기 2배가 실측 병목일 때만 가치가 있는데 아직 측정 전 — EXP-03 이 단일 upsert vs dual write 대조 런으로 그 비용을 %로 낸다. 지금 전환하면 배치 재도입(EXP-01 에서 -41% 근거로 버린 축) + 마커 상태머신 + pause 오케스트레이션이라는 운영 부품 3개를 근거 없이 사는 것.
+- 트레이드오프 / 남은 리스크: EXP-03 에서 dual write 추가 비용이 소비 천장을 유의미하게 깎으면(랙 발산 유입률 하락) 이 하이브리드가 1순위 카드 — 설계는 이 엔트리에 보존됨.
+- 추가 이점 발견 (2026-07-16 재논의): 배치 carry(어제판 전체 ×0.1)는 어제판에 포함된 carry 까지 이월하므로 지수 감쇠 연쇄(0.1→0.01→…)가 보존된다 — dual write 의 1일 절단(×0.01 항 소실)보다 수학적으로 원래 의도에 가까움. 전환 시 성능 외에 정확성도 하나 얻는다. 반대급부로 재확인된 결정 축: 00:00 증분 배치 변형은 콜드 스타트 창(자정~배치 완료, 부분 적용 노출)이 구조적으로 불가피 + 읽는 판(오늘판)에 10만 행 upsert 라 EXP-01 의 −41% 축에 가까움(자정 직후 빈 인덱스라 실측 미지수).
+
+## 2026-07-16 — AWS 세팅이 잡아낸 실버그: 랭킹 읽기 API 의 LocalDate 가 실 MySQL 에서 -1일로 바인딩
+
+### 결정 — JVM 기동 플래그 `-Duser.timezone=Asia/Seoul` 로 해소 (진범 = @PostConstruct 의 늦은 setDefault). 코드 레벨 근본 수정은 측정 후 별도 커밋
+
+- 배경/문제: AWS 본런 세팅 중 `GET /rankings?date=20260716` 이 빈 배열 반환. general_log 실측 — 와이어에 `ranking_date='2026-07-15'` 로 바인딩. 원인 조합: ① 베이스 템플릿이 JVM TZ 를 KST 로 강제(`CommerceApiApplication` 의 `TimeZone.setDefault`) ② MySQL 서버(컨테이너) TZ = UTC ③ Connector/J 가 `java.sql.Date` 를 커넥션(=서버) TZ 로 포맷 → `2026-07-16 00:00 KST = 07-15 15:00 UTC` → DATE '2026-07-15'. 읽기(JPQL 파생 쿼리)와 쓰기(native upsert) 모두 동일하게 밀림.
+- 왜 지금까지 안 잡혔나: ① H2 통합 테스트 — 같은 JVM 안에서 쓰기·읽기가 같은 변환을 받아 자기일관(테스트는 green) ② 로컬 스모크 — ranking-read.js 가 status 200 만 체크해 **빈 items 를 성공으로 오독** (이번에 k6 체크에 "items 비어있지 않음" 추가 필요 교훈) ③ R7~R8 은 DATE 컬럼을 안 씀.
+- 시도해서 안 된 것 (전부 general_log 로 판정): `hibernate.jdbc.time_zone=Asia/Seoul` (SPRING_APPLICATION_JSON 로 정상 주입 확인) → 무효. `hibernate.timezone.default_storage=NORMALIZE` → 무효. 둘 다 LocalDate/DATE 바인딩에는 관여하지 않음 — 레버는 드라이버·서버 TZ.
+- 진범 규명 (Hibernate bind TRACE 실측): Hibernate 는 `binding parameter (1:DATE) <- [2026-07-16]` — **정확히 바인딩**. 변환은 Connector/J 에서 발생. 핵심은 앱이 JVM TZ 를 main 이 아니라 **`@PostConstruct` 에서 setDefault** 한다는 것 — Hikari 풀·드라이버가 그보다 먼저 초기화되며 그 시점의 JVM TZ(EC2=UTC)를 캐시한다. 이후 요청 시점의 `java.sql.Date` 는 KST 자정 기준으로 만들어져 드라이버 캐시(UTC)로 포맷 → -1일. 방증: 외부 logback 의 `%d` 가 UTC 로 찍힘(로그백도 setDefault 이전 초기화) vs 응답 timestamp 는 +09:00(요청 시점 평가).
+- 고른 것 & 왜: 기동 플래그 `-Duser.timezone=Asia/Seoul` — JVM 이 처음부터 KST 라 초기화 순서 레이스가 사라짐. 측정 커밋(6744aca) 불변. mysql 서버 TZ(+09:00 고정)는 CURDATE()·정산 SQL 의 비즈니스 날짜 정렬용으로 유지 (이것만으로는 미해결임을 실측 확인).
+- 배제한 가설 (전부 실측): hibernate.jdbc.time_zone / timezone.default_storage 오버라이드(SPRING_APPLICATION_JSON·CLI 브래킷·additional-location yaml 3방식 모두) → 와이어 불변. 서버 TZ KST 단독 → 불변. 통계·인덱스·락 무관.
+- 부수 발견: logback.xml 에 perf 프로파일 블록이 없어 **perf 부팅은 로그가 통째로 버려짐**(appender 미배선, 배너만 출력) — R8 때도 앱 로그가 없었던 이유. 측정 중 문제 추적을 위해 외부 logback(`--logging.config`) 자산 추가 고려.
+- 남은 일 (측정 후): ① 코드 레벨 근본 수정 — `@PostConstruct` setDefault 를 main 첫 줄(runApplication 이전)로 옮기거나 JVM TZ 의존 제거, RDS(UTC) 대비 jdbc-url `connectionTimeZone` 명시 검토 ② 로컬 dev compose 도 동일 이슈 잠복 — 정렬 필요 ③ Testcontainers MySQL 재현 테스트 + k6 체크에 "items 비어있지 않음" 추가 ④ logback perf 프로파일 블록.
+
+## 2026-07-17 — EXP-POOL: 읽기 천장은 커넥션 풀이 아니라 MySQL CPU (풀 10/40/80 실측)
+
+### 결정 — "풀 40/40 소진과 함께 온 읽기 천장" 가설을 풀 3단계로 검증. 풀=증상, MySQL CPU=원인, 락=무관으로 확정. 문서 = `docs/week9/06-pool-sizing-diagnosis.html`
+
+- 배경/문제: 7/16 본런 S-READ 천장 ~280rps·p95 3.19s가 Hikari 40/40 소진과 함께 왔다 → "풀 늘리면 천장 오르나" 가설. 단, 당시 앱 CPU 10%·p95≈connection-timeout(3s)·순수 인덱스 읽기라 정황은 반대(풀=증상)를 가리켰고, 7/16 런은 MySQL 측 지표를 안 남겨 "병목=MySQL"이 앱 정황 추론에 머물렀음.
+- 판별 뼈대: Little's Law L=λ·W. 천장에서 L=40·λ≈280이면 W≈143ms인데 건강 시 점유는 ~6ms(그럼 40개로 ~6,600rps 가능) → 풀이 처리량을 자른 게 아니라 W가 부푼 것. 남은 질문 = W를 부풀린 게 풀 경합인지 락인지 CPU인지. 샘플러가 acquire(획득 대기)와 usage(점유)를 마이크로미터 누적 카운터 델타로 분리 + mysqld CPU·Threads_running·InnoDB 락 채집.
+- 방법(기존 자산 재사용, 새 하네스 금지): `load-test/aws/run-pool-arms.sh`(재시작→warmup→샘플러→ramp) + `sample-pool.sh`. 변인 = `--datasource.mysql-jpa.main.maximum-pool-size` ∈ {40,80,10}(코드 수정 없이 CLI relaxed binding). 고정 = R8 2노드(app c6i.xlarge / infra m6i.large)·`ranking-read.js`(warmup 후 50→100→200→400/s)·같은 시드(랭킹 ~20만 행). 산출물 `load-test/results/exp-pool/`.
+- 결과: 처리량 143.1(pool10)/142.2(40)/140.4(80) rps — 풀 키울수록 미세 하락. p95 759/954/1995ms·dropped 53/126/493 — 지연만 2~4배 악화. 천장에서 점유 17/119/231ms·mysqld CPU ~187/123/198%·Threads_running 10/15/60. **InnoDB 락 3암 전 구간 0**. 처리량 천장은 셋 다 ~2,000~2,400 stmt/s(MySQL CPU)에서 동일하게 멈춤.
+- 고른 것 & 왜: 가설 기각. 풀 소진은 증상(MySQL이 못 빠져 acquire 폭발) — 슬롯 수가 처리량을 자른 적 없음(건강 구간 사용 커넥션 0~1개). 락 아님(순수 SELECT=MVCC, 락 0). 원인 = 2 vCPU를 MySQL·Redis·Kafka가 공유하는 박스의 CPU 포화. 읽기 경로는 요청당 SELECT 2개(인덱스 페이지 + IN 일괄)로 N+1 없음 — 스펙 대비 정상 범위 천장.
+- 트레이드오프 / 남은 리스크: 천장을 올리는 레버는 ① CPU 증설(비싼 일을 더 센 기계로) ② 읽기를 MySQL에서 걷어내기(Stage 3 ZSET, ZREVRANGE O(log N)로 왕복 제거) — 이 실험은 ②의 근거. CPU 없이 소폭 회수 가능한 부차 요인: Redis/Kafka DB박스 분리, 깊은 페이지 OFFSET + score DESC·product_id ASC filesort. 이번 실험은 Stage 1↔3 비교표의 좌변(MySQL 버전=풀·튜닝 불가 CPU-바운드 천장)을 실측으로 고정.
+- 하네스 버그(수정): `run-pool-arms.sh`가 `curl | awk '...exit'`에서 SIGPIPE로 curl이 죽어 `set -e`+pipefail이 스크립트를 중단(EXIT 23) → curl 출력을 변수로 받은 뒤 awk 하도록 수정. 백그라운드 비로그인 셸 PATH에 k6 없어 `/opt/homebrew/bin` 추가.

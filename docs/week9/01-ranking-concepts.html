@@ -762,7 +762,7 @@
     <p><span class="term">score</span>가 파생 계산식이라 <strong>ORDER BY가 인덱스를 탈 수 없고</strong>, 매 요청이 전 상품 스캔 + filesort<a class="cite" href="#s9">[9]</a>가 됩니다. 참고로 카운터조차 없이 이벤트 로그를 조회 시점에 <span class="term">GROUP BY</span>로 집계하는 더 원시적인 변형도 A에 속합니다 — "카운터는 쌓아두고 정렬만 조회 시"가 실무에서 더 흔한 변형입니다.</p>
 
     <h3>B · 쓰기 시점 즉시 갱신 — 이벤트마다 증분으로 치른다 (Round 9)</h3>
-    <p>점수 계산이 <strong>쓰기 시점으로 이동</strong>합니다. <span class="term">ProductMetricsService.handle</span>의 <span class="term">upsertDelta</span> 옆에 얹는 그 코드입니다.</p>
+    <p>점수 계산이 <strong>쓰기 시점으로 이동</strong>합니다. 독립 컨슈머(<span class="term">ProductRankingKafkaConsumer</span> → <span class="term">RankingAccumulateService</span>)가 이벤트를 소비하며 증분을 적재하는 그 코드입니다 (metrics 집계와는 별도 그룹·별도 트랜잭션).</p>
     <div class="code">
       <div class="code-bar">
         <span class="dot" style="background:#F04452"></span>

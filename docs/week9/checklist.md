@@ -3,7 +3,7 @@
 > 원문 요구사항: `00-requirements.html`
 > 브랜치: `feature/week09-ranking` (origin/shoeone96 에서 분기 — R7 collector + R8 대기열 머지 포함)
 > 매핑: 과제 Step 1 = Consumer → ZSET 적재 · Step 2 = Ranking API
-> 랭킹은 **쓰기(collector가 이벤트 소비하며 ZSET 점수 갱신)** 와 **읽기(API가 ZSET 조회)** 가 분리된 시스템이다. R7 이벤트 파이프라인의 **소비 지점에 ZSET 갱신을 얹고**, product_metrics 집계는 그대로 둔다.
+> 랭킹은 **쓰기(collector가 이벤트 소비하며 ZSET 점수 갱신)** 와 **읽기(API가 ZSET 조회)** 가 분리된 시스템이다. R7 이벤트 파이프라인을 **독립 컨슈머(`ProductRankingKafkaConsumer`, groupId `commerce-streamer-ranking-*`)로 구독**해 점수를 갱신하고, metrics(`product_metrics`)는 별도 컨슈머로 그대로 둔다. (구독 분리 리팩터링 — metrics에 "얹는" 구조 아님)
 
 ## 단계적 검증 로드맵 (사용자 결정 2026-07-14 — 바로 ZSET 금지, 측정하며 업그레이드)
 
@@ -30,15 +30,15 @@
 
 | 필요 기능 | 재사용할 기존 자산 | 경로 |
 |---|---|---|
-| 이벤트 배치 소비 | `ProductMetricsKafkaConsumer` — 이미 `BATCH_LISTENER`, 토픽 `catalog-events`·`order-events`·`user-action-events`, groupId `commerce-streamer-metrics`, manual ack | `apps/commerce-streamer/.../interfaces/consumer` |
-| 집계 진입점 | `ProductMetricsService.handle(eventId, eventType, payload)` — 여기 옆에 ZSET 갱신을 얹는다 | `apps/commerce-streamer/.../metrics/application` |
-| 멱등 처리 | `EventHandled`(event_id PK) + `EventHandledRepository` | `apps/commerce-streamer/.../metrics/{domain,infrastructure}` |
+| 이벤트 배치 소비 | `ProductMetricsKafkaConsumer` + `ProductRankingKafkaConsumer` — 둘 다 `BATCH_LISTENER`, 토픽 `product-events`·`order-events`·`user-action-events`, groupId `commerce-streamer-metrics-*` / `commerce-streamer-ranking-*`(독립), manual ack | `apps/commerce-streamer/.../interfaces/consumer` |
+| 랭킹 적재 진입점 | `RankingAccumulateService.accumulate(eventId, occurredAt, changes: List<ScoreChange>)` — Stage 3에서 저장소만 ZSET으로 교체 | `apps/commerce-streamer/.../ranking/application` |
+| 멱등 처리 | `EventHandled`((event_id, subscription) 복합키, `EventSubscription{METRICS, RANKING}`) + `EventHandledRepository` | `apps/commerce-streamer/.../metrics/{domain,infrastructure}` |
 | Redis ZSET 연산 | `OrderQueueRepository` — `@Qualifier(REDIS_TEMPLATE_MASTER)` + `opsForZSet()`(addIfAbsent/rank/size) + `DefaultRedisScript` Lua 패턴 | `apps/commerce-api/.../queue/infrastructure/redis` |
 | 상품 정보 조합 | product 상세 조회 캐시(week5/week8 통합) · `product_metrics` | `apps/commerce-api/.../product` · `commerce-streamer` |
 | 배치 스케줄러(Nice: carry-over) | `@Scheduled(fixedDelayString=...)` + `@ConditionalOnProperty` on/off | `outbox/application/OutboxRelay.kt` |
 | 테스트 인프라 | Redis Testcontainers 픽스처 + `RedisCleanUp` / `DatabaseCleanup` | `modules/redis/src/testFixtures` · `commerce-api` 테스트 support |
 
-> 가장 강력한 재사용점 = **collector가 이미 배치 리스너로 event 를 멱등 소비**한다는 것. R9는 `product_metrics` upsert와 **나란히 ZSET `ZINCRBY`를 추가**하는 형태 → "Nice-to-Have 배치 리스너"는 이미 확보됨.
+> 가장 강력한 재사용점 = **이미 배치 리스너로 event 를 멱등 소비**하는 구조. 단 R9 랭킹은 metrics에 얹는 게 아니라 **독립 컨슈머(`ProductRankingKafkaConsumer`)**가 별도 그룹으로 소비하며, Stage 3에서 그 적재 저장소를 ZSET `ZINCRBY`로 교체한다 → "Nice-to-Have 배치 리스너"는 이미 확보됨.
 
 ## 스펙 고정값 (요구사항)
 
@@ -56,11 +56,11 @@
 ## Step 1 — Kafka Consumer → Redis ZSET 적재
 
 - [ ] **1. 날짜별 키 계산** — 이벤트 발생 시각(KST) 기준 `ranking:all:{yyyyMMdd}` 키 산출 기능
-- [ ] **2. ZSET 점수 반영** — `ProductMetricsService.handle` 소비 지점에서 이벤트 타입별 `Weight × Score` 를 `ZINCRBY` 로 누적. `masterRedisTemplate.opsForZSet().incrementScore(key, productId, delta)` (R8 `OrderQueueRepository` 패턴)
+- [ ] **2. ZSET 점수 반영** — `RankingAccumulateService.accumulate` 소비 지점에서 이벤트 타입별 `Weight × Score` 를 `ZINCRBY` 로 누적. `masterRedisTemplate.opsForZSet().incrementScore(key, productId, change)` (R8 `OrderQueueRepository` 패턴)
 - [ ] **3. TTL 부여** — 키 최초 생성 시점에 2Day TTL. `INCR` 후 TTL 없으면 붙이기(원자성: Lua 또는 `expire` 조건부 — 매 이벤트 재설정 피함)
 - [x] **4. 스코어 모델 확정 ✅ 2026-07-15** — view 0.1 / like 0.2 / 주문 **order line당 0.7 고정**. 가격·수량 미반영(건수 카운트 — 인기 랭킹 업계 표준, 조사 13건 `purchase-signal-research.html`). 주문 1건 0.7 > 좋아요 3건 0.6 충족. (근거 WRITING-LOG)
 - [x] **5. 감소 이벤트 정책 ✅ 2026-07-15** — 좋아요 취소 대칭 차감(−0.2), 음수 score 허용. (근거 WRITING-LOG)
-- [ ] **원자성/멱등** — 이미 `EventHandled`(event_id) 멱등 위에서 동작하므로 ZSET 갱신도 같은 멱등 경계 안에 둔다. `product_metrics` upsert 와 ZSET 갱신의 **정합성 경계**(같은 트랜잭션/배치 vs 분리) 결정
+- [x] **원자성/멱등** ✅ 구독 분리로 해소 — 이미 `EventHandled`((event_id, subscription) 복합키) 멱등 위에서 동작하며, **랭킹은 독립 컨슈머라 metrics와 트랜잭션·멱등(subscription)이 분리**되어 있다(정합성 경계 = 분리 확정). ZSET 갱신도 RANKING 구독 멱등 경계 안에 둔다.
 
 ## Step 2 — Ranking API
 
@@ -79,7 +79,7 @@
 
 - [ ] **실시간 Weight 조절** — 점수 계산 가중치를 재기동 없이 수정하는 방법 (config 외부화 / 관리 API)
 - [ ] **시간 단위(1h) 랭킹** — `ranking:all:{yyyyMMddHH}` 등 초 실시간
-- [ ] **콜드 스타트 완화 = dual write carry-over (2026-07-15 결정 — 23:50 스케줄러 대체)** — 이벤트 소비 시 오늘 키 `ZINCRBY +Δ`와 **내일 키 `ZINCRBY +Δ×0.1`을 함께** 실행. 배치 실패 모드 제거 + 누락 창 0, carry가 `EventHandled` 멱등을 상속. 내일 키 TTL은 첫 dual write 시 부여(2Day면 내일 키도 자연 커버). 비용 = 이벤트당 Redis 연산 2배 — Stage 1b에서 단일 vs dual 쓰기 비용 실측. (버린 대안: 23:50 `ZUNIONSTORE` 스케줄러 — WRITING-LOG 2026-07-15 결정 로그 참조)
+- [ ] **콜드 스타트 완화 = 23:50 스냅샷 + tail ZSET grace 병합 (2026-07-17 결정 — dual write 대체)** — per-event는 오늘 키 `ZINCRBY +Δ` **1회**(+ 벽시계 23:50~00:00이면 `tail:{오늘}`에 조건부 1회). **23:50 스케줄러** `ZUNIONSTORE 내일 = 오늘×0.1`로 pre-warm(콜드 스타트 해소, 멱등=덮어쓰기) → **00:00** `ZUNIONSTORE 내일 += tail×0.1`로 스냅샷 이후 증분(10분 누락 창) 병합(`SET NX carry:merged:{D+1}` 가드, additive라 필수). 이유 = **steady-state 쓰기 증폭 제거**(이벤트당 2회→1회) + 과제 Nice 원문(23:50 스케줄러) 부합 + **10분 누락 창·콜드 스타트 동시 해결**. 잔여 갭 = 00:00 이후 깊은 랙 소비분(seed 10% 한정 → 수용). 실무 패턴 = Redis 윈도우 집계 + Kafka grace period / Flink allowed lateness. 설계 = `05-stage3-redis-design.html §6-D3` · `06`. (이전안: dual write — 누락 창 0이나 상시 2× 쓰기, WRITING-LOG 참조)
 - [ ] **Top-N 캐싱** — 매 요청 `ZREVRANGE` vs 주기 캐싱 트레이드오프
 - [ ] **상위 N만 유지** — 상품 다수 시 ZSET 메모리 관리(`ZREMRANGEBYRANK`)
 
@@ -87,11 +87,11 @@
 
 1. ~~**스코어 모델**~~ ✅ 2026-07-15 확정: view 0.1 / like 0.2 / **주문 order line당 0.7 고정 (가격·수량 미반영 — 건수 카운트, Shopify·Amazon 계열)**. 조사 13건: `purchase-signal-research.html`, 근거: WRITING-LOG
 2. ~~**감소 이벤트**~~ ✅ 2026-07-15 확정: 좋아요 취소 **대칭 차감(−0.2)**, 음수 score 허용 (metrics 동작 일치 · ZINCRBY 의미론 보존)
-3. **ZSET 갱신 위치** — collector 소비 트랜잭션/배치 안에서 product_metrics와 함께 vs 분리
+3. ~~**ZSET 갱신 위치**~~ ✅ 해소(구독 분리 리팩터링): ranking은 `ProductRankingKafkaConsumer`(groupId `commerce-streamer-ranking-*`) 독립 컨슈머 — metrics와 트랜잭션·멱등(subscription) 모두 분리
 4. **TTL 부여 방식** — 매 이벤트 재설정 회피(조건부 expire / Lua)
 5. ~~**Aggregation**~~ ✅ 2026-07-15 (Stage 1b 구현으로 확정): `productRepository.findAllActiveByIdIn` IN 일괄 — ZSET 전환 시 그대로 재사용
 6. ~~**API 응답 계약**~~ ✅ 2026-07-15 (Stage 1b 구현으로 확정): 빈 랭킹 = 빈 배열, 미진입 상세 rank = null(필드 생략), 삭제 상품 = 항목 제외, rank = competition ranking(동점 동순위)
-7. **유실·복구 전략** — 이 설계에서 Redis는 캐시가 아니라 **누적 점수의 유일한 저장소**. 오늘 판 유실 시 재구축 경로 결정: Kafka 재소비가 자연스러우나 R7 `EventHandled` 멱등이 재소비를 막음 → 랭킹용 멱등 경계 분리(별도 consumer group) vs 감수(리더보드 정확성 요구 수준 판단) vs Redis persistence 의존. 과거 이력은 TTL로 영구 소실 — "전일 조회"까지만 요구되므로 수용, 이력 요구 생기면 만료 전 DB 스냅샷 배치 (2026-07-14 논의)
+7. **유실·복구 전략** — 이 설계에서 Redis는 캐시가 아니라 **누적 점수의 유일한 저장소**. 오늘 판 유실 시 재구축 경로: Kafka 재소비 시 "R7 metrics 멱등이 랭킹 재소비를 막던" 문제는 **(event_id, subscription) 복합키 + 별도 consumer group으로 이미 해소** — RANKING 구독은 metrics와 무관하게 독립 재소비(재구축) 가능. 남은 판단: 과거 이력 TTL 영구 소실("전일 조회"까지만 요구 → 수용), 장기 이력 요구 시 만료 전 DB 스냅샷 = **06 event store 설계**(`06-event-store-recovery-dlq-design.html`). (2026-07-14 논의 → 복합키로 재소비 경로 확보)
 
 ## 구현 완료 후 — Technical Writing (제출 필수 산출물)
 

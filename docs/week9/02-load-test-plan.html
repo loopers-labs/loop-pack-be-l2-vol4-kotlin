@@ -254,7 +254,7 @@
         <div class="chip"><span class="k">SUT</span><span class="v">commerce-api + commerce-streamer</span></div>
         <div class="chip"><span class="k">METHOD</span><span class="v">R8 EXP 방법론 승계</span></div>
         <div class="chip"><span class="k">TOOLS</span><span class="v">k6 · actuator · Prometheus</span></div>
-        <div class="chip"><span class="k">STATUS</span><span class="v">플랜 — 실행 전 사용자 확인</span></div>
+        <div class="chip"><span class="k">STATUS</span><span class="v">로컬 파일럿 완료(07-16) — AWS 본런 대기</span></div>
       </div>
     </div>
   </header>
@@ -407,7 +407,7 @@
           <foreignObject x="308" y="90" width="184" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><span class="t">commerce-api</span><span class="s">rankings API · 이벤트 발행</span><span class="s">-Xms2g -Xmx2g · Hikari 40</span></div></foreignObject>
 
           <rect x="308" y="252" width="184" height="110" rx="12" fill="#E7F9F1" stroke="#15C47E"/>
-          <foreignObject x="308" y="252" width="184" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><span class="t">commerce-streamer</span><span class="s">배치 소비 · 점수 upsert</span><span class="s">groupId: streamer-metrics</span></div></foreignObject>
+          <foreignObject x="308" y="252" width="184" height="110"><div xmlns="http://www.w3.org/1999/xhtml" class="fo green"><span class="t">commerce-streamer</span><span class="s">배치 소비 · 점수 upsert</span><span class="s">groupId: commerce-streamer-ranking-*</span></div></foreignObject>
 
           <!-- 인프라 노드 내부 -->
           <rect x="606" y="76" width="164" height="76" rx="12" fill="#F9FAFB" stroke="#D1D6DB"/>
@@ -465,7 +465,7 @@
         <tbody>
           <tr><td>S-READ</td><td><span class="term">ranking-read.js</span> — <span class="term">GET /api/v1/rankings</span> ramping-arrival-rate <strong>50→100→200→400/s 각 1분</strong>. 페이지 분포: page1 80% · page2~5 15% · deep(6~50) 5%. date: 오늘 90% · 어제 10%. size=20 고정. 태그 <span class="term">api:rankings</span></td><td>신규</td></tr>
           <tr><td>S-DETAIL</td><td>상품 상세(개별 순위 포함) 조회 암 — <span class="term">browse-journey.js</span>의 detail 경로 재사용. Stage 1a의 "개별 순위 = 전 행 2중 스캔" 비용이 여기서 드러난다</td><td>재사용</td></tr>
-          <tr><td>S-WRITE</td><td>이벤트 유입 — <span class="term">browse-journey.js</span>(view, RATE 100/s) + <span class="term">order-ramp.js</span>(order, MODE=warmup 수준 상수율) + like 토글. <strong>⚠️ 블로커(2026-07-15 확인): like HTTP 엔드포인트가 현재 브랜치에 없음</strong>(like 도메인에 interfaces 레이어 부재, LikeService 호출 컨트롤러 0건). like 암은 ① 엔드포인트 추가 ② 테스트 프로듀서로 Kafka 직접 발행 중 결정 필요 — 그전까지 S-WRITE는 view+order 2종으로 진행</td><td>재사용+블로커</td></tr>
+          <tr><td>S-WRITE</td><td>이벤트 유입 — <span class="term">browse-journey.js</span>(view, RATE 100/s) + <strong>주문 암은 <span class="term">queue-order-flow.js</span></strong>(대기열 여정: enter → 폴링 → 주문). <strong>⚠️ 로컬 파일럿 실측(07-16): order-ramp 직행은 week8 대기열이 409(QUEUE:ENTRY_TOKEN_REQUIRED)로 전량 차단</strong> — 주문 부하는 반드시 대기열을 통과해야 하며, 여정용 perfN 계정 자격증명은 <span class="term">perf-seed-queue-users.sql</span>(신규, 2만 계정)로 시드. like 블로커(엔드포인트 부재)는 유지 — S-WRITE는 view+order 2종으로 진행</td><td>재사용+수정</td></tr>
           <tr><td>S-MIX</td><td>실전 혼합: S-READ 200/s + S-WRITE 동시. 읽기와 쓰기(같은 테이블/키에 upsert)의 상호 간섭 측정 — Stage 1b에서 <span class="term">INDEX(ranking_date, score DESC)</span> 재배치 경합이 조회 p95를 얼마나 미는가</td><td>조합</td></tr>
           <tr><td>S-FRESH</td><td><span class="term">ranking-freshness.js</span> — 센티널 상품 1개에 like 1건 발사 → rankings API를 500ms 간격 폴링 → 점수 변화 감지까지의 시간. 부하 배경(S-WRITE) 위에서 30회 반복해 <strong>신선도 p50/p95</strong> 산출. Stage 2에서는 이 값이 TTL 60s에 수렴함을 숫자로 확인</td><td>신규</td></tr>
         </tbody>
@@ -553,13 +553,26 @@
       <table>
         <thead><tr><th>항목</th><th>수집</th><th>무엇을 판정하나</th></tr></thead>
         <tbody>
-          <tr><td>컨슈머 랙</td><td><span class="term">kafka-consumer-groups.sh --describe --group commerce-streamer-metrics</span> — 토픽·파티션별 LAG (컨테이너 내 CLI, CSV 적재)</td><td>micrometer lag의 교차 검증 + 파티션 3개 간 편중(핫 상품 키 쏠림) 관측</td></tr>
-          <tr><td>발행-소비 균형</td><td>LOG-END-OFFSET 증가율 vs CURRENT-OFFSET 증가율</td><td>유입률 대비 소비율 — 랙 발산의 원인이 유입 폭증인지 소비 둔화인지</td></tr>
+          <tr><td>컨슈머 랙</td><td><span class="term">kafka-consumer-groups.sh --describe</span> — <strong>구독 분리 반영: 6개 그룹({metrics,ranking} × {product,order,user-action}) 순회</strong>, 그룹·토픽·파티션별 LAG CSV (07-16 수정 — bash 예약 변수 <span class="term">GROUPS</span>는 대입이 무시되므로 <span class="term">LAG_GROUPS</span> 사용)</td><td>micrometer lag의 교차 검증 + 파티션 편중 + <strong>METRICS vs RANKING 구독 간 랙 비교</strong> — dual write 2행 트랜잭션인 RANKING 쪽이 먼저 밀리는지가 EXP-03의 관측 축</td></tr>
+          <tr><td>발행-소비 균형</td><td>LOG-END-OFFSET 증가율 vs CURRENT-OFFSET 증가율 (⚠️ CURRENT-OFFSET 절대값은 그룹 생성 이전 레코드 포함 — 소비량은 증가율·event_handled로 산출)</td><td>유입률 대비 소비율 — 랙 발산의 원인이 유입 폭증인지 소비 둔화인지</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="note key"><span class="tag">앞으로의 모든 측정에 적용하는 계약</span>위 ①~④가 <strong>표준 메트릭 세트 v1</strong>이다. 이후 주차 측정은 이 세트를 기본 수집하고, 실험 특화 지표만 추가한다. 특히 <strong>CPU · GC pause · 힙 · Hikari pending · 컨슈머 랙</strong> 5개는 어떤 실험에서도 생략하지 않는다 — R8에서 CPU 부재로 보완 런을 치른 재발 방지.</div>
+    <h3>⑤ 쿼리 레벨 관측 — 개별 순위 옵티마이저 미스 추적 (07-16 로컬 발견 반영)</h3>
+    <p>로컬 파일럿에서 개별 순위 COUNT 쿼리가 <strong>커버링 인덱스(<span class="term">idx(date,score)</span>)를 두고 uk를 선택</strong>하는 것을 확인했다 — optimizer trace 실측: 두 경로 모두 49,938행 추정인데 uk ref 비용 5,306 vs 커버링 range 10,054로 계산(실행은 39ms vs 10ms로 정반대). ref의 클러스터 룩업 5만 회를 코스트 모델이 저평가한 것. ANALYZE TABLE 후에도 동일해 통계 문제가 아님을 확인. 본런에서 이 미스가 <strong>API 경유 실부하에서 어떤 비용으로 나타나는지</strong>를 아래 3종으로 관측한다.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>수집</th><th>무엇을 판정하나</th></tr></thead>
+        <tbody>
+          <tr><td>플랜 캡처</td><td>런 전 1회 — 대표 쿼리(페이지·개별 순위)의 <span class="term">EXPLAIN ANALYZE</span> + <span class="term">optimizer_trace</span> (<span class="term">explain-capture.sh</span> 확장)</td><td>본런 데이터 분포에서도 uk 미스가 재현되는지 — 시드·통계가 바뀌면 선택이 바뀔 수 있으므로 런마다 고정 기록</td></tr>
+          <tr><td>쿼리별 실측 비용</td><td><span class="term">performance_schema.events_statements_summary_by_digest</span> — 런 전후 델타로 digest별 <span class="term">count / avg_latency / rows_examined</span> 캡처</td><td>개별 순위 쿼리의 <strong>rows_examined 평균이 순위에 비례하는지</strong>(O(순위) 실증) + 전체 부하에서 이 쿼리가 차지하는 비중</td></tr>
+          <tr><td>순위 구간별 프로브</td><td>S-DETAIL 결과를 상품 순위 구간(상위/중위/하위)별로 태깅해 상세 p95 분해 — 로컬 파일럿은 중앙값 상품 고정이었음(균등분포 시드의 한계)</td><td>실트래픽(인기 쏠림)에서의 평균 비용 vs 롱테일 최악 비용 — "31qps"의 실전 의미 확정</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">앞으로의 모든 측정에 적용하는 계약</span>위 ①~⑤가 <strong>표준 메트릭 세트 v1</strong>이다. 이후 주차 측정은 이 세트를 기본 수집하고, 실험 특화 지표만 추가한다. 특히 <strong>CPU · GC pause · 힙 · Hikari pending · 컨슈머 랙</strong> 5개는 어떤 실험에서도 생략하지 않는다 — R8에서 CPU 부재로 보완 런을 치른 재발 방지.</div>
   </section>
 
   <!-- ===================== S6 ===================== -->
@@ -572,7 +585,7 @@
     <p class="lead">성능 런이 끝날 때마다 정산(reconciliation)을 돌린다 — 부하 중 점수가 하나라도 새면 그 Stage는 성능과 무관하게 탈락이다.</p>
 
     <h3>정산식 — 이벤트 수 × 가중치 = 점수 합</h3>
-    <p>k6가 커스텀 카운터로 <strong>성공 응답 기준</strong> 이벤트 수를 센다: view는 상세 조회 200 건수(V), like는 등록 성공(L⁺)·취소 성공(L⁻), order는 주문 성공의 order line 수(O). 부하 종료 + 랙 0 도달 후 저장소를 조회해 대사한다.</p>
+    <p>k6가 커스텀 카운터로 <strong>성공 응답 기준</strong> 이벤트 수를 센다: view는 상세 조회 200 건수(V), like는 등록 성공(L⁺)·취소 성공(L⁻), order는 주문 성공의 order line 수(O). 부하 종료 + 랙 0 도달 후 저장소를 조회해 대사한다. <strong>웜업 런 포함 모든 k6 런에 <span class="term">--summary-export</span> 필수</strong> — 웜업의 view도 저장소에 쌓여 V에 포함되는데, 텍스트 요약엔 태그별 분해가 없어 export 없이는 k6측 V를 산출할 수 없다 (07-16 로컬 파일럿에서 확인).</p>
 
     <div class="code">
       <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">verify-ranking.sql — 정산 (런마다 실행)</span></div>
@@ -581,9 +594,11 @@
 <span class="kw">SELECT</span> <span class="fn">SUM</span>(score) <span class="kw">FROM</span> product_ranking_daily <span class="kw">WHERE</span> ranking_date = <span class="st">:today</span>;
 <span class="cm">-- [2] 내일판 = 오늘판 × 0.1 인가 (dual write carry 검증)</span>
 <span class="kw">SELECT</span> <span class="fn">SUM</span>(score) <span class="kw">FROM</span> product_ranking_daily <span class="kw">WHERE</span> ranking_date = <span class="st">:tomorrow</span>;
-<span class="cm">-- [3] R7 집계와 교차 대사 (같은 트랜잭션이므로 Stage 1b에선 완전 일치해야 함)</span>
-<span class="kw">SELECT</span> <span class="fn">SUM</span>(view_count), <span class="fn">SUM</span>(like_count), <span class="fn">SUM</span>(order_count) <span class="kw">FROM</span> product_metrics;
-<span class="cm">-- [4] Stage 3: ZSET vs MySQL 진실원 Top-100 비교 (ZREVRANGE ↔ ORDER BY score DESC)</span></pre>
+<span class="cm">-- [3] R7 집계 교차 대사 — METRICS 구독 결과 (RANKING 구독과 별도 트랜잭션·별도 멱등)</span>
+<span class="kw">SELECT</span> <span class="fn">SUM</span>(view_count), <span class="fn">SUM</span>(like_count), <span class="fn">SUM</span>(sales_count) <span class="kw">FROM</span> product_metrics;
+<span class="cm">-- [4] 구독별 처리 수 — METRICS = RANKING 이어야 함 (둘 다 lag 0 기준)</span>
+<span class="kw">SELECT</span> subscription, <span class="fn">COUNT</span>(*) <span class="kw">FROM</span> event_handled <span class="kw">GROUP BY</span> subscription;
+<span class="cm">-- [5] Stage 3: ZSET vs MySQL 진실원 Top-100 비교 (ZREVRANGE ↔ ORDER BY score DESC)</span></pre>
     </div>
 
     <div class="tbl-wrap">
@@ -597,7 +612,7 @@
     </div>
 
     <h3>멱등 — 재소비·재기동 카오스 런</h3>
-    <p>S-WRITE 부하 중간에 <span class="term">commerce-streamer</span>를 1회 kill → 재기동한다. 재기동 직후 Kafka가 마지막 커밋 오프셋부터 배치를 재전달하므로, <span class="term">EventHandled</span>(event_id PK) 멱등이 실전 부하에서 중복 가산을 막는지 확인한다. <strong>판정: 정산식 [1]~[3]이 카오스 없는 런과 동일하게 성립.</strong> 부수 관측: 재기동~랙 회복 시간(복구 소요), 회복 구간의 신선도 악화 폭.</p>
+    <p>S-WRITE 부하 중간에 <span class="term">commerce-streamer</span>를 1회 kill → 재기동한다. 재기동 직후 Kafka가 마지막 커밋 오프셋부터 배치를 재전달하므로, <span class="term">EventHandled</span>(<strong>(event_id, subscription) 복합키</strong> — 구독 분리 리팩터링 반영)의 구독별 멱등이 실전 부하에서 중복 가산을 막는지 확인한다. <strong>판정: 정산식 [1]~[3]이 카오스 없는 런과 동일하게 성립.</strong> 부수 관측: 재기동~랙 회복 시간(복구 소요), 회복 구간의 신선도 악화 폭.</p>
 
     <h3>날짜 경계 — 판 전환·carry-over·보존</h3>
     <figure>
@@ -656,15 +671,15 @@
       <div><p class="sec-eyebrow">MATRIX</p><h2 class="sec">실험 매트릭스 &amp; 판정 기준</h2></div>
     </div>
 
-    <p class="lead">EXP 번호는 week9 로컬 연번을 잇는다 — EXP-01(자정 배치 경합, 완료)·EXP-02(Stage 1a, 스크립트 확보) 뒤로 4개를 추가한다.</p>
+    <p class="lead">EXP 번호는 week9 로컬 연번을 잇는다 — EXP-01(자정 배치 경합, 완료)·EXP-02(Stage 1a, 쿼리 레벨 로컬 확정 07-16 — API 경유만 잔여) 뒤로 4개를 추가한다.</p>
 
     <div class="tbl-wrap">
       <table>
         <thead><tr><th>EXP</th><th>목적 · 부하 · 산출</th><th>판정 기준</th></tr></thead>
         <tbody>
           <tr><td>EXP-01 ✅</td><td>자정 배치 × 조회 경합 — 완료. 사전 시딩(판 분리) 채택 (A −41% vs B −10%)</td><td>완료 — dual write 결정의 입력</td></tr>
-          <tr><td>EXP-02</td><td><strong>Stage 1a 읽기 천장</strong> — S-READ + S-DETAIL, 1만/10만 2스케일. EXPLAIN ANALYZE로 filesort·스캔 행수 캡처</td><td>천장 = p95 &gt; 1s 또는 에러율 &gt; 1% 시작 도착률 (R8 기준 승계). 개별 순위 쿼리 비용 별도 기록</td></tr>
-          <tr><td>EXP-03</td><td><strong>Stage 1b 쓰기 비용</strong> — S-WRITE 1×/2×/4×, <strong>단일 upsert vs dual write 대조 런</strong>(checklist 요구 사항). 소비 천장 = 랙 발산 시작 유입률</td><td>랙이 평탄 유지되는 최대 유입률. dual write 추가 비용을 %로 (처리량·listener_seconds·행 락 델타)</td></tr>
+          <tr><td>EXP-02 ◐</td><td><strong>Stage 1a 읽기 천장</strong> — <strong>쿼리 레벨은 로컬 확정(07-16)</strong>: 계산식 Top-20 10만 행 267qps(1만 대비 정확히 1/10 붕괴) vs 인덱스 2.06ms, 개별 순위는 인덱스로도 31qps(옵티마이저 uk 미스, FORCE INDEX 시 521) — 원본 <span class="term">experiments/exp02/README.md</span>. <strong>남은 것 = API 경유(S-READ + S-DETAIL) 천장</strong> + §5-⑤ 쿼리 관측</td><td>천장 = p95 &gt; 1s 또는 에러율 &gt; 1% 시작 도착률 (R8 기준 승계). 개별 순위는 순위 구간별(상위/중위/하위) 분해 기록</td></tr>
+          <tr><td>EXP-03</td><td><strong>Stage 1b 쓰기 비용</strong> — S-WRITE 1×/2×/4×, <strong>단일 upsert vs dual write 대조 런</strong>(checklist 요구 사항). 소비 천장 = 랙 발산 시작 유입률. <strong>구독별 랙 분리 관측</strong>(METRICS vs RANKING — dual write 2행 트랜잭션인 RANKING이 먼저 밀리는지)</td><td>랙이 평탄 유지되는 최대 유입률. dual write 추가 비용을 %로 (처리량·listener_seconds·행 락 델타). <strong>이 수치가 배치 하이브리드 전환(WRITING-LOG fallback 설계) 여부의 판정 입력</strong></td></tr>
           <tr><td>EXP-04</td><td><strong>Stage 2 캐시</strong> — EXP-02와 동일 부하 재실행 + S-FRESH. TTL 만료 순간 stampede 관측(만료 직후 5초 창의 DB QPS 스파이크)</td><td>p95·RPS 개선폭 + 신선도가 TTL 60s에 수렴함을 확인. 상세 개별 순위가 캐시로 해결 안 됨을 숫자로</td></tr>
           <tr><td>EXP-05</td><td><strong>Stage 3 ZSET</strong> — 동일 부하 전체 재실행(S-READ·S-WRITE·S-MIX·S-FRESH) + 드리프트 측정 + Redis 메모리 점유(판 3개 공존)</td><td>비교표 완성이 목적. 추가로 evicted_keys=0 · TTL 미부여 키 0건 · 카오스 런 정산 성립</td></tr>
           <tr><td>EXP-06</td><td><strong>날짜 경계 통합 검증</strong> — §6 체크리스트 전체(occurredAt 주입·경계 조회 열화·과거 판 불변·보존 배치)</td><td>체크리스트 5항목 전부 통과. 경계 전후 p95 변화 기록</td></tr>
@@ -699,19 +714,21 @@
 
     <div class="code">
       <div class="code-bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><span class="fn">1런 표준 절차 (로컬 맥)</span></div>
-      <pre><span class="cm"># 0. 시드 — perf-seed-l5.sql 재사용(상품 100,750 · BCrypt cost 4) + 랭킹 시드 2스케일(1만/10만)</span>
-<span class="cm"># 1. 웜업 — 재기동 후 생략 금지. 콜드 런은 *-COLD.* 로 보존</span>
-k6 run -e MODE=warmup product-list-load.js
+      <pre><span class="cm"># 0. 시드 — perf-seed-l5.sql(상품 100,750 · BCrypt cost 4) + perf-seed-order-arm.sql</span>
+<span class="cm">#    + perf-seed-queue-users.sql(주문 여정용 perfN 자격증명 2만 — 07-16 신규) + 랭킹 시드 2스케일(1만/10만)</span>
+<span class="cm"># 0-1. 플랜 캡처 — 대표 쿼리 EXPLAIN ANALYZE + optimizer_trace (§5-⑤) + p_s digest 리셋</span>
+<span class="cm"># 1. 웜업 — 재기동 후 생략 금지. 콜드 런은 *-COLD.* 로 보존. 웜업도 --summary-export 필수(정산식 V 포함)</span>
+k6 run -e MODE=warmup --summary-export=warmup.json product-list-load.js
 
 <span class="cm"># 2. 샘플러 4종 기동 (5초 간격, 백그라운드)</span>
 ACT=http://$APP:8081/actuator/prometheus  ./sample-actuator.sh api.csv  290 &amp;
 ACT=http://$APP:$STR_PORT/actuator/prometheus ./sample-actuator.sh str.csv 290 &amp;
 ./sample-redis.sh     redis.csv 290 &amp;      <span class="cm"># INFO memory/stats/clients</span>
-./sample-kafka-lag.sh lag.csv   290 &amp;      <span class="cm"># consumer-groups describe</span>
+./sample-kafka-lag.sh lag.csv   290 &amp;      <span class="cm"># 6개 컨슈머 그룹 순회 (LAG_GROUPS)</span>
 
-<span class="cm"># 3. 본 런 — 실험별 조합 (예: EXP-02 읽기 천장)</span>
+<span class="cm"># 3. 본 런 — 실험별 조합 (예: EXP-02 읽기 천장 / 주문 암은 queue-order-flow.js)</span>
 k6 run --summary-export=read.json  ranking-read.js
-<span class="cm"># 4. 랙 0 도달 대기 → 정산</span>
+<span class="cm"># 4. 랙 0 도달 대기 → 정산 + p_s digest 델타 캡처</span>
 mysql loopers &lt; verify-ranking.sql          <span class="cm"># k6 카운터와 대사</span>
 <span class="cm"># 5. run-meta.md 기록 → 쿨다운 ≥20s → 다음 런</span></pre>
     </div>
@@ -734,15 +751,16 @@ mysql loopers &lt; verify-ranking.sql          <span class="cm"># k6 카운터�
           <tr><td>ranking-freshness.js</td><td>센티널 프로브 — like 부재로 <strong>view×5를 신호로 사용</strong>(유실 허용 경로라 lost 카운터 병행). 응답 필드명(items[].productId/score)은 파일럿에서 대조</td><td>✅ 완료</td></tr>
           <tr><td>browse-journey.js 확장</td><td>LIKE_RATIO — <strong>like 엔드포인트 부재 블로커</strong>(§4). 해소 방식 결정 후 작업</td><td>⛔ 블로커</td></tr>
           <tr><td>sample-actuator.sh 확장</td><td>표준 세트 v1 컬럼 추가 (rankings URI·CPU·load·GC·힙·스레드·Hikari idle/timeout·executor·kafka lag). R8 컬럼 순서 유지</td><td>✅ 완료</td></tr>
-          <tr><td>sample-redis.sh · sample-kafka-lag.sh</td><td>신규 2종 — <strong>infra 노드에서 docker exec로 실행</strong>(6379/9092는 SG 외부 미개방)</td><td>✅ 완료</td></tr>
-          <tr><td>verify-ranking.sql</td><td>§6 정산 쿼리 — product_metrics 컬럼명은 실행 전 SHOW COLUMNS 대조</td><td>✅ 완료</td></tr>
-          <tr><td>랭킹 시드 SQL</td><td>product_ranking_daily 1만/10만 2스케일 (exp02 시드는 Stage 1a용 별도 테이블 — 1b용은 새로 필요)</td><td>확인</td></tr>
+          <tr><td>sample-redis.sh · sample-kafka-lag.sh</td><td>신규 2종 — <strong>infra 노드에서 docker exec로 실행</strong>(6379/9092는 SG 외부 미개방). kafka-lag는 07-16 수정: 6그룹 순회 + LAG_GROUPS(bash 예약 변수 GROUPS 함정)</td><td>✅ 완료+검증</td></tr>
+          <tr><td>verify-ranking.sql</td><td>§6 정산 쿼리 — 07-16 스키마 정정 완료(sales_count · event_handled 구독별 집계) + 로컬 스모크에서 전 항목 통과 검증</td><td>✅ 완료+검증</td></tr>
+          <tr><td>perf-seed-queue-users.sql</td><td>주문 여정(queue-order-flow)용 perfN 자격증명 2만 계정 — R8 때 infra 노드 즉석 실행분을 레포 자산화 (07-16 신규)</td><td>✅ 완료+검증</td></tr>
+          <tr><td>랭킹 시드 SQL</td><td>product_ranking_daily 1만/10만 2스케일 (exp02 시드는 Stage 1a용 별도 테이블 — 1b용은 새로 필요). <strong>분포는 균등이 아니라 l5 멱법칙과 정렬</strong> — 개별 순위 비용이 순위에 비례하므로 분포가 결과를 좌우 (07-16 한계 반영)</td><td>작성 필요</td></tr>
           <tr><td>streamer management 포트</td><td>확인 완료 — server 8083 / management 8084 (application.yml 기설정)</td><td>✅ 해결</td></tr>
         </tbody>
       </table>
     </div>
 
-    <div class="note key"><span class="tag">실행 게이트</span>이 문서는 플랜이다. <strong>준비물 작성 → 사용자 확인 → 로컬 파일럿 → AWS 본 런</strong> 순서로 진행하고, 각 단계 산출물(스크립트·시드)은 실행 전에 보여주고 confirm 받는다.</div>
+    <div class="note key"><span class="tag">실행 게이트 — 현재 위치</span><strong>로컬 파일럿 완료(07-16)</strong>: EXP-02 쿼리 레벨 확정 + 파이프라인 스모크 정산 전 항목 통과 + 본런 블로커 4건 수정(정산 SQL 스키마 · kafka-lag 샘플러 · 주문 암 대기열 차단 · 웜업 export). 상세는 <span class="term">04-stage1-local-measurement.html</span> · <span class="term">load-test/results/{exp02-stage1a, smoke-stage1b}/run-meta.md</span>. <strong>다음 = AWS 2노드 본런</strong> — 환경 기동·시드 스케일·런 순서를 실행 전에 보여주고 confirm 받은 뒤에만 진행한다. 측정 커밋은 6744aca 고정(변인 통제).</div>
   </section>
 
   <!-- ===================== REFS ===================== -->

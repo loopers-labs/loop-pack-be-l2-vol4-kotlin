@@ -5,8 +5,8 @@
 --   ⚠️ product_metrics 컬럼명은 R7 스키마 기준 — 실행 전 SHOW COLUMNS 로 대조할 것.
 --   사용: mysql -h <infra> -u root -p loopers < load-test/verify-ranking.sql
 
--- KST 기준 오늘/내일 (DB 서버 TZ 가 UTC 인 경우를 가정한 변환. TZ 가 KST 면 CURDATE() 그대로)
-SET @today    = DATE(CONVERT_TZ(NOW(), '+00:00', '+09:00'));
+-- 측정 서버는 TZ=KST 고정 (infra-compose mysql --default-time-zone=+09:00) → CURDATE() 그대로.
+SET @today    = CURDATE();
 SET @tomorrow = DATE_ADD(@today, INTERVAL 1 DAY);
 
 -- [1] 오늘판 점수 합 — 기대값 E 와 대사
@@ -22,14 +22,14 @@ SELECT 'carry_ratio' AS metric,
        ROUND((SELECT SUM(score) FROM product_ranking_daily WHERE ranking_date = @tomorrow)
            / (SELECT SUM(score) FROM product_ranking_daily WHERE ranking_date = @today), 6) AS value;
 
--- [3] R7 집계 교차 대사 — Stage 1b 는 같은 트랜잭션이므로 완전 일치해야 함
---     (컬럼명 확인 필요: view/like/order 카운트 컬럼)
+-- [3] R7 집계 교차 대사 — METRICS 구독 결과 (RANKING 구독과는 별도 트랜잭션·별도 멱등)
 SELECT 'metrics_totals' AS metric,
-       SUM(view_count) AS views, SUM(like_count) AS likes, SUM(order_count) AS orders
+       SUM(view_count) AS views, SUM(like_count) AS likes, SUM(sales_count) AS sales
 FROM product_metrics;
 
--- [4] 소비 이벤트 총량 — k6 발행 성공 수와 대사 (view 유실률 = 1 − handled/발행)
-SELECT 'event_handled' AS metric, COUNT(*) AS value FROM event_handled;
+-- [4] 소비 이벤트 총량 — 구독별 처리 수. k6 발행 성공 수와 대사 (view 유실률 = 1 − handled/발행)
+SELECT 'event_handled' AS metric, subscription, COUNT(*) AS value
+FROM event_handled GROUP BY subscription;
 
 -- [5] 이상 데이터 스캔 — 오늘·내일 외 판(보존 배치 대상 제외), NULL score
 SELECT 'other_dates' AS metric, ranking_date, COUNT(*) AS rows_cnt

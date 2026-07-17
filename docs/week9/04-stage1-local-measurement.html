@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Week 9 — Stage 1 로컬 측정: 읽기 비용 실측과 파이프라인 스모크</title>
+<!-- 폰트: Pretendard(본문) + JetBrains Mono(코드/라벨). 이 두 개만 사용한다. -->
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     TOSS DESIGN TOKENS — 이 :root 블록은 수정하지 않는다.
+     색/폰트/그림자는 반드시 이 변수로만 참조한다 (임의 hex 금지).
+     ============================================================ */
+  :root{
+    --blue:#3182F6; --blue-deep:#1B64DA; --blue-bg:#E8F3FF; --blue-bg2:#F4F9FF;
+    --green:#15C47E; --green-deep:#0A8F5B; --green-bg:#E7F9F1;
+    --red:#F04452; --red-deep:#C9303C; --red-bg:#FEEFEF;
+    --g900:#191F28; --g800:#333D4B; --g700:#4E5968; --g600:#6B7684;
+    --g500:#8B95A1; --g400:#B0B8C1; --g300:#D1D6DB; --g200:#E5E8EB;
+    --g100:#F2F4F6; --g50:#F9FAFB; --white:#fff;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--g100);color:var(--g700);
+    font-family:var(--sans);font-weight:400;font-size:17px;line-height:1.72;
+    -webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  ::selection{background:var(--blue-bg);color:var(--blue-deep)}
+
+  /* scroll progress bar */
+  #bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:50;background:var(--blue);
+    border-radius:0 3px 3px 0;transition:width .08s linear}
+
+  /* page sheet (흰 카드) */
+  .sheet{max-width:860px;margin:40px auto;background:var(--white);
+    border-radius:28px;box-shadow:var(--shadow);overflow:hidden}
+
+  /* cover */
+  header.cover{padding:64px 56px 52px;border-bottom:1px solid var(--g100)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-bg);
+    color:var(--blue-deep);font-size:13px;font-weight:700;padding:8px 14px;border-radius:100px;
+    margin-bottom:26px}
+  .badge .d{width:6px;height:6px;border-radius:50%;background:var(--blue)}
+  h1.title{font-size:clamp(34px,5.6vw,52px);font-weight:800;line-height:1.18;
+    letter-spacing:-.035em;color:var(--g900);margin:0 0 22px}
+  h1.title .hl{color:var(--blue)}
+  .lede{font-size:19px;line-height:1.6;color:var(--g600);font-weight:500;max-width:620px;margin:0 0 36px}
+  .lede b{color:var(--g800);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{background:var(--g50);border:1px solid var(--g200);border-radius:14px;padding:12px 16px;font-size:13px}
+  .chip .k{font-weight:700;color:var(--g500);font-size:11px;letter-spacing:.02em;display:block;margin-bottom:3px}
+  .chip .v{color:var(--g700);font-weight:600}
+
+  /* toc */
+  nav.toc{padding:40px 56px;background:var(--g50);border-bottom:1px solid var(--g100)}
+  nav.toc h2{font-size:13px;font-weight:700;color:var(--g500);margin:0 0 18px;letter-spacing:.02em}
+  nav.toc ol{margin:0;padding:0;list-style:none;counter-reset:t;display:grid;
+    grid-template-columns:1fr 1fr;gap:8px 18px}
+  nav.toc li{counter-increment:t}
+  nav.toc a{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:var(--g800);text-decoration:none;font-size:15px;font-weight:600;
+    background:var(--white);border:1px solid var(--g200);transition:.18s}
+  nav.toc a::before{content:counter(t,decimal-leading-zero);font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--blue);background:var(--blue-bg);border-radius:8px;
+    width:28px;height:28px;display:grid;place-items:center;flex:none}
+  nav.toc a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+
+  /* sections */
+  main{padding:0 56px}
+  section{padding:56px 0 18px;border-top:1px solid var(--g100)}
+  section:first-child{border-top:none}
+  .sec-head{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .sec-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--white);
+    background:var(--blue);border-radius:14px;width:46px;height:46px;display:grid;place-items:center;flex:none;
+    box-shadow:0 4px 12px rgba(49,130,246,.3)}
+  .sec-eyebrow{font-size:12.5px;font-weight:700;color:var(--blue);letter-spacing:.04em;margin:0 0 3px}
+  h2.sec{font-size:clamp(25px,3.6vw,32px);font-weight:800;letter-spacing:-.03em;
+    line-height:1.25;color:var(--g900);margin:0}
+  h3{font-size:19px;font-weight:700;color:var(--g900);margin:34px 0 12px;
+    display:flex;align-items:center;gap:10px}
+  h3::before{content:"";width:5px;height:18px;border-radius:3px;background:var(--blue);flex:none}
+  p{margin:0 0 18px}
+  .lead{font-size:18.5px;line-height:1.6;color:var(--g800);font-weight:600}
+  strong{font-weight:700;color:var(--g900)}
+  em{font-style:normal;font-weight:600;color:var(--g800)}
+  .term{font-family:var(--mono);font-size:.82em;background:var(--g100);color:var(--blue-deep);
+    padding:3px 7px;border-radius:7px;font-weight:500;white-space:nowrap}
+  a.cite{font-family:var(--mono);font-size:10.5px;color:var(--blue);text-decoration:none;
+    vertical-align:super;line-height:0;font-weight:700;padding:0 1px}
+  a.cite:hover{text-decoration:underline}
+
+  /* blockquote (인용) */
+  blockquote{margin:32px 0;padding:28px 30px;background:var(--blue-bg2);border-radius:20px;
+    border:1px solid var(--blue-bg)}
+  blockquote p{font-size:20px;font-weight:700;line-height:1.5;color:var(--blue-deep);margin:0 0 12px;letter-spacing:-.02em}
+  blockquote cite{font-family:var(--mono);font-style:normal;font-size:12px;color:var(--g500);
+    display:block;font-weight:500}
+
+  /* note / callout (.note 기본 · .key 파랑 · .warn 빨강) */
+  .note{border-radius:18px;padding:22px 24px;margin:26px 0;font-size:15.5px;line-height:1.7;
+    background:var(--g50);border:1px solid var(--g200);color:var(--g700)}
+  .note .tag{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:var(--g500)}
+  .note strong{color:var(--g900)}
+  .note.key{background:var(--blue-bg);border-color:#cfe4ff}
+  .note.key .tag{color:var(--blue-deep)} .note.key strong{color:var(--blue-deep)}
+  .note.warn{background:var(--red-bg);border-color:#f8d4d4}
+  .note.warn .tag{color:var(--red-deep)} .note.warn strong{color:var(--red-deep)}
+
+  /* figure + SVG 다이어그램 컨테이너 */
+  figure{margin:36px 0}
+  .fig-box{position:relative;background:var(--g50);border:1px solid var(--g200);border-radius:22px;
+    padding:32px 26px 22px}
+  .fig-box::after{content:attr(data-fig);position:absolute;top:16px;right:20px;font-family:var(--mono);
+    font-size:10.5px;font-weight:700;color:var(--g400);letter-spacing:.1em}
+  figcaption{font-size:13.5px;color:var(--g500);margin-top:16px;text-align:center;
+    line-height:1.6;font-weight:500}
+  figcaption b{color:var(--g700);font-weight:700}
+  svg{display:block;width:100%;height:auto}
+  .svg-t{font-family:var(--sans);font-weight:700;font-size:14px}
+  .svg-s{font-family:var(--mono);font-size:11px;font-weight:500}
+  .svg-l{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em}
+  /* foreignObject 자동 줄바꿈 박스 — 글자가 박스를 절대 넘지 않게 자동 줄바꿈+중앙정렬.
+     라벨 길이가 불확실하거나 한글이 많은 박스엔 .svg-t/.svg-s <text> 대신 이걸 쓴다 (폭 계산 불필요). */
+  svg foreignObject>.fo{height:100%;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:5px 12px;box-sizing:border-box;
+    overflow:hidden;line-height:1.25;word-break:keep-all}
+  svg foreignObject>.fo .t{font-family:var(--sans);font-weight:700;font-size:14px;color:var(--g900)}
+  svg foreignObject>.fo .s{font-family:var(--mono);font-weight:500;font-size:11px;color:var(--g600);margin-top:2px}
+  svg foreignObject>.fo.blue .t{color:var(--blue-deep)} svg foreignObject>.fo.blue .s{color:var(--blue)}
+  svg foreignObject>.fo.green .t{color:var(--green-deep)} svg foreignObject>.fo.green .s{color:var(--green-deep)}
+  svg foreignObject>.fo.red .t{color:var(--red-deep)} svg foreignObject>.fo.red .s{color:var(--red-deep)}
+  svg foreignObject>.fo.grey .t{color:var(--g800)} svg foreignObject>.fo.grey .s{color:var(--g600)}
+
+  /* wide figure — 시트(860px) 폭을 넘는 다이어그램 (긴 시퀀스/타임라인 전용) */
+  .sheet:has(.fig-wide){overflow:visible}
+  figure.fig-wide{width:min(1180px,94vw);position:relative;left:50%;transform:translateX(-50%)}
+  @media(max-width:760px){figure.fig-wide{width:100%;left:auto;transform:none}}
+
+  /* code block (mac 윈도우 스타일) */
+  .code{margin:24px 0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .code-bar{background:#20242C;display:flex;align-items:center;gap:8px;padding:13px 18px}
+  .code-bar .dot{width:11px;height:11px;border-radius:50%}
+  .code-bar .fn{font-family:var(--mono);font-size:12px;color:#8B95A1;margin-left:8px;font-weight:500}
+  pre{background:#191F28;margin:0;padding:22px 24px;overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.75;color:#D1D6DB}
+  pre .kw{color:#6BA4FF} pre .ty{color:#4FD8A8} pre .fn{color:#FFC56B}
+  pre .cm{color:#6B7684;font-style:italic} pre .st{color:#9FE3B8}
+  code{font-family:var(--mono);font-size:.86em}
+
+  /* toggle — 접기/펼치기 (details/summary) */
+  details.tg{border:1px solid var(--g200);border-radius:18px;margin:22px 0;background:var(--g50);
+    overflow:hidden;transition:background .2s,box-shadow .2s,border-color .2s}
+  details.tg[open]{background:var(--white);border-color:#cfe4ff;box-shadow:var(--shadow)}
+  details.tg>summary{list-style:none;cursor:pointer;padding:20px 24px;display:flex;align-items:center;
+    gap:13px;font-size:16px;font-weight:700;color:var(--g900);user-select:none}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary .tw{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:8px;padding:4px 9px;flex:none}
+  details.tg>summary .cv{margin-left:auto;flex:none;color:var(--g400);display:grid;place-items:center;
+    transition:transform .25s,color .25s}
+  details.tg>summary .cv svg{width:17px;height:17px}
+  details.tg[open]>summary .cv{transform:rotate(90deg);color:var(--blue)}
+  details.tg .tg-body{padding:2px 24px 24px}
+  details.tg .tg-body>*:first-child{margin-top:6px}
+  details.tg .tg-body>*:last-child{margin-bottom:0}
+
+  /* 2-column 비교 카드 (.x 중립 · .o 강조) */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:26px 0}
+  .col{border-radius:20px;padding:22px 24px;border:1px solid var(--g200);transition:.2s}
+  .col:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+  .col.x{background:var(--g50)}
+  .col.o{background:var(--blue-bg);border-color:#cfe4ff}
+  .col h4{margin:0 0 10px;font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:9px;color:var(--g900)}
+  .col.o h4{color:var(--blue-deep)}
+  .col h4 .mk{font-family:var(--mono);font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;
+    background:var(--g200);color:var(--g600);flex:none}
+  .col.o h4 .mk{background:var(--blue);color:#fff}
+  .col p{font-size:14.5px;line-height:1.65;margin:0;color:var(--g700);font-weight:500}
+
+  /* table */
+  .tbl-wrap{margin:26px 0;border:1px solid var(--g200);border-radius:20px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  thead{background:var(--g50)}
+  th,td{text-align:left;padding:14px 18px;vertical-align:top}
+  th{font-size:12px;font-weight:700;color:var(--g500);letter-spacing:.01em}
+  th:nth-child(3){color:var(--blue)}
+  td{border-top:1px solid var(--g100);font-weight:500;color:var(--g700)}
+  tbody tr:hover{background:var(--blue-bg2)}
+  td:first-child{font-weight:700;color:var(--g900);white-space:nowrap}
+  td:last-child{color:var(--blue-deep);font-weight:600}
+
+  /* fn-card — 함수/API 시그니처 카드 (어두운 시그니처 바 + 명세 표) */
+  .fn-card{border:1px solid var(--g200);border-radius:20px;margin:22px 0;overflow:hidden}
+  .fn-card>.fn-sig{background:#191F28;padding:14px 20px;font-family:var(--mono);font-size:13.5px;
+    color:#D1D6DB;font-weight:500;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .fn-card>.fn-sig .fn{color:#FFC56B} .fn-card>.fn-sig .pa{color:#6BA4FF}
+  .fn-card>.fn-sig .rt{color:#4FD8A8}
+  .fn-card>.fn-sig .pure{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--green);background:rgba(21,196,126,.14);padding:4px 9px;border-radius:7px}
+  .fn-card>.fn-sig .mut{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+    color:#FF9F6B;background:rgba(240,108,82,.16);padding:4px 9px;border-radius:7px}
+  .fn-card .tbl-wrap{margin:0;border:none;border-radius:0}
+  .fn-card table td:last-child{color:var(--g700);font-weight:500}
+
+  /* 참고문헌 리스트 */
+  .ref{display:flex;gap:16px;padding:18px 20px;margin-bottom:10px;border-radius:18px;
+    background:var(--g50);border:1px solid var(--g200);font-size:14.5px;line-height:1.6;
+    font-weight:500;transition:.18s;text-decoration:none;color:inherit;cursor:pointer}
+  a.ref:hover,.ref:hover{border-color:var(--blue);transform:translateX(3px);box-shadow:var(--shadow-sm)}
+  .ref .n{font-family:var(--mono);font-size:12px;color:#fff;font-weight:700;flex:none;
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--g400)}
+  .ref.primary .n{background:var(--blue)}
+  .ref .b{color:var(--g600)} .ref .b b{color:var(--g900);font-weight:700}
+  .ref .b .src{font-family:var(--mono);font-size:11px;color:var(--blue);display:block;
+    margin-top:5px;word-break:break-all;font-weight:400}
+  .ref .b .pr{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+    padding:4px 10px;border-radius:100px;margin-top:9px}
+  .ref .b .pr.p1{background:var(--blue);color:#fff}
+  .ref .b .pr.bt{background:var(--green);color:#fff}
+
+  /* checklist — 체크 항목 리스트. li 안에 <span class="box"></span> + 텍스트. 완료는 li.done
+     ⚠️ li 는 display:block + 박스는 position:absolute 다 (display:flex 금지).
+     li 안에는 <b>/<strong>/<span class="term"> 같은 인라인 요소가 섞이는데,
+     li 를 flex 로 두면 그 인라인 요소들이 각각 별도 flex item 이 되어
+     좁은 칸에 글자가 "세로로" 쌓이며 깨진다. 그래서 텍스트는 일반 인라인 흐름으로 둔다. */
+  .checklist{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:block;position:relative;padding:14px 18px 14px 51px;background:var(--g50);
+    border:1px solid var(--g200);border-radius:14px;font-size:15px;color:var(--g700);font-weight:500;line-height:1.55}
+  .checklist li .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--g300);
+    position:absolute;left:18px;top:15px;background:var(--white)}
+  .checklist li.done{background:var(--blue-bg2);border-color:#cfe4ff;color:var(--g600)}
+  .checklist li.done .box{background:var(--blue);border-color:var(--blue)}
+  .checklist li.done .box::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .checklist li b{color:var(--g900);font-weight:700}
+  .checklist li .tag{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-deep);
+    background:var(--blue-bg);border-radius:7px;padding:2px 8px;float:right;margin-left:8px}
+
+  /* docnav — 문서 시리즈(여러 HTML 파일) 간 네비게이션 바. cover 와 toc 사이에 둔다 */
+  .docnav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 56px;background:var(--white);
+    border-bottom:1px solid var(--g100)}
+  .docnav a{font-family:var(--mono);font-size:12.5px;font-weight:700;text-decoration:none;
+    padding:9px 14px;border-radius:100px;background:var(--g50);border:1px solid var(--g200);
+    color:var(--g600);transition:.18s}
+  .docnav a:hover{border-color:var(--blue);color:var(--blue-deep);transform:translateY(-1px)}
+  .docnav a.cur{background:var(--blue-bg);border-color:#cfe4ff;color:var(--blue-deep)}
+  .docnav a .n{color:var(--g400);margin-right:6px}
+  .docnav a.cur .n{color:var(--blue)}
+
+  footer{padding:48px 56px 56px;color:var(--g500);font-family:var(--mono);font-size:11.5px;
+    text-align:center;line-height:1.9;border-top:1px solid var(--g100);font-weight:500}
+  footer .gl{display:block;font-size:26px;margin-bottom:14px;color:var(--g300)}
+
+  @media(max-width:720px){
+    body{font-size:16px}
+    .sheet{margin:0;border-radius:0}
+    header.cover,nav.toc,main,footer,.docnav{padding-left:24px;padding-right:24px}
+    nav.toc ol,.cols{grid-template-columns:1fr}
+    header.cover{padding-top:48px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .fade{opacity:0;transform:translateY(18px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+    .fade.in{opacity:1;transform:none}
+    .cov>*{opacity:0;transform:translateY(16px);animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+    .cov>*:nth-child(1){animation-delay:.04s} .cov>*:nth-child(2){animation-delay:.12s}
+    .cov>*:nth-child(3){animation-delay:.22s} .cov>*:nth-child(4){animation-delay:.34s}
+    @keyframes rise{to{opacity:1;transform:none}}
+  }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<div class="sheet">
+
+  <!-- ===================== COVER ===================== -->
+  <header class="cover">
+    <div class="cov">
+      <span class="badge"><span class="d"></span>LOOPERS · WEEK 9 · STAGE 1 로컬 측정</span>
+      <h1 class="title">Stage 1 로컬 측정<br><span class="hl">읽기 비용 실측과 파이프라인 스모크</span></h1>
+      <p class="lede">02 측정 플랜의 "로컬 파일럿"을 실행한 결과 보고서다. <b>EXP-02 읽기 비용</b>은 계산식 vs 인덱스의 구조 차이를 숫자로 확정했고, <b>Stage 1b 스모크</b>는 이벤트 파이프라인의 정산 전 항목을 통과시켰다. 그리고 예상 밖의 발견 하나 — 인덱스가 있어도 <b>개별 순위 조회가 31 qps</b>로 무너지는 지점을 잡았다.</p>
+      <div class="chips">
+        <div class="chip"><span class="k">DATE / COMMIT</span><span class="v">2026-07-16 · 6744aca</span></div>
+        <div class="chip"><span class="k">ENV</span><span class="v">로컬 맥 · docker MySQL 8.0</span></div>
+        <div class="chip"><span class="k">TOOLS</span><span class="v">mariadb-slap conc32 · k6 v1.7.1</span></div>
+        <div class="chip"><span class="k">SUT</span><span class="v">commerce-api + commerce-streamer (bootRun)</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DOCNAV ===================== -->
+  <div class="docnav">
+    <a href="00-requirements.html"><span class="n">00</span>요구사항</a>
+    <a href="01-ranking-concepts.html"><span class="n">01</span>랭킹 개념</a>
+    <a href="02-load-test-plan.html"><span class="n">02</span>측정 플랜</a>
+    <a href="03-stage1-implementation.html"><span class="n">03</span>Stage 1 구현</a>
+    <a class="cur" href="04-stage1-local-measurement.html"><span class="n">04</span>로컬 측정</a>
+  </div>
+
+  <!-- ===================== TOC ===================== -->
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#s1">이 측정이 답한 질문</a></li>
+      <li><a href="#s2">EXP-02 — 읽기 비용 실측 수치</a></li>
+      <li><a href="#s3">31 qps 범인 추적 — 가설 소거</a></li>
+      <li><a href="#s4">개별 순위는 왜 구조적으로 비싼가</a></li>
+      <li><a href="#s5">Stage 1b 파이프라인 스모크</a></li>
+      <li><a href="#s6">스모크가 잡아낸 본런 블로커 4건</a></li>
+      <li><a href="#s7">이 숫자를 어디까지 믿을 것인가</a></li>
+      <li><a href="#s8">다음 단계</a></li>
+      <li><a href="#refs">근거 자산 (내부)</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ===================== S1 ===================== -->
+  <section id="s1" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div><p class="sec-eyebrow">SCOPE</p><h2 class="sec">이 측정이 답한 질문</h2></div>
+    </div>
+
+    <p class="lead">이번 로컬 런은 두 덩어리다 — EXP-02(Stage 1a 읽기 비용, 로컬에서 확정)와 Stage 1b 파이프라인 스모크(정합성 검증).</p>
+    <p>EXP-02는 "계산식 랭킹과 인덱스 랭킹의 읽기 비용이 데이터 규모에 따라 어떻게 갈라지는가"를 DB 레벨에서 잰다. Stage 1b 스모크는 "이벤트 발행 → Kafka → 컨슈머 → 점수 적재"의 파이프라인이 실부하에서 <strong>한 건도 안 새는가</strong>를 정산식으로 검증한다. 전자는 구조 비교, 후자는 정확성 검증 — 목적이 다르므로 결과 해석도 따로 한다.</p>
+
+    <div class="note warn"><span class="tag">해석 주의 — 절대값이 아니라 상대 비교</span>모든 처리량 수치에는 <strong>로컬 docker CPU 천장</strong>이 끼어 있다. 믿을 것은 절대 처리량이 아니라 <strong>같은 조건에서의 상대 비교</strong>(10× 데이터에 처리량이 몇 분의 일로 떨어지는가)다. API 경유 처리량 천장(rps)은 AWS 본런에서 확정한다.</div>
+
+    <div class="note"><span class="tag">용어 — qps / rps / tps</span><strong>qps</strong>는 SQL 쿼리 수(DB 레벨, mariadb-slap이 재는 값), <strong>rps</strong>는 HTTP 요청 수(k6가 재는 값), <strong>tps</strong>는 트랜잭션 수다. 이 문서의 EXP-02 수치는 <strong>전부 qps</strong> — DB에 직결로 때린 SQL 쿼리 처리량이다.</div>
+  </section>
+
+  <!-- ===================== S2 ===================== -->
+  <section id="s2" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div><p class="sec-eyebrow">EXP-02 · READ COST</p><h2 class="sec">EXP-02 — 읽기 비용 실측 수치</h2></div>
+    </div>
+
+    <p class="lead">mariadb-slap 동시성 32, ranking_exp 스키마. 단건 지연은 EXPLAIN ANALYZE, 처리량은 conc32 반복 실행으로 쟀다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>쿼리</th><th>단건 (EXPLAIN ANALYZE)</th><th>conc32 처리량</th></tr></thead>
+        <tbody>
+          <tr><td>계산식 Top-20 · 1만 행</td><td>2.15ms</td><td>2,822 qps</td></tr>
+          <tr><td>계산식 Top-20 · 10만 행</td><td>20.4ms</td><td>267 qps</td></tr>
+          <tr><td>계산식 개별 순위 · 10만 행</td><td>26.1ms (71,633행 필터 통과)</td><td>279 qps</td></tr>
+          <tr><td>인덱스 Top-20 · 10만 행</td><td>2.06ms (인덱스 룩업 20행)</td><td>807 qps</td></tr>
+          <tr><td>인덱스 개별 순위 · 10만 행</td><td>39.4ms (옵티마이저 uk 선택)</td><td>31 qps</td></tr>
+          <tr><td>인덱스 개별 순위 + FORCE INDEX</td><td>10.6ms (커버링 range 5만 엔트리)</td><td>521 qps</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>판독 세 가지</h3>
+    <p><strong>① 계산식 Top-20은 선형으로 붕괴한다.</strong> 데이터 10×(1만 → 10만)에 처리량이 2,822 → 267 qps, 정확히 1/10이다. 읽을 때마다 전체를 집계하는 구조의 비용이 데이터 규모에 정비례한다는 것이 숫자로 확인됐다.</p>
+    <p><strong>② 인덱스 Top-20 단건 2.06ms는 스케일과 무관하다.</strong> 10만 행에서도 인덱스 룩업 20행으로 끝난다 — 쓰기 시점에 점수를 계산해 두는 구조의 이득이 그대로 드러난다. 1만 행 계산식(2.15ms)과 같은 단건 지연을 10× 데이터에서 유지한다.</p>
+    <div class="note key"><span class="tag">③ 핵심 발견 — 개별 순위</span>인덱스를 걸어도 <strong>개별 순위 조회는 31 qps</strong> — 인덱스가 없는 Stage 1a 계산식(279 qps)보다 오히려 <strong>9배 나쁘다</strong>. Top-20을 살리려고 만든 구조가 개별 순위에서는 역효과를 냈다. 왜 그런지 다음 섹션에서 추적한다.</div>
+  </section>
+
+  <!-- ===================== S3 ===================== -->
+  <section id="s3" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div><p class="sec-eyebrow">INVESTIGATION</p><h2 class="sec">31 qps 범인 추적 — 가설 소거 과정</h2></div>
+    </div>
+
+    <p class="lead">"인덱스가 있는데 인덱스 없는 쿼리보다 9배 느리다"는 결과는 그대로 받아들일 수 없었다. 의심 가는 가설 다섯 개를 하나씩 소거했다.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>가설</th><th>판정</th><th>소거 근거</th></tr></thead>
+        <tbody>
+          <tr><td>인덱스가 잘못 걸림</td><td>❌</td><td>SHOW CREATE TABLE 확인 — uk(date, product) + idx(date, score DESC) 정상</td></tr>
+          <tr><td>데이터 분포 이상</td><td>❌</td><td>시드가 RAND()×1000 균등 분포, 기준 상품(50000)은 중앙값</td></tr>
+          <tr><td>점수 업데이트로 인덱스 열화</td><td>❌</td><td>측정 직전 TRUNCATE + INSERT 재시드 — 업데이트 이력 0</td></tr>
+          <tr><td>통계 낡음</td><td>❌</td><td>ANALYZE TABLE 후 재EXPLAIN — 그래도 uk 선택 (rows 49,938)</td></tr>
+          <tr><td>측정 중 락/쓰기 간섭</td><td>❌</td><td>유휴 확인(Threads_running 2, dirty 0) 후 SELECT만 실행. MVCC라 SELECT는 행 락에 안 막힘</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>결론 — 옵티마이저 코스트 모델의 오추정</h3>
+    <p>다섯 가설이 전부 소거되고 남은 것은 실행 계획 자체다. MySQL 코스트 모델이 <strong>"uk ref로 5만 행 + score를 읽으러 클러스터드 인덱스 룩업 5만 회"</strong>를 <strong>"score 인덱스 커버링 range 스캔 5만 엔트리"</strong>보다 싸다고 오추정했다. <span class="term">FORCE INDEX</span>로 score 인덱스를 강제하면 31 → 521 qps, <strong>17배</strong>가 된다. 다만 FORCE INDEX로도 range 스캔 5만 엔트리, 즉 <strong>O(순위) 스캔 자체는 구조적으로 남는다</strong> — 이 한계는 섹션 4에서 다룬다.</p>
+
+    <h3>접근 패턴별 인덱스 매핑 — 세 번째 패턴만 미스</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>접근 패턴</th><th>정답 인덱스</th><th>옵티마이저 실제 선택</th></tr></thead>
+        <tbody>
+          <tr><td>점 조회 — 내 점수</td><td>uk(date, product)</td><td>uk — 정답대로 동작</td></tr>
+          <tr><td>Top-20</td><td>idx(date, score DESC)</td><td>score 인덱스 — 정답대로 동작</td></tr>
+          <tr><td>score 범위 COUNT — 내 순위</td><td>idx(date, score DESC) 커버링</td><td>uk 오선택 — 유일한 미스</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>인덱스 설계 자체는 접근 패턴 두 개를 정확히 커버한다. 문제는 세 번째 패턴 — "score 범위를 세는 COUNT"에서만 옵티마이저가 uk 쪽으로 미끄러졌다는 것이다.</p>
+  </section>
+
+  <!-- ===================== S4 ===================== -->
+  <section id="s4" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div><p class="sec-eyebrow">STRUCTURE</p><h2 class="sec">개별 순위는 왜 구조적으로 비싼가</h2></div>
+    </div>
+
+    <p class="lead">순위는 저장된 값이 아니다. "정렬상 내 앞에 몇 개가 있는가"라는 관계다 — 그리고 관계는 저장하기도, 읽기도 비싸다.</p>
+    <p>rank 컬럼을 저장하는 접근은 성립하지 않는다. 한 상품의 점수가 변하면 <strong>그 사이에 있는 여러 상품의 순위가 전부 밀리므로</strong> 쓰기가 폭발한다. 그래서 RDB는 읽을 때 센다 — <span class="term">COUNT(score &gt; 내 점수)</span>, 즉 비용이 <strong>O(내 순위)</strong>다. 순위가 5만이면 5만 엔트리를 세야 한다. 반면 Redis ZSET은 skip list가 정렬을 항상 유지하고 있어 <span class="term">ZREVRANK</span>가 세지 않고 <strong>위치를 읽는다</strong> — <strong>O(log N)</strong>이다.</p>
+
+    <figure>
+      <div class="fig-box" data-fig="FIG. 01">
+        <svg viewBox="0 0 720 348" role="img" aria-label="개별 순위 조회 비용 비교 다이어그램. 왼쪽은 MySQL COUNT 방식으로 내 위의 5만 행을 전부 세어 비용이 순위에 비례하고, 오른쪽은 Redis ZSET skip list 방식으로 몇 번의 점프만으로 위치를 바로 읽어 비용이 log N이다.">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- 가운데 분리선 -->
+          <line x1="360" y1="24" x2="360" y2="330" stroke="#8B95A1" stroke-width="1" stroke-dasharray="5 4"/>
+
+          <!-- ===== 왼쪽: MySQL COUNT ===== -->
+          <foreignObject x="30" y="16" width="300" height="54">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo red">
+              <div class="t">MySQL — COUNT 방식</div>
+              <div class="s">내 위 5만 행을 전부 센다 · O(rank)</div>
+            </div>
+          </foreignObject>
+
+          <!-- 정렬된 행 스택 -->
+          <rect x="110" y="84" width="190" height="26" rx="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1"/>
+          <text class="svg-s" x="205" y="101" text-anchor="middle" fill="#6B7684">score 998 · rank 1</text>
+          <rect x="110" y="118" width="190" height="26" rx="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1"/>
+          <text class="svg-s" x="205" y="135" text-anchor="middle" fill="#6B7684">score 997 · rank 2</text>
+          <rect x="110" y="152" width="190" height="26" rx="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1"/>
+          <text class="svg-s" x="205" y="169" text-anchor="middle" fill="#6B7684">score 996 · rank 3</text>
+          <text class="svg-s" x="205" y="203" text-anchor="middle" fill="#8B95A1">⋮ 약 5만 엔트리 ⋮</text>
+          <rect x="110" y="222" width="190" height="34" rx="10" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
+          <foreignObject x="110" y="222" width="190" height="34">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue"><div class="s">내 상품 · rank 50,000</div></div>
+          </foreignObject>
+
+          <!-- 스캔 화살표 (빨강, 전부 훑음) -->
+          <line x1="76" y1="88" x2="76" y2="232" stroke="#F04452" stroke-width="2" marker-end="url(#a1)"/>
+          <foreignObject x="18" y="120" width="52" height="80">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo red"><div class="s">전부 센다</div></div>
+          </foreignObject>
+
+          <!-- 왼쪽 비용 라벨 -->
+          <foreignObject x="45" y="278" width="270" height="46">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo red">
+              <div class="t">비용 = 내 순위에 비례</div>
+              <div class="s">rank 5만 → 5만 엔트리 스캔</div>
+            </div>
+          </foreignObject>
+
+          <!-- ===== 오른쪽: ZSET skip list ===== -->
+          <foreignObject x="390" y="16" width="300" height="54">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo green">
+              <div class="t">Redis ZSET — skip list</div>
+              <div class="s">세지 않고 위치를 읽는다 · O(log N)</div>
+            </div>
+          </foreignObject>
+
+          <!-- 레벨 라벨 -->
+          <text class="svg-s" x="398" y="107" fill="#8B95A1">L2</text>
+          <text class="svg-s" x="398" y="162" fill="#8B95A1">L1</text>
+          <text class="svg-s" x="398" y="217" fill="#8B95A1">L0</text>
+
+          <!-- 레벨 2 -->
+          <line x1="430" y1="103" x2="680" y2="103" stroke="#D1D6DB" stroke-width="1.4"/>
+          <circle cx="440" cy="103" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="556" cy="103" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="672" cy="103" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <!-- 레벨 1 -->
+          <line x1="430" y1="158" x2="680" y2="158" stroke="#D1D6DB" stroke-width="1.4"/>
+          <circle cx="440" cy="158" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="498" cy="158" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="556" cy="158" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="614" cy="158" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="672" cy="158" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <!-- 레벨 0 -->
+          <line x1="430" y1="213" x2="680" y2="213" stroke="#D1D6DB" stroke-width="1.4"/>
+          <circle cx="440" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="469" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="498" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="527" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="556" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="585" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="614" cy="213" r="9" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.6"/>
+          <circle cx="643" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <circle cx="672" cy="213" r="8" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
+          <text class="svg-s" x="614" y="243" text-anchor="middle" fill="#1B64DA">내 상품</text>
+
+          <!-- 점프 경로 (초록) -->
+          <line x1="450" y1="103" x2="544" y2="103" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <line x1="556" y1="113" x2="556" y2="146" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <line x1="566" y1="158" x2="602" y2="158" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <line x1="614" y1="168" x2="614" y2="201" stroke="#15C47E" stroke-width="2" marker-end="url(#a1)"/>
+          <text class="svg-l" x="497" y="90" text-anchor="middle" fill="#0A8F5B">점프</text>
+
+          <!-- 오른쪽 비용 라벨 -->
+          <foreignObject x="405" y="278" width="270" height="46">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="fo green">
+              <div class="t">비용 = log N</div>
+              <div class="s">몇 번의 점프로 위치 도달</div>
+            </div>
+          </foreignObject>
+        </svg>
+      </div>
+      <figcaption><b>그림 1.</b> 개별 순위 조회 비용의 구조 차이 — MySQL은 내 위의 엔트리를 전부 세고(O(rank)), ZSET skip list는 정렬을 유지한 채 위치를 바로 읽는다(O(log N)).</figcaption>
+    </figure>
+
+    <h3>이 비용이 문제가 되는 이유 — 호출 빈도</h3>
+    <blockquote>
+      <p>상품 상세 응답에 현재 순위 포함 — 랭킹에 없으면 null</p>
+      <cite>— Week 9 MUST 요구사항</cite>
+    </blockquote>
+    <p>개별 순위 조회는 관리 화면의 가끔 쓰는 기능이 아니라 <strong>상품 상세 조회 빈도만큼 호출되는 경로</strong>다. 상세는 커머스에서 가장 뜨거운 읽기 경로 중 하나이므로, O(순위) 비용이 그 빈도로 반복되는 구조는 Stage 1 인덱스 방식의 명확한 한계다.</p>
+  </section>
+
+  <!-- ===================== S5 ===================== -->
+  <section id="s5" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div><p class="sec-eyebrow">STAGE 1B · SMOKE</p><h2 class="sec">Stage 1b 파이프라인 스모크 — 정산 전 항목 통과</h2></div>
+    </div>
+
+    <p class="lead">이벤트 발행부터 점수 적재까지, 실부하를 흘린 뒤 "들어간 수 × 가중치 = 쌓인 점수"가 소수점까지 맞는지를 정산했다.</p>
+
+    <h3>부하 구성</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>구간</th><th>부하</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>웜업</td><td>browse 10/s × 1m</td><td>2,051 req 전부 200</td></tr>
+          <tr><td>view</td><td>browse 20/s × 2m</td><td>list 3,455 · detail 4,815 전부 200, p95 14.3ms</td></tr>
+          <tr><td>주문</td><td>queue-order-flow 스파이크 500명 (think 1~3s)</td><td>여정 475/475 성공, 대기 p95 3.0s</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>정산 결과 (verify-ranking.sql, 컨슈머 랙 0 도달 후)</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>기대값</th><th>실측</th><th>판정</th></tr></thead>
+        <tbody>
+          <tr><td>sales 합</td><td>k6 주문 성공 475</td><td>475</td><td>✅ 정확 일치 (outbox 오차 0)</td></tr>
+          <tr><td>view 합</td><td>소비분 일치</td><td>6,012 (skip 0)</td><td>✅</td></tr>
+          <tr><td>today_sum</td><td>0.1×6012 + 0.7×475 = 933.7</td><td>933.7000</td><td>✅ 정확 일치</td></tr>
+          <tr><td>carry_ratio</td><td>0.1</td><td>0.100000</td><td>✅</td></tr>
+          <tr><td>dual write 행수</td><td>오늘 = 내일</td><td>1,409 = 1,409</td><td>✅</td></tr>
+          <tr><td>구독별 처리</td><td>METRICS = RANKING</td><td>6,487 = 6,487</td><td>✅</td></tr>
+          <tr><td>핫상품 점수</td><td>475 × 0.7 = 332.5</td><td>332.5000</td><td>✅</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key"><span class="tag">이 통과의 의미</span>타입 계약 리팩터링 + 구독(<span class="term">EventSubscription</span>) 분리 + 구독별 멱등 + dual write carry — Stage 1 구현의 네 축이 단위 테스트가 아니라 <strong>실부하에서 전부 검증</strong>됐다. 특히 sales 합이 k6 성공 수와 한 건 오차 없이 일치한 것은 outbox 경로에 유실이 없다는 뜻이다.</div>
+  </section>
+
+  <!-- ===================== S6 ===================== -->
+  <section id="s6" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div><p class="sec-eyebrow">SMOKE FINDINGS</p><h2 class="sec">스모크가 잡아낸 본런 블로커 4건</h2></div>
+    </div>
+
+    <p class="lead">스모크의 목적이 바로 이런 것들을 본런 전에 태우는 것이다. AWS에서 터졌으면 런 하나를 통째로 버렸을 문제 네 건을 로컬에서 잡고 전부 수정했다.</p>
+
+    <ul class="checklist">
+      <li class="done"><span class="box"></span><b>verify-ranking.sql 스키마 낡음</b> <span class="tag">수정 완료</span> — <span class="term">order_count</span> → <span class="term">sales_count</span> 반영, event_handled를 구독별 GROUP BY로 수정.</li>
+      <li class="done"><span class="box"></span><b>sample-kafka-lag.sh 이중 결함</b> <span class="tag">수정 완료</span> — 구독 분리 이전 그룹명이 남아 있었고, <strong>bash 예약 변수 GROUPS에 대입이 조용히 무시되는 함정</strong>까지 겹쳐 CSV가 헤더만 남고 있었다. <span class="term">LAG_GROUPS</span>로 rename.</li>
+      <li class="done"><span class="box"></span><b>주문 부하 order-ramp 직행 불가</b> <span class="tag">수정 완료</span> — week8 대기열이 409(<span class="term">QUEUE:ENTRY_TOKEN_REQUIRED</span>)로 차단. 본런 주문 암은 queue-order-flow로 교체. perfN 자격증명 시드가 레포에 없어(R8 때 infra에서 즉석 실행) <span class="term">perf-seed-queue-users.sql</span>로 자산화(2만 계정).</li>
+      <li class="done"><span class="box"></span><b>웜업 런도 --summary-export 필수</b> <span class="tag">수정 완료</span> — 정산식의 V(view 수) 산출에 웜업 요청 수가 들어가므로 웜업 런에도 summary 파일을 남기도록 절차 수정.</li>
+    </ul>
+  </section>
+
+  <!-- ===================== S7 ===================== -->
+  <section id="s7" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div><p class="sec-eyebrow">LIMITATIONS</p><h2 class="sec">시나리오의 한계 — 이 숫자를 어디까지 믿을 것인가</h2></div>
+    </div>
+
+    <p class="lead">좋은 측정 보고서는 숫자보다 숫자의 적용 범위를 먼저 말한다. 이번 수치에는 세 가지 한계가 있다.</p>
+
+    <p><strong>① 기준 상품 고정(중앙값).</strong> 개별 순위 측정의 기준 상품을 중앙값(50000) 하나로 고정했다. 실제 상세 트래픽은 인기 상품에 쏠리므로 — 인기 상품은 순위가 높아 O(순위) 스캔이 짧다 — <em>실전 평균은 이 수치보다 좋을 것</em>이다. 반대로 시드의 균등 분포는 실제 멱법칙 분포와 다르므로 롱테일 상품은 더 나쁠 수 있다. 본런에서는 순위 구간별(상위/중위/하위)로 나눠 기록할 예정이다.</p>
+    <p><strong>② closed model(slap).</strong> mariadb-slap은 32개 연결이 응답을 기다렸다 다음 쿼리를 보내는 closed model이라 qps ≈ 32 ÷ 평균지연으로 결정된다. 본런 k6는 도착률을 강제하는 open model이므로 같은 조건이 아니다.</p>
+    <p><strong>③ DB 직결.</strong> API 경유 비용(커넥션 풀 대기 · 톰캣 스레드 · 직렬화)이 전부 빠져 있다. API 경유 천장은 AWS 본런의 몫이다.</p>
+
+    <div class="note key"><span class="tag">이 수치의 정확한 용도</span>이번 숫자는 "<strong>중간 순위 상품 기준의 구조 비용 대조</strong>"다. 계산식 vs 인덱스, COUNT vs 인덱스 룩업의 상대 비교에는 유효하고, 절대 용량 산정에는 쓰지 않는다.</div>
+  </section>
+
+  <!-- ===================== S8 ===================== -->
+  <section id="s8" class="fade">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div><p class="sec-eyebrow">NEXT</p><h2 class="sec">다음 단계</h2></div>
+    </div>
+
+    <p class="lead">로컬 파일럿이 끝났으므로 다음은 AWS 2노드 본런 — 그리고 Stage 3 ZSET 구현이다.</p>
+
+    <ul class="checklist">
+      <li><span class="box"></span><b>AWS 2노드 본런</b> — EXP-02(API 경유 읽기 천장, S-READ 램프) · EXP-03(쓰기 천장 — 단일 upsert vs dual write 대조, 랙 발산 유입률) · S-MIX · EXP-06(날짜 경계).</li>
+      <li><span class="box"></span><b>Stage 3 ZSET 구현 착수</b> — 착수 가능 상태. Stage 1은 커밋(<span class="term">6744aca</span>)으로 고정돼 본런의 변인 통제가 유지된다.</li>
+      <li><span class="box"></span><b>dual write vs 배치 하이브리드 판정</b> — EXP-03 숫자로 판정한다. fallback 설계 논의는 WRITING-LOG에 보존되어 있다.</li>
+    </ul>
+  </section>
+
+  <!-- ===================== REFS ===================== -->
+  <section id="refs" class="fade">
+    <div class="sec-head">
+      <div class="sec-num" style="background:var(--g700);box-shadow:none">§</div>
+      <div><p class="sec-eyebrow">INTERNAL ASSETS</p><h2 class="sec">근거 자산 (내부)</h2></div>
+    </div>
+    <p>이 문서의 모든 수치는 아래 저장소 내부 산출물에서 나왔다. 외부 출처 인용은 없다.</p>
+    <div class="ref primary"><span class="n">1</span><span class="b"><b>EXP-02 Stage 1a 원본</b> — EXPLAIN ANALYZE · mariadb-slap 원본 출력, run-meta.md.<span class="src">load-test/results/exp02-stage1a/</span></span></div>
+    <div class="ref primary"><span class="n">2</span><span class="b"><b>Stage 1b 스모크 원본</b> — k6 summary · Kafka lag CSV · run-meta.md.<span class="src">load-test/results/smoke-stage1b/</span></span></div>
+    <div class="ref"><span class="n">3</span><span class="b"><b>EXP-02 실험 기록</b> — 5섹션 포맷 기록 (가설 → 방법 → 결과 → 판독 → 다음).<span class="src">docs/week9/experiments/exp02/README.md</span></span></div>
+    <div class="ref"><span class="n">4</span><span class="b"><b>WRITING-LOG</b> — dual write vs 배치 하이브리드 fallback 설계 엔트리.<span class="src">docs/week9/experiments/WRITING-LOG.md</span></span></div>
+  </section>
+
+  </main>
+
+  <footer>
+    <span class="gl">⁂</span>
+    Week 9 Stage 1 로컬 측정 — EXP-02 읽기 비용 실측 · Stage 1b 파이프라인 스모크 (2026-07-16 · 커밋 6744aca)<br>
+    근거: load-test/results/* 원본 산출물 · docs/week9/experiments/* 기록
+  </footer>
+
+</div>
+
+<script>
+  /* scroll progress bar */
+  const bar=document.getElementById('bar');
+  const onScroll=()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(sc*100)+'%';};
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  /* fade-in on scroll */
+  const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target);}});},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.fade').forEach(s=>obs.observe(s));
+</script>
+
+</body>
+</html>

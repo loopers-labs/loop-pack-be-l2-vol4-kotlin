@@ -269,7 +269,7 @@
       <div><p class="sec-eyebrow">SCOPE AT A GLANCE</p><h2 class="sec">한눈에 보기 — Must vs Nice + 전체 파이프라인</h2></div>
     </div>
 
-    <p class="lead">랭킹은 <strong>쓰기(이벤트 → 점수 누적)</strong>와 <strong>읽기(Top-N·개별 순위 조회)</strong>가 분리된 시스템입니다. R7이 만든 이벤트 파이프라인의 <em>소비 지점</em>에 ZSET 갱신을 얹고, API는 그 ZSET을 읽기만 합니다.</p>
+    <p class="lead">랭킹은 <strong>쓰기(이벤트 → 점수 누적)</strong>와 <strong>읽기(Top-N·개별 순위 조회)</strong>가 분리된 시스템입니다. R7이 만든 이벤트 파이프라인을 <strong>독립 컨슈머</strong>(<span class="term">ProductRankingKafkaConsumer</span>, metrics와 별도 groupId)로 구독해 ZSET 점수를 갱신하고, API는 그 ZSET을 읽기만 합니다.</p>
 
     <div class="cols">
       <div class="col o">
@@ -296,10 +296,10 @@
           <foreignObject x="8" y="38" width="188" height="86"><div class="fo blue" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-api</div><div class="s">조회·좋아요·주문 이벤트 발행</div></div></foreignObject>
 
           <rect x="238" y="38" width="150" height="86" rx="16" fill="#F9FAFB" stroke="#E5E8EB"></rect>
-          <foreignObject x="238" y="38" width="150" height="86"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Kafka</div><div class="s">catalog · order · user-action</div></div></foreignObject>
+          <foreignObject x="238" y="38" width="150" height="86"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">Kafka</div><div class="s">product · order · user-action</div></div></foreignObject>
 
           <rect x="430" y="38" width="200" height="86" rx="16" fill="#E7F9F1" stroke="#bdedd8"></rect>
-          <foreignObject x="430" y="38" width="200" height="86"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-collector</div><div class="s">배치 소비 · eventId 멱등</div></div></foreignObject>
+          <foreignObject x="430" y="38" width="200" height="86"><div class="fo green" xmlns="http://www.w3.org/1999/xhtml"><div class="t">commerce-streamer</div><div class="s">독립 컨슈머 · (event_id, subscription) 멱등</div></div></foreignObject>
 
           <rect x="672" y="20" width="212" height="52" rx="14" fill="#F9FAFB" stroke="#E5E8EB"></rect>
           <foreignObject x="672" y="20" width="212" height="52"><div class="fo grey" xmlns="http://www.w3.org/1999/xhtml"><div class="t">product_metrics upsert</div><div class="s">R7 기존 집계</div></div></foreignObject>
@@ -327,7 +327,7 @@
           </g>
           <text x="1028" y="176" text-anchor="middle" class="svg-l" fill="#3182F6">Top-N · 개별 순위</text>
         </svg>
-        <figcaption>랭킹은 <b>collector가 이벤트를 소비하며 ZSET 점수를 갱신</b>(쓰기)하고, <b>API는 ZSET을 읽어</b> Top-N·개별 순위를 제공(읽기)한다. <b>product_metrics 집계(R7)는 그대로 두고</b>, 같은 소비 지점에 ZSET 갱신을 <b>얹는다</b>.</figcaption>
+        <figcaption>랭킹은 <b>streamer가 이벤트를 소비하며 ZSET 점수를 갱신</b>(쓰기)하고, <b>API는 ZSET을 읽어</b> Top-N·개별 순위를 제공(읽기)한다. <b>product_metrics 집계(R7)는 그대로 두고</b>, 랭킹은 <b>별도 독립 컨슈머</b>가 같은 토픽을 자기 groupId로 소비해 갱신한다(metrics에 얹는 게 아님).</figcaption>
       </div>
     </figure>
 
@@ -389,7 +389,7 @@
 
     <div class="note key">
       <span class="tag">재사용 — 이미 R7에 배치 소비 지점이 있다</span>
-      <span class="term">commerce-streamer</span>의 <span class="term">ProductMetricsKafkaConsumer</span>가 <strong>이미 배치 리스너</strong>(<span class="term">BATCH_LISTENER</span>, 토픽 <span class="term">catalog-events</span>·<span class="term">order-events</span>·<span class="term">user-action-events</span>, <span class="term">eventId</span> 멱등)입니다. Round 9는 이 소비 지점에서 <span class="term">product_metrics</span> 집계와 <strong>나란히 ZSET 갱신을 얹는</strong> 형태 — "Nice-to-Have 배치 리스너"는 사실상 확보되어 있습니다.
+      <span class="term">commerce-streamer</span>에는 <strong>이미 배치 리스너</strong>(<span class="term">BATCH_LISTENER</span>, 토픽 <span class="term">product-events</span>·<span class="term">order-events</span>·<span class="term">user-action-events</span>, <span class="term">(event_id, subscription)</span> 복합키 멱등)가 있습니다. Round 9 랭킹은 <span class="term">ProductMetricsKafkaConsumer</span>에 얹는 게 아니라 <strong>독립 컨슈머 <span class="term">ProductRankingKafkaConsumer</span></strong>(groupId <span class="term">commerce-streamer-ranking-*</span>)가 같은 토픽을 자기 그룹으로 소비합니다 — "Nice-to-Have 배치 리스너"는 사실상 확보되어 있습니다.
     </div>
 
     <div class="note">
@@ -584,9 +584,9 @@
       <table>
         <thead><tr><th>필요 기능</th><th>재사용 자산</th><th>경로</th></tr></thead>
         <tbody>
-          <tr><td>이벤트 배치 소비</td><td>ProductMetricsKafkaConsumer (BATCH_LISTENER · eventId 멱등)</td><td>commerce-streamer · interfaces/consumer</td></tr>
-          <tr><td>집계 진입점</td><td>ProductMetricsService.handle(eventId, eventType, payload)</td><td>commerce-streamer · metrics/application</td></tr>
-          <tr><td>멱등 테이블</td><td>EventHandled (event_id PK)</td><td>commerce-streamer · metrics/domain</td></tr>
+          <tr><td>이벤트 배치 소비</td><td>ProductMetricsKafkaConsumer · ProductRankingKafkaConsumer (BATCH_LISTENER · 독립 groupId · 복합키 멱등)</td><td>commerce-streamer · interfaces/consumer</td></tr>
+          <tr><td>랭킹 적재 진입점</td><td>RankingAccumulateService.accumulate(eventId, occurredAt, changes)</td><td>commerce-streamer · ranking/application</td></tr>
+          <tr><td>멱등 테이블</td><td>EventHandled ((event_id, subscription) 복합키 · EventSubscription{METRICS, RANKING})</td><td>commerce-streamer · metrics/domain</td></tr>
           <tr><td>Redis ZSET 연산</td><td>OrderQueueRepository (masterRedisTemplate · opsForZSet · Lua)</td><td>commerce-api · queue/infrastructure/redis</td></tr>
           <tr><td>상품 정보 조합</td><td>product 상세 캐시 · product_metrics</td><td>commerce-api · product · commerce-streamer</td></tr>
         </tbody>

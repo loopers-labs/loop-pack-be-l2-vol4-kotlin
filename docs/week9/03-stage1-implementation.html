@@ -333,7 +333,7 @@
 
     <p class="lead">이벤트 하나가 점수 두 행이 되기까지 — 발행부터 upsert까지 전 구간이다.</p>
     <p>발행 쪽은 이벤트 성격에 따라 경로가 다르다. 좋아요와 주문은 week 7에 만든 <strong>outbox를 통해 원자 발행</strong>되므로 유실이 없어야 하고(불일치 = 버그), 상품 조회(view)는 <span class="term">@Async</span> AFTER_COMMIT 직접 발행이라 <strong>유실 허용</strong> 경로다. 이 차이는 나중에 정산(reconciliation) 검증의 허용 오차 기준이 된다 — like·order는 오차 0, view는 결손만 허용.</p>
-    <p>소비 쪽은 <span class="term">commerce-streamer</span>가 토픽 3개를 배치로 읽는다. 멱등 처리(<span class="term">event_handled</span> 테이블로 eventId 중복 차단), 기존 <span class="term">product_metrics</span> 누적, 그리고 이번에 추가된 <strong>랭킹 점수 적재</strong>가 이벤트당 한 트랜잭션 안에서 함께 처리된다.</p>
+    <p>소비 쪽은 <span class="term">commerce-streamer</span>가 토픽 3개(<span class="term">product-events</span>·<span class="term">order-events</span>·<span class="term">user-action-events</span>)를 배치로 읽는다. 이때 <strong>metrics와 ranking은 서로 다른 독립 컨슈머</strong>다 — <span class="term">ProductMetricsKafkaConsumer</span>(groupId <span class="term">commerce-streamer-metrics-*</span>)와 <span class="term">ProductRankingKafkaConsumer</span>(groupId <span class="term">commerce-streamer-ranking-*</span>)가 같은 토픽을 각자의 그룹으로 따로 구독한다. 멱등도 분리돼 <span class="term">event_handled</span>가 <strong>(event_id, subscription) 복합키</strong>라, 랭킹 적재는 <span class="term">RankingAccumulateService</span>가 자기 <span class="term">@Transactional</span> 안에서 <span class="term">EventSubscription.RANKING</span> 멱등으로 처리한다(metrics의 <span class="term">product_metrics</span> 누적과 같은 트랜잭션이 아니다). 이 문서가 추적하는 것은 그중 <strong>랭킹 쓰기 경로</strong>다.</p>
 
     <figure>
       <div class="fig-box" data-fig="FIG. 01">
@@ -385,14 +385,14 @@
           <rect x="10" y="158" width="700" height="72" rx="18" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
           <text class="svg-l" x="26" y="180" fill="#4E5968">Kafka</text>
           <rect x="35" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
-          <text class="svg-s" x="120" y="208" text-anchor="middle" fill="#4E5968">catalog-events</text>
+          <text class="svg-s" x="120" y="208" text-anchor="middle" fill="#4E5968">product-events</text>
           <rect x="275" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
           <text class="svg-s" x="360" y="208" text-anchor="middle" fill="#4E5968">order-events</text>
           <rect x="515" y="190" width="170" height="28" rx="9" fill="#FFFFFF" stroke="#D1D6DB"/>
           <text class="svg-s" x="600" y="208" text-anchor="middle" fill="#4E5968">user-action-events</text>
 
           <line x1="360" y1="234" x2="360" y2="288" stroke="#8B95A1" stroke-width="1.8" marker-end="url(#a1)"/>
-          <text class="svg-l" x="376" y="266" fill="#6B7684">batch consume · groupId commerce-streamer-metrics</text>
+          <text class="svg-l" x="376" y="266" fill="#6B7684">batch consume · groupId commerce-streamer-ranking-*</text>
 
           <!-- consumer -->
           <text class="svg-l" x="80" y="284" fill="#8B95A1" text-anchor="start"></text>
@@ -401,8 +401,8 @@
             <rect x="80" y="318" width="560" height="88" rx="16" fill="#F2F4F6" stroke="#B0B8C1" stroke-width="1.2"/>
             <foreignObject x="80" y="318" width="560" height="88">
               <div xmlns="http://www.w3.org/1999/xhtml" class="fo grey">
-                <div class="t">ProductMetricsKafkaConsumer</div>
-                <div class="s">JSON 파싱 실패 · eventId 누락 → warn 후 skip (배치 재전달 안 함)</div>
+                <div class="t">ProductRankingKafkaConsumer</div>
+                <div class="s">타입 역직렬화 실패 · eventId 누락 → warn 후 skip (배치 재전달 안 함)</div>
                 <div class="s">occurredAt = record.timestamp() — 이벤트의 시간 기준</div>
               </div>
             </foreignObject>
@@ -415,24 +415,24 @@
             <rect x="80" y="456" width="560" height="244" rx="18" fill="#E8F3FF" stroke="#3182F6" stroke-width="1.3"/>
             <foreignObject x="80" y="460" width="560" height="62">
               <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
-                <div class="t">ProductMetricsService.handle() — @Transactional</div>
-                <div class="s">event_handled 멱등 체크 → eventType 분기 (metrics + 랭킹 동시 적재)</div>
+                <div class="t">RankingAccumulateService.accumulate() — @Transactional</div>
+                <div class="s">event_handled(RANKING 구독) 멱등 체크 → 타입별 랭킹 Δ 산출</div>
               </div>
             </foreignObject>
             <rect x="102" y="530" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
-            <text class="svg-s" x="118" y="551" fill="#4E5968">ProductLikedEvent&#160;&#160;&#160;→ like +1&#160;&#160;· 랭킹 Δ = +0.2</text>
+            <text class="svg-s" x="118" y="551" fill="#4E5968">ProductEvent.Liked&#160;&#160;&#160;&#160;→ 랭킹 Δ = +0.2</text>
             <rect x="102" y="572" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
-            <text class="svg-s" x="118" y="593" fill="#4E5968">ProductUnlikedEvent&#160;→ like −1&#160;&#160;· 랭킹 Δ = −0.2</text>
+            <text class="svg-s" x="118" y="593" fill="#4E5968">ProductEvent.Unliked&#160;→ 랭킹 Δ = −0.2</text>
             <rect x="102" y="614" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
-            <text class="svg-s" x="118" y="635" fill="#4E5968">ProductViewedEvent&#160;&#160;→ view +1&#160;&#160;· 랭킹 Δ = +0.1</text>
+            <text class="svg-s" x="118" y="635" fill="#4E5968">ProductViewedEvent&#160;&#160;→ 랭킹 Δ = +0.1</text>
             <rect x="102" y="656" width="516" height="34" rx="10" fill="#FFFFFF" stroke="#D1D6DB"/>
-            <text class="svg-s" x="118" y="677" fill="#4E5968">OrderCreatedEvent&#160;&#160;&#160;→ 라인별 sales +qty · 랭킹 Δ = +0.7 (수량 무관)</text>
+            <text class="svg-s" x="118" y="677" fill="#4E5968">OrderCreatedEvent&#160;&#160;&#160;→ 라인별 랭킹 Δ = +0.7 (수량 무관)</text>
           </g>
 
           <!-- split arrows -->
           <line x1="360" y1="704" x2="210" y2="762" stroke="#3182F6" stroke-width="1.8" marker-end="url(#a1)"/>
           <line x1="360" y1="704" x2="510" y2="762" stroke="#15C47E" stroke-width="1.8" marker-end="url(#a1)"/>
-          <text class="svg-l" x="360" y="742" text-anchor="middle" fill="#6B7684">accumulateRanking(eventDate = KST(occurredAt), productId, Δ)</text>
+          <text class="svg-l" x="360" y="742" text-anchor="middle" fill="#6B7684">accumulate(eventDate = KST(occurredAt), productId, Δ) — change 마다</text>
 
           <!-- dual write boxes -->
           <g>
@@ -440,7 +440,7 @@
             <foreignObject x="80" y="768" width="260" height="76">
               <div xmlns="http://www.w3.org/1999/xhtml" class="fo blue">
                 <div class="t">오늘판 (eventDate)</div>
-                <div class="s">upsertDelta(오늘, +Δ)</div>
+                <div class="s">upsertChange(오늘, +Δ)</div>
               </div>
             </foreignObject>
           </g>
@@ -449,7 +449,7 @@
             <foreignObject x="380" y="768" width="260" height="76">
               <div xmlns="http://www.w3.org/1999/xhtml" class="fo green">
                 <div class="t">내일판 (eventDate + 1일)</div>
-                <div class="s">upsertDelta(내일, +Δ × 0.1)</div>
+                <div class="s">upsertChange(내일, +Δ × 0.1)</div>
               </div>
             </foreignObject>
           </g>
@@ -472,27 +472,31 @@
           </g>
         </svg>
       </div>
-      <figcaption><b>그림 1.</b> 쓰기 경로 전체. 이벤트 1건이 멱등 체크를 지나 metrics와 랭킹에 동시 적재되고,
-      랭킹은 오늘판·내일판 두 행에 upsert된다 — 이벤트당 랭킹 쓰기 2회가 이 설계의 영구 비용이다.</figcaption>
+      <figcaption><b>그림 1.</b> 랭킹 쓰기 경로 전체. 이벤트 1건이 <b>RANKING 구독</b> 멱등 체크를 지나 오늘판·내일판 두 행에 upsert된다 — 이벤트당 랭킹 쓰기 2회가 이 설계의 영구 비용이다. metrics는 <b>별도 컨슈머</b>(groupId <span class="term">commerce-streamer-metrics-*</span>)가 같은 토픽을 독립 구독해 <span class="term">product_metrics</span>를 누적한다(같은 트랜잭션이 아님).</figcaption>
     </figure>
 
-    <p>적재의 심장은 아래 다섯 줄이다. 이벤트의 발생 시각(<span class="term">occurredAt</span>)을 KST 날짜로 바꿔 오늘판에 Δ를 더하고, <em>같은 트랜잭션에서</em> 내일판에 Δ×0.1을 미리 더한다. 왜 내일판까지 건드리는지는 4장에서 다룬다.</p>
+    <p>적재의 심장은 <span class="term">RankingAccumulateService.accumulate</span>다. <span class="term">EventSubscription.RANKING</span> 멱등을 먼저 확인하고, 이벤트의 발생 시각(<span class="term">occurredAt</span>)을 KST 날짜로 바꿔 change마다 오늘판에 Δ를 더하고, <em>같은 트랜잭션에서</em> 내일판에 Δ×0.1을 미리 더한다. 왜 내일판까지 건드리는지는 4장에서 다룬다.</p>
 
     <div class="code">
       <div class="code-bar">
         <span class="dot" style="background:#F04452"></span><span class="dot" style="background:#FFB836"></span><span class="dot" style="background:#15C47E"></span>
-        <span class="fn">metrics/application/ProductMetricsService.kt</span>
+        <span class="fn">ranking/application/RankingAccumulateService.kt (streamer)</span>
       </div>
-<pre><span class="kw">private fun</span> <span class="fn">accumulateRanking</span>(occurredAt: <span class="ty">Instant</span>, productId: <span class="ty">Long</span>, delta: <span class="ty">BigDecimal</span>) {
+<pre><span class="kw">@Transactional</span>
+<span class="kw">fun</span> <span class="fn">accumulate</span>(eventId: <span class="ty">String</span>, occurredAt: <span class="ty">Instant</span>, changes: <span class="ty">List</span>&lt;ScoreChange&gt;) {
+    <span class="kw">if</span> (eventHandledRepository.exists(eventId, EventSubscription.RANKING)) <span class="kw">return</span>
     <span class="kw">val</span> eventDate = occurredAt.atZone(KST).toLocalDate()
-    productRankingDailyRepository.accumulate(eventDate, productId, delta)
-    productRankingDailyRepository.accumulate(
-        eventDate.plusDays(<span class="st">1</span>), productId, delta.multiply(RankingWeights.CARRY_RATE),
-    )
+    changes.forEach { change -&gt;
+        productRankingDailyRepository.accumulate(eventDate, change.productId, change.amount)
+        productRankingDailyRepository.accumulate(
+            eventDate.plusDays(<span class="st">1</span>), change.productId, change.amount.multiply(RankingWeights.CARRY_RATE),
+        )
+    }
+    eventHandledRepository.markHandled(eventId, EventSubscription.RANKING)
 }</pre>
     </div>
 
-    <p>저장은 JPA 엔티티 조회 없이 native upsert 한 방이다. <span class="term">ON DUPLICATE KEY UPDATE</span><a href="#r1" class="cite">[1]</a>는 uk 충돌 시 <code>score = score + :delta</code>로 원자 가산되므로, 여러 컨슈머 스레드가 같은 상품을 동시에 치더라도 read-modify-write 경합이 없다.</p>
+    <p>저장은 JPA 엔티티 조회 없이 native upsert 한 방이다. <span class="term">ON DUPLICATE KEY UPDATE</span><a href="#r1" class="cite">[1]</a>는 uk 충돌 시 <code>score = score + :change</code>로 원자 가산되므로, 여러 컨슈머 스레드가 같은 상품을 동시에 치더라도 read-modify-write 경합이 없다.</p>
 
     <div class="code">
       <div class="code-bar">
@@ -502,12 +506,12 @@
 <pre><span class="kw">@Modifying</span>
 <span class="kw">@Query</span>(value = <span class="st">"""
     insert into product_ranking_daily (ranking_date, product_id, score, created_at, updated_at)
-    values (:rankingDate, :productId, :delta, now(), now())
+    values (:rankingDate, :productId, :change, now(), now())
     on duplicate key update
-        score = score + :delta,
+        score = score + :change,
         updated_at = now()
 """</span>, nativeQuery = <span class="kw">true</span>)
-<span class="kw">fun</span> <span class="fn">upsertDelta</span>(rankingDate: <span class="ty">LocalDate</span>, productId: <span class="ty">Long</span>, delta: <span class="ty">BigDecimal</span>): <span class="ty">Int</span></pre>
+<span class="kw">fun</span> <span class="fn">upsertChange</span>(rankingDate: <span class="ty">LocalDate</span>, productId: <span class="ty">Long</span>, change: <span class="ty">BigDecimal</span>): <span class="ty">Int</span></pre>
     </div>
 
     <div class="note"><span class="tag">참고</span>한 트랜잭션이 오늘·내일 두 행을 만지므로 <strong>잠금 취득 순서를 날짜 오름차순으로 고정</strong>했다. 순서가 이벤트마다 뒤섞이면 상품이 겹치는 동시 트랜잭션 사이에 데드락 창이 열린다.</div>
@@ -757,7 +761,7 @@ rank = startRank + index + <span class="st">1</span>
     <p class="lead">이 구현이 Stage 2·3으로 갈아타도 깨지면 안 되는 동작들을 통합 테스트로 못 박았다.</p>
     <ul class="checklist">
       <li class="done"><span class="box"></span><b>dual write 정합</b> — 이벤트 1건이 오늘판 +Δ, 내일판 +Δ×0.1 정확히 두 행을 만든다 <span class="tag">적재</span></li>
-      <li class="done"><span class="box"></span><b>멱등</b> — 같은 eventId 재전달 시 점수가 이중 가산되지 않는다 <span class="tag">적재</span></li>
+      <li class="done"><span class="box"></span><b>멱등</b> — 같은 eventId 재전달 시 점수가 이중 가산되지 않는다 (<span class="term">event_handled</span> (event_id, subscription) 복합키 · RANKING 구독) <span class="tag">적재</span></li>
       <li class="done"><span class="box"></span><b>가산 upsert</b> — 동일 (날짜, 상품) 반복 이벤트가 행 증식 없이 score 누적으로 수렴한다 <span class="tag">적재</span></li>
       <li class="done"><span class="box"></span><b>페이징 계약</b> — date·page·size 검증(400), 빈 판의 빈 응답, 순위 계산 <span class="tag">API</span></li>
       <li class="done"><span class="box"></span><b>상세 순위</b> — 랭킹 행이 없으면 순위 미노출(null), 있으면 COUNT+1 <span class="tag">API</span></li>

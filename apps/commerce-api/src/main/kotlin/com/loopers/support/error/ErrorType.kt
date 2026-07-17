@@ -9,4 +9,9 @@ enum class ErrorType(val status: HttpStatus, val code: String, val message: Stri
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.reasonPhrase, "인증이 필요합니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, HttpStatus.NOT_FOUND.reasonPhrase, "존재하지 않는 요청입니다."),
     CONFLICT(HttpStatus.CONFLICT, HttpStatus.CONFLICT.reasonPhrase, "이미 존재하는 리소스입니다."),
+    TOO_MANY_REQUESTS(
+        HttpStatus.TOO_MANY_REQUESTS,
+        HttpStatus.TOO_MANY_REQUESTS.reasonPhrase,
+        "대기열 입장 토큰이 유효하지 않습니다. 순번을 기다려주세요.",
+    ),
 }

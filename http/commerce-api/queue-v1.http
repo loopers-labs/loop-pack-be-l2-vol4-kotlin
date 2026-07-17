@@ -1,0 +1,24 @@
+### 대기열 진입 (중복 진입 시 기존 순번 유지)
+POST http://localhost:8080/api/v1/queue/enter
+X-Loopers-LoginId: tester
+X-Loopers-LoginPw: Password1!
+
+### 대기 순번 조회 (polling: waiting=true면 position/estimatedWaitSeconds, 토큰 발급되면 token 동봉)
+GET http://localhost:8080/api/v1/queue/position
+X-Loopers-LoginId: tester
+X-Loopers-LoginPw: Password1!
+
+> {% client.global.set("entryToken", response.body.data.token); %}
+
+### 주문 생성 (입장 토큰 필요, position 조회 응답의 token을 X-Entry-Token으로 전달)
+POST http://localhost:8080/api/v1/orders
+Content-Type: application/json
+X-Loopers-LoginId: tester
+X-Loopers-LoginPw: Password1!
+X-Entry-Token: {{entryToken}}
+
+{
+  "items": [
+    { "productId": 1, "quantity": 2 }
+  ]
+}

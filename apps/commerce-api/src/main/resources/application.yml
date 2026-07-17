@@ -71,6 +71,11 @@ outbox:
     scheduler:
       enabled: false # 테스트/로컬에서는 스케줄러가 자동 발행 레이스를 만들지 않도록 끈다. relayOnce()는 직접 호출.
 
+queue:
+  promoter:
+    scheduler:
+      enabled: false # 테스트/로컬에서는 스케줄러가 100ms tick 레이스를 만들지 않도록 끈다. promoteOnce()는 직접 호출.
+
 ---
 spring:
   config:

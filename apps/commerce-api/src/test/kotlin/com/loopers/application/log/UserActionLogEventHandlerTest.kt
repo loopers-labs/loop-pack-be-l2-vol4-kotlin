@@ -7,6 +7,7 @@ import com.loopers.domain.product.ProductViewedEvent
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class UserActionLogEventHandlerTest {
     private val handler = UserActionLogEventHandler()
@@ -43,7 +44,7 @@ class UserActionLogEventHandlerTest {
         val event = PaymentSucceededEvent(
             orderId = 1L,
             userId = 2L,
-            items = listOf(PaymentSucceededEvent.Item(productId = 10L, quantity = 3)),
+            items = listOf(PaymentSucceededEvent.Item(productId = 10L, quantity = 3, unitPrice = BigDecimal("10000.00"))),
         )
         assertThat(handler.describe(event))
             .isEqualTo("USER_ACTION type=PAYMENT userId=2 orderId=1 items=1")

@@ -4,8 +4,6 @@ import com.loopers.brand.application.BrandCreateCommand
 import com.loopers.brand.application.BrandService
 import com.loopers.product.application.ProductCreateCommand
 import com.loopers.product.application.ProductService
-import com.loopers.ranking.infrastructure.ProductRankingDaily
-import com.loopers.ranking.infrastructure.ProductRankingDailyJpaRepository
 import com.loopers.support.DatabaseCleanup
 import com.loopers.utils.RedisCleanUp
 import org.junit.jupiter.api.BeforeEach
@@ -15,11 +13,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -30,7 +28,7 @@ class RankingControllerTest @Autowired constructor(
     private val mockMvc: MockMvc,
     private val brandService: BrandService,
     private val productService: ProductService,
-    private val productRankingDailyJpaRepository: ProductRankingDailyJpaRepository,
+    private val redisTemplate: RedisTemplate<String, String>,
     private val databaseCleanup: DatabaseCleanup,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -188,7 +186,7 @@ class RankingControllerTest @Autowired constructor(
     }
 
     private fun seedRanking(date: LocalDate, productId: Long, score: String) {
-        productRankingDailyJpaRepository.save(ProductRankingDaily(date, productId, BigDecimal(score)))
+        redisTemplate.opsForZSet().add("ranking:all:${date.format(BASIC_ISO)}", productId.toString(), score.toDouble())
     }
 
     private companion object {

@@ -1,54 +1,43 @@
 package com.loopers.ranking.application
 
 import com.loopers.product.domain.ProductRepository
-import com.loopers.ranking.infrastructure.ProductRankingDailyJpaRepository
-import org.springframework.data.domain.PageRequest
+import com.loopers.ranking.domain.RankingKeys
+import com.loopers.ranking.infrastructure.RankingZSetReader
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
-import java.time.ZoneId
 
 @Service
 class RankingQueryService(
-    private val productRankingDailyJpaRepository: ProductRankingDailyJpaRepository,
+    private val rankingZSetReader: RankingZSetReader,
     private val productRepository: ProductRepository,
 ) {
-    @Transactional(readOnly = true)
     fun getPage(date: LocalDate?, page: Int, size: Int): RankingPageInfo {
-        val rankingDate = date ?: LocalDate.now(KST)
-        val rows = productRankingDailyJpaRepository.findByRankingDateOrderByScoreDescProductIdAsc(
-            rankingDate,
-            PageRequest.of(page - 1, size),
-        )
+        val rankingDate = date ?: LocalDate.now(RankingKeys.KST)
+        val offset = (page - 1).toLong() * size
+        val rows = rankingZSetReader.reverseRange(RankingKeys.today(rankingDate), offset, offset + size - 1)
         if (rows.isEmpty()) {
             return RankingPageInfo(rankingDate, page, size, emptyList())
         }
         val products = productRepository.findAllActiveByIdIn(rows.map { it.productId }).associateBy { it.id }
-        val startRank = (page - 1).toLong() * size
         val items = rows.mapIndexedNotNull { index, row ->
             products[row.productId]?.let { product ->
                 RankingItemInfo(
-                    rank = startRank + index + 1,
+                    rank = offset + index + 1,
                     productId = product.id,
                     name = product.name.value,
                     price = product.price.amount,
                     likeCount = product.likeCount,
-                    score = row.score.toDouble(),
+                    score = row.score,
                 )
             }
         }
         return RankingPageInfo(rankingDate, page, size, items)
     }
 
-    @Transactional(readOnly = true)
     fun findTodayRank(productId: Long): Long? {
-        val today = LocalDate.now(KST)
-        val mine = productRankingDailyJpaRepository.findByRankingDateAndProductId(today, productId) ?: return null
-        return productRankingDailyJpaRepository.countByRankingDateAndScoreGreaterThan(today, mine.score) + 1
-    }
-
-    private companion object {
-        private val KST = ZoneId.of("Asia/Seoul")
+        val key = RankingKeys.today(LocalDate.now(RankingKeys.KST))
+        val score = rankingZSetReader.score(key, productId) ?: return null
+        return rankingZSetReader.countHigherThan(key, score) + 1
     }
 }
 

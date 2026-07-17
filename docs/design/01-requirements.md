@@ -42,7 +42,7 @@
 > Round 4 핵심 설계 범위는 **쿠폰 생성·발급·조회·사용과 주문 시 쿠폰/재고 동시 정합성 보장**이다.
 > Round 7 핵심 설계 범위는 **ApplicationEvent 기반 트랜잭션 이후 부가 처리, outbox/Kafka 이벤트 파이프라인, 상품 지표 projection, Kafka 기반 비동기 선착순 쿠폰 발급**이다.
 > Round 8 핵심 설계 범위는 **선착순(`LIMITED`) 상품 주문 앞단의 Redis-only 대기열, Redisson/Lua 원자 연산, 입장 토큰과 polling 기반 순번 조회**이다.
-> Payment 사가, 외부 결제 연동, 결제 실패 보상 회복은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 트랜잭션 정합성에 한정하며, 별도 이슈가 없으면 Payment 도메인과 결제 게이트웨이를 새로 구현하지 않는다.
+> 현재 결제 연동은 주문 생성과 별도 결제 요청으로 나뉜다. 결제 요청 기록은 `PaymentModel`/`payment_records`가 보관하고, `PaymentFacade`가 DB 트랜잭션 밖에서 외부 결제 시스템을 호출한다. 확정 결과는 `PaymentResultHandler`가 주문 전이와 실패 보상을 함께 반영하며, 상태 불명 결과는 내부 outbox를 기준으로 회복한다.
 > 사용자 회원가입·내 정보 조회·비밀번호 변경은 현재 구현 패턴과 인증 전제를 설명하기 위한 레퍼런스로 포함한다.
 
 ---
@@ -146,7 +146,7 @@
 - 좋아요 수: `likes` 상태 변경 이벤트의 증감량을 반영한 카운터다.
 - 판매 수: 주문/결제 확정 또는 설계상 판매 반영 시점으로 선택한 주문 이벤트에서 파생되는 카운터다.
 - 조회 수: 상품 상세 조회가 커밋된 뒤 발행되는 상품 조회 이벤트에서 파생되는 카운터다.
-- 최신성 기준: `product_metrics`는 전체 row의 `last_event_at`와 함께 `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`을 저장한다. consumer는 같은 지표의 이전 발생시각 이벤트만 stale로 무시하고, 서로 다른 지표 이벤트는 발생시각이 역전되어도 독립적으로 반영한다.
+- 적용 기준: consumer는 `(consumer_group, eventId)`가 다른 모든 delta를 발생시각 순서와 관계없이 반영한다. `product_metrics`의 `last_event_at`, `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`은 관측한 최대 발생시각 메타데이터이며 delta 적용 여부를 결정하지 않는다.
 
 ##### 행위 정의
 
@@ -172,7 +172,7 @@
 - 쿠폰 정합성: 발급 쿠폰은 소유자, 사용 가능 상태, 유효기간, 최소 주문 금액을 검증한 뒤 주문 생성과 같은 트랜잭션에서 사용 처리되어야 한다.
 - 할인 스냅샷: 주문에는 쿠폰 사용 결과로 확정된 할인 금액을 `discountPrice`로 저장한다. 이후 쿠폰 템플릿 정책이 변경되어도 과거 주문 금액은 바뀌지 않는다.
 - 주문 상태: 주문은 `PAYMENT_PENDING`으로 생성되고, 외부 결제 결과에 따라 `ORDERED` 또는 `PAYMENT_FAILED`로 전이한다. `CANCELED`는 취소/환불 정책이 확정될 때 사용하는 확장 상태다.
-- 결제 기록: 후속 결제 연동 설계에서는 주문마다 하나의 결제 기록을 둔다. 주문 요청 시 결제 수단, 결제 금액, 결제 상태를 남기며, 외부 결제 시스템 연동 방식은 port로 분리한다. Round 4 구현 범위에서는 결제 기록 생성과 외부 결제 연동을 필수 대상으로 보지 않는다.
+- 결제 기록: 주문은 결제 전에도 존재할 수 있고, 결제를 요청하면 주문마다 최대 하나의 `PaymentModel`을 `payment_records`에 둔다. 결제 수단과 금액은 결제 기록에 중복 저장하지 않는다. 카드 정보와 주문의 최종 결제 금액은 외부 결제 요청에만 사용하며, 외부 연동은 `PaymentGatewayPort`로 분리한다.
 
 ##### 주문 항목
 
@@ -260,37 +260,38 @@
 
 #### 결제
 
-주문에 대한 지불 처리다. Round 2 설계에서는 구체적인 결제수단별 상세 정책까지 확정하지 않지만, 주문과 연결된 결제 요청/승인/실패 기록은 남긴다.
-이 절의 사가와 외부 결제 호출 흐름은 후속 결제 연동 단계의 목표 설계이며, Round 4 쿠폰/동시성 구현 범위에 포함하지 않는다.
+주문에 대한 지불 처리다. 주문 생성과 결제 요청은 서로 다른 API와 트랜잭션 경계를 사용하며, 주문과 연결된 결제 요청·상태 불명·승인·실패 기록을 남긴다.
 
 ##### 값과 규칙
 
 - 결제 대상: 결제는 특정 주문을 대상으로 한다.
-- 결제 수단: 카드, 간편결제 등 구체적인 수단은 추후 확정하되, 현재 설계에서는 `PaymentMethod` 값으로 기록한다.
-- 결제 상태: 결제 요청(`REQUESTED`), 승인(`APPROVED`), 실패(`FAILED`)를 최소 상태로 둔다.
-- 결제 금액: 주문의 최종 결제 금액과 일치해야 한다.
-- 외부 거래 식별자: 외부 결제 시스템이 거래 ID를 반환하면 결제 기록에 보관한다.
-- 결제 기록: 후속 결제 연동 구현 시 주문과 결제 기록을 1:1로 둔다. 같은 주문에 대한 다중 결제 시도와 재시도 이력은 결제 정책이 확장될 때 1:N으로 전환한다.
+- 결제 상태: `REQUESTED`에서 `UNKNOWN`, `APPROVED`, `FAILED`로 전이할 수 있고, `UNKNOWN`은 외부 결과 확인 뒤 `APPROVED` 또는 `FAILED`로 확정할 수 있다. `APPROVED`와 `FAILED`는 완료 상태로 서로 전이하지 않는다.
+- 외부 거래 키: 외부 결제 시스템이 반환한 `externalTransactionKey`를 선택적으로 보관한다. 한 번 저장한 키를 다른 값으로 바꿀 수 없고, DB 고유 제약으로 중복 반영을 막는다.
+- 실패 사유: 상태를 확인하지 못했거나 결제가 실패한 이유를 `failureReason`에 남긴다. 승인되면 이전 실패 사유를 지운다.
+- 시각: `requestedAt`은 요청 기록 시각이고, `completedAt`은 `APPROVED` 또는 `FAILED`에서만 존재한다. `REQUESTED`와 `UNKNOWN`에는 완료 시각을 두지 않는다.
+- 결제 기록: `payment_records.order_id` 고유 제약으로 주문마다 최대 하나의 결제 기록을 둔다. 카드 종류·카드 번호·결제 금액은 외부 요청 값이며 `PaymentModel`과 `payment_records`에는 저장하지 않는다.
 
 ##### 행위 정의
 
-- 결제 요청 기록: 주문 생성 시점에 결제 요청 상태를 저장하는 행위다.
-- 결제 승인 기록: 외부 결제 시스템 승인 결과를 결제 기록에 반영하는 행위다.
-- 결제 실패 기록: 외부 결제 시스템 거절/실패 결과와 사유를 결제 기록에 반영하는 행위다.
+- 결제 요청: `PaymentFacade`가 결제 가능한 본인 주문을 확인하고, `PaymentService.request`가 주문별 `REQUESTED` 기록을 멱등하게 생성한 뒤 외부 결제 시스템을 호출한다.
+- 거래 키 배정: 외부 응답에 거래 키가 있으면 주문 기준 잠금 조회 후 결제 기록에 저장한다.
+- 결과 확정: 동기 응답이나 인증된 콜백의 성공·실패 결과를 `PaymentResultHandler`가 승인 또는 실패로 반영한다. 이미 같은 완료 상태인 중복 결과는 주문 전이와 보상을 반복하지 않는다.
+- 상태 불명 회복: 외부 호출 결과를 확인할 수 없으면 결제 상태와 `PAYMENT_STATUS_SYNC_REQUESTED` 내부 outbox를 같은 트랜잭션에서 저장한다. 회복 처리는 이 기록을 기준으로 외부 결제 시스템을 주문 식별자로 조회하고, 확정 결과 반영 뒤 처리 완료로 표시한다.
 
 ##### 트랜잭션 경계
 
 - 외부 결제 시스템 호출은 어떤 DB 트랜잭션에도 포함하지 않는다. DB 커넥션 점유, 재고 락 경합, 외부 시스템과 DB 상태의 발산을 막기 위함이다.
-- 주문 요청은 `(TX1: 주문·재고·쿠폰 적용 시 쿠폰 사용·결제 요청 기록) → 외부 호출 → (TX2: 결제 결과 반영과 보상)` 의 3단 구조로 처리한다.
-- 결제 실패 보상은 **트랜잭션 롤백이 아니라 보상 트랜잭션**이다. TX1 이 이미 커밋되어 자동 원복할 수 없기 때문이다.
-- TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 이 상태 가드로 중복 콜백이나 회복 프로세스의 재고·쿠폰 이중 복구를 막는다.
-- 결제 실패 시 결제 기록은 `FAILED`, 주문은 `PAYMENT_FAILED`로 남긴다. 재고를 복구하고, 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 되돌린 뒤 실패 주문의 `issuedCouponId` 연결을 해제한다.
+- 주문 생성 트랜잭션은 재고 차감, 쿠폰 사용, `PAYMENT_PENDING` 주문 저장까지만 원자적으로 처리한다. 결제 기록은 별도 결제 요청에서 생성한다.
+- `PaymentService.request`는 `REQUESTED` 결제 기록을 자체 트랜잭션으로 먼저 확정한다. 그 뒤 `PaymentFacade`가 외부 결제 시스템을 트랜잭션 밖에서 호출한다.
+- 결과를 확인할 수 없으면 `PaymentService.markUnknown`이 `UNKNOWN` 상태와 route가 없는 `PAYMENT_STATUS_SYNC_REQUESTED` 내부 outbox를 같은 트랜잭션에서 저장한다. 이때 주문·재고·쿠폰을 실패로 보상하지 않는다.
+- 승인 결과는 `PaymentResultHandler.approve` 트랜잭션에서 결제 `APPROVED`, 내부 `PAYMENT_APPROVED` outbox, 주문 `ORDERED`, 외부 전파용 `ORDER_PAID_V1` outbox를 함께 확정한다.
+- 실패 결과는 `PaymentResultHandler.fail` 트랜잭션에서 결제 `FAILED`, 내부 `PAYMENT_FAILED` outbox, 주문 `PAYMENT_FAILED`, 재고·쿠폰 복구, 주문의 `issuedCouponId` 연결 해제, 외부 전파용 `ORDER_FAILED_V1` outbox를 함께 확정한다. 어느 단계든 실패하면 이 결과 반영 전체를 롤백한다.
+- `PAYMENT_APPROVED`/`PAYMENT_FAILED`/`PAYMENT_STATUS_SYNC_REQUESTED`는 애플리케이션 내부 처리 기록이라 Kafka 경로가 없다. 외부 Kafka 발행은 `ORDER_PAID_V1`/`ORDER_FAILED_V1` outbox 행만 원천으로 삼으며, relay는 결제나 주문을 다시 조회하지 않는다.
 
 ##### 확장 판단
 
-- 결제수단별 승인/취소 정책, 비동기 승인, 재시도, 웹훅 수신처럼 외부 연동 안정성이 중요해지면 outbox 패턴을 추가한다.
 - 같은 주문에 대한 재결제나 다중 결제 시도 이력이 필요해지면 주문-결제 관계를 1:N으로 확장한다.
-- 현재 단계에서는 `payments` 결제 기록 테이블까지만 확정하고, outbox 테이블은 결제수단과 연동 방식이 구체화된 뒤 설계한다.
+- 결제 취소·환불이 필요해지면 완료 상태 이후의 별도 상태와 주문·재고·쿠폰 보상 정책을 추가한다.
 
 #### 재고
 
@@ -402,11 +403,12 @@
 - 회복: 사용자는 수량을 조정하거나 해당 항목을 제거하여 재요청
 
 ##### User-E3. 결제 승인 실패로 주문이 완료되지 않는다
-- TX1에서 주문이 `PAYMENT_PENDING`으로 생성되고 재고 차감, 쿠폰 사용 처리, 결제 요청 기록이 커밋된 뒤 외부 결제 시스템이 승인을 거절하거나 실패를 반환함
-- 시스템은 결제 기록을 `FAILED`, 주문 상태를 `PAYMENT_FAILED`로 남긴다
-- 보상은 주문 상태가 아직 `PAYMENT_PENDING`일 때만 수행한다. 재고를 복구하고, 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 복구한 뒤 실패 주문의 `issuedCouponId`를 `NULL`로 분리한다
-- 주문 row와 주문 금액 스냅샷은 실패 이력으로 유지한다. 주문 요청 API 응답은 성공 생성이 아니라 결제 승인 거절은 `409`, 외부 결제 장애는 `502`로 반환한다
-- 회복: 사용자는 주문 목록이나 상세에서 `PAYMENT_FAILED` 상태를 확인하고, 결제수단을 바꾸거나 같은 주문 조건으로 새로 주문한다
+- 주문 생성 API가 재고 차감, 쿠폰 사용 처리, `PAYMENT_PENDING` 주문 저장을 먼저 커밋한 뒤 사용자가 별도 결제 요청 API를 호출함
+- 외부 결제 시스템이 명시적으로 실패를 반환하면 시스템은 결제 기록을 `FAILED`, 주문 상태를 `PAYMENT_FAILED`로 남긴다
+- 실패 결과 반영과 보상은 하나의 `PaymentResultHandler.fail` 트랜잭션에서 수행한다. 재고를 복구하고, 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 복구한 뒤 실패 주문의 `issuedCouponId`를 `NULL`로 분리한다
+- 주문 행과 주문 금액 스냅샷은 실패 이력으로 유지한다. 결제 요청 API는 승인 거절을 `409`로 반환한다
+- 외부 결제 결과를 확인할 수 없는 장애는 즉시 실패 보상하지 않는다. 결제를 `UNKNOWN`으로 남기고 내부 회복 outbox를 저장한 뒤 `502`를 반환하며, 회복 처리나 콜백이 실제 결과를 승인·실패로 확정한다
+- 회복: 사용자는 주문 목록이나 상세에서 현재 주문 상태를 확인한다. `FAILED`가 확정된 뒤 다른 결제 수단을 사용하려면 현재 주문당 결제 1개 정책상 새 주문이 필요하다
 
 ##### User-E4. 쿠폰 사용 조건 불일치로 주문이 거부된다
 - 주문 요청의 `issuedCouponId`가 존재하지 않거나 요청 사용자 소유가 아님
@@ -663,7 +665,6 @@
 
 ```json
 {
-  "paymentMethod": "CARD",
   "items": [
     { "productId": 1, "quantity": 2 },
     { "productId": 3, "quantity": 1 }
@@ -675,6 +676,17 @@
 Round 8 이후 `OrderQueueGatePolicy`는 주문 항목의 상품 판매 유형을 먼저 조회한다. `LIMITED` 상품이 하나라도 포함된 주문은 `X-Queue-Token`과 공백이 아닌 `Idempotency-Key` 헤더를 모두 필수로 포함하고, 검증은 `OrderFacade` 호출과 재고/쿠폰/주문 mutation 전에 수행한다. `NORMAL` 상품으로만 구성된 주문은 두 대기열 헤더 없이 기존 Round 7 주문 흐름으로 바로 진행한다. `X-Queue-Token`은 request body에 넣지 않는다.
 
 외부 API 요청 필드명은 Round 4 원문 계약인 `couponId`를 사용한다. 이 `couponId`는 사용자가 보유한 발급 쿠폰 식별자이며, 쿠폰을 적용하지 않는 주문은 이 필드를 생략한다. 단 내부 command/domain/DB는 의미를 명확히 하기 위해 발급 쿠폰을 `issuedCouponId`(DB `issued_coupon_id`), 쿠폰 템플릿을 `couponTemplateId`로 분리해 표현한다. 즉 외부 `couponId` -> 내부 `issuedCouponId`로 매핑한다(`@JsonProperty("couponId") issuedCouponId`). 발급/관리자 경로 변수 `{couponId}`도 외부 표기일 뿐이며 내부에서는 쿠폰 템플릿 식별자(`couponTemplateId`)로 받는다(`@PathVariable("couponId") couponTemplateId`).
+
+##### 결제 요청과 결과 처리
+
+| Method | URI | 인증 | 설명 |
+| :--- | :--- | :---: | :--- |
+| `POST` | `/api/v1/payments` | 사용자 | 본인의 `PAYMENT_PENDING` 주문에 대한 결제 요청 |
+| `POST` | `/api/v1/payments/callback` | `X-Payment-Callback-Secret` | 외부 결제 결과 콜백 |
+| `POST` | `/api/v1/payments/recovery` | 운영 호출 | `UNKNOWN` 결제 회복 실행 |
+| `POST` | `/api/v1/payments/result-events/drain` | 운영 호출 | 내부 결제 결과 outbox 처리 완료 |
+
+결제 요청 본문은 `orderId`, `cardType`, `cardNo`를 받는다. `cardType`은 현재 `SAMSUNG`, `KB`, `HYUNDAI`만 허용하고, `cardNo`는 `0000-0000-0000-0000` 형식이다. 결제 금액은 요청 본문에서 받지 않고 주문의 `paymentPrice`를 사용한다. 카드 값과 금액은 외부 결제 요청에만 전달하며 결제 기록에는 저장하지 않는다. 콜백 상태는 `PENDING`, `SUCCESS`, `FAILED`를 받고 내부 `PaymentStatus`로 해석한다.
 
 #### 5.5.2 관리자 주문 조회 API
 
@@ -689,7 +701,7 @@ Round 8 이후 `OrderQueueGatePolicy`는 주문 항목의 상품 판매 유형�
 
 > [!IMPORTANT]
 > **주문 처리 핵심 비즈니스 룰:**
-> 1. **결제 기록**: 후속 결제 연동 설계에서는 주문마다 하나의 결제 기록을 남긴다. 결제수단별 재시도, 다중 결제 이력, outbox 는 결제 연동 방식이 구체화되면 추가한다.
+> 1. **결제 기록 분리**: 주문 생성은 결제 수단을 받거나 결제 기록을 만들지 않는다. 별도 `POST /api/v1/payments` 요청이 주문당 최대 하나의 결제 기록을 만들고 외부 결제를 시작한다.
 > 2. **데이터 스냅샷**: **주문 정보**에는 주문 시점의 상품명, 가격 등의 정보를 **스냅샷** 형태로 보관하여 상품 가격이 변하더라도 과거 주문 내역이 훼손되지 않아야 한다.
 > 3. **쿠폰 적용**: `issuedCouponId`가 있으면 발급 쿠폰 소유자, 사용 상태, 유효기간, 최소 주문 금액을 검증하고 주문 할인 금액을 확정한다.
 > 4. **재고·쿠폰 정합성**: 주문 시점에 **상품 재고 확인 및 차감**과 **쿠폰 사용 상태 변경**이 하나의 DB 트랜잭션에서 보장되어야 한다. 둘 중 하나라도 실패하면 주문 전체를 거부한다.
@@ -705,32 +717,31 @@ Round 8 이후 `OrderQueueGatePolicy`는 주문 항목의 상품 판매 유형�
 | `PAYMENT_FAILED` | 외부 결제가 실패하고 보상 처리가 완료된 상태 | 실패 주문 row와 금액 스냅샷은 보존 |
 | `CANCELED` | 주문 취소 상태 | 이번 라운드에서는 확장 후보 |
 
-후속 결제 연동 설계에서 허용하는 주문 상태 전이는 `PAYMENT_PENDING -> ORDERED`, `PAYMENT_PENDING -> PAYMENT_FAILED`다. `CANCELED` 전이는 취소·환불 정책이 확정되면 추가한다.
+현재 허용하는 주문 상태 전이는 `PAYMENT_PENDING -> ORDERED`, `PAYMENT_PENDING -> PAYMENT_FAILED`다. `CANCELED` 전이는 취소·환불 정책이 확정되면 추가한다.
 
-결제 상태는 `REQUESTED`, `APPROVED`, `FAILED`를 둔다. 주문 상태와 결제 상태의 기본 대응은 다음과 같다.
+결제 상태는 `REQUESTED`, `UNKNOWN`, `APPROVED`, `FAILED`를 둔다. 주문 상태와 결제 상태의 기본 대응은 다음과 같다.
 
 | 주문 상태 | 결제 상태 |
 | :--- | :--- |
-| `PAYMENT_PENDING` | `REQUESTED` |
+| `PAYMENT_PENDING` | 결제 미요청 또는 `REQUESTED`/`UNKNOWN` |
 | `ORDERED` | `APPROVED` |
 | `PAYMENT_FAILED` | `FAILED` |
 
 #### 5.5.5 트랜잭션·보상 원칙
 
-이 절은 Payment 연동 구현 단계의 목표 보상 설계다. Round 4 구현 이슈에서는 쿠폰 검증, 재고 차감, 주문 저장, 발급 쿠폰 `USED` 전환이 하나의 DB 트랜잭션 안에서 원자적으로 처리되는지를 우선 검증한다.
+외부 결제 호출은 DB 트랜잭션 밖에서 수행한다. 현재 흐름은 다음 경계로 나눈다.
 
-외부 결제 호출은 DB 트랜잭션 밖에서 수행한다. 주문 처리 흐름은 다음 세 구간으로 나눈다.
+1. **주문 생성 트랜잭션**: 주문을 `PAYMENT_PENDING`으로 생성하고, 재고를 차감하며, 쿠폰 적용 주문이면 발급 쿠폰을 `USED`로 전환한다.
+2. **결제 요청 기록 트랜잭션**: `PaymentService.request`가 주문당 `REQUESTED` 결제 기록을 멱등하게 생성한다.
+3. **외부 호출**: `PaymentFacade`가 결제 게이트웨이를 DB 트랜잭션 밖에서 호출한다.
+4. **결과 미확정 트랜잭션**: 외부 결과를 확인할 수 없으면 결제 `UNKNOWN`과 `PAYMENT_STATUS_SYNC_REQUESTED` 내부 outbox를 함께 저장한다.
+5. **결과 확정 트랜잭션**: `PaymentResultHandler`가 결제 상태와 내부 결과 outbox를 저장하고, 승인 시 주문을 `ORDERED`로 바꾸거나 실패 시 주문 `PAYMENT_FAILED` 전이와 재고·쿠폰 보상을 수행한다. 같은 트랜잭션의 `BEFORE_COMMIT` listener가 외부 전파용 주문 결과 outbox를 저장한다.
 
-1. **TX1**: 주문을 `PAYMENT_PENDING`으로 생성하고, 재고를 차감하며, 쿠폰 적용 주문이면 발급 쿠폰을 `USED`로 전환하고, 결제 기록을 `REQUESTED`로 저장한다.
-2. **외부 호출**: 결제 게이트웨이를 DB 트랜잭션 밖에서 호출한다.
-3. **TX2 승인**: 결제 기록을 `APPROVED`, 주문 상태를 `ORDERED`로 변경한다.
-4. **TX2 실패 보상**: 결제 기록을 `FAILED`, 주문 상태를 `PAYMENT_FAILED`로 변경하고 재고를 복구한다. 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 복구하고 실패 주문의 `issuedCouponId`를 `NULL`로 분리한다.
-
-TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 이 상태 가드는 중복 콜백이나 향후 orphan 회복 프로세스가 재고와 쿠폰을 이중 복구하는 것을 막는다.
+결제 결과 처리 전에 `PaymentOrderPort.getPendingOrder`로 주문이 `PAYMENT_PENDING`인지 확인한다. 이미 확정된 같은 결제 결과는 `PaymentTransitionResult.changed=false`로 끝나 주문 전이·보상·이벤트 생성을 반복하지 않는다. 서로 다른 완료 상태로 바꾸려는 요청은 결제 상태 전이 규칙이 거부하며 전체 트랜잭션이 롤백된다.
 
 결제 실패 주문의 `discountPrice`는 시도 당시 할인 계산 스냅샷이다. 보상 후 `issuedCouponId = NULL`이더라도 `discountPrice > 0`일 수 있으며, 이는 쿠폰 점유가 해제된 실패 이력이라는 뜻이다.
 
-결제 승인 거절이나 외부 결제 장애가 발생하면 주문 row는 `PAYMENT_FAILED`로 보존하지만, `POST /api/v1/orders` 응답은 성공 생성(`201`)이 아니다. 결제 승인 거절은 `409 Conflict`, 외부 결제 장애나 타임아웃은 `502 Bad Gateway`로 응답한다.
+주문 생성 API는 `PAYMENT_PENDING` 주문을 `201 Created`로 반환한다. 이후 결제 요청 API에서 명시적인 승인 거절은 `409 Conflict`, 외부 결과를 확정할 수 없는 장애나 타임아웃은 `UNKNOWN` 상태와 회복 기록을 남기고 `502 Bad Gateway`로 응답한다.
 
 #### 5.5.6 동시성·락 전략
 
@@ -743,6 +754,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 | 쿠폰 발급 요청 | 중복 요청·Kafka 재전달·선착순 수량 경합 | 요청 상태 테이블 + outbox + `coupon-issue-requests` + worker 멱등 처리 | API는 요청 저장과 outbox 저장까지만 원자적으로 처리하고 `202 Accepted`를 반환한다. worker는 별도 트랜잭션에서 요청 상태를 확정하며 event id 처리 이력, 사용자-템플릿 unique, 수량 차감 락/조건부 update로 중복 발급과 초과 발급을 막는다 |
 | 쿠폰 사용 | 동일 쿠폰 동시 주문으로 중복 사용 | 낙관적 락(`version`) + 상태 검증(`AVAILABLE`/`used_at IS NULL`) | 경합 주체가 소유자 본인으로 한정돼 충돌 확률이 낮아 비관적 락 대비 응답이 빠르고 재처리가 단순. `version`은 lost update를, 상태 검증은 재사용을 막으며 둘이 함께 작동해야 "단 1회 사용"이 보장됨. 충돌 시 주문 실패로 응답 |
 | 재고 차감 | 동시 주문으로 초과 차감·음수 재고 | 비관적 락(`PESSIMISTIC_WRITE`) + 상품 ID 정렬 잠금 | 다중 상품 행을 read-modify-write로 차감하므로 경합이 잦고 정렬 잠금으로 교착을 방지. 차감은 잔여 재고 검증 후 수행 |
+| 결제 거래 키 배정·결과 확정 | 중복 콜백·승인/실패 동시 도착 | 주문 ID 또는 외부 거래 키 기준 `PESSIMISTIC_WRITE` + 주문 ID·외부 거래 키 고유 제약 + 상태 전이 규칙 | 하나의 주문은 하나의 결제 기록만 갖고, 하나의 외부 거래 키는 한 기록에만 연결된다. 잠금 뒤 상태를 다시 확인해 최초 완료 결과만 반영하고 내부/외부 outbox와 주문 전이·보상을 같은 트랜잭션에 묶는다 |
 
 > [!NOTE]
 > 재고(비관)와 쿠폰(낙관)이 한 주문 트랜잭션에 공존하는 것은 의도된 혼합이다. 재고는 다중 행 동시 차감으로 경합이 잦지만 쿠폰 사용은 소유자 단독 토글이라 경합이 드물어, 각 도메인 특성에 최적인 전략을 독립적으로 선택한 결과다.
@@ -799,6 +811,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 - `POST /api/v1/coupons/{couponId}/issue`는 실제 발급 완료가 아니라 발급 요청 접수 API다. 성공적으로 접수되면 `202 Accepted`와 `requestId`, 현재 status(`PENDING` 등)를 반환한다.
 - API 트랜잭션은 쿠폰 템플릿 기본 검증, 발급 요청 저장, `coupon-issue-requests` outbox row 저장까지만 원자적으로 처리한다.
 - `coupon-issue-requests` worker는 `commerce-api` command owner 쪽에서 별도 트랜잭션으로 실제 발급을 수행하고 요청 상태를 `ISSUED`, `DUPLICATE`, `SOLD_OUT`, `FAILED` 중 하나로 확정한다.
+- 재시도 가능한 처리 예외가 발생하면 요청은 재시도 동안 `PENDING`을 유지하고 처리 이력을 남기지 않는다. 설정된 재시도를 모두 소진해 설정된 실패 주제 발행까지 성공한 뒤에만 별도 복구 트랜잭션으로 `FAILED`를 저장한다. 실패 주제 발행이 실패하면 `FAILED`로 확정하지 않고 원본 기록을 다시 처리할 수 있게 한다.
 - 같은 사용자와 같은 쿠폰 템플릿의 중복 요청은 기존 `PENDING`/최종 요청을 반환하는 멱등 흐름을 우선한다. 실제 발급 중복은 DB unique 제약이 최종 방어선이다.
 - 선착순 수량 제한은 worker 트랜잭션에서 쿠폰 템플릿 수량 잠금 또는 조건부 차감으로 보장한다. Kafka 재전달은 처리 이력 테이블로 멱등하게 처리한다.
 - 사용자는 polling API로 발급 결과를 확인한다. 요청 접수 응답을 실제 쿠폰 발급 성공으로 해석하지 않는다.
@@ -809,7 +822,7 @@ TX2 실패 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 
 - 저장 상태가 `AVAILABLE`이고 현재 시각이 `expiredAt` 이후이면 `EXPIRED`로 응답한다.
 - 저장 상태가 `AVAILABLE`이고 현재 시각이 `expiredAt` 이전이면 `AVAILABLE`로 응답한다.
 - 주문 요청의 `issuedCouponId`가 요청 사용자 소유가 아니면 자원 존재 여부를 숨기기 위해 외부 응답은 `404 Not Found`로 반환한다.
-- 주문에 적용된 발급 쿠폰은 TX1에서 `USED`로 전환한다.
+- 주문에 적용된 발급 쿠폰은 주문 생성 트랜잭션에서 `USED`로 전환한다.
 - 결제 실패 보상 시 쿠폰 적용 주문이면 발급 쿠폰을 `AVAILABLE`로 되돌린다. 동시에 실패 주문의 `issuedCouponId`를 `NULL`로 분리해 같은 쿠폰의 재주문을 허용한다.
 
 #### 5.6.5 쿠폰 할인 정책
@@ -842,16 +855,19 @@ Round 7 이벤트 아키텍처는 로컬 트랜잭션 경계 분리와 시스템
 #### 로컬 이벤트
 
 - 주문 생성, 결제 승인/실패, 상품 조회, 좋아요 변경, 쿠폰 발급 요청/완료/실패처럼 주 행위와 부가 처리를 나눌 필요가 있는 지점에서 Spring `ApplicationEvent`를 발행한다.
-- 커밋된 상태만 관찰해야 하는 부가 로그, outbox 생성, 외부 전파 준비는 `@TransactionalEventListener(phase = AFTER_COMMIT)`를 사용한다.
+- Kafka 전파용 outbox 생성은 원천 상태와 같은 트랜잭션의 `@TransactionalEventListener(phase = BEFORE_COMMIT)`에서 수행한다. `AFTER_COMMIT`은 커밋된 행위의 구조화 로그처럼 유실되어도 원천 상태와 메시지 원자성을 깨지 않는 부가 처리에만 사용한다.
 - 롤백된 성공 행위는 성공 로그나 Kafka 이벤트를 만들지 않는다. 실패 자체를 기록해야 하는 별도 요구가 있을 때만 실패 이벤트/로그를 분리한다.
 
 #### Kafka/outbox 정책
 
-- 시스템 간 전파가 필요한 이벤트는 먼저 `outbox_events`에 durable row로 저장하고, relay가 DB 트랜잭션 밖에서 Kafka로 발행한다.
+- 시스템 간 전파가 필요한 이벤트는 원천 상태와 같은 트랜잭션에서 `outbox_events`에 immutable envelope와 `topicName`/`partitionKey`를 durable row로 저장하고, relay가 DB 트랜잭션 밖에서 저장값을 그대로 Kafka로 발행한다. relay는 도메인 상태를 재조회하거나 topic/key/payload를 다시 계산하지 않는다.
 - producer는 `acks=all`, `idempotence=true`를 전제로 한다.
-- 주요 topic은 `catalog-events`(상품 조회·좋아요·재고/카탈로그 지표, key=`productId`), `order-events`(주문·결제 결과, key=`orderId`), `coupon-issue-requests`(쿠폰 발급 command, key=`couponId`)다.
+- relay는 claim lease와 claim id fencing으로 중복 worker와 늦은 완료를 차단한다. 발행은 최초 시도를 포함해 최대 5회 수행하며, 5번째 실패는 마지막 오류를 보존한 `DEAD`로 전이하고 `nextRetryAt`을 비워 자동 claim 대상에서 제외한다.
+- 주요 topic은 `catalog-events`(상품 조회·좋아요·재고/카탈로그 지표, key=`productId`), `order-events`(주문·결제 결과, key=`orderId`), `coupon-issue-requests`(쿠폰 발급 command, key=`couponTemplateId`)다. 결제 복구용 `PAYMENT_APPROVED`/`PAYMENT_FAILED` outbox는 내부 처리 기록으로 route가 없으며, 외부 전파는 별도 `ORDER_PAID_V1`/`ORDER_FAILED_V1` row만 사용한다.
+- 쿠폰 발급 요청 주제와 실패 주제 이름은 `commerce-events.coupon-issue-request` 설정 한 곳에서 관리하며 outbox 발행, consumer 구독, 주제 생성, 재시도 소진 복구가 같은 값을 사용한다.
+- DLT publisher는 consumer가 받은 `ByteArray` payload를 전용 `ByteArraySerializer` template으로 발행한다. 일반 producer의 JSON serializer를 재사용해 byte array가 Base64 JSON 문자열로 변형되지 않게 한다.
 - consumer는 manual ack를 사용하고, DB commit 이후에 ack한다. 같은 event id 재전달은 `processed_kafka_events` 또는 동일 목적의 `event_handled` 테이블로 멱등 처리한다.
-- `product_metrics(product_id, like_count, sales_count, view_count, last_event_at, last_like_event_at, last_sales_event_at, last_view_event_at, updated_at)`는 `product_like_counts`를 대체/흡수하는 상품 지표 projection이다. stale event는 지표별 마지막 발생시각 기준으로 방어한다.
+- `product_metrics(product_id, like_count, sales_count, view_count, last_event_at, last_like_event_at, last_sales_event_at, last_view_event_at, updated_at)`는 `product_like_counts`를 대체/흡수하는 상품 지표 projection이다. 같은 `(consumer_group, eventId)` 재전달만 처리 이력으로 제외하고, eventId가 다른 delta는 발생시각이 오래되어도 모두 반영한다. 지표별 시각 컬럼은 최대 관측 시각 메타데이터로만 갱신한다.
 
 ---
 
@@ -1000,7 +1016,7 @@ commerce:
 > * **쿠폰 만료 조회 성능**: `EXPIRED`를 저장 상태로 두지 않고 조회 시 계산하므로, 발급 쿠폰 데이터가 누적되면 만료 조건 인덱스나 배치 전환을 검토한다.
 > * **멱등성 보장 (Idempotency)**: 동일한 주문 요청 네트워크, 결제와 같은 외부 연동 작업 시 요청이 중복해서 수신되는 경우에 대한 안전 장치 설계
 > * **분산 시스템 데이터 일관성 (Consistency)**: 여러 서비스 간 트랜잭션 롤백 및 보상 트랜잭션 기법 연구
-> * **외부 IO와 트랜잭션 경계**: 외부 결제 호출은 분산 환경 여부와 무관하게 DB 트랜잭션 밖에서 수행해야 한다. 이를 `TX1 → 외부 호출 → TX2` 로 분리하면 *외부 호출 직후 프로세스 종료* 같은 경계 실패 시 주문 `PAYMENT_PENDING`, 결제 `REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 미결 회복 프로세스는 결제 상태를 확인한 뒤 주문 실패 전이, 재고 복구, 쿠폰 복구, 주문-쿠폰 연결 해제를 멱등하게 수행해야 한다. 외부 시스템 웹훅 수신, outbox 패턴 같은 회복 전략은 결제수단과 연동 방식이 구체화될 때 도입한다.
+> * **외부 IO와 트랜잭션 경계**: 외부 결제 호출은 분산 환경 여부와 무관하게 DB 트랜잭션 밖에서 수행한다. 현재는 외부 결과를 확인할 수 없는 예외를 `UNKNOWN`으로 바꾸고 `PAYMENT_STATUS_SYNC_REQUESTED` 내부 outbox를 같은 트랜잭션에 저장해 주문 기준 상태 조회로 회복한다. 다만 외부 요청 성공 직후 프로세스가 종료되어 예외 처리 자체가 실행되지 않으면 결제는 `REQUESTED`에 남고 회복 outbox가 없을 수 있으므로, 요청 전 회복 기록 생성이나 `REQUESTED` 장기 체류 조회를 추가 검토한다.
 > * **조회 성능 최적화 (Slow Query Optimization)**: 상품 목록 필터링 및 대량의 주문 목록 조회 쿼리에 대한 최적의 인덱스 설계와 튜닝
 > * **상품 지표 projection 운영**: `product_metrics`는 좋아요·판매·조회 이벤트를 Kafka consumer가 갱신하는 projection이므로 consumer lag, replay, `processed_kafka_events`/`event_handled` dedupe, 원천 테이블 기준 backfill/rebuild 절차를 함께 관리한다.
 > * **동시 대량 주문 처리**: 핫스팟 상품에 대한 선착순 주문 및 트래픽 폭주 대응 방안

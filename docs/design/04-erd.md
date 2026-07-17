@@ -13,7 +13,7 @@
 - 한 사용자와 한 쿠폰 템플릿 조합의 중복 발급을 막고, 한 발급 쿠폰의 중복 사용을 막을 수 있는가?
 - 주문은 주문자, 주문 항목, 재고 차감 대상 상품을 연결하면서도 주문 당시 상품명과 가격 스냅샷을 보존하는가?
 - 주문은 적용된 발급 쿠폰 식별자와 할인 금액 스냅샷을 보존하는가?
-- 결제 기록은 주문과 연결되어 결제 수단, 금액, 상태, 외부 거래 식별자를 추적할 수 있는가?
+- 결제 기록은 주문과 연결되어 현재 상태, 외부 거래 키, 실패 사유, 요청·완료 시각을 추적하고 주문당 최대 하나·외부 거래 키 고유성을 보장하는가?
 - 쿠폰 발급 API가 요청 접수와 실제 발급을 분리하고, 요청 상태 polling과 worker 멱등 처리를 영속성으로 보장할 수 있는가?
 - DB FK와 카디널리티를 명확히 하되, JPA 객체 연관은 불필요하게 양방향으로 열지 않을 수 있는가?
 - Round 8 대기열이 Redis-only source of truth라는 결정을 관계형 테이블로 잘못 중복 모델링하지 않았는가?
@@ -22,17 +22,17 @@
 
 - 별도 요구가 없으면 `deleted_at`이 `NULL`이 아닌 행은 삭제된 것으로 간주하는 soft delete를 사용한다.
 - 좋아요는 현재 관심 상태만 필요하므로 취소 시 hard delete를 기본으로 둔다.
-- 상품별 좋아요 수, 판매 수, 조회 수는 `product_metrics` projection 테이블에 비정규화해 보관한다. `likes` 레코드, 주문/주문 항목, 상품 조회 이벤트가 권위 상태이며, 실제 상태 전이나 커밋된 조회 이벤트만 outbox row를 남긴다. Kafka consumer가 `catalog-events`/`order-events`에서 상품 key 이벤트를 소비해 카운터를 반영하므로 `product_metrics`는 eventually consistent projection이다. 같은 지표의 오래된 이벤트는 `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`으로 무시하고, 기존 `product_like_counts`의 역할은 `product_metrics.like_count`가 흡수한다.
+- 상품별 좋아요 수, 판매 수, 조회 수는 `product_metrics` projection 테이블에 비정규화해 보관한다. `likes` 레코드, 주문/주문 항목, 상품 조회 이벤트가 권위 상태이며, 실제 상태 전이나 커밋된 조회 이벤트만 outbox row를 남긴다. Kafka consumer가 `catalog-events`/`order-events`에서 상품 key 이벤트를 소비해 카운터를 반영하므로 `product_metrics`는 eventually consistent projection이다. `(consumer_group, eventId)`가 다른 모든 delta는 발생시각과 관계없이 반영하고, `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`은 최대 관측 시각 메타데이터로만 사용한다. 기존 `product_like_counts`의 역할은 `product_metrics.like_count`가 흡수한다.
 - 이벤트는 UUID `eventId`를 갖는다. consumer는 `processed_kafka_events` 또는 `event_handled`에 `(consumer_group, event_id)`를 저장해 Kafka 재전달 시 같은 delta/증분을 중복 반영하지 않는다.
 - 발급 쿠폰 사용 상태 변경은 낙관적 락(`version`)으로 lost update를 방지하고, 사용 가능 여부는 `coupon_status`/`used_at` 상태 검증으로 판단한다. 두 장치를 함께 적용해 동일 쿠폰 동시 주문에서 단 한 번만 사용되도록 보장한다.
-- ERD의 관계선은 DB FK와 카디널리티를 뜻한다. JPA 객체 그래프의 양방향 매핑을 의미하지 않는다.
+- ERD의 관계선은 카디널리티를 뜻하며, JPA 객체 그래프의 양방향 매핑을 의미하지 않는다. `payment_records.order_id`처럼 현재 JPA가 값과 고유 제약만 선언한 관계는 아래 관계 해석에 DB FK 미선언 사실을 별도로 적는다.
 - JPA Entity 연관은 기본 단방향으로 시작하고, 컬렉션 탐색이나 cascade 저장이 실제 유스케이스를 단순하게 만들 때만 추가한다.
 - 쿠폰은 관리자 정의인 `coupon_templates`와 사용자 발급 상태인 `issued_coupons`로 분리한다.
 - 쿠폰 템플릿 삭제는 soft delete다. 이미 발급된 쿠폰과 주문 할인 스냅샷은 유지한다.
 - 발급 쿠폰의 저장 상태는 `AVAILABLE`, `USED`만 둔다. `EXPIRED`는 `coupon_templates.expired_at`과 현재 시각으로 계산한 조회 표시 상태다.
 - 금액성 컬럼은 DB/JPA에서 `BIGINT` 원 단위 정수로 저장한다. 정률 할인 계산은 도메인 중간 계산에서만 `BigDecimal`을 사용하고, 저장 전 `RoundingMode.FLOOR`로 원 단위 정수화한다.
-- 결제는 결제수단별 상세 정책을 확정하지 않더라도 주문별 결제 상태 추적을 위해 `payments` 기록 테이블을 둔다. 이 테이블과 관련 보상 흐름은 후속 결제 연동 단계의 목표 설계이며, Round 4 쿠폰/동시성 구현 필수 범위가 아니다.
-- 커밋 이후 전파가 필요한 `ApplicationEvent`는 `@TransactionalEventListener(phase = AFTER_COMMIT)`에서 `outbox_events`에 저장하고, 별도 relay가 Kafka broker ack 이후 발행 완료로 표시한다. 이벤트 유실을 막기 위한 저장소 권위는 outbox row이며, Kafka publish는 도메인 쓰기 트랜잭션 밖에서 수행한다. producer 설정은 `acks=all`, `idempotence=true`를 전제로 한다.
+- 결제는 `payment_records`에 주문 ID, 외부 거래 키, 상태, 실패 사유, 요청·완료 시각을 저장한다. 카드 종류·카드 번호·결제 금액은 외부 결제 요청에만 사용하고 이 테이블에는 중복 저장하지 않는다.
+- 전파가 필요한 `ApplicationEvent`는 `@TransactionalEventListener(phase = BEFORE_COMMIT)`에서 원천 상태와 같은 트랜잭션의 `outbox_events`에 저장하고, `AFTER_COMMIT`은 구조화 로그만 수행한다. 별도 relay는 저장된 topic/key/envelope를 DB 트랜잭션 밖에서 그대로 발행하고 Kafka broker ack 이후 발행 완료로 표시한다. producer 설정은 `acks=all`, `idempotence=true`를 전제로 한다.
 - 쿠폰 발급 요청은 `coupon_issue_requests`에 `PENDING`으로 저장하고, `coupon-issue-requests` outbox/Kafka 이벤트를 통해 worker가 실제 발급을 수행한다. 발급 쿠폰 사용은 주문/쿠폰 유스케이스의 동기 트랜잭션 경계를 유지한다.
 - Round 8 대기열은 관계형 DB에 저장하지 않는다. Redis Sorted Set, 원자 sequence counter, TTL admission hash가 유일한 권위 상태이므로 Mermaid ERD에는 대기열 엔티티나 관계가 나타나지 않는다. Redis 비관계 저장 모델은 아래 별도 절에서 정의한다.
 - `products.sale_type`은 `NORMAL`, `LIMITED`를 저장한다. 주문 항목 중 `LIMITED` 상품이 하나라도 있으면 주문 전체가 Redis 대기열 관문 대상이고, `NORMAL`-only 주문은 기존 Round 7 주문 흐름으로 바로 진행한다.
@@ -58,7 +58,7 @@ erDiagram
     PRODUCTS ||--o{ ORDER_ITEMS : ordered
 
     ORDERS ||--|{ ORDER_ITEMS : contains
-    ORDERS ||--|| PAYMENTS : has_payment
+    ORDERS ||--o| PAYMENT_RECORDS : may_have_payment
     ISSUED_COUPONS ||--o| ORDERS : applied_to
 
     USERS {
@@ -120,35 +120,39 @@ erDiagram
     }
 
     OUTBOX_EVENTS {
-        VARCHAR event_id PK
+        BIGINT id PK
+        BINARY event_id UK
         VARCHAR event_type
         VARCHAR aggregate_type
         BIGINT aggregate_id
-        VARCHAR topic
-        VARCHAR kafka_key
+        VARCHAR topic_name
+        VARCHAR partition_key
         TEXT payload
-        VARCHAR status
+        VARCHAR event_status
         INT retry_count
         DATETIME next_retry_at
+        TEXT last_error
         DATETIME published_at
+        BINARY claim_id
+        DATETIME claimed_at
+        DATETIME event_created_at
         DATETIME created_at
+        DATETIME updated_at
+        DATETIME deleted_at
     }
 
     PROCESSED_KAFKA_EVENTS {
-        BIGINT processed_kafka_event_id PK
-        VARCHAR event_id
-        VARCHAR consumer_group
+        BINARY event_id PK
+        VARCHAR consumer_group PK
         VARCHAR event_type
-        BIGINT product_id
         DATETIME processed_at
     }
 
     EVENT_HANDLED {
-        BIGINT event_handled_id PK
-        VARCHAR event_id
-        VARCHAR handler_name
-        VARCHAR topic
-        DATETIME handled_at
+        BINARY event_id PK
+        VARCHAR consumer_group PK
+        VARCHAR event_type
+        DATETIME processed_at
     }
 
     LIKES {
@@ -172,13 +176,13 @@ erDiagram
     }
 
     COUPON_TEMPLATES {
-        BIGINT coupon_template_id PK
+        BIGINT id PK
         VARCHAR coupon_name
         VARCHAR coupon_type
         BIGINT discount_value
         BIGINT min_order_amount
-        BIGINT issue_limit
-        BIGINT issued_count
+        BIGINT total_quantity
+        BIGINT issued_quantity
         DATETIME expired_at
         DATETIME created_at
         DATETIME updated_at
@@ -186,20 +190,22 @@ erDiagram
     }
 
     COUPON_ISSUE_REQUESTS {
-        VARCHAR request_id PK
+        BIGINT id PK
+        BINARY request_id UK
         BIGINT coupon_template_id FK
         BIGINT user_id FK
         VARCHAR request_status
         BIGINT issued_coupon_id FK
-        TEXT failure_reason
+        VARCHAR failure_reason
         DATETIME requested_at
         DATETIME completed_at
         DATETIME created_at
         DATETIME updated_at
+        DATETIME deleted_at
     }
 
     ISSUED_COUPONS {
-        BIGINT issued_coupon_id PK
+        BIGINT id PK
         BIGINT coupon_template_id FK
         BIGINT user_id FK
         VARCHAR coupon_status
@@ -208,6 +214,7 @@ erDiagram
         BIGINT version
         DATETIME created_at
         DATETIME updated_at
+        DATETIME deleted_at
     }
     ORDER_ITEMS {
         BIGINT order_id PK
@@ -219,19 +226,17 @@ erDiagram
         DATETIME created_at
     }
 
-    PAYMENTS {
-        BIGINT payment_id PK
-        BIGINT order_id FK
-        VARCHAR payment_method
-        VARCHAR payment_status
-        BIGINT amount
-        VARCHAR external_transaction_id
-        TEXT failed_reason
+    PAYMENT_RECORDS {
+        BIGINT payment_record_id PK
+        BIGINT order_id UK
+        VARCHAR external_transaction_key UK
+        TINYINT status
+        VARCHAR failure_reason
         DATETIME requested_at
-        DATETIME approved_at
-        DATETIME failed_at
+        DATETIME completed_at
         DATETIME created_at
         DATETIME updated_at
+        DATETIME deleted_at
     }
 
     ADMIN_OPERATION_LOGS {
@@ -252,19 +257,19 @@ erDiagram
 - `product_stocks.product_id`는 상품과 재고의 1:1 관계를 표현한다. 재고 생명주기는 상품에 종속되므로 별도 `deleted_at`을 두지 않고, 재고 차감 근거는 주문 항목으로 추적한다.
 - `likes`는 `(user_id, product_id)` 복합 PK로 한 사용자가 한 상품에 좋아요를 한 번만 누를 수 있게 한다. 반복 `POST`는 이미 존재하는 행을 현재 상태로 보고 성공 처리하고, 반복 `DELETE`는 삭제할 행이 없어도 성공 처리한다.
 - `product_metrics`는 `product_id`를 PK로 갖는 상품 1:1 projection 테이블이다. 좋아요 수, 판매 수, 조회 수를 매 조회마다 계산하는 대신 비정규화 컬럼으로 보관해 목록·정렬의 읽기 비용을 낮춘다. `likes`, 주문/주문 항목, 상품 조회 이벤트가 권위 상태이며, `product_metrics`는 Kafka consumer가 `LIKE_COUNT_CHANGED_V1`, 주문/결제 이벤트, 상품 조회 이벤트를 처리한 뒤 갱신하는 eventually consistent projection이다. 상품 생성 시 `like_count = 0`, `sales_count = 0`, `view_count = 0` 행을 함께 만들고, consumer 장애나 누락 의심 시 Kafka replay 또는 원천 테이블 기준 backfill/rebuild로 projection을 복구한다.
-- `outbox_events`는 커밋 이후 발행할 durable event 저장소다. `LIKE_COUNT_CHANGED_V1` row는 UUID `eventId`, `event_type`, `aggregate_type=PRODUCT`, `aggregate_id=productId`, `topic=catalog-events`, `kafka_key=productId`, `payload(delta, userId, occurredAt)`를 보관한다. 주문·결제 지표 이벤트는 `topic=order-events`, 쿠폰 발급 요청은 `topic=coupon-issue-requests`를 사용한다. relay는 Kafka broker ack 이후에만 `PUBLISHED`로 변경하고, 실패 시 retry metadata를 갱신한다.
-- `processed_kafka_events`는 projection consumer의 idempotency 테이블이다. UUID `eventId`를 `event_id`에 저장하고, 같은 `consumer_group`에서 이미 처리한 이벤트면 `product_metrics`에 증분을 다시 적용하지 않는다. 운영 DDL에서는 `(consumer_group, event_id)` unique 제약을 둔다.
-- `event_handled`는 command worker의 idempotency 테이블이다. `coupon-issue-requests` 재전달 시 같은 `event_id`를 이미 처리했다면 발급 수량 차감과 발급 쿠폰 생성을 반복하지 않고 ack한다.
-- `coupon_templates`는 관리자 정의 쿠폰 정책이다. 삭제는 `deleted_at`으로 표현하고, 삭제된 템플릿은 신규 발급 대상에서 제외한다. 외부 API의 `FIXED`/`RATE`는 저장 전 내부 `coupon_type` 값인 `FIXED_AMOUNT`/`PERCENTAGE`로 매핑한다. `discount_value`는 `FIXED_AMOUNT`에서는 원 단위 할인 금액, `PERCENTAGE`에서는 1~100 범위의 퍼센트 정수다. `issue_limit`과 `issued_count`는 선착순 발급 수량을 표현한다.
-- `coupon_issue_requests`는 비동기 발급 요청 상태다. API는 요청 row를 `PENDING`으로 저장하고 `202 Accepted`로 반환한다. worker는 별도 트랜잭션에서 요청을 잠금 조회하고, 발급 성공 시 `ISSUED`, 중복이면 `DUPLICATE`, 수량 소진이면 `SOLD_OUT`, 예외면 `FAILED`로 저장한다. 사용자는 request id로 polling한다.
+- `outbox_events`는 원천 상태와 함께 커밋되는 durable event 저장소다. `BaseEntity.id`가 기술 PK이고 UUID `event_id`는 unique event 식별자다. `LIKE_COUNT_CHANGED_V1` row는 `event_type`, `aggregate_type=PRODUCT`, `aggregate_id=productId`, `topic_name=catalog-events`, `partition_key=productId`, `payload(delta, userId, occurredAt)`, 원래 이벤트 발생 시각인 `event_created_at`을 보관한다. 주문 지표 이벤트는 `topic_name=order-events`, 쿠폰 발급 요청은 `topic_name=coupon-issue-requests`, `partition_key=couponTemplateId`를 사용한다. 결제 내부 처리 기록 `PAYMENT_STATUS_SYNC_REQUESTED`, `PAYMENT_APPROVED`, `PAYMENT_FAILED`는 `topic_name`과 `partition_key`가 모두 `NULL`이라 Kafka 발행 대상이 아니다. 외부 결제 결과 전파는 별도 `ORDER_PAID_V1`/`ORDER_FAILED_V1` 행에 `topic_name=order-events`, `partition_key=orderId`와 완전한 payload를 고정한다. relay는 도메인 재조회 없이 발행 가능한 행의 저장된 envelope를 보내며 Kafka broker ack 이후에만 현재 `claim_id` 소유자를 조건으로 `event_status=PUBLISHED`로 변경한다. `event_status=PUBLISHING` row는 설정된 lease보다 `claimed_at`이 오래되면 새 `claim_id`로 재선점되어 동일 envelope가 재발행될 수 있다. 실패마다 `retry_count`와 `last_error`를 갱신하고 5회 미만이면 `FAILED + next_retry_at`, 최초 시도를 포함한 5번째 실패면 `DEAD + next_retry_at=NULL`로 저장한다. `DEAD` row는 자동 claim 대상에서 제외하지만 삭제하지 않는다. `BaseEntity`에서 `created_at`, `updated_at`, `deleted_at`을 상속한다.
+- `processed_kafka_events`는 projection consumer의 idempotency 테이블이다. UUID `event_id`와 `consumer_group`을 `@EmbeddedId` 복합 PK로 사용하고, 실제 부가 컬럼은 `event_type`, `processed_at`뿐이다. 같은 consumer group에서 이미 처리한 이벤트면 `product_metrics`에 증분을 다시 적용하지 않는다. JPA 테이블 매핑에는 동일 키의 `(consumer_group, event_id)` unique 제약도 선언되어 있다.
+- `event_handled`는 command worker의 idempotency 테이블이다. UUID `event_id`와 `consumer_group`을 `CouponIssueEventHandledJpaId`의 `@EmbeddedId` 복합 PK로 사용하고, 실제 부가 컬럼은 `event_type`, `processed_at`뿐이다. JPA 테이블 매핑에는 같은 키의 `(consumer_group, event_id)` unique 제약도 선언되어 있다. `coupon-issue-requests` 재전달 시 같은 consumer group에서 같은 이벤트를 이미 처리했다면 발급 수량 차감과 발급 쿠폰 생성을 반복하지 않고 ack한다.
+- `coupon_templates`는 `BaseEntity.id`를 기술 PK로 갖는 관리자 정의 쿠폰 정책이다. 삭제는 `deleted_at`으로 표현하고, 삭제된 템플릿은 신규 발급 대상에서 제외한다. 외부 API의 `FIXED`/`RATE`는 저장 전 내부 `coupon_type` 값인 `FIXED_AMOUNT`/`PERCENTAGE`로 매핑한다. `discount_value`는 `FIXED_AMOUNT`에서는 원 단위 할인 금액, `PERCENTAGE`에서는 1~100 범위의 퍼센트 정수다. `total_quantity`와 `issued_quantity`는 선착순 발급 수량을 표현한다.
+- `coupon_issue_requests`는 `BaseEntity.id`를 기술 PK로 갖는 비동기 발급 요청 상태다. UUID `request_id`는 별도 unique 요청 식별자이고, `(user_id, coupon_template_id)`도 unique다. API는 요청 row를 `PENDING`으로 저장하고 `202 Accepted`로 반환한다. worker는 별도 트랜잭션에서 요청을 잠금 조회하고, 발급 성공 시 `ISSUED`, 중복이면 `DUPLICATE`, 수량 소진이면 `SOLD_OUT`으로 저장한다. 재시도 가능한 예외는 재시도 동안 `PENDING`을 유지하고, 재시도 소진 뒤 설정된 실패 주제 발행이 성공하면 별도 복구 트랜잭션에서 아직 `PENDING`인 요청만 `FAILED`로 저장한다. 사용자는 request id로 polling한다.
 - `issued_coupons`는 사용자에게 발급된 쿠폰 상태다. `(user_id, coupon_template_id)` unique 제약으로 한 사용자가 같은 템플릿을 중복 발급받지 못하게 한다.
 - `issued_coupons.coupon_status`는 `AVAILABLE`, `USED`만 저장한다. `EXPIRED`는 `coupon_templates.expired_at`과 현재 시각으로 계산한다.
 - `issued_coupons.version`은 사용 상태 변경(`AVAILABLE -> USED` 및 보상 복구 `USED -> AVAILABLE`)에 적용하는 낙관적 락 컬럼이다. 동일 발급 쿠폰에 대한 동시 주문에서 lost update를 차단한다. 단 "이미 사용된 쿠폰의 재사용"을 막는 것은 `version`이 아니라 `coupon_status = AVAILABLE`(및 `used_at IS NULL`) 상태 검증이며, 두 장치를 함께 적용해 단 한 번만 사용되도록 보장한다. 경합 주체가 쿠폰 소유자 본인으로 한정되어 충돌 확률이 낮으므로 비관적 락 대신 낙관적 락을 선택한다.
-- `orders.order_status`는 `PAYMENT_PENDING`, `ORDERED`, `PAYMENT_FAILED`, `CANCELED`를 저장한다. 후속 결제 연동 설계의 정상 전이는 `PAYMENT_PENDING -> ORDERED`, 실패 전이는 `PAYMENT_PENDING -> PAYMENT_FAILED`다.
+- `orders.order_status`는 `PAYMENT_PENDING`, `ORDERED`, `PAYMENT_FAILED`, `CANCELED`를 저장한다. 현재 정상 전이는 `PAYMENT_PENDING -> ORDERED`, 실패 전이는 `PAYMENT_PENDING -> PAYMENT_FAILED`다.
 - `orders.issued_coupon_id`는 성공적으로 쿠폰을 점유한 주문의 발급 쿠폰을 선택적으로 참조한다. 쿠폰 미사용 주문은 `NULL`이며, unique nullable 제약으로 하나의 발급 쿠폰이 여러 주문에 연결되지 않도록 한다. 결제 실패 보상 완료 주문은 발급 쿠폰을 재사용할 수 있도록 `issued_coupon_id = NULL`로 분리한다.
 - 결제 실패 주문의 `discount_price`는 시도 당시 할인 스냅샷으로 보존될 수 있다. 따라서 `discount_price > 0`이면서 `issued_coupon_id = NULL`인 주문은 쿠폰 점유가 해제된 실패 이력으로 해석한다.
 - `order_items`는 `(order_id, product_id)` 복합 PK로 한 주문 안의 동일 상품을 하나의 항목으로 합산한다. 주문 당시 상품명과 단가를 스냅샷 컬럼에 보관해 이후 상품 정보 변경이나 soft delete와 독립적으로 과거 주문 내역을 유지한다.
-- `payments`는 주문별 결제 상태를 기록한다. 후속 결제 연동 구현에서는 `payments.order_id` unique 제약으로 주문과 1:1 관계를 보장한다. 결제 재시도나 결제수단 변경 이력이 필요해지면 주문과 1:N 관계로 확장한다.
+- `payment_records`는 `PaymentRecordJpaEntity : BaseEntity`의 영속 형태다. `payment_record_id`는 기술 PK이고, `order_id` 고유 제약으로 주문마다 최대 한 행만 둔다. `external_transaction_key`도 nullable 고유 값이며 한 외부 거래를 여러 결제에 반영하지 못하게 한다. `status`는 `PaymentStatusConverter`가 `REQUESTED=10`, `UNKNOWN=15`, `APPROVED=20`, `FAILED=30`의 `TINYINT`로 변환한다. `failure_reason`, `requested_at`, `completed_at`과 `BaseEntity`의 감사 시각을 저장하며 결제 수단·금액·승인/실패별 개별 시각 컬럼은 두지 않는다. 현재 JPA 선언은 `order_id` 값을 보관하고 고유 제약만 두며 `OrderJpaEntity` 연관이나 DB FK를 선언하지 않는다.
 - `admin_operation_logs`는 관리자 변경 작업만 기록한다. `target_type`은 `BRAND` 또는 `PRODUCT`, `operation_type`은 `CREATED`, `UPDATED`, `DELETED`를 기준으로 한다.
 
 ## Round 8 Redis 비관계 저장 모델
@@ -298,23 +303,29 @@ erDiagram
 | `product_metrics(product_id)` | primary key | 상품 1:1 지표 projection 조회·갱신 기준 |
 | `product_metrics(like_count)` | index | `likes_desc` 정렬 후보 |
 | `outbox_events(event_id)` | unique | Kafka 발행 전 durable event 식별자 보장 |
-| `outbox_events(status, next_retry_at, created_at)` | index | 발행 대기·재시도 대상 조회 |
-| `processed_kafka_events(consumer_group, event_id)` | unique | projection 이벤트 재전달 시 증분 중복 반영 방지 |
-| `event_handled(handler_name, event_id)` | unique | command worker 이벤트 재전달 시 중복 실행 방지 |
-| `coupon_templates(deleted_at, expired_at)` | index | 발급 가능한 쿠폰 템플릿 조회 |
-| `coupon_templates(issue_limit, issued_count)` | check/guard | 선착순 발급 수량 초과 방지 |
-| `coupon_issue_requests(user_id, coupon_template_id)` | unique 또는 partial unique | 같은 사용자·템플릿의 중복 pending 요청 방지 |
-| `coupon_issue_requests(request_status, requested_at)` | index | worker 처리 대상과 polling 조회 보조 |
+| `outbox_events(event_type, event_status, created_at)` | index | 이벤트 타입·상태별 생성 순 조회 |
+| `outbox_events(event_status, next_retry_at, event_created_at, id)` | index | PENDING·FAILED 발행 대기와 재시도 대상 조회 및 고정 순서 claim (`DEAD` 제외) |
+| `outbox_events(event_status, claimed_at, event_created_at, id)` | index | lease가 만료된 PUBLISHING 대상 조회 및 고정 순서 재선점 |
+| `processed_kafka_events(event_id, consumer_group)` | composite primary key | projection 이벤트 재전달 시 증분 중복 반영 방지 |
+| `processed_kafka_events(consumer_group, event_id)` | unique | JPA 테이블 매핑에 선언된 동일 복합 키 unique 제약 |
+| `event_handled(event_id, consumer_group)` | composite primary key | command worker 이벤트 재전달 시 중복 실행 방지 |
+| `event_handled(consumer_group, event_id)` | unique | JPA 테이블 매핑에 선언된 동일 복합 키 unique 제약 |
+| `coupon_templates(id)` | primary key | `BaseEntity`가 제공하는 쿠폰 템플릿 기술 식별자 |
+| `coupon_issue_requests(id)` | primary key | `BaseEntity`가 제공하는 발급 요청 기술 식별자 |
+| `coupon_issue_requests(request_id)` | unique | 외부에 노출하는 UUID 요청 식별자 중복 방지 |
+| `coupon_issue_requests(user_id, coupon_template_id)` | unique | 같은 사용자·템플릿의 중복 요청 방지 |
+| `coupon_issue_requests(request_status)` | index | 상태별 worker 처리 및 운영 조회 보조 |
 | `issued_coupons(user_id, coupon_template_id)` | unique | 사용자별 동일 쿠폰 템플릿 중복 발급 방지 |
-| `issued_coupons(user_id, coupon_status, issued_at)` | index | 내 쿠폰 목록 조회와 상태별 필터링 |
-| `issued_coupons(coupon_template_id, issued_at)` | index | 관리자 쿠폰 템플릿별 발급 이력 조회 |
+| `issued_coupons(user_id)` | index | 내 쿠폰 목록 조회 |
+| `issued_coupons(coupon_template_id)` | index | 관리자 쿠폰 템플릿별 발급 이력 조회 |
 | `issued_coupons.version` | optimistic lock | 발급 쿠폰 사용/복구 시 동시 변경 lost update 방지 |
 | `orders(issued_coupon_id)` | unique nullable | 하나의 발급 쿠폰이 둘 이상의 주문에 적용되는 것을 방지 |
 | `orders(ordered_user_id, idempotency_key)` | unique nullable | 사용자 범위 주문 멱등성 보장과 교차 사용자 주문 정보 노출 방지 |
 | `orders(order_status, created_at)` | index | 관리자 실패/대기 주문 모니터링과 미결 주문 회복 대상 조회 |
 | `order_items(order_id, product_id)` | primary key | 주문 내 동일 상품 항목 중복 방지 |
-| `payments(order_id)` | unique | 후속 결제 연동 구현의 주문-결제 1:1 보장 |
-| `payments(external_transaction_id)` | unique nullable | 외부 결제 거래 중복 반영 방지 |
+| `payment_records(order_id)` | unique | 주문당 최대 하나의 결제 기록 보장 |
+| `payment_records(external_transaction_key)` | unique nullable | 외부 결제 거래 중복 반영 방지 |
+| `payment_records(status, created_at)` | index | 상태별 결제 기록 운영 조회와 회복 대상 탐색 보조 |
 | `products(brand_id, created_at)` | index | 브랜드 필터와 최신순 상품 목록 조회 |
 | `products(sale_type)` | index 후보 | 선착순 상품 운영 조회가 실제로 필요할 때 적용. 주문 gate는 요청 상품 ID 조회 결과로 판별 |
 | `orders(ordered_user_id, created_at)` | index | 사용자의 주문 기간 조회 |
@@ -330,18 +341,18 @@ DB 관계는 FK로 표현하지만, JPA에서는 다음처럼 단방향을 기�
 | --- | --- | --- |
 | 상품 - 브랜드 | `ProductJpaEntity -> BrandJpaEntity` | 상품 등록/조회 시 브랜드 검증에 필요 |
 | 재고 - 상품 | `ProductStockJpaEntity -> ProductJpaEntity` 또는 `productId` 값 보관 | shared PK라 단순 ID 매핑도 가능 |
-| 좋아요 - 사용자/상품 | `LikeJpaEntity -> UserJpaEntity`, `LikeJpaEntity -> ProductJpaEntity` | 사용자나 상품에서 likes 컬렉션을 열 필요는 낮음 |
-| Outbox 이벤트 | `OutboxEventJpaEntity` 값 보관 | `@TransactionalEventListener(AFTER_COMMIT)`가 topic/key/payload를 저장. Kafka publish는 relay가 트랜잭션 밖에서 수행 |
-| 상품 지표 projection - 상품 | `ProductMetricsJpaEntity` shared PK `productId` 값 보관 | 상품과 1:1 projection 행. Kafka consumer가 좋아요·판매·조회 이벤트를 반영하고, 조회는 상품 목록/상세 조립 시 bulk 조회 |
-| Kafka 처리 이력 - 이벤트 | `ProcessedKafkaEventJpaEntity` 값 보관 | UUID `eventId`, `consumerGroup`, `eventType`, `productId`, `processedAt` 저장. `(consumerGroup, eventId)` unique로 projection 중복 처리 방지 |
-| Worker 처리 이력 - 이벤트 | `EventHandledJpaEntity` 값 보관 | UUID `eventId`, `handlerName`, `topic`, `handledAt` 저장. `(handlerName, eventId)` unique로 command 중복 실행 방지 |
+| 좋아요 - 사용자/상품 | `LikeJpaEntity`의 `LikeJpaId(userId, productId)` 값 보관 | 사용자나 상품에서 likes 컬렉션을 열지 않고 복합 키 값으로 연결 |
+| Outbox 이벤트 | `OutboxEventJpaEntity : BaseEntity` 값 보관 | `BaseEntity.id` PK와 감사 시각을 상속하고 `eventId`는 unique로 둔다. `@TransactionalEventListener(BEFORE_COMMIT)`가 원천 상태와 같은 거래에 topic/key/envelope와 `eventCreatedAt`을 저장하며 Kafka publish는 relay가 트랜잭션 밖에서 수행 |
+| 상품 지표 projection - 상품 | API와 streamer의 `ProductLikeCountJpaEntity`가 shared PK `productId` 값 보관 | 상품과 1:1 projection 행. Kafka consumer가 좋아요·판매·조회 이벤트를 반영하고, 조회는 상품 목록/상세 조립 시 bulk 조회 |
+| Kafka 처리 이력 - 이벤트 | `ProcessedKafkaEventJpaEntity` 값 보관 | `ProcessedKafkaEventJpaId(eventId, consumerGroup)`를 복합 PK로 사용하고 `eventType`, `processedAt`만 저장해 projection 중복 처리를 방지 |
+| Worker 처리 이력 - 이벤트 | `CouponIssueEventHandledJpaEntity` 값 보관 | `CouponIssueEventHandledJpaId(eventId, consumerGroup)`를 복합 PK로 사용하고 `eventType`, `processedAt`만 저장해 command 중복 실행을 방지 |
 | 쿠폰 템플릿 - 발급 쿠폰 | `IssuedCouponJpaEntity -> CouponTemplateJpaEntity` 또는 `couponTemplateId` 값 보관 | 현재 구현은 `couponTemplateId` 값 보관 후 내 쿠폰 조회에서 템플릿 bulk 조회로 조립 |
-| 쿠폰 템플릿 - 발급 요청 | `CouponIssueRequestJpaEntity` 값 보관 | 요청 상태 polling과 worker 처리를 위한 durable command row |
+| 쿠폰 템플릿 - 발급 요청 | `CouponIssueRequestJpaEntity : BaseEntity` 값 보관 | `BaseEntity.id` PK와 감사 시각을 상속하고 UUID `requestId`, `couponTemplateId`, `userId`, 상태 및 처리 결과를 저장하는 durable command row |
 | 발급 쿠폰 - 사용자 | `IssuedCouponJpaEntity -> UserJpaEntity` 또는 `userId` 값 보관 | 사용자에서 issuedCoupons 컬렉션을 열 필요는 낮음 |
 | 주문 - 발급 쿠폰 | `OrderJpaEntity -> IssuedCouponJpaEntity` 또는 `issuedCouponId` 값 보관 | 주문은 할인 스냅샷을 보존하므로 쿠폰 객체 그래프 의존은 최소화 |
 | 주문 - 사용자 | `OrderJpaEntity -> UserJpaEntity` | 주문자 식별과 본인 자원 검증에 필요 |
 | 주문 항목 - 주문/상품 | `OrderItemJpaEntity -> OrderJpaEntity`, `OrderItemJpaEntity -> ProductJpaEntity` 또는 ID 값 보관 | 현재 구현은 `orderId` 값 보관 후 주문 목록 조회에서 주문항목 bulk 조회로 조립 |
-| 결제 - 주문 | `PaymentJpaEntity -> OrderJpaEntity` 또는 `orderId` 값 보관 | 후속 결제 연동 구현에서는 `orderId` unique로 주문당 결제 1개를 보장 |
+| 결제 - 주문 | `PaymentRecordJpaEntity`의 `orderId` 값 보관 | JPA 객체 연관과 DB FK 없이 값으로 연결하고, `orderId` unique로 주문당 결제 기록을 최대 1개로 제한 |
 | 관리자 변경 로그 - 관리자 | `AdminOperationLogJpaEntity -> AdminJpaEntity` | 관리자에서 로그 컬렉션을 열 필요는 낮음 |
 
 주문 생성 저장에서 `OrderJpaEntity.items` 컬렉션과 cascade가 구현을 크게 단순화한다면 주문 - 주문 항목만 예외적으로 컬렉션을 열 수 있다. 이 경우에도 도메인 모델과 JPA Entity는 분리하고, 양방향 동기화 책임은 JPA Entity 내부 helper로 제한한다.
@@ -358,16 +369,16 @@ DB 관계는 FK로 표현하지만, JPA에서는 다음처럼 단방향을 기�
 - 주문 DB commit 뒤 consume Lua가 실패하면 주문은 생성됐지만 token은 `PROCESSING`으로 남아 최초 응답이 `503`일 수 있다. marker가 남아 있으면 같은 token·멱등키로 consume을 회복하고, 이미 만료됐으면 사용자 범위 주문 멱등 조회로 기존 결과를 회복한다.
 - 기존 운영 스키마에는 배포 전에 [`docs/migrations/round8-waiting-queue.sql`](../migrations/round8-waiting-queue.sql)을 적용한다. 이 migration은 `products.sale_type`을 `NORMAL`로 backfill한 뒤 `NOT NULL`로 전환하고, 기존 전역 `orders.idempotency_key` unique를 `(ordered_user_id, idempotency_key)` 복합 unique로 교체한다. 운영 profile은 `ddl-auto: none`이므로 애플리케이션이 이 변경을 대신 수행하지 않는다.
 - soft delete를 쓰면 FK cascade만으로 브랜드 삭제 요구사항을 만족할 수 없다. 브랜드 삭제 유스케이스에서 소속 상품을 함께 soft delete하고, 재고 노출 여부는 상품 삭제 상태를 기준으로 판단해야 한다.
-- `PAYMENT_PENDING` 주문은 TX1 이후 TX2가 누락된 orphan일 수 있다. 회복 프로세스는 외부 결제 상태를 확인한 뒤 주문 실패 전이, 재고 복구, 쿠폰 복구, `orders.issued_coupon_id = NULL` 분리를 멱등하게 수행해야 한다.
+- `PAYMENT_PENDING` 주문은 아직 결제를 요청하지 않았거나 결제가 `REQUESTED`/`UNKNOWN`에 머문 정상 중간 상태일 수 있다. 결제 기록과 내부 상태 동기화 outbox를 함께 조회해 장기 체류를 구분해야 한다.
 - 재고 차감 근거는 주문 항목으로 추적한다. 입고, 수동 보정, 재고 실사처럼 주문 외 재고 변경이 필요해지면 별도 `stock_movements` 이력 테이블을 추가해야 한다.
 - 재고는 비관적 락, 발급 쿠폰은 낙관적 락으로 동시성 전략이 다르다. 여러 상품 재고 행은 주문 대상 상품 ID 정렬 순서로 잠가 교착을 방지한다. 발급 쿠폰은 비관적 락으로 함께 잠그지 않고 사용 상태 변경 시 `version` 충돌로 동시 사용을 감지하므로, 충돌 시 주문을 실패시키는 재처리/응답 정책을 유스케이스 전반에서 일관되게 유지해야 한다.
 - `EXPIRED`를 저장 상태로 두지 않는 설계는 상태 동기화 부담을 줄이지만, 발급 쿠폰 데이터가 많이 쌓이면 만료 여부 계산과 조인 비용이 커질 수 있다. 대량 데이터 구간에서는 만료 배치나 만료 조건 인덱스 전략을 재검토한다.
 - 좋아요 hard delete는 이력 분석 요구가 생기면 부족하다. 좋아요 변경 이력이 필요해지면 `likes`에 `deleted_at`을 두거나 별도 이벤트/히스토리 테이블을 추가해야 한다.
 - 상품 지표는 `product_metrics` projection 테이블로 비정규화해 매 요청 집계 계산을 제거한다. 대신 쓰기 직후 상품 목록·상세 응답의 지표가 원천 상태보다 늦을 수 있다. consumer lag, Kafka 재전달, backfill/rebuild 절차를 운영 지표와 runbook으로 관리해야 하며, 초인기 상품에서 projection 갱신 병목이 관측되면 분산 카운터(샤딩)나 Redis 카운터를 추가로 검토한다.
 - `order_items.product_id` FK는 상품 hard delete와 충돌한다. 과거 주문 스냅샷 보존을 위해 상품은 soft delete를 유지하는 편이 안전하다.
-- 외부 결제 호출은 DB 트랜잭션 밖에서 수행한다. TX1 (주문·재고·쿠폰 적용 시 쿠폰 사용·결제 요청 기록) 커밋 이후 TX2 (결제 결과 반영과 보상) 도달 전에 프로세스가 종료되면 `orders.order_status = PAYMENT_PENDING`, `payments.payment_status = REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 미결 결제 회수(상태 폴링·웹훅 수신·운영자 보정)와 외부 연동 안정성이 요구되면 outbox 패턴을 별도 테이블로 추가한다.
+- 외부 결제 호출은 DB 트랜잭션 밖에서 수행한다. 호출 예외를 관찰하면 `payment_records.status=UNKNOWN`과 `PAYMENT_STATUS_SYNC_REQUESTED` 내부 outbox를 같은 트랜잭션에 저장하고 주문 식별자로 외부 상태를 다시 조회한다. 다만 외부 요청 성공 직후 프로세스가 종료되어 예외 처리도 실행되지 않으면 `REQUESTED` 결제에 회복 outbox가 없을 수 있다. 운영에서는 `REQUESTED` 장기 체류 조회가 필요하고, 더 강한 보장이 필요하면 외부 요청 전 회복 작업을 먼저 기록하는 방식을 검토한다.
 - 실패 주문에서 쿠폰 시도 이력은 현재 ERD에서 별도 테이블로 보존하지 않는다. 운영 감사가 필요해지면 append-only `coupon_usage_records(coupon_usage_record_id, issued_coupon_id, coupon_template_id, user_id, order_id, discount_amount, used_at)`를 검토한다. 주문은 여러 상품을 가질 수 있으므로 `product_id`는 기본 컬럼으로 두지 않는다.
-- 결제 재시도나 다중 결제 이력이 필요해지면 `payments`를 주문 1:N 구조로 확장한다.
+- 결제 재시도나 다중 결제 이력이 필요해지면 `payment_records`를 주문 1:N 구조로 확장한다.
 - 주문 취소나 환불이 필요해지면 `OrderStatus.CANCELED` 전이와 재고·쿠폰·결제 보상 정책을 별도로 추가한다.
 - `admin_operation_logs.target_id`는 브랜드와 상품을 함께 가리키는 다형 참조라 DB FK를 강제하지 않는다. Facade가 변경 대상 검증과 저장 성공을 확인한 뒤 로그를 기록해야 하며, 대상별 무결성이나 변경 전/후 값 감사가 필요해지면 로그 detail 형식을 JSON/TEXT 스냅샷으로 구체화해야 한다.
 - `likes_desc` 정렬은 `product_metrics.like_count`를 기준으로 수행해 실시간 집계 조인을 피한다. 정렬 성능이 더 필요해지면 `product_metrics(like_count)` 보조 인덱스나 커버링 인덱스를 검토한다.

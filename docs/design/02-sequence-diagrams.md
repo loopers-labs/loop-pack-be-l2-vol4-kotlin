@@ -8,7 +8,7 @@
 시퀀스 다이어그램은 API 호출 목록이 아니라 유스케이스의 책임 흐름을 보여주는 데 집중한다.
 따라서 API별 Controller 이름은 대부분 `CustomerAPI`, `AdminAPI` boundary로 추상화하고, 관련 endpoint는 각 다이어그램 아래에 별도로 남긴다.
 
-Payment 관련 TX1/TX2 사가 흐름은 후속 결제 연동 단계의 목표 설계다. Round 4 구현 범위는 쿠폰/재고/주문 정합성 검증에 한정하며, 별도 이슈가 없으면 Payment 도메인과 외부 결제 게이트웨이 구현을 새로 추가하지 않는다.
+현재 결제 흐름은 주문 생성, 결제 요청 기록, 외부 결제 호출, 결과 반영으로 경계를 나눈다. 주문 생성은 재고·쿠폰·주문만 원자적으로 처리하고, 별도 결제 요청이 `PaymentModel`을 만든 뒤 DB 트랜잭션 밖에서 외부 결제 시스템을 호출한다. 승인·실패·상태 불명은 각각의 결과 처리 트랜잭션과 내부/외부 outbox로 회복 가능하게 남긴다.
 Round 8 대기열 흐름은 Redis를 유일한 권위 저장소로 사용하고, `WaitingQueuePort` 뒤의 단일 `RedissonWaitingQueueAdapter`가 Lua 원자 연산으로 대기/입장/토큰 상태를 전이한다. 주문 항목에 `LIMITED` 상품이 하나라도 있을 때만 주문 mutation 전에 `X-Queue-Token`을 예약하며, `NORMAL` 상품만 있는 주문은 기존 Round 7 흐름으로 바로 진행한다.
 
 검증 관점은 다음과 같다.
@@ -18,7 +18,7 @@ Round 8 대기열 흐름은 Redis를 유일한 권위 저장소로 사용하고,
 - 여러 도메인 상태를 함께 바꾸는 유스케이스가 하나의 트랜잭션 경계 안에서 처리되는가?
 - 좋아요 멱등성, 재고 부족 전체 거부, 쿠폰 중복 사용 방지, 브랜드 삭제 시 상품 soft delete 같은 핵심 정책이 흐름 안에 드러나는가?
 - 좋아요·판매·조회 지표는 원천 상태와 이벤트에서 파생되는 `product_metrics` eventually consistent projection이며, 쿠폰 발급 요청은 비동기 command로 접수/처리/조회가 분리되는가?
-- 로컬 부가 처리는 `ApplicationEvent`와 `@TransactionalEventListener`로 커밋 이후에 실행되고, 시스템 간 전파는 outbox/Kafka로 분리되는가?
+- 로컬 부가 로그는 `ApplicationEvent`와 `@TransactionalEventListener(AFTER_COMMIT)`로 실행되고, 시스템 간 전파용 outbox는 `BEFORE_COMMIT`에서 원천 상태와 함께 저장되는가?
 - 대기열은 Redis `INCR` sequence와 Sorted Set을 권위 순서로 삼고, enqueue/admit/token reserve/consume/release가 각각 하나의 Lua 원자 경계인가?
 
 ## 표기 규칙
@@ -118,10 +118,15 @@ sequenceDiagram
     participant ProductService
     participant StockService
     participant OrderService
-    participant OrderRepository
+    participant Events as ApplicationEventPublisher
+    participant Listener as CommerceApplicationEventOutboxListener
+    participant OutboxRepository
+    participant PaymentFacade
     participant PaymentService
     participant PaymentRepository
     participant PaymentGateway as PaymentGatewayPort
+    participant ResultHandler as PaymentResultHandler
+    participant PaymentOrder as PaymentOrderPort
 
     Customer->>CustomerAPI: 회원가입 요청
     CustomerAPI->>UserFacade: 회원가입 처리
@@ -141,27 +146,41 @@ sequenceDiagram
     Customer->>CustomerAPI: 주문 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>OrderFacade: 주문 처리
-    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·결제(REQUESTED) 요청 기록
+    Note over OrderFacade: 주문 TX — 재고·쿠폰·주문 원자 처리
     OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
     ProductService-->>OrderFacade: 상품명·단가
     OrderFacade->>StockService: 재고 차감
     StockService-->>OrderFacade: 차감 완료
     OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 포함)
     OrderService-->>OrderFacade: 주문 정보
-    OrderFacade->>OrderRepository: 주문 저장
-    OrderRepository-->>OrderFacade: 저장 완료
-    OrderFacade->>PaymentService: 결제 요청 기록
+    OrderFacade->>Events: OrderCreatedApplicationEvent 발행
+    Events->>Listener: BEFORE_COMMIT
+    Listener->>OutboxRepository: ORDER_CREATED_V1 저장
+    Note over OrderFacade,OutboxRepository: 주문과 외부 발행 원천이 함께 commit
+    OrderFacade-->>CustomerAPI: PAYMENT_PENDING 주문
+    CustomerAPI-->>Customer: 201 생성됨
+
+    Customer->>CustomerAPI: 결제 요청(orderId, 카드 정보)
+    CustomerAPI->>PaymentFacade: 결제 요청
+    PaymentFacade->>PaymentOrder: 본인의 결제 가능 주문 조회
+    PaymentFacade->>PaymentService: 결제 요청 기록
     PaymentService->>PaymentRepository: 결제 요청 기록 (REQUESTED)
-    Note over OrderFacade: TX1 commit — 외부 호출은 트랜잭션 밖
-    OrderFacade->>PaymentService: 외부 결제 승인 요청
-    PaymentService->>PaymentGateway: 외부 결제 승인 요청
-    PaymentGateway-->>PaymentService: 승인 결과
-    Note over OrderFacade: TX2 — 결제 승인 반영
-    PaymentService->>PaymentRepository: 결제 승인 기록 (APPROVED)
-    OrderFacade->>OrderService: 주문 확정 처리 (ORDERED)
-    PaymentService-->>OrderFacade: 결제 정보
-    OrderFacade-->>CustomerAPI: 주문 정보
-    CustomerAPI-->>Customer: 주문 확정
+    Note over PaymentService,PaymentRepository: 결제 요청 기록 TX commit
+    PaymentFacade->>PaymentGateway: 주문 결제 금액으로 외부 승인 요청
+    Note over PaymentFacade,PaymentGateway: DB TX 밖
+    PaymentGateway-->>PaymentFacade: SUCCESS + transactionKey
+    PaymentFacade->>PaymentService: 거래 키 배정
+    PaymentFacade->>ResultHandler: 승인 결과 반영
+    Note over ResultHandler: 결과 TX — 결제·내부 outbox·주문·외부 outbox 원자 처리
+    ResultHandler->>PaymentService: 결제 승인과 PAYMENT_APPROVED 내부 outbox 저장
+    ResultHandler->>PaymentOrder: 주문 확정 처리 (ORDERED)
+    ResultHandler->>Events: PaymentApprovedApplicationEvent 발행 (주문 항목 사실 포함)
+    Events->>Listener: BEFORE_COMMIT
+    Listener->>OutboxRepository: ORDER_PAID_V1 저장 (key=orderId)
+    Note over ResultHandler,OutboxRepository: 결과 상태와 두 outbox가 함께 commit
+    ResultHandler-->>PaymentFacade: 승인 결제 정보
+    PaymentFacade-->>CustomerAPI: APPROVED 결제 정보
+    CustomerAPI-->>Customer: 200 성공
 ```
 
 관련 API:
@@ -171,13 +190,15 @@ sequenceDiagram
 - `GET /api/v1/products/{productId}`
 - `POST /api/v1/products/{productId}/likes`
 - `POST /api/v1/orders`
+- `POST /api/v1/payments`
 - `GET /api/v1/orders/{orderId}`
 
 핵심 포인트:
 
-- 상품 탐색은 `ProductFacade`로 묶고, 주문 생성의 핵심 책임인 스냅샷 생성, 재고 차감, 주문 저장, 결제 기록을 중심으로 표현한다.
+- 상품 탐색은 `ProductFacade`로 묶고, 주문 생성의 핵심 책임은 스냅샷 생성, 재고 차감, 쿠폰 사용, 주문 저장이다. 결제 기록과 외부 결제는 별도 `PaymentFacade` 흐름이다.
 - 주문 항목에는 상품명과 단가 스냅샷이 저장되어 이후 상품 변경과 독립적으로 과거 주문을 보여준다.
-- 외부 결제 호출은 어떤 DB 트랜잭션에도 속하지 않는다. `OrderFacade` 는 (TX1 → 외부 호출 → TX2) 세 구간으로 유스케이스를 구성한다. 주문은 `PAYMENT_PENDING`으로 생성되고 결제 승인 TX2에서 `ORDERED`가 된다. outbox 는 결제수단과 외부 연동 방식이 구체화되면 추가한다.
+- 외부 결제 호출은 어떤 DB 트랜잭션에도 속하지 않는다. `PaymentService`가 `REQUESTED` 기록을 먼저 커밋하고, `PaymentFacade`가 외부 호출을 수행하며, `PaymentResultHandler`가 확정 결과를 별도 트랜잭션으로 반영한다.
+- 결제 승인 트랜잭션은 route가 없는 내부 `PAYMENT_APPROVED` outbox와 Kafka 발행 원천인 `ORDER_PAID_V1` outbox를 함께 남긴다. relay는 후자의 저장된 topic/key/payload만 사용한다.
 
 ## 4. User-J3 비밀번호 변경
 
@@ -241,7 +262,7 @@ sequenceDiagram
     participant LikeService
     participant LikeRepository
     participant Events as ApplicationEventPublisher
-    participant Listener as TransactionalEventListener
+    participant Listener as CommerceApplicationEventOutboxListener
     participant OutboxRepository
     participant Relay as OutboxRelay
     participant Kafka as Kafka catalog-events
@@ -276,16 +297,16 @@ sequenceDiagram
                 Note over LikeService: no-op DELETE — 이벤트 없음
             end
         end
-        Note over LikeService: TX commit — likes가 상태 source of truth
-        Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
-        Listener->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (eventId UUID, topic=catalog-events, productId key)
+        Events->>Listener: BEFORE_COMMIT listener 호출
+        Listener->>OutboxRepository: LIKE_COUNT_CHANGED_V1 저장 (topic/key/envelope 고정)
+        Note over LikeService,OutboxRepository: likes와 outbox가 같은 TX에서 commit 또는 rollback
         LikeFacade-->>CustomerAPI: 최종 좋아요 상태
         CustomerAPI-->>Customer: 200 성공 또는 204 응답 본문 없음
     end
 
     Relay->>OutboxRepository: 발행 대기 이벤트 조회
     Relay->>Kafka: productId key로 LIKE_COUNT_CHANGED_V1 발행 (acks=all, idempotence=true)
-    Kafka-->>Consumer: LIKE_COUNT_CHANGED_V1(eventId, productId, userId, delta)
+    Kafka-->>Consumer: immutable envelope(eventId, eventType, aggregate, payload)
     Consumer->>ProcessedEvents: consumer_group + eventId 처리 기록
     alt 이미 처리된 eventId
         Consumer-->>Kafka: ack (중복 no-op)
@@ -348,23 +369,29 @@ sequenceDiagram
     Facade->>Service: 핵심 유스케이스 처리
     Note over Service: @Transactional — 원천 상태 저장
     Service->>Events: ApplicationEvent 발행
-    Note over Service: commit 성공
-    Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
-    alt 부가 로그만 필요한 이벤트
-        Listener->>Listener: 구조화 로그 기록
-    else 시스템 간 전파 필요
-        Listener->>OutboxRepository: topic/key/payload 포함 outbox 저장
-    end
+    Listener->>Listener: @TransactionalEventListener(BEFORE_COMMIT)
+    Listener->>OutboxRepository: topic/key/immutable envelope 포함 outbox 저장
+    Note over Service,OutboxRepository: 원천 상태와 outbox가 함께 commit 또는 rollback
+    Listener->>Listener: AFTER_COMMIT 구조화 로그 기록
 
     Relay->>OutboxRepository: 발행 대기 outbox 조회
-    Relay->>Kafka: Kafka 발행 (acks=all, idempotence=true)
+    Relay->>Kafka: 저장된 topic/key/envelope 그대로 발행 (DB TX 밖, acks=all)
+    alt broker ack 성공
+        Kafka-->>Relay: ack
+        Relay->>OutboxRepository: 현재 claimId 조건으로 PUBLISHED 저장
+    else 발행 실패, 누적 시도 5회 미만
+        Relay->>OutboxRepository: FAILED + nextRetryAt + lastError 저장
+    else 5번째 발행 실패
+        Relay->>OutboxRepository: DEAD + nextRetryAt=null + lastError 저장
+        Note over Relay,OutboxRepository: DEAD는 자동 claim 대상에서 제외
+    end
     Kafka-->>Streamer: catalog-events/order-events
     Streamer->>ProcessedEvents: consumer_group + eventId insert
     alt 이미 처리한 eventId
         Streamer-->>Kafka: manual ack
     else 신규 eventId
-        Streamer->>Metrics: product_metrics upsert, stale event 방어
-        Note over Streamer,Metrics: DB commit 이후 manual ack
+        Streamer->>Metrics: 고유 eventId의 delta를 product_metrics에 반영
+        Note over Streamer,Metrics: 발생시각과 무관하게 모든 고유 delta 적용, DB commit 이후 manual ack
         Streamer-->>Kafka: manual ack
     end
 ```
@@ -373,14 +400,16 @@ sequenceDiagram
 
 - `catalog-events`: 상품 조회, 좋아요, 카탈로그/재고 지표 이벤트. Kafka key는 `productId`.
 - `order-events`: 주문 생성, 결제 승인/실패, 판매량 반영 이벤트. Kafka key는 `orderId`.
-- `coupon-issue-requests`: 쿠폰 발급 요청 command. Kafka key는 `couponId`.
+- `coupon-issue-requests`: 쿠폰 발급 요청 command. Kafka key는 `couponTemplateId`.
 
 핵심 포인트:
 
 - 이벤트 생산, routing, outbox row 저장은 API 애플리케이션 경계가 담당한다.
 - streamer는 수집과 projection 갱신만 담당하고 권위 상태 변경을 수행하지 않는다.
+- 결제의 `PAYMENT_STATUS_SYNC_REQUESTED`, `PAYMENT_APPROVED`, `PAYMENT_FAILED`는 topic/key가 없는 내부 처리 기록이다. 결제 결과의 Kafka 발행 원천은 별도 `ORDER_PAID_V1`/`ORDER_FAILED_V1` outbox이며, 결제 결과 상태·주문 전이와 같은 트랜잭션에서 저장된다.
 - `product_metrics`는 `product_id`, `like_count`, `sales_count`, `view_count`, `last_event_at`, `last_like_event_at`, `last_sales_event_at`, `last_view_event_at`, `updated_at`을 갖는 rebuildable projection이다.
 - consumer는 `processed_kafka_events` 또는 `event_handled` 기반 idempotency를 먼저 확보하고, DB commit 이후 manual ack 한다.
+- relay의 자동 발행은 최초 시도를 포함해 5회로 제한한다. 마지막 실패는 `DEAD`에 격리하고 row와 오류를 보존하며, 운영자 수동 replay는 별도 후속 범위다.
 
 ## 6. User-E2 재고 부족 거부
 
@@ -438,98 +467,86 @@ sequenceDiagram
 
 ## 7. User-E3 결제 승인 실패
 
-외부 결제 시스템이 승인을 거절하거나 장애를 반환하면 주문 row는 실패 이력으로 유지하고, API 응답은 실패로 반환한다.
-TX2 실패 보상은 `PAYMENT_PENDING` 주문에 대해서만 수행해 중복 콜백이나 회복 프로세스가 재고와 쿠폰을 이중 복구하지 못하게 한다.
-이 다이어그램은 후속 결제 연동 단계의 보상 설계이며, Round 4 쿠폰/동시성 구현 필수 범위는 아니다.
+외부 결제 시스템의 명시적인 실패와 결과를 확인할 수 없는 장애는 다르게 처리한다.
+명시적 실패는 결제·주문 실패와 재고·쿠폰 보상을 하나의 결과 트랜잭션으로 확정하고, 상태 불명 장애는 결제를 `UNKNOWN`으로 남긴 뒤 내부 회복 outbox를 기준으로 다시 확인한다.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Customer
     participant CustomerAPI
-    participant OrderFacade
-    participant ProductService
-    participant StockService
-    participant CouponService
-    participant OrderService
-    participant OrderRepository
+    participant PaymentFacade
     participant PaymentService
     participant PaymentRepository
     participant PaymentGateway as PaymentGatewayPort
+    participant ResultHandler as PaymentResultHandler
+    participant PaymentOrder as PaymentOrderPort
+    participant Compensation as PaymentCompensationPort
+    participant Events as ApplicationEventPublisher
+    participant Listener as CommerceApplicationEventOutboxListener
+    participant OutboxRepository
     participant Advice as ApiControllerAdvice
 
-    Customer->>CustomerAPI: 주문 요청
+    Note over CustomerAPI,PaymentRepository: PAYMENT_PENDING 주문과 REQUESTED 결제 기록이 이미 존재
+    Customer->>CustomerAPI: 결제 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
-    CustomerAPI->>OrderFacade: 주문 처리
-    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·쿠폰·결제(REQUESTED) 요청 기록
-    OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
-    ProductService-->>OrderFacade: 상품명·단가
-    OrderFacade->>StockService: 재고 차감
-    StockService-->>OrderFacade: 차감 완료
-    OrderFacade->>OrderService: 주문 생성 (PAYMENT_PENDING, 스냅샷 포함)
-    OrderService-->>OrderFacade: 주문 정보
-    OrderFacade->>OrderRepository: 주문 저장
-    OrderRepository-->>OrderFacade: 저장 완료
-    OrderFacade->>PaymentService: 결제 요청 기록
-    PaymentService->>PaymentRepository: 결제 요청 기록 (REQUESTED)
-    Note over OrderFacade: TX1 commit — 외부 호출은 트랜잭션 밖
-    OrderFacade->>PaymentService: 외부 결제 승인 요청
-    PaymentService->>PaymentGateway: 외부 결제 승인 요청
+    CustomerAPI->>PaymentFacade: 결제 처리
+    PaymentFacade->>PaymentGateway: 외부 결제 승인 요청
+    Note over PaymentFacade,PaymentGateway: DB TX 밖
     alt 결제 승인 거절
-        PaymentGateway-->>PaymentService: 거절 결과
-        Note over OrderFacade: TX2 — 실패 보상, PAYMENT_PENDING 가드
-        OrderFacade->>OrderService: 주문 실패 전이 요청
-        OrderService->>OrderRepository: 주문 잠금 조회
-        alt 주문 상태가 PAYMENT_PENDING
-            OrderService->>OrderRepository: 주문 상태 저장 (PAYMENT_FAILED)
-            PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
-            OrderFacade->>StockService: 차감 재고 보상 복구
-            alt 쿠폰 적용 주문
-                OrderFacade->>CouponService: 발급 쿠폰 사용 복구 (AVAILABLE)
-                OrderFacade->>OrderService: 실패 주문 쿠폰 연결 해제 (issuedCouponId = NULL)
-            else 쿠폰 미적용 주문
-                Note over OrderFacade: 쿠폰 복구 없음
-            end
-        else 이미 ORDERED/PAYMENT_FAILED/CANCELED
-            OrderService-->>OrderFacade: 보상 생략 (멱등 종료)
-        end
-        OrderFacade-->>Advice: 예외(결제 승인 실패)
+        PaymentGateway-->>PaymentFacade: FAILED + transactionKey + reason
+        PaymentFacade->>PaymentService: 거래 키 배정
+        PaymentFacade->>ResultHandler: 실패 결과 반영
+        Note over ResultHandler: 결과 TX 시작
+        ResultHandler->>PaymentService: 외부 거래 키 잠금 조회
+        PaymentService->>PaymentRepository: FAILED + PAYMENT_FAILED 내부 outbox 저장
+        ResultHandler->>PaymentOrder: PAYMENT_PENDING 주문 조회 후 PAYMENT_FAILED 전이
+        ResultHandler->>Compensation: 재고 복구와 사용 쿠폰 AVAILABLE 복구
+        ResultHandler->>PaymentOrder: issuedCouponId 연결 해제
+        ResultHandler->>Events: PaymentFailedApplicationEvent 발행
+        Events->>Listener: BEFORE_COMMIT
+        Listener->>OutboxRepository: ORDER_FAILED_V1 저장 (key=orderId)
+        Note over ResultHandler,OutboxRepository: 실패 상태·보상·내부/외부 outbox 함께 commit
+        PaymentFacade-->>Advice: 예외(결제 승인 실패)
         Advice-->>Customer: 409 충돌
-    else 외부 결제 시스템 장애
-        PaymentGateway-->>PaymentService: 타임아웃 또는 장애
-        Note over OrderFacade: TX2 — 실패 보상, PAYMENT_PENDING 가드
-        OrderFacade->>OrderService: 주문 실패 전이 요청
-        OrderService->>OrderRepository: 주문 잠금 조회
-        alt 주문 상태가 PAYMENT_PENDING
-            OrderService->>OrderRepository: 주문 상태 저장 (PAYMENT_FAILED)
-            PaymentService->>PaymentRepository: 결제 실패 기록 (FAILED)
-            OrderFacade->>StockService: 차감 재고 보상 복구
-            alt 쿠폰 적용 주문
-                OrderFacade->>CouponService: 발급 쿠폰 사용 복구 (AVAILABLE)
-                OrderFacade->>OrderService: 실패 주문 쿠폰 연결 해제 (issuedCouponId = NULL)
-            else 쿠폰 미적용 주문
-                Note over OrderFacade: 쿠폰 복구 없음
-            end
-        else 이미 ORDERED/PAYMENT_FAILED/CANCELED
-            OrderService-->>OrderFacade: 보상 생략 (멱등 종료)
-        end
-        OrderFacade-->>Advice: 예외(외부 결제 시스템 실패)
+    else 외부 결과 확인 불가
+        PaymentGateway-->>PaymentFacade: 타임아웃·회로 차단·응답 불명
+        PaymentFacade->>PaymentService: 상태 불명 기록
+        PaymentService->>PaymentRepository: UNKNOWN 저장
+        PaymentService->>OutboxRepository: PAYMENT_STATUS_SYNC_REQUESTED 내부 outbox 저장
+        Note over PaymentService,OutboxRepository: UNKNOWN과 회복 원천이 같은 TX에서 commit
+        PaymentFacade-->>Advice: 예외(외부 결제 결과 미확정)
         Advice-->>Customer: 502 외부 시스템 실패
+
+        Note over PaymentFacade,OutboxRepository: 이후 운영 회복 호출
+        PaymentFacade->>OutboxRepository: 미처리 상태 동기화 이벤트 조회
+        PaymentFacade->>PaymentGateway: 주문 식별자로 외부 결과 조회
+        alt 아직 PENDING 또는 결과 없음
+            PaymentFacade-->>PaymentFacade: 회복 보류, 내부 outbox PENDING 유지
+        else SUCCESS 또는 FAILED
+            PaymentFacade->>PaymentService: 거래 키 배정
+            PaymentFacade->>ResultHandler: 확정 결과 반영
+            ResultHandler-->>PaymentFacade: 주문 전이와 필요한 보상 완료
+            PaymentFacade->>OutboxRepository: 상태 동기화 이벤트 처리 완료
+        end
     end
 ```
 
 관련 API:
 
-- `POST /api/v1/orders`
+- `POST /api/v1/payments`
+- `POST /api/v1/payments/callback`
+- `POST /api/v1/payments/recovery`
 
 핵심 포인트:
 
-- 결제 실패도 `payments.status = FAILED`와 `orders.order_status = PAYMENT_FAILED`로 기록해 주문 시도와 외부 승인 결과를 추적한다.
-- 재고·쿠폰 복구는 트랜잭션 롤백이 아니라 **보상 트랜잭션(TX2)** 이다. TX1 이 이미 커밋되어 자동 원복할 수 없기 때문이다.
-- 보상은 주문 상태가 `PAYMENT_PENDING`일 때만 수행한다. 상태 가드가 중복 콜백과 orphan 회복 프로세스의 이중 복구를 막는다.
+- 결제 실패는 `payment_records.status = 30(FAILED)`와 `orders.order_status = PAYMENT_FAILED`로 기록해 주문 시도와 외부 승인 결과를 추적한다.
+- 재고·쿠폰 복구는 주문 생성 트랜잭션의 롤백이 아니라 별도 결과 트랜잭션의 보상이다. 결제 실패 저장, 주문 실패 전이, 보상, 내부 `PAYMENT_FAILED`, 외부 `ORDER_FAILED_V1` outbox 중 하나라도 실패하면 결과 트랜잭션 전체가 롤백된다.
+- `PaymentResultHandler`는 `PAYMENT_PENDING` 주문만 결과에 맞게 전이한다. 같은 완료 상태의 중복 콜백은 `changed=false`로 보상과 이벤트를 반복하지 않는다.
 - 쿠폰 적용 주문의 결제 실패 보상은 발급 쿠폰을 `AVAILABLE`로 되돌리고 실패 주문의 `issuedCouponId`를 `NULL`로 분리한다.
-- 주문 row와 금액 스냅샷은 `PAYMENT_FAILED` 이력으로 유지되지만, `POST /api/v1/orders` 응답은 성공 생성(`201`)이 아니라 `409` 또는 `502`다.
-- TX1 commit 후 TX2 도달 전에 프로세스가 종료되면 `orders.order_status = PAYMENT_PENDING`, `payments.status = REQUESTED`, 차감된 재고, `USED` 쿠폰이 남을 수 있다. 회수 전략(상태 폴링·웹훅·outbox)은 결제수단과 외부 연동 방식이 구체화될 때 확정한다.
+- 주문 생성 API는 이미 `PAYMENT_PENDING` 주문을 `201`로 반환한다. 별도 결제 요청에서 명시적 거절은 `409`, 결과 미확정은 `UNKNOWN`과 회복 기록을 남기고 `502`다.
+- `UNKNOWN`은 실패와 다르므로 즉시 재고·쿠폰을 복구하지 않는다. 회복은 거래 키가 없을 수 있어 주문 식별자로 외부 결제 시스템을 조회한다.
+- 인증된 콜백의 `SUCCESS`/`FAILED`도 같은 `PaymentResultHandler`를 사용한다. `PENDING` 콜백은 현재 결제 정보를 반환하고 상태를 완료로 바꾸지 않는다.
 
 ## 8. Admin-J1 신규 브랜드와 상품 등록
 
@@ -782,10 +799,11 @@ sequenceDiagram
     actor Customer
     participant CustomerAPI
     participant CouponFacade
+    participant RequestService as CouponIssueRequestService
     participant CouponService
-    participant RequestRepository as CouponIssueRequestRepository
     participant Events as ApplicationEventPublisher
-    participant Listener as TransactionalEventListener
+    participant Listener as CommerceApplicationEventOutboxListener
+    participant RequestRepository as CouponIssueRequestRepository
     participant OutboxRepository
     participant Kafka as Kafka coupon-issue-requests
     participant Relay as OutboxRelay
@@ -798,30 +816,38 @@ sequenceDiagram
     Customer->>CustomerAPI: 쿠폰 발급 요청
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>CouponFacade: 쿠폰 발급 요청 접수
-    Note over CouponFacade: @Transactional — 템플릿 기본 검증 + 요청 저장
-    CouponFacade->>CouponService: 쿠폰 템플릿 발급 가능성 확인
-    CouponService->>CouponRepository: 템플릿 조회
-    CouponRepository-->>CouponService: 쿠폰 템플릿
-    alt 템플릿 없음 또는 삭제/만료됨
-        CouponService-->>Advice: 예외(발급 불가 쿠폰)
-        Advice-->>Customer: 404 자원 없음 또는 409 충돌
-    else 기존 pending/final 요청 있음
-        CouponFacade->>RequestRepository: 기존 요청 조회
-        RequestRepository-->>CouponFacade: requestId + status
+    CouponFacade->>RequestService: requestIssue(userId, couponTemplateId)
+    Note over RequestService: @Transactional(READ_COMMITTED), 수량 잠금 없음
+    RequestService->>CouponRepository: 템플릿 일반 조회
+    CouponRepository-->>RequestService: 쿠폰 템플릿 또는 없음
+    alt 템플릿 없음
+        RequestService-->>Advice: 예외(쿠폰 없음)
+        Advice-->>Customer: 404 자원 없음
+    else 기존 요청 있음
+        RequestService->>RequestRepository: userId + templateId 조회
+        RequestRepository-->>RequestService: 기존 requestId + status
+        RequestService-->>CouponFacade: 기존 요청 상태
         CouponFacade-->>CustomerAPI: 기존 요청 상태
         CustomerAPI-->>Customer: 202 접수됨
     else 요청 접수 가능
-        CouponFacade->>RequestRepository: 요청 저장 (PENDING)
-        CouponFacade->>Events: CouponIssueRequestedApplicationEvent 발행
-        Note over CouponFacade: commit 성공
-        Listener->>Listener: @TransactionalEventListener(AFTER_COMMIT)
-        Listener->>OutboxRepository: coupon-issue-requests outbox 저장
-        CouponFacade-->>CustomerAPI: requestId + PENDING
+        RequestService->>RequestRepository: INSERT IGNORE 요청 저장 (PENDING)
+        alt affectedRows = 0 (동시 unique 충돌)
+            RequestService->>RequestRepository: 기존 요청 일반 조회
+            RequestService-->>CouponFacade: 기존 요청 상태 (이벤트 없음)
+            CouponFacade-->>CustomerAPI: 기존 요청 상태
+        else affectedRows = 1
+            RequestService->>Events: CouponIssueRequestedApplicationEvent 발행
+            Events->>Listener: BEFORE_COMMIT listener 호출
+            Listener->>OutboxRepository: coupon-issue-requests outbox 저장 (key=couponTemplateId)
+            Note over RequestService,OutboxRepository: 요청과 outbox가 같은 TX에서 commit 또는 rollback
+            RequestService-->>CouponFacade: requestId + PENDING
+            CouponFacade-->>CustomerAPI: requestId + PENDING
+        end
         CustomerAPI-->>Customer: 202 접수됨
     end
 
-    Relay->>Kafka: couponId key로 요청 발행 (acks=all, idempotence=true)
-    Kafka-->>Worker: CouponIssueRequested(eventId, requestId, couponId, userId)
+    Relay->>Kafka: couponTemplateId key로 저장 envelope 발행 (acks=all, idempotence=true)
+    Kafka-->>Worker: CouponIssueRequested(eventId, requestId, couponTemplateId, userId)
     Worker->>EventHandled: eventId 처리 기록
     alt 이미 처리된 eventId
         Worker-->>Kafka: manual ack
@@ -873,6 +899,8 @@ sequenceDiagram
 - `issued_coupons(user_id, coupon_template_id)` unique 제약으로 중복 발급을 최종 차단한다.
 - 요청 접수와 실제 발급은 다른 트랜잭션이다. 접수 응답의 `202`는 실제 발급 성공을 뜻하지 않는다.
 - 선착순 수량과 중복 발급은 worker 트랜잭션에서 처리한다. `event_handled`와 DB unique 제약이 Kafka 재전달과 중복 요청을 멱등하게 만든다.
+- worker의 재시도 가능한 예외는 재시도 동안 요청을 `PENDING`으로 유지한다. 재시도를 모두 소진하면 설정된 쿠폰 실패 주제로 먼저 발행하고, 발행 성공 뒤 별도 복구 트랜잭션에서 아직 `PENDING`인 요청만 `FAILED`로 바꾼다. DLT 발행은 전용 `ByteArraySerializer`로 원본 payload bytes를 보존한다. 실패 주제 발행이 실패하거나 요청이 이미 최종 상태면 상태를 덮어쓰지 않는다.
+- 쿠폰 요청 outbox, consumer 구독, 요청·실패 주제 생성, 실패 복구 목적지는 `commerce-events.coupon-issue-request` 설정을 함께 사용한다.
 - `EXPIRED`는 저장 상태가 아니라 조회 응답을 만들 때 계산한 표시 상태다.
 - 발급 가능한 쿠폰 목록 조회(`GET /api/v1/coupons`)는 원문 필수 API가 아니므로 선택 확장 후보로 분리한다.
 
@@ -894,14 +922,12 @@ sequenceDiagram
     participant StockRepository
     participant OrderService
     participant OrderRepository
-    participant PaymentService
-    participant PaymentRepository
     participant Advice as ApiControllerAdvice
 
     Customer->>CustomerAPI: 주문 요청(items, couponId)
     Note over CustomerAPI: 고객 인증 (§1 참조)
     CustomerAPI->>OrderFacade: 쿠폰 적용 주문 처리
-    Note over OrderFacade: TX1 — 주문(PAYMENT_PENDING)·재고·쿠폰·결제(REQUESTED) 요청 기록 원자성
+    Note over OrderFacade: 주문 TX — 주문(PAYMENT_PENDING)·재고·쿠폰 원자성
     OrderFacade->>ProductService: 주문 시점 상품 스냅샷 조회
     ProductService-->>OrderFacade: 상품명·단가·주문 가능 상태
     OrderFacade->>CouponService: 발급 쿠폰 검증과 할인 계산
@@ -934,11 +960,9 @@ sequenceDiagram
             OrderService-->>OrderFacade: 주문 정보
             OrderFacade->>OrderRepository: 주문 저장
             OrderRepository-->>OrderFacade: 저장 완료
-            OrderFacade->>PaymentService: 결제 요청 기록
-            PaymentService->>PaymentRepository: 결제 요청 기록 (REQUESTED)
-            Note over OrderFacade: TX1 commit — 외부 결제 승인/실패는 §3, §7 흐름에서 처리
-            OrderFacade-->>CustomerAPI: TX1 처리 결과
-            CustomerAPI-->>Customer: 결제 승인 후 201 또는 실패 응답
+            Note over OrderFacade: 주문 TX commit
+            OrderFacade-->>CustomerAPI: PAYMENT_PENDING 주문
+            CustomerAPI-->>Customer: 201 생성됨
         end
     end
 ```
@@ -952,8 +976,8 @@ sequenceDiagram
 - 주문 요청의 쿠폰 필드는 외부 계약상 `couponId`이며, 내부에서는 발급 쿠폰 식별자 `issuedCouponId`로 매핑한다.
 - 발급 쿠폰은 비관적 락으로 잠그지 않고, 사용 가능(`AVAILABLE`) 상태를 검증한 뒤 `USED`로 전환하며 `version` 낙관적 락으로 동시 사용을 감지한다. 동일 쿠폰 동시 주문 중 하나만 성공하고 나머지는 version 충돌로 실패한다.
 - 여러 재고 행 잠금은 상품 ID 정렬 순서로 획득해 교착 가능성을 줄인다.
-- 쿠폰 검증, 재고 차감, 주문 저장, 결제 요청 기록 중 하나라도 실패하면 TX1 전체를 rollback한다.
-- TX1 이후 외부 결제 실패 보상은 §7의 후속 결제 연동 설계에서 다룬다. Round 4 구현 이슈는 결제 호출 전 쿠폰/재고/주문 원자성까지를 우선 범위로 둔다.
+- 쿠폰 검증, 재고 차감, 쿠폰 사용, 주문 저장 중 하나라도 실패하면 주문 트랜잭션 전체를 rollback한다.
+- 주문 생성 뒤 사용자가 별도 `POST /api/v1/payments`를 호출한다. 결제 요청·승인 흐름은 §3, 명시적 실패와 상태 불명 회복은 §7에서 다룬다.
 
 ## 14. Admin-J5 쿠폰 템플릿 운영
 

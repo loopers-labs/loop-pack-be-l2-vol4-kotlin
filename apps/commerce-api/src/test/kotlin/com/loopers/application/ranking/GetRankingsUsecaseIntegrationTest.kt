@@ -94,6 +94,8 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
 
         val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, null, page = 1, size = 20))
         assertThat(result.items.map { it.productId }).containsExactly(alive.id)
+        // 스킵된 상품의 자리는 재넘버링하지 않는다 — rank는 ZSET상 실제 순위(스펙 §6)
+        assertThat(result.items[0].rank).isEqualTo(2L)
 
         val empty = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, "19990101", page = 1, size = 20))
         assertThat(empty.items).isEmpty()

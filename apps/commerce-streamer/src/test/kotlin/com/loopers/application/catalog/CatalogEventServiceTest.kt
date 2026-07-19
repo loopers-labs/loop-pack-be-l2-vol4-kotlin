@@ -2,8 +2,8 @@ package com.loopers.application.catalog
 
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
-import com.loopers.domain.product.ProductStatProjection
-import com.loopers.domain.product.ProductStatProjectionRepository
+import com.loopers.domain.product.ProductStat
+import com.loopers.domain.product.ProductStatRepository
 import com.loopers.domain.useraction.UserActionLog
 import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import java.time.ZonedDateTime
 
-class CatalogEventProjectionServiceTest {
+class CatalogEventServiceTest {
     @DisplayName("좋아요 이벤트를 상품 집계와 유저 행동 로그로 반영한다")
     @Test
     fun projectsLikedEvent() {
@@ -70,11 +70,11 @@ class CatalogEventProjectionServiceTest {
 
     private class Fixture {
         val eventHandledRepository = FakeEventHandledRepository()
-        val productStatRepository = FakeProductStatProjectionRepository()
+        val productStatRepository = FakeProductStatRepository()
         val userActionLogRepository = FakeUserActionLogRepository()
-        val service = CatalogEventProjectionService(
+        val service = CatalogEventService(
             eventHandledRepository = eventHandledRepository,
-            productStatProjectionRepository = productStatRepository,
+            productStatRepository = productStatRepository,
             userActionLogRepository = userActionLogRepository,
         )
     }
@@ -92,16 +92,16 @@ class CatalogEventProjectionServiceTest {
         }
     }
 
-    private class FakeProductStatProjectionRepository : ProductStatProjectionRepository {
-        private val productStats = mutableMapOf<Long, ProductStatProjection>()
+    private class FakeProductStatRepository : ProductStatRepository {
+        private val productStats = mutableMapOf<Long, ProductStat>()
 
-        override fun findByProductIdForUpdate(productId: Long): ProductStatProjection? {
+        override fun findByProductIdForUpdate(productId: Long): ProductStat? {
             return productStats[productId]
         }
 
-        override fun save(productStatProjection: ProductStatProjection): ProductStatProjection {
-            productStats[productStatProjection.productId] = productStatProjection
-            return productStatProjection
+        override fun save(productStat: ProductStat): ProductStat {
+            productStats[productStat.productId] = productStat
+            return productStat
         }
     }
 

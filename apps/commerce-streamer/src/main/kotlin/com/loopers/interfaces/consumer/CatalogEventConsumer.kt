@@ -1,6 +1,6 @@
 package com.loopers.interfaces.consumer
 
-import com.loopers.application.catalog.CatalogEventProjectionService
+import com.loopers.application.catalog.CatalogEventService
 import com.loopers.config.kafka.KafkaConfig
 import com.loopers.event.CatalogEventMessage
 import org.springframework.kafka.annotation.KafkaListener
@@ -12,7 +12,7 @@ import org.springframework.retry.annotation.Backoff
 
 @Component
 class CatalogEventConsumer(
-    private val catalogEventProjectionService: CatalogEventProjectionService,
+    private val catalogEventService: CatalogEventService,
 ) {
     @RetryableTopic(
         attempts = "3",
@@ -30,7 +30,7 @@ class CatalogEventConsumer(
         message: CatalogEventMessage,
         acknowledgment: Acknowledgment,
     ) {
-        catalogEventProjectionService.project(message)
+        catalogEventService.project(message)
         acknowledgment.acknowledge()
     }
 }

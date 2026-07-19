@@ -9,6 +9,7 @@ import com.loopers.application.product.dto.ProductDetailInfo
 import com.loopers.application.product.dto.ProductListCommand
 import com.loopers.application.product.dto.ProductUpdateCommand
 import com.loopers.application.productstat.ProductStatService
+import com.loopers.application.ranking.RankingQueryService
 import com.loopers.domain.product.dto.ProductSummary
 import com.loopers.domain.product.event.ProductEvent
 import com.loopers.domain.product.event.ProductEventPublisher
@@ -26,6 +27,7 @@ class ProductFacade(
     private val productCatalogService: ProductCatalogService,
     private val productCacheService: ProductCacheService,
     private val productEventPublisher: ProductEventPublisher,
+    private val rankingQueryService: RankingQueryService,
 ) {
     fun getProducts(command: ProductListCommand): Page<ProductSummary> {
         val cachedProducts = productCacheService.findList(command)
@@ -42,16 +44,15 @@ class ProductFacade(
     }
 
     fun getProduct(productId: Long): ProductDetailInfo {
-        productCacheService.findDetail(productId)?.let {
-            publishViewedEvent(it)
-            return it
-        }
-
-        val productDetail = getProductDetailFromDatabase(productId)
-        productCacheService.saveDetail(productId, productDetail)
+        val productDetail = productCacheService.findDetail(productId)
+            ?: getProductDetailFromDatabase(productId).also { detail ->
+                productCacheService.saveDetail(productId, detail)
+            }
         publishViewedEvent(productDetail)
 
-        return productDetail
+        return productDetail.copy(
+            rank = rankingQueryService.getTodayRankOrNull(productId),
+        )
     }
 
     private fun publishViewedEvent(productDetail: ProductDetailInfo) {

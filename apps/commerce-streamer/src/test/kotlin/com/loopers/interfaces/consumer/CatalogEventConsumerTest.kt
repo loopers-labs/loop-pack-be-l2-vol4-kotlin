@@ -1,6 +1,6 @@
 package com.loopers.interfaces.consumer
 
-import com.loopers.application.catalog.CatalogEventProjectionService
+import com.loopers.application.catalog.CatalogEventService
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
 import org.junit.jupiter.api.DisplayName
@@ -15,34 +15,34 @@ import org.springframework.kafka.support.Acknowledgment
 import java.time.ZonedDateTime
 
 class CatalogEventConsumerTest {
-    private val projectionService = mock<CatalogEventProjectionService>()
+    private val eventService = mock<CatalogEventService>()
     private val acknowledgment = mock<Acknowledgment>()
-    private val consumer = CatalogEventConsumer(projectionService)
+    private val consumer = CatalogEventConsumer(eventService)
 
     @DisplayName("이벤트 처리에 성공하면 ack 한다")
     @Test
-    fun acknowledges_whenMessageIsProjected() {
+    fun acknowledges_whenMessageIsProcessed() {
         val message = createMessage("event-1")
 
         consumer.handle(message, acknowledgment)
 
-        verify(projectionService).project(message)
+        verify(eventService).project(message)
         verify(acknowledgment).acknowledge()
     }
 
     @DisplayName("이벤트 처리에 실패하면 예외를 전파하고 ack 하지 않는다")
     @Test
-    fun propagatesException_whenProjectionFails() {
+    fun propagatesException_whenProcessingFails() {
         val message = createMessage("event-1")
-        doThrow(IllegalStateException("projection failed"))
-            .whenever(projectionService)
+        doThrow(IllegalStateException("processing failed"))
+            .whenever(eventService)
             .project(message)
 
         assertThrows<IllegalStateException> {
             consumer.handle(message, acknowledgment)
         }
 
-        verify(projectionService).project(message)
+        verify(eventService).project(message)
         verify(acknowledgment, never()).acknowledge()
     }
 

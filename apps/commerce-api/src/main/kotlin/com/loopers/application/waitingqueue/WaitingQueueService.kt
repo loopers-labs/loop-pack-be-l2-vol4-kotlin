@@ -64,14 +64,10 @@ class WaitingQueueService(
 
     fun issueNextEntries(batchSize: Long = properties.scheduler.batchSize): List<String> {
         return waitingQueueRepository.popNext(batchSize)
-            .mapNotNull { memberId ->
+            .map { memberId ->
                 val token = generateToken()
                 entryTokenRepository.issue(memberId = memberId, token = token, ttl = properties.entryTokenTtl)
-                val issuedToken = entryTokenRepository.find(memberId)
-                if (issuedToken == null) {
-                    // TODO : notification 알림 발송 구현
-                }
-                issuedToken
+                token
             }
     }
 

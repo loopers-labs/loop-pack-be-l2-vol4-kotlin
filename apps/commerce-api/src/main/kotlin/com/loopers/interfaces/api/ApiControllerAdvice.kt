@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
+import com.loopers.domain.ranking.RankingUnavailableException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.ResponseEntity
@@ -29,6 +30,12 @@ class ApiControllerAdvice {
     fun handle(e: CoreException): ResponseEntity<ApiResponse<*>> {
         log.warn("CoreException : {}", e.customMessage ?: e.message, e)
         return failureResponse(errorType = e.errorType, errorMessage = e.customMessage)
+    }
+
+    @ExceptionHandler
+    fun handle(e: RankingUnavailableException): ResponseEntity<ApiResponse<*>> {
+        log.warn("RankingUnavailableException : {}", e.message, e)
+        return failureResponse(errorType = ErrorType.SERVICE_UNAVAILABLE)
     }
 
     @ExceptionHandler

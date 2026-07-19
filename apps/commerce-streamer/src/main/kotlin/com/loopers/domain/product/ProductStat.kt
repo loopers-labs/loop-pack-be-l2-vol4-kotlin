@@ -1,6 +1,6 @@
 package com.loopers.domain.product
 
-class ProductStatProjection(
+class ProductStat(
     val id: Long = 0L,
     val productId: Long,
     val brandId: Long,

@@ -48,6 +48,7 @@ object OrderExternalEventMessagePayload {
                 OrderEventItemMessage(
                     productId = item.productId,
                     quantity = item.quantity,
+                    unitPrice = item.unitPrice,
                 )
             },
             occurredAt = event.occurredAt,

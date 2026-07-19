@@ -18,6 +18,7 @@ data class OrderEventMessage(
 data class OrderEventItemMessage(
     val productId: Long,
     val quantity: Long,
+    val unitPrice: Long,
 )
 
 enum class OrderEventType {

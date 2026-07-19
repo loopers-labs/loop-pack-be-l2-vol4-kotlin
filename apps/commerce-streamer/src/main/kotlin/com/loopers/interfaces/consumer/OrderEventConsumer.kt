@@ -1,6 +1,6 @@
 package com.loopers.interfaces.consumer
 
-import com.loopers.application.order.OrderEventProjectionService
+import com.loopers.application.order.OrderEventService
 import com.loopers.config.kafka.KafkaConfig
 import com.loopers.event.OrderEventMessage
 import org.springframework.kafka.annotation.KafkaListener
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class OrderEventConsumer(
-    private val orderEventProjectionService: OrderEventProjectionService,
+    private val orderEventService: OrderEventService,
 ) {
     @RetryableTopic(
         attempts = "3",
@@ -30,7 +30,7 @@ class OrderEventConsumer(
         message: OrderEventMessage,
         acknowledgment: Acknowledgment,
     ) {
-        orderEventProjectionService.project(message)
+        orderEventService.project(message)
         acknowledgment.acknowledge()
     }
 }

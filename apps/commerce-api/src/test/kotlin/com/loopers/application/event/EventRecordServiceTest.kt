@@ -157,7 +157,7 @@ class EventRecordServiceTest {
                 orderNumber = "order-20",
                 memberId = 1L,
                 amount = 10_000L,
-                items = listOf(PaymentEvent.Item(productId = 10L, quantity = 2L)),
+                items = listOf(PaymentEvent.Item(productId = 10L, quantity = 2L, unitPrice = 1_000L)),
                 eventId = "event-3",
                 occurredAt = occurredAt,
             ),
@@ -175,6 +175,7 @@ class EventRecordServiceTest {
             { assertThat(payload.paymentId).isEqualTo(30L) },
             { assertThat(payload.items.single().productId).isEqualTo(10L) },
             { assertThat(payload.items.single().quantity).isEqualTo(2L) },
+            { assertThat(payload.items.single().unitPrice).isEqualTo(1_000L) },
         )
     }
 

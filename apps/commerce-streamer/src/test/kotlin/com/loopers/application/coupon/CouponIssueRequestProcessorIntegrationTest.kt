@@ -45,8 +45,8 @@ class CouponIssueRequestProcessorIntegrationTest @Autowired constructor(
         )
         val message = createMessage(requestId = request.requestId, couponId = coupon.id, memberId = 1L)
 
-        processor.process(message)
-        processor.process(message)
+        processor.handle(message)
+        processor.handle(message)
 
         val issues = couponIssueJpaRepository.findAll()
         val handled = eventHandledJpaRepository.findByEventId(message.eventId)
@@ -91,7 +91,7 @@ class CouponIssueRequestProcessorIntegrationTest @Autowired constructor(
             executor.submit {
                 ready.countDown()
                 start.await(5, TimeUnit.SECONDS)
-                processor.process(message)
+                processor.handle(message)
             }
         }
         ready.await(5, TimeUnit.SECONDS)

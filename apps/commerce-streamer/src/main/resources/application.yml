@@ -33,6 +33,9 @@ commerce:
   events:
     catalog-topic: catalog-events
     order-topic: order-events
+    coupon-issue-request-topic: coupon-issue-requests
+  coupon:
+    consumer-group: commerce-coupon-issue
   ranking:
     consumer-group: commerce-ranking
     event-chunk-size: 500

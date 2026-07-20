@@ -24,13 +24,14 @@ class CouponIssueRequestConsumer(
     )
     @KafkaListener(
         topics = ["\${commerce.events.coupon-issue-request-topic:coupon-issue-requests}"],
+        groupId = "\${commerce.coupon.consumer-group:commerce-coupon-issue}",
         containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
     fun receive(
         message: CouponIssueRequestMessage,
         acknowledgment: Acknowledgment,
     ) {
-        couponIssueRequestProcessor.process(message)
+        couponIssueRequestProcessor.handle(message)
         acknowledgment.acknowledge()
     }
 }

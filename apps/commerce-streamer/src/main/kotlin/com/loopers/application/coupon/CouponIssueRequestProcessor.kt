@@ -8,8 +8,7 @@ import com.loopers.domain.coupon.repository.CouponRepository
 import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
 import com.loopers.event.CouponIssueRequestMessage
-import com.loopers.support.error.CoreException
-import com.loopers.support.error.ErrorType
+import com.loopers.event.NonRetryableEventException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,13 +20,13 @@ class CouponIssueRequestProcessor(
     private val eventHandledRepository: EventHandledRepository,
 ) {
     @Transactional
-    fun process(message: CouponIssueRequestMessage) {
+    fun handle(message: CouponIssueRequestMessage) {
         if (eventHandledRepository.exists(message.eventId)) {
             return
         }
 
         val request = couponIssueRequestRepository.findByRequestIdForUpdate(message.requestId)
-            ?: throw CoreException(ErrorType.NOT_FOUND, "Coupon issue request not found.")
+            ?: throw NonRetryableEventException("Coupon issue request not found.")
 
         if (request.status != CouponIssueRequestStatus.REQUESTED) {
             recordHandled(message)

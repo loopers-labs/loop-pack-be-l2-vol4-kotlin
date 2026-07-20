@@ -24,20 +24,20 @@ import java.time.ZonedDateTime
 class RankingEventConsumerTest {
     private val occurredAt = ZonedDateTime.parse("2026-07-14T10:00:00+09:00")
 
-    @DisplayName("Catalog batch 전체 projection 성공 후 ack 한다")
+    @DisplayName("Catalog batch 전체 update 성공 후 ack 한다")
     @Test
-    fun projectsCatalogBatchBeforeAcknowledgment() {
+    fun updatesCatalogBatchBeforeAcknowledgment() {
         val service = mockk<RankingEventService>()
         val acknowledgment = mockk<Acknowledgment>()
         val messages = listOf(catalogMessage("event-1"), catalogMessage("event-2"))
-        every { service.projectCatalog(any()) } just Runs
+        every { service.handle(any<CatalogEventMessage>()) } just Runs
         every { acknowledgment.acknowledge() } just Runs
 
-        CatalogRankingEventConsumer(service, RankingRedisProperties()).handle(messages, acknowledgment)
+        CatalogRankingEventConsumer(service, RankingRedisProperties()).receive(messages, acknowledgment)
 
         verifyOrder {
-            service.projectCatalog(messages[0])
-            service.projectCatalog(messages[1])
+            service.handle(messages[0])
+            service.handle(messages[1])
             acknowledgment.acknowledge()
         }
     }
@@ -48,11 +48,11 @@ class RankingEventConsumerTest {
         val service = mockk<RankingEventService>()
         val acknowledgment = mockk<Acknowledgment>(relaxed = true)
         val messages = listOf(orderMessage("event-1"), orderMessage("event-2"), orderMessage("event-3"))
-        every { service.projectOrder(messages[0]) } just Runs
-        every { service.projectOrder(messages[1]) } throws NonRetryableEventException("invalid item")
+        every { service.handle(messages[0]) } just Runs
+        every { service.handle(messages[1]) } throws NonRetryableEventException("invalid item")
 
         val exception = assertThrows<BatchListenerFailedException> {
-            OrderRankingEventConsumer(service, RankingRedisProperties()).handle(messages, acknowledgment)
+            OrderRankingEventConsumer(service, RankingRedisProperties()).receive(messages, acknowledgment)
         }
 
         assertThat(exception.index).isEqualTo(1)

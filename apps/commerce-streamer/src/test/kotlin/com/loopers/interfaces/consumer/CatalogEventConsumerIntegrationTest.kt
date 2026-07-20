@@ -60,7 +60,7 @@ class CatalogEventConsumerIntegrationTest
 
     @DisplayName("Kafka catalog 좋아요 이벤트를 소비해 상품 집계와 유저 행동 로그를 저장한다")
     @Test
-    fun consumesLikedEventAndProjectsCatalogState() {
+    fun consumesLikedEventAndUpdatesCatalogState() {
         val message = createMessage(eventType = CatalogEventType.PRODUCT_LIKED)
 
         publish(message)
@@ -80,7 +80,7 @@ class CatalogEventConsumerIntegrationTest
         }
     }
 
-    @DisplayName("같은 eventId의 Kafka catalog 이벤트는 한 번만 projection 한다")
+    @DisplayName("같은 eventId의 Kafka catalog 이벤트는 한 번만 update 한다")
     @Test
     fun skipsDuplicatedEventByEventId() {
         val message = createMessage(eventType = CatalogEventType.PRODUCT_LIKED)

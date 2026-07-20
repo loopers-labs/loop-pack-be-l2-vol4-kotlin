@@ -26,7 +26,7 @@ class CouponIssueRequestConsumer(
         topics = ["\${commerce.events.coupon-issue-request-topic:coupon-issue-requests}"],
         containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
-    fun handle(
+    fun receive(
         message: CouponIssueRequestMessage,
         acknowledgment: Acknowledgment,
     ) {

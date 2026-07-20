@@ -63,7 +63,7 @@ class RankingEventConsumerIntegrationTest
 
         @DisplayName("Kafka batch consumer가 좋아요와 결제 이벤트를 Redis 랭킹에 반영한다")
         @Test
-        fun consumesEventsAndProjectsWeightedRanking() {
+        fun consumesEventsAndUpdatesWeightedRanking() {
             val occurredAt = ZonedDateTime.now(ZoneId.of("Asia/Seoul"))
             val date = occurredAt.toLocalDate()
             val likedProductId = 101L

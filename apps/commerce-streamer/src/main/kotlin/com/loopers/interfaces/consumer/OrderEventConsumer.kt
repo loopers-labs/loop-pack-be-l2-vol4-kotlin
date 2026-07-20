@@ -26,11 +26,11 @@ class OrderEventConsumer(
         topics = ["\${commerce.events.order-topic:order-events}"],
         containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
-    fun handle(
+    fun receive(
         message: OrderEventMessage,
         acknowledgment: Acknowledgment,
     ) {
-        orderEventService.project(message)
+        orderEventService.handle(message)
         acknowledgment.acknowledge()
     }
 }

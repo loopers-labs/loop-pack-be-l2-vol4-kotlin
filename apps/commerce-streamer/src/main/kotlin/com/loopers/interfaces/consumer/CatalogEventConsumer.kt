@@ -26,11 +26,11 @@ class CatalogEventConsumer(
         topics = ["\${commerce.events.catalog-topic:catalog-events}"],
         containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
-    fun handle(
+    fun receive(
         message: CatalogEventMessage,
         acknowledgment: Acknowledgment,
     ) {
-        catalogEventService.project(message)
+        catalogEventService.handle(message)
         acknowledgment.acknowledge()
     }
 }

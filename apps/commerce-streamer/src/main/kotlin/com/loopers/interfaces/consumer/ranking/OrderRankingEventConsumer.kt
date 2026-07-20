@@ -20,13 +20,13 @@ class OrderRankingEventConsumer(
         groupId = "\${commerce.ranking.consumer-group:commerce-ranking}",
         containerFactory = KafkaConfig.BATCH_LISTENER,
     )
-    fun handle(
+    fun receive(
         messages: List<OrderEventMessage>,
         acknowledgment: Acknowledgment,
     ) {
         messages.forEachChunked { index, message ->
             try {
-                service.projectOrder(message)
+                service.handle(message)
             } catch (exception: NonRetryableEventException) {
                 throw BatchListenerFailedException(exception.message ?: "Invalid order ranking event", exception, index)
             }
@@ -35,9 +35,9 @@ class OrderRankingEventConsumer(
     }
 
     private fun <T> List<T>.forEachChunked(action: (Int, T) -> Unit) {
-        chunked(properties.projectionChunkSize).forEachIndexed { chunkIndex, chunk ->
+        chunked(properties.eventChunkSize).forEachIndexed { chunkIndex, chunk ->
             chunk.forEachIndexed { itemIndex, item ->
-                action(chunkIndex * properties.projectionChunkSize + itemIndex, item)
+                action(chunkIndex * properties.eventChunkSize + itemIndex, item)
             }
         }
     }

@@ -19,11 +19,11 @@ import java.time.ZonedDateTime
 class OrderEventServiceTest {
     @DisplayName("주문 이벤트를 유저 행동 로그로 반영한다")
     @Test
-    fun projectsOrderEventToUserActionLog() {
+    fun updatesOrderEventToUserActionLog() {
         val fixture = Fixture()
         val message = createMessage(eventId = "event-1", eventType = OrderEventType.ORDER_CREATED)
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         val userActionLog = fixture.userActionLogRepository.logs.single()
         assertAll(
@@ -46,8 +46,8 @@ class OrderEventServiceTest {
             items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L, unitPrice = 1_000L)),
         )
 
-        fixture.service.project(message)
-        fixture.service.project(message)
+        fixture.service.handle(message)
+        fixture.service.handle(message)
 
         assertThat(fixture.userActionLogRepository.logs).hasSize(1)
         assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L)
@@ -66,7 +66,7 @@ class OrderEventServiceTest {
             ),
         )
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         assertAll(
             { assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L) },

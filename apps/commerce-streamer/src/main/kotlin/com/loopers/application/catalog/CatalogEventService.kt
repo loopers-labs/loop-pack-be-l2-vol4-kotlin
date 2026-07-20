@@ -19,7 +19,7 @@ class CatalogEventService(
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
-    fun project(message: CatalogEventMessage) {
+    fun handle(message: CatalogEventMessage) {
         if (eventHandledRepository.exists(message.eventId)) {
             return
         }

@@ -4,9 +4,9 @@ import com.loopers.config.redis.RankingClockConfig
 import com.loopers.config.redis.RankingDatePolicy
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.domain.ranking.CatalogRankingMetric
-import com.loopers.domain.ranking.CatalogRankingProjection
-import com.loopers.domain.ranking.OrderRankingProjection
-import com.loopers.domain.ranking.RankingProjectionRepository
+import com.loopers.domain.ranking.CatalogRankingUpdate
+import com.loopers.domain.ranking.OrderRankingUpdate
+import com.loopers.domain.ranking.RankingRepository
 import com.loopers.event.CatalogEventMessage
 import com.loopers.event.CatalogEventType
 import com.loopers.event.NonRetryableEventException
@@ -18,14 +18,14 @@ import java.time.Clock
 
 @Component
 class RankingEventService(
-    private val repository: RankingProjectionRepository,
+    private val repository: RankingRepository,
     properties: RankingRedisProperties,
     @param:Qualifier(RankingClockConfig.RANKING_CLOCK)
     private val clock: Clock,
 ) {
     private val datePolicy = RankingDatePolicy(properties)
 
-    fun projectCatalog(message: CatalogEventMessage) {
+    fun handle(message: CatalogEventMessage) {
         validateCommon(message.eventId, message.productId)
         val (metric, delta) = when (message.eventType) {
             CatalogEventType.PRODUCT_VIEWED -> CatalogRankingMetric.VIEW to 1L
@@ -37,8 +37,8 @@ class RankingEventService(
             return
         }
 
-        repository.projectCatalog(
-            CatalogRankingProjection(
+        repository.updateCatalog(
+            CatalogRankingUpdate(
                 eventId = message.eventId,
                 productId = message.productId,
                 date = date,
@@ -49,7 +49,7 @@ class RankingEventService(
         )
     }
 
-    fun projectOrder(message: OrderEventMessage) {
+    fun handle(message: OrderEventMessage) {
         if (message.eventType != OrderEventType.PAYMENT_SUCCEEDED) {
             return
         }
@@ -70,12 +70,12 @@ class RankingEventService(
             return
         }
 
-        repository.projectOrder(
-            OrderRankingProjection(
+        repository.updateOrder(
+            OrderRankingUpdate(
                 eventId = message.eventId,
                 date = date,
                 items = salesByProduct.map { (productId, amount) ->
-                    OrderRankingProjection.SalesItem(productId, amount)
+                    OrderRankingUpdate.SalesItem(productId, amount)
                 },
                 expiresAt = datePolicy.expiresAt(date),
             ),

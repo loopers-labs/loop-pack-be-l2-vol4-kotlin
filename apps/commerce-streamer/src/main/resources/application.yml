@@ -35,7 +35,7 @@ commerce:
     order-topic: order-events
   ranking:
     consumer-group: commerce-ranking
-    projection-chunk-size: 500
+    event-chunk-size: 500
 
 ---
 spring:

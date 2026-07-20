@@ -3,7 +3,7 @@ package com.loopers.domain.ranking
 import java.time.Instant
 import java.time.LocalDate
 
-data class CatalogRankingProjection(
+data class CatalogRankingUpdate(
     val eventId: String,
     val productId: Long,
     val date: LocalDate,
@@ -17,7 +17,7 @@ enum class CatalogRankingMetric {
     LIKE,
 }
 
-data class OrderRankingProjection(
+data class OrderRankingUpdate(
     val eventId: String,
     val date: LocalDate,
     val items: List<SalesItem>,
@@ -29,7 +29,7 @@ data class OrderRankingProjection(
     )
 }
 
-enum class RankingProjectionResult {
+enum class RankingUpdateResult {
     APPLIED,
     DUPLICATE,
 }

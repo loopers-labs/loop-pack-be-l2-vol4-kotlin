@@ -19,7 +19,7 @@ class OrderEventService(
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
-    fun project(message: OrderEventMessage) {
+    fun handle(message: OrderEventMessage) {
         if (eventHandledRepository.exists(message.eventId)) {
             return
         }

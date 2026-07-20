@@ -3,10 +3,10 @@ package com.loopers.infrastructure.ranking
 import com.loopers.config.redis.RankingRedisKeys
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.config.redis.RedisConfig
-import com.loopers.domain.ranking.CatalogRankingProjection
-import com.loopers.domain.ranking.OrderRankingProjection
-import com.loopers.domain.ranking.RankingProjectionRepository
-import com.loopers.domain.ranking.RankingProjectionResult
+import com.loopers.domain.ranking.CatalogRankingUpdate
+import com.loopers.domain.ranking.OrderRankingUpdate
+import com.loopers.domain.ranking.RankingRepository
+import com.loopers.domain.ranking.RankingUpdateResult
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.redis.core.RedisTemplate
@@ -14,21 +14,21 @@ import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 
 @Component
-class RedisRankingProjectionRepository(
+class RedisRankingRepository(
     @param:Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
     private val properties: RankingRedisProperties,
-) : RankingProjectionRepository {
+) : RankingRepository {
     private val catalogScript = DefaultRedisScript<Long>().apply {
-        setLocation(ClassPathResource("redis/ranking-project-catalog.lua"))
+        setLocation(ClassPathResource("redis/ranking-update-catalog.lua"))
         resultType = Long::class.java
     }
     private val orderScript = DefaultRedisScript<Long>().apply {
-        setLocation(ClassPathResource("redis/ranking-project-order.lua"))
+        setLocation(ClassPathResource("redis/ranking-update-order.lua"))
         resultType = Long::class.java
     }
 
-    override fun projectCatalog(command: CatalogRankingProjection): RankingProjectionResult {
+    override fun updateCatalog(command: CatalogRankingUpdate): RankingUpdateResult {
         val date = command.date
         val metricKey = when (command.metric) {
             com.loopers.domain.ranking.CatalogRankingMetric.VIEW -> RankingRedisKeys.view(date)
@@ -55,10 +55,10 @@ class RedisRankingProjectionRepository(
             properties.likeWeight.toString(),
             properties.salesWeight.toString(),
         )
-        return result.toProjectionResult()
+        return result.toUpdateResult()
     }
 
-    override fun projectOrder(command: OrderRankingProjection): RankingProjectionResult {
+    override fun updateOrder(command: OrderRankingUpdate): RankingUpdateResult {
         require(command.items.isNotEmpty()) { "Payment succeeded ranking items must not be empty." }
         val date = command.date
         val keys = listOf(
@@ -83,14 +83,14 @@ class RedisRankingProjectionRepository(
             }
         }
         val result = redisTemplate.execute(orderScript, keys, *args.toTypedArray())
-        return result.toProjectionResult()
+        return result.toUpdateResult()
     }
 
-    private fun Long?.toProjectionResult(): RankingProjectionResult {
+    private fun Long?.toUpdateResult(): RankingUpdateResult {
         return if (this == 1L) {
-            RankingProjectionResult.APPLIED
+            RankingUpdateResult.APPLIED
         } else {
-            RankingProjectionResult.DUPLICATE
+            RankingUpdateResult.DUPLICATE
         }
     }
 }

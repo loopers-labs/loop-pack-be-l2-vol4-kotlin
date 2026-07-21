@@ -3,24 +3,25 @@ package com.loopers.infrastructure.ranking
 import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.ranking.RankingEntry
 import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.data.domain.Pageable
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.stereotype.Component
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @Component
 class RedisRankingRepository(
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
-    private val redisTemplate: RedisTemplate<String, String>
+    private val redisTemplate: RedisTemplate<String, String>,
 ) : RankingRepository {
     override fun findPage(
+        period: RankingPeriod,
         date: LocalDate,
         pageable: Pageable,
     ): RankingPage {
-        val key = key(date)
+        val key = period.key(date)
         val zset = redisTemplate.opsForZSet()
 
         val total = zset.size(key) ?: 0L
@@ -36,14 +37,8 @@ class RedisRankingRepository(
         return RankingPage(entries, total)
     }
 
-    override fun findRank(date: LocalDate, productId: Long): Long? {
-        val rank = redisTemplate.opsForZSet().reverseRank(key(date), productId.toString())
+    override fun findRank(period: RankingPeriod, date: LocalDate, productId: Long): Long? {
+        val rank = redisTemplate.opsForZSet().reverseRank(period.key(date), productId.toString())
         return rank?.plus(1)
-    }
-
-    private val key: (LocalDate) -> String = { KEY_PREFIX + it.format(DateTimeFormatter.ofPattern("yyyyMMdd")) }
-
-    companion object {
-        private const val KEY_PREFIX = "ranking:"
     }
 }

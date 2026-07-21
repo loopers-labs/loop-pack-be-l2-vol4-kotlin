@@ -5,6 +5,7 @@ import com.loopers.domain.like.LikeService
 import com.loopers.domain.like.ProductId
 import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductStatus
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingService
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -21,9 +22,9 @@ class RankingFacade(
     private val likeService: LikeService,
     private val clock: Clock,
 ) {
-    fun getRankings(date: LocalDate?, pageable: Pageable): Page<RankingInfo> {
+    fun getRankings(period: RankingPeriod, date: LocalDate?, pageable: Pageable): Page<RankingInfo> {
         val targetDate = date ?: LocalDate.now(clock)
-        val rankingPage = rankingService.getRankingPage(targetDate, pageable)
+        val rankingPage = rankingService.getRankingPage(period, targetDate, pageable)
         if (rankingPage.entries.isEmpty()) return PageImpl(emptyList(), pageable, rankingPage.total)
 
         val productIds = rankingPage.entries.map { it.productId }

@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api.ranking
 
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.interfaces.api.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Schema
@@ -14,9 +15,14 @@ import java.time.LocalDate
 interface RankingV1ApiSpec {
     @Operation(
         summary = "랭킹 목록 조회",
-        description = "특정 일자(yyyyMMdd 또는 yyyy-MM-dd)의 상품 랭킹을 페이지로 조회합니다. date 미지정 시 오늘 랭킹을 반환합니다.",
+        description = "기간별(일간/주간/월간) 상품 랭킹을 페이지로 조회합니다. " +
+            "period 로 집계 단위를 고르고, date(yyyyMMdd 또는 yyyy-MM-dd)가 속한 일/주/월의 랭킹을 반환합니다. " +
+            "date 미지정 시 오늘 기준입니다.",
     )
     fun getRankings(
+        @Schema(name = "집계 단위", description = "DAILY | WEEKLY | MONTHLY, 미지정 시 DAILY", defaultValue = "DAILY")
+        @RequestParam(required = false, defaultValue = "DAILY")
+        period: RankingPeriod,
         @Schema(name = "조회 일자", description = "yyyyMMdd 또는 yyyy-MM-dd 형식, 미지정 시 오늘")
         @RequestParam(required = false)
         @DateTimeFormat(pattern = "yyyyMMdd")

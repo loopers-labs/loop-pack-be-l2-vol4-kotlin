@@ -1,17 +1,17 @@
 package com.loopers.infrastructure.productrank.repository
 
-import com.loopers.infrastructure.productrank.entity.ProductRankWeeklyEntity
+import com.loopers.domain.productrank.ProductRankWeekly
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.time.LocalDate
 
-interface ProductRankWeeklyJpaRepository : JpaRepository<ProductRankWeeklyEntity, Long> {
+interface ProductRankWeeklyJpaRepository : JpaRepository<ProductRankWeekly, Long> {
     @Modifying
     fun deleteByBaseDate(baseDate: LocalDate): Int
 
-    fun findTop100ByBaseDateOrderByRankingScoreDescProductIdAsc(baseDate: LocalDate): List<ProductRankWeeklyEntity>
+    fun findTop100ByBaseDateOrderByRankingScoreDescProductIdAsc(baseDate: LocalDate): List<ProductRankWeekly>
 
     @Modifying
     @Query(

@@ -1,17 +1,17 @@
 package com.loopers.infrastructure.productmetric.repository
 
-import com.loopers.infrastructure.productmetric.entity.ProductMetricMonthlyEntity
+import com.loopers.domain.productmetric.ProductMetricMonthly
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.time.LocalDate
 
-interface ProductMetricMonthlyJpaRepository : JpaRepository<ProductMetricMonthlyEntity, Long> {
+interface ProductMetricMonthlyJpaRepository : JpaRepository<ProductMetricMonthly, Long> {
     fun findByBaseDateAndProductId(
         baseDate: LocalDate,
         productId: Long,
-    ): ProductMetricMonthlyEntity?
+    ): ProductMetricMonthly?
 
     @Modifying
     fun deleteByBaseDate(baseDate: LocalDate): Int

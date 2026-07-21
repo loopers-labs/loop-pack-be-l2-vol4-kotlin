@@ -31,6 +31,6 @@ class ProductMetricMonthlyRepositoryImpl(
         baseDate: LocalDate,
         productId: Long,
     ): ProductMetricMonthly? {
-        return productMetricMonthlyJpaRepository.findByBaseDateAndProductId(baseDate, productId)?.toDomain()
+        return productMetricMonthlyJpaRepository.findByBaseDateAndProductId(baseDate, productId)
     }
 }

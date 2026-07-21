@@ -1,12 +1,32 @@
 package com.loopers.domain.productmetric
 
+import com.loopers.domain.BaseEntity
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 import java.time.LocalDate
 
-class ProductMetricMonthly(
-    val id: Long = 0L,
-    val baseDate: LocalDate,
-    val productId: Long,
-    val viewCount: Long,
-    val likeCount: Long,
-    val salesAmount: Long,
+@Entity
+@Table(
+    name = "product_metric_monthly",
+    indexes = [
+        Index(name = "uk_product_metric_monthly_base_product", columnList = "base_date, product_id", unique = true),
+    ],
 )
+class ProductMetricMonthly(
+    @Column(name = "base_date", nullable = false)
+    var baseDate: LocalDate,
+
+    @Column(name = "product_id", nullable = false)
+    var productId: Long,
+
+    @Column(name = "view_count", nullable = false)
+    var viewCount: Long,
+
+    @Column(name = "like_count", nullable = false)
+    var likeCount: Long,
+
+    @Column(name = "sales_amount", nullable = false)
+    var salesAmount: Long,
+) : BaseEntity()

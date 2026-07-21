@@ -31,6 +31,6 @@ class ProductMetricWeeklyRepositoryImpl(
         baseDate: LocalDate,
         productId: Long,
     ): ProductMetricWeekly? {
-        return productMetricWeeklyJpaRepository.findByBaseDateAndProductId(baseDate, productId)?.toDomain()
+        return productMetricWeeklyJpaRepository.findByBaseDateAndProductId(baseDate, productId)
     }
 }

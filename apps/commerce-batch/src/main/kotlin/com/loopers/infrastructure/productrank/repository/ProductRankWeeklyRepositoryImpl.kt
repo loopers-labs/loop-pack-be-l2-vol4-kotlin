@@ -27,6 +27,5 @@ class ProductRankWeeklyRepositoryImpl(
     @Transactional(readOnly = true)
     override fun findTop100(baseDate: LocalDate): List<ProductRankWeekly> {
         return productRankWeeklyJpaRepository.findTop100ByBaseDateOrderByRankingScoreDescProductIdAsc(baseDate)
-            .map { it.toDomain() }
     }
 }

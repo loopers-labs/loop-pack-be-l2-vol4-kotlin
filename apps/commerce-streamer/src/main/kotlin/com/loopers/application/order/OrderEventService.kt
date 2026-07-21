@@ -9,7 +9,6 @@ import com.loopers.domain.useraction.UserActionLogRepository
 import com.loopers.domain.useraction.UserActionType
 import com.loopers.event.OrderEventMessage
 import com.loopers.event.OrderEventType
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,12 +17,10 @@ class OrderEventService(
     private val eventHandledRepository: EventHandledRepository,
     private val productStatRepository: ProductStatRepository,
     private val userActionLogRepository: UserActionLogRepository,
-    @Value("\${spring.kafka.consumer.group-id:loopers-default-consumer}")
-    private val consumerGroup: String = "loopers-default-consumer",
 ) {
     @Transactional
     fun handle(message: OrderEventMessage) {
-        if (eventHandledRepository.exists(consumerGroup, message.eventId)) {
+        if (eventHandledRepository.exists(CONSUMER_GROUP, message.eventId)) {
             return
         }
 
@@ -40,7 +37,7 @@ class OrderEventService(
         )
         eventHandledRepository.save(
             EventHandled(
-                consumerGroup = consumerGroup,
+                consumerGroup = CONSUMER_GROUP,
                 eventId = message.eventId,
                 eventType = message.eventType.name,
             ),
@@ -75,5 +72,9 @@ class OrderEventService(
             OrderEventType.PAYMENT_SUCCEEDED -> UserActionType.PAYMENT_SUCCEEDED
             OrderEventType.PAYMENT_FAILED -> UserActionType.PAYMENT_FAILED
         }
+    }
+
+    private companion object {
+        const val CONSUMER_GROUP = "loopers-default-consumer"
     }
 }

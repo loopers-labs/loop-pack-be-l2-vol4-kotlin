@@ -39,6 +39,8 @@ commerce:
   ranking:
     consumer-group: commerce-ranking
     event-chunk-size: 500
+  product-metric-daily:
+    consumer-group: commerce-product-metric-daily
 
 ---
 spring:

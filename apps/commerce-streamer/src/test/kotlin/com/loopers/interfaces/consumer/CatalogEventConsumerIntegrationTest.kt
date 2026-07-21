@@ -30,6 +30,7 @@ private const val BOOTSTRAP_SERVERS = "localhost:19092"
 private const val CATALOG_TOPIC = "catalog-events-integration-test"
 private const val ORDER_TOPIC = "order-events-integration-test"
 private const val CATALOG_CONSUMER_GROUP = "commerce-streamer-integration-test"
+private const val CATALOG_HANDLED_GROUP = "loopers-default-consumer"
 
 @Import(MySqlTestContainersConfig::class)
 @SpringBootTest(
@@ -70,7 +71,7 @@ class CatalogEventConsumerIntegrationTest
             val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
             val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
-                consumerGroup = CATALOG_CONSUMER_GROUP,
+                consumerGroup = CATALOG_HANDLED_GROUP,
                 eventId = message.eventId,
             )
 
@@ -96,7 +97,7 @@ class CatalogEventConsumerIntegrationTest
             val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
             val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
-                consumerGroup = CATALOG_CONSUMER_GROUP,
+                consumerGroup = CATALOG_HANDLED_GROUP,
                 eventId = message.eventId,
             )
 

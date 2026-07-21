@@ -24,6 +24,7 @@ class OrderEventConsumer(
     )
     @KafkaListener(
         topics = ["\${commerce.events.order-topic:order-events}"],
+        groupId = "\${spring.kafka.consumer.group-id:loopers-default-consumer}",
         containerFactory = KafkaConfig.SINGLE_LISTENER,
     )
     fun receive(

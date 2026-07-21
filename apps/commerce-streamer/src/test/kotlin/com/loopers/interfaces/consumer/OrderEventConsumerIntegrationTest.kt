@@ -32,6 +32,7 @@ private const val ORDER_EVENT_BOOTSTRAP_SERVERS = "localhost:19092"
 private const val ORDER_EVENT_CATALOG_TOPIC = "catalog-events-order-integration-test"
 private const val ORDER_EVENT_ORDER_TOPIC = "order-events-integration-test"
 private const val ORDER_EVENT_CONSUMER_GROUP = "commerce-streamer-order-integration-test"
+private const val ORDER_EVENT_HANDLED_GROUP = "loopers-default-consumer"
 
 @Import(MySqlTestContainersConfig::class)
 @SpringBootTest(
@@ -73,7 +74,7 @@ class OrderEventConsumerIntegrationTest
             eventually {
                 val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
                 val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
-                    consumerGroup = ORDER_EVENT_CONSUMER_GROUP,
+                    consumerGroup = ORDER_EVENT_HANDLED_GROUP,
                     eventId = message.eventId,
                 )
                 val productStat = productStatJpaRepository.findByProductId(10L)

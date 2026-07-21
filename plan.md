@@ -330,7 +330,7 @@ ORDER BY product_id
 - consumer group 간 멱등성 상태가 충돌하지 않는다.
 - 기존 이벤트 처리 의미가 변경되지 않는다.
 
-### [ ] 2. Daily Product Metric SOT
+### [x] 2. Daily Product Metric SOT
 
 #### 작업
 

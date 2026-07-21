@@ -353,7 +353,7 @@ ORDER BY product_id
 - `product_metric_daily`가 주간·월간 Batch의 재현 가능한 일별 SOT가 된다.
 - 상품 수와 무관하게 이벤트당 영향 상품만 갱신한다.
 
-### [ ] 3. Period Metric Schema and Job Parameters
+### [x] 3. Period Metric Schema and Job Parameters
 
 #### 작업
 

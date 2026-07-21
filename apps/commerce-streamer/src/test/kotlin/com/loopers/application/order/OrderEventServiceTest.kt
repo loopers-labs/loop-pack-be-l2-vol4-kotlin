@@ -32,7 +32,7 @@ class OrderEventServiceTest {
             { assertThat(userActionLog.memberId).isEqualTo(1L) },
             { assertThat(userActionLog.aggregateId).isEqualTo(20L) },
             { assertThat(userActionLog.productId).isNull() },
-            { assertThat(fixture.eventHandledRepository.exists("event-1")).isTrue() },
+            { assertThat(fixture.eventHandledRepository.exists("loopers-default-consumer", "event-1")).isTrue() },
         )
     }
 
@@ -86,14 +86,17 @@ class OrderEventServiceTest {
     }
 
     private class FakeEventHandledRepository : EventHandledRepository {
-        private val events = mutableSetOf<String>()
+        private val events = mutableSetOf<Pair<String, String>>()
 
-        override fun exists(eventId: String): Boolean {
-            return eventId in events
+        override fun exists(
+            consumerGroup: String,
+            eventId: String,
+        ): Boolean {
+            return consumerGroup to eventId in events
         }
 
         override fun save(eventHandled: EventHandled): EventHandled {
-            events.add(eventHandled.eventId)
+            events.add(eventHandled.consumerGroup to eventHandled.eventId)
             return eventHandled
         }
     }

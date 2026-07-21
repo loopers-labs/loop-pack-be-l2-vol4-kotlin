@@ -31,7 +31,7 @@ class CatalogEventServiceTest {
             { assertThat(productStat?.latestEventVersion).isEqualTo(100L) },
             { assertThat(userActionLog.eventId).isEqualTo("event-1") },
             { assertThat(userActionLog.actionType).isEqualTo(UserActionType.PRODUCT_LIKED) },
-            { assertThat(fixture.eventHandledRepository.exists("event-1")).isTrue() },
+            { assertThat(fixture.eventHandledRepository.exists("loopers-default-consumer", "event-1")).isTrue() },
         )
     }
 
@@ -80,14 +80,17 @@ class CatalogEventServiceTest {
     }
 
     private class FakeEventHandledRepository : EventHandledRepository {
-        private val events = mutableSetOf<String>()
+        private val events = mutableSetOf<Pair<String, String>>()
 
-        override fun exists(eventId: String): Boolean {
-            return eventId in events
+        override fun exists(
+            consumerGroup: String,
+            eventId: String,
+        ): Boolean {
+            return consumerGroup to eventId in events
         }
 
         override fun save(eventHandled: EventHandled): EventHandled {
-            events.add(eventHandled.eventId)
+            events.add(eventHandled.consumerGroup to eventHandled.eventId)
             return eventHandled
         }
     }

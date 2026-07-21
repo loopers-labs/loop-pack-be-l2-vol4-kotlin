@@ -12,11 +12,14 @@ import java.time.ZonedDateTime
 @Table(
     name = "event_handled",
     indexes = [
-        Index(name = "uk_event_handled_event_id", columnList = "event_id", unique = true),
+        Index(name = "uk_event_handled_group_event_id", columnList = "consumer_group, event_id", unique = true),
     ],
 )
 class EventHandledEntity(
-    @Column(name = "event_id", nullable = false, unique = true, length = 64)
+    @Column(name = "consumer_group", nullable = false, length = 64)
+    var consumerGroup: String,
+
+    @Column(name = "event_id", nullable = false, length = 64)
     var eventId: String,
 
     @Column(name = "event_type", nullable = false, length = 100)
@@ -27,6 +30,7 @@ class EventHandledEntity(
 ) : BaseEntity() {
     fun toDomain(): EventHandled {
         return EventHandled(
+            consumerGroup = consumerGroup,
             eventId = eventId,
             eventType = eventType,
             handledAt = handledAt,

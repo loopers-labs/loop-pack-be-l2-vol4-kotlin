@@ -9,6 +9,7 @@ import com.loopers.domain.event.EventHandled
 import com.loopers.domain.event.EventHandledRepository
 import com.loopers.event.CouponIssueRequestMessage
 import com.loopers.event.NonRetryableEventException
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -18,10 +19,12 @@ class CouponIssueRequestProcessor(
     private val couponIssueRepository: CouponIssueRepository,
     private val couponIssueRequestRepository: CouponIssueRequestRepository,
     private val eventHandledRepository: EventHandledRepository,
+    @Value("\${commerce.coupon.consumer-group:commerce-coupon-issue}")
+    private val consumerGroup: String = "commerce-coupon-issue",
 ) {
     @Transactional
     fun handle(message: CouponIssueRequestMessage) {
-        if (eventHandledRepository.exists(message.eventId)) {
+        if (eventHandledRepository.exists(consumerGroup, message.eventId)) {
             return
         }
 
@@ -74,6 +77,7 @@ class CouponIssueRequestProcessor(
     private fun recordHandled(message: CouponIssueRequestMessage) {
         eventHandledRepository.save(
             EventHandled(
+                consumerGroup = consumerGroup,
                 eventId = message.eventId,
                 eventType = "COUPON_ISSUE_REQUESTED",
             ),

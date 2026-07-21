@@ -49,7 +49,10 @@ class CouponIssueRequestProcessorIntegrationTest @Autowired constructor(
         processor.handle(message)
 
         val issues = couponIssueJpaRepository.findAll()
-        val handled = eventHandledJpaRepository.findByEventId(message.eventId)
+        val handled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
+            consumerGroup = "commerce-coupon-issue",
+            eventId = message.eventId,
+        )
         val processedRequest = couponIssueRequestJpaRepository.findByRequestId(request.requestId)
         val processedCoupon = couponJpaRepository.findById(coupon.id).orElseThrow()
         assertAll(
@@ -59,6 +62,7 @@ class CouponIssueRequestProcessorIntegrationTest @Autowired constructor(
             { assertThat(processedCoupon.issuedCount).isEqualTo(1L) },
             { assertThat(processedRequest?.status).isEqualTo(CouponIssueRequestStatus.ISSUED) },
             { assertThat(processedRequest?.issueId).isEqualTo(issues.single().id) },
+            { assertThat(handled?.consumerGroup).isEqualTo("commerce-coupon-issue") },
             { assertThat(handled?.eventId).isEqualTo(message.eventId) },
         )
     }

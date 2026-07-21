@@ -38,7 +38,7 @@ class RedisRankingCarryOverRepositoryTest @Autowired constructor(
     @DisplayName("오늘 상위 100개 점수의 10%만 내일 carry와 최종 랭킹으로 복사한다")
     @Test
     fun carriesTop100ToTomorrow() {
-        val today = LocalDate.of(2026, 7, 14)
+        val today = LocalDate.now(properties.zoneId).plusDays(1)
         val tomorrow = today.plusDays(1)
         (1L..101L).forEach { productId ->
             redisTemplate.opsForZSet().add(

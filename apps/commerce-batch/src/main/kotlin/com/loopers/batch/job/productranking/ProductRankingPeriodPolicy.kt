@@ -2,6 +2,7 @@ package com.loopers.batch.job.productranking
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import org.springframework.stereotype.Component
 
 data class ProductRankingSourceRange(
     val baseDate: LocalDate,
@@ -9,6 +10,7 @@ data class ProductRankingSourceRange(
     val sourceEndExclusive: LocalDate,
 )
 
+@Component
 class ProductRankingPeriodPolicy {
     fun calculate(
         period: ProductRankingPeriod,

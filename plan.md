@@ -372,7 +372,7 @@ ORDER BY product_id
 
 - 모든 Job이 실행 시각과 무관하게 명시적 baseDate로 재실행 가능하다.
 
-### [ ] 4. Weekly Product Ranking Job
+### [x] 4. Weekly Product Ranking Job
 
 #### 작업
 

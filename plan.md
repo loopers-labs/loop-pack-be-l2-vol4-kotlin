@@ -447,7 +447,7 @@ ORDER BY product_id
 - 하나의 API가 기존 호환성을 유지하며 세 기간 랭킹을 제공한다.
 - 주간·월간 cache miss가 전체 상품 정렬이나 N+1 상품 조회를 유발하지 않는다.
 
-### [ ] 8. Query Plan and End-to-End Verification
+### [x] 8. Query Plan and End-to-End Verification
 
 #### 작업
 

@@ -13,9 +13,11 @@ import com.loopers.domain.product.support.ProductSteps.Companion.기본_상품_I
 import com.loopers.domain.product.support.ProductSteps.Companion.재고_도메인_생성
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_도메인_생성
 import com.loopers.domain.product.support.ProductSteps.Companion.상품_등록_커맨드
+import com.loopers.domain.ranking.port.ProductRankingReader
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verifySequence
+import org.springframework.dao.DataAccessResourceFailureException
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -26,7 +28,8 @@ class ProductFacadeTest {
         val likeService = mockk<LikeService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
-        val productFacade = ProductFacade(brandService, productService, stockService, likeService)
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
         every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { productService.register(상품_등록_커맨드()) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { stockService.initialize(기본_상품_ID, 10L) } returns 재고_도메인_생성(productId = 기본_상품_ID)
@@ -45,7 +48,8 @@ class ProductFacadeTest {
         val likeService = mockk<LikeService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
-        val productFacade = ProductFacade(brandService, productService, stockService, likeService)
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
         val command = 상품_등록_커맨드(initialStock = 15)
         every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { productService.register(command) } returns 상품_도메인_생성(id = 기본_상품_ID)
@@ -71,10 +75,12 @@ class ProductFacadeTest {
         val likeService = mockk<LikeService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
-        val productFacade = ProductFacade(brandService, productService, stockService, likeService)
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
         every { productService.getById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
         every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
         every { likeService.countByProductId(기본_상품_ID) } returns 3L
+        every { productRankingReader.findRank(any(), 기본_상품_ID) } returns 2L
 
         val info = productFacade.getProduct(기본_상품_ID)
 
@@ -83,6 +89,45 @@ class ProductFacadeTest {
         assertThat(info.brandId).isEqualTo(10L)
         assertThat(info.brandName).isEqualTo("기본 브랜드")
         assertThat(info.likeCount).isEqualTo(3L)
+        assertThat(info.rank).isEqualTo(2L)
+    }
+
+    @Test
+    fun `랭킹판에_없는_상품_상세는_rank가_null이다`() {
+        val brandService = mockk<BrandService>()
+        val likeService = mockk<LikeService>()
+        val productService = mockk<ProductService>()
+        val stockService = mockk<StockService>()
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
+        every { productService.getById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
+        every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
+        every { likeService.countByProductId(기본_상품_ID) } returns 0L
+        every { productRankingReader.findRank(any(), 기본_상품_ID) } returns null
+
+        val info = productFacade.getProduct(기본_상품_ID)
+
+        assertThat(info.rank).isNull()
+    }
+
+    @Test
+    fun `랭킹_조회가_실패해도_상품_상세는_rank_null로_응답한다`() {
+        val brandService = mockk<BrandService>()
+        val likeService = mockk<LikeService>()
+        val productService = mockk<ProductService>()
+        val stockService = mockk<StockService>()
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
+        every { productService.getById(기본_상품_ID) } returns 상품_도메인_생성(id = 기본_상품_ID)
+        every { brandService.getById(10L) } returns 브랜드_도메인_생성(id = 10L)
+        every { likeService.countByProductId(기본_상품_ID) } returns 0L
+        every {
+            productRankingReader.findRank(any(), 기본_상품_ID)
+        } throws DataAccessResourceFailureException("redis down")
+
+        val info = productFacade.getProduct(기본_상품_ID)
+
+        assertThat(info.rank).isNull()
     }
 
     @Test
@@ -91,7 +136,8 @@ class ProductFacadeTest {
         val likeService = mockk<LikeService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
-        val productFacade = ProductFacade(brandService, productService, stockService, likeService)
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
         val command = ProductSearchCommand(brandId = 10L)
         every { productService.findProducts(command) } returns listOf(
             상품_도메인_생성(id = 2L),
@@ -114,7 +160,8 @@ class ProductFacadeTest {
         val likeService = mockk<LikeService>()
         val productService = mockk<ProductService>()
         val stockService = mockk<StockService>()
-        val productFacade = ProductFacade(brandService, productService, stockService, likeService)
+        val productRankingReader = mockk<ProductRankingReader>()
+        val productFacade = ProductFacade(brandService, productService, stockService, likeService, productRankingReader)
         val command = ProductSearchCommand.of(brandId = 10L, sort = "likes_desc", page = 0, size = 2)
         every { productService.findProducts(command) } returns listOf(
             상품_도메인_생성(id = 2L),

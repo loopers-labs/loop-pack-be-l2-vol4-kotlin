@@ -90,6 +90,11 @@ class ProductService(
         findOrderableProducts(productIds.toList()).any { it.requiresWaitingQueue() }
 
     @Transactional(readOnly = true)
+    fun findByIds(productIds: Collection<Long>): List<ProductModel> =
+        productRepository.findAllByIds(productIds.distinct())
+            .filter { it.deletedAt == null }
+
+    @Transactional(readOnly = true)
     fun findProducts(command: ProductSearchCommand): List<ProductModel> {
         return productRepository.findByCondition(
             ProductSearchCondition(

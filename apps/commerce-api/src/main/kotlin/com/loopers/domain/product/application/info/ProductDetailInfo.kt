@@ -11,12 +11,14 @@ data class ProductDetailInfo(
     val name: String,
     val price: Long,
     val saleType: String,
+    val rank: Long? = null,
 ) {
     companion object {
         fun from(
             product: ProductModel,
             brand: BrandModel,
             likeCount: Long,
+            rank: Long? = null,
         ): ProductDetailInfo = ProductDetailInfo(
             id = product.id,
             brandId = product.brandId,
@@ -25,6 +27,7 @@ data class ProductDetailInfo(
             name = product.name.value,
             price = product.price.value,
             saleType = product.saleType.name,
+            rank = rank,
         )
     }
 }

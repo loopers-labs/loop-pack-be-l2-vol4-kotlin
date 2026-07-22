@@ -3,7 +3,7 @@ package com.loopers.infrastructure.ranking
 import com.loopers.config.redis.RankingRedisKeys
 import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.ranking.RankingCarryOverRepository
-import com.loopers.domain.ranking.RankingUnavailableException
+import com.loopers.domain.ranking.RankingCarryOverUnavailableException
 import com.loopers.domain.ranking.RankingWeights
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.io.ClassPathResource
@@ -80,7 +80,7 @@ class RedisRankingCarryOverRepository(
         return try {
             block()
         } catch (e: DataAccessException) {
-            throw RankingUnavailableException(e)
+            throw RankingCarryOverUnavailableException(e)
         }
     }
 }

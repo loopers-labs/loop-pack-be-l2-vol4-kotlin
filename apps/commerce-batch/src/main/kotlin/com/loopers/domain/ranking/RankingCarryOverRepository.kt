@@ -22,3 +22,19 @@ interface RankingCarryOverRepository {
 
     fun releaseLock(date: LocalDate, ownerId: String)
 }
+
+data class RankingWeights(
+    val view: Double,
+    val like: Double,
+    val sales: Double,
+) {
+    init {
+        require(view.isFinite() && view >= 0.0)
+        require(like.isFinite() && like >= 0.0)
+        require(sales.isFinite() && sales >= 0.0)
+    }
+}
+
+class RankingCarryOverUnavailableException(
+    cause: Throwable,
+) : RuntimeException("Ranking carry-over store is unavailable.", cause)

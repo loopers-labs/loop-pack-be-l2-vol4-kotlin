@@ -1,13 +1,14 @@
 package com.loopers.infrastructure.ranking
 
-import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands
 import com.loopers.config.redis.RankingDatePolicy
 import com.loopers.config.redis.RankingRedisKeys
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.ranking.RankingCarryOverRepository
 import com.loopers.domain.ranking.RankingWeights
+import com.loopers.testcontainers.RedisTestContainersConfig
 import com.loopers.utils.RedisCleanUp
+import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
@@ -19,13 +20,17 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.data.redis.core.RedisCallback
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.test.context.TestPropertySource
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 @Tag("memory")
-@SpringBootTest(properties = ["spring.kafka.listener.auto-startup=false"])
+@Import(RedisTestContainersConfig::class)
+@SpringBootTest
+@TestPropertySource(properties = ["spring.batch.job.enabled=false"])
 class RedisRankingMemoryBenchmarkTest @Autowired constructor(
     private val carryOverRepository: RankingCarryOverRepository,
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)

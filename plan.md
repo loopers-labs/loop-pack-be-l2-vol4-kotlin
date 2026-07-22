@@ -395,7 +395,7 @@ ORDER BY product_id
 
 - Weekly와 Monthly가 정책만 다르고 처리 파이프라인은 중복 없이 공유한다.
 
-### [ ] 6. Daily Carry-Over Batch Migration
+### [x] 6. Daily Carry-Over Batch Migration
 
 #### 작업
 

@@ -6,6 +6,7 @@ import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.config.redis.RedisConfig
 import com.loopers.domain.ranking.RankingCarryOverRepository
 import com.loopers.domain.ranking.RankingWeights
+import com.loopers.testcontainers.RedisTestContainersConfig
 import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.within
@@ -16,11 +17,15 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.test.context.TestPropertySource
 import java.time.Duration
 import java.time.LocalDate
 
+@Import(RedisTestContainersConfig::class)
 @SpringBootTest
+@TestPropertySource(properties = ["spring.batch.job.enabled=false"])
 class RedisRankingCarryOverRepositoryTest @Autowired constructor(
     private val repository: RankingCarryOverRepository,
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
@@ -35,22 +40,22 @@ class RedisRankingCarryOverRepositoryTest @Autowired constructor(
         redisCleanUp.truncateAll()
     }
 
-    @DisplayName("오늘 상위 100개 점수의 10%만 내일 carry와 최종 랭킹으로 복사한다")
+    @DisplayName("source 상위 100개 점수의 10%만 target carry와 최종 랭킹으로 복사한다")
     @Test
-    fun carriesTop100ToTomorrow() {
-        val today = LocalDate.now(properties.zoneId).plusDays(1)
-        val tomorrow = today.plusDays(1)
+    fun carriesTop100ToTargetDate() {
+        val sourceDate = LocalDate.of(2026, 8, 5)
+        val targetDate = sourceDate.plusDays(1)
         (1L..101L).forEach { productId ->
             redisTemplate.opsForZSet().add(
-                RankingRedisKeys.all(today),
+                RankingRedisKeys.all(sourceDate),
                 productId.toString(),
                 productId.toDouble(),
             )
         }
 
         val carriedCount = repository.carryOver(
-            sourceDate = today,
-            targetDate = tomorrow,
+            sourceDate = sourceDate,
+            targetDate = targetDate,
             topN = properties.carryOver.topN,
             factor = properties.carryOver.factor,
             defaultWeights = RankingWeights(
@@ -58,23 +63,23 @@ class RedisRankingCarryOverRepositoryTest @Autowired constructor(
                 like = properties.likeWeight,
                 sales = properties.salesWeight,
             ),
-            expiresAt = datePolicy.expiresAt(tomorrow),
+            expiresAt = datePolicy.expiresAt(targetDate),
         )
 
         assertAll(
             { assertThat(carriedCount).isEqualTo(100L) },
-            { assertThat(redisTemplate.opsForZSet().zCard(RankingRedisKeys.carry(tomorrow)) ?: -1L).isEqualTo(100L) },
-            { assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(tomorrow), "1") == null).isTrue() },
+            { assertThat(redisTemplate.opsForZSet().zCard(RankingRedisKeys.carry(targetDate)) ?: -1L).isEqualTo(100L) },
+            { assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(targetDate), "1") == null).isTrue() },
             {
-                assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(tomorrow), "101") ?: Double.NaN)
+                assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.carry(targetDate), "101") ?: Double.NaN)
                     .isCloseTo(10.1, within(1e-12))
             },
             {
-                assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.all(tomorrow), "101") ?: Double.NaN)
+                assertThat(redisTemplate.opsForZSet().score(RankingRedisKeys.all(targetDate), "101") ?: Double.NaN)
                     .isCloseTo(10.1, within(1e-12))
             },
-            { assertThat(redisTemplate.getExpire(RankingRedisKeys.carry(tomorrow))).isPositive() },
-            { assertThat(redisTemplate.getExpire(RankingRedisKeys.all(tomorrow))).isPositive() },
+            { assertThat(redisTemplate.getExpire(RankingRedisKeys.carry(targetDate))).isPositive() },
+            { assertThat(redisTemplate.getExpire(RankingRedisKeys.all(targetDate))).isPositive() },
         )
     }
 

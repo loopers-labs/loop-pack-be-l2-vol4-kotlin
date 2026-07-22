@@ -11,6 +11,7 @@ data class RankingRedisProperties(
     val salesWeight: Double = 1.0,
     val eventChunkSize: Int = 500,
     val carryOver: CarryOver = CarryOver(),
+    val periodCache: PeriodCache = PeriodCache(),
 ) {
     init {
         require(viewWeight.isFinite() && viewWeight >= 0.0) { "Ranking view weight must be a non-negative finite number." }
@@ -22,6 +23,8 @@ data class RankingRedisProperties(
             "Ranking carry-over factor must be a non-negative finite number."
         }
         require(carryOver.lockTtlSeconds > 0) { "Ranking carry-over lock TTL must be positive." }
+        require(periodCache.weeklyTtlDays > 0) { "Ranking weekly cache TTL must be positive." }
+        require(periodCache.monthlyTtlDays > 0) { "Ranking monthly cache TTL must be positive." }
     }
 
     val zoneId: ZoneId
@@ -33,5 +36,10 @@ data class RankingRedisProperties(
         val lockTtlSeconds: Long = 60,
         val cron: String = "0 50 23 * * *",
         val zone: String = "Asia/Seoul",
+    )
+
+    data class PeriodCache(
+        val weeklyTtlDays: Long = 8,
+        val monthlyTtlDays: Long = 32,
     )
 }

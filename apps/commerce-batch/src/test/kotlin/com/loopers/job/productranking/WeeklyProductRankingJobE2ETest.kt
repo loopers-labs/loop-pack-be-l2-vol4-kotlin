@@ -84,12 +84,14 @@ class WeeklyProductRankingJobE2ETest @Autowired constructor(
         val jobExecution = jobLauncherTestUtils.launchJob(jobParameters(runId = 1_001L))
 
         val rank = productRankWeeklyRepository.findTop100(baseDate).single()
+        val publicationCount = publishedWeeklyCount(baseDate)
         val expectedScore = 3.0 + 10.0 + ln(301.0) * 100.0
         assertAll(
             { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
             { assertThat(rank.productId).isEqualTo(10L) },
             { assertThat(rank.rankingScore).isCloseTo(expectedScore, within(0.000_001)) },
-            { assertThat(redisTemplate.hasKey(RankingRedisKeys.weekly(baseDate))).isFalse() },
+            { assertThat(publicationCount).isEqualTo(1) },
+            { assertThat(redisTemplate.hasKey(RankingRedisKeys.weekly(baseDate))).isTrue() },
         )
     }
 
@@ -152,6 +154,20 @@ class WeeklyProductRankingJobE2ETest @Autowired constructor(
             )
             """.trimIndent(),
         )
+    }
+
+    private fun publishedWeeklyCount(baseDate: LocalDate): Int {
+        return jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM product_rank_publication
+            WHERE period = 'WEEKLY'
+              AND base_date = ?
+              AND generation_id IS NOT NULL
+            """.trimIndent(),
+            Int::class.java,
+            baseDate,
+        ) ?: 0
     }
 
     private fun insertDailyMetric(

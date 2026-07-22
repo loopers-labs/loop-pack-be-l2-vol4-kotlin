@@ -1,11 +1,13 @@
 package com.loopers.application.ranking.dto
 
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import java.time.LocalDate
 
 data class RankingQuery(
     val date: LocalDate,
+    val period: RankingPeriod = RankingPeriod.DAILY,
     val page: Int,
     val size: Int,
 ) {

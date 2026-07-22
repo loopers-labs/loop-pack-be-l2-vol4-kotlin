@@ -15,6 +15,7 @@ class RankingFacade(
 ) {
     fun getRankings(query: RankingQuery): Page<RankingProductInfo> {
         val rankingPage = rankingQueryService.getPage(
+            period = query.period,
             date = query.date,
             page = query.page,
             size = query.size,

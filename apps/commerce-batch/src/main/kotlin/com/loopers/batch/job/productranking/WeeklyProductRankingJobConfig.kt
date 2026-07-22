@@ -2,7 +2,7 @@ package com.loopers.batch.job.productranking
 
 import com.loopers.batch.listener.JobListener
 import com.loopers.batch.listener.StepMonitorListener
-import com.loopers.config.redis.RedisConfig
+import com.loopers.domain.productrank.ProductRankPublicationRepository
 import com.loopers.domain.productrank.ProductRankWeeklyRepository
 import org.springframework.batch.core.Job
 import org.springframework.batch.core.Step
@@ -18,12 +18,10 @@ import org.springframework.batch.item.database.JdbcBatchItemWriter
 import org.springframework.batch.item.database.JdbcCursorItemReader
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.transaction.PlatformTransactionManager
 import java.sql.Date
@@ -42,8 +40,7 @@ class WeeklyProductRankingJobConfig(
     private val stepMonitorListener: StepMonitorListener,
     private val weightReader: ProductRankingWeightReader,
     private val productRankWeeklyRepository: ProductRankWeeklyRepository,
-    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
-    private val redisTemplate: RedisTemplate<String, String>,
+    private val productRankPublicationRepository: ProductRankPublicationRepository,
 ) {
     @Bean(JOB_NAME)
     fun weeklyProductRankingJob(): Job {
@@ -53,7 +50,7 @@ class WeeklyProductRankingJobConfig(
             .start(weeklyScoreMaterializationStep())
             .listener(jobListener)
             .listener(ProductRankingWeightSnapshotListener(weightReader))
-            .listener(WeeklyProductRankingCacheEvictListener(redisTemplate))
+            .listener(ProductRankingPublicationListener(ProductRankingPeriod.WEEKLY, productRankPublicationRepository))
             .build()
     }
 

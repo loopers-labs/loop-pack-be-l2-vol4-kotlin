@@ -3,6 +3,7 @@ package com.loopers.application.ranking
 import com.loopers.config.redis.RankingClockConfig
 import com.loopers.config.redis.RankingRedisProperties
 import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.domain.ranking.RankingUnavailableException
 import io.micrometer.core.instrument.MeterRegistry
@@ -22,8 +23,8 @@ class RankingQueryService(
 ) {
     private val degradedDetailCounter = meterRegistry.counter("ranking.product.detail.degraded")
 
-    fun getPage(date: LocalDate, page: Int, size: Int): RankingPage {
-        return rankingRepository.findPage(date = date, page = page, size = size)
+    fun getPage(period: RankingPeriod, date: LocalDate, page: Int, size: Int): RankingPage {
+        return rankingRepository.findPage(period = period, date = date, page = page, size = size)
     }
 
     fun getRankOrNull(date: LocalDate, productId: Long): Long? {

@@ -3,6 +3,7 @@ package com.loopers.interfaces.api.ranking
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import com.loopers.interfaces.api.ranking.dto.RankingV1Dto
+import com.loopers.domain.ranking.RankingPeriod
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 
@@ -14,6 +15,7 @@ interface RankingV1ApiSpec {
     )
     fun getRankings(
         date: String,
+        period: RankingPeriod,
         page: Int,
         size: Int,
     ): ApiResponse<PageResponse<RankingV1Dto.RankingResponse>>

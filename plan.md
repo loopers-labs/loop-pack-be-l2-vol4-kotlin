@@ -418,7 +418,7 @@ ORDER BY product_id
 - Daily carry-over가 API 프로세스 수와 무관하게 외부 Batch 실행으로 한 번만 수행된다.
 - 기존 Daily Ranking API 동작은 변경되지 않는다.
 
-### [ ] 7. Period Ranking API and Redis Cache-Aside
+### [x] 7. Period Ranking API and Redis Cache-Aside
 
 #### 작업
 

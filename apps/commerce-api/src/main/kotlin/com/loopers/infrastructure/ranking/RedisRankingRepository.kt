@@ -12,11 +12,14 @@ import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.domain.ranking.RankingUnavailableException
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.core.io.ClassPathResource
 import org.springframework.dao.DataAccessException
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.time.LocalDate
+import java.util.UUID
 
 @Component
 class RedisRankingRepository(
@@ -27,6 +30,11 @@ class RedisRankingRepository(
     private val baseDatePolicy: RankingBaseDatePolicy,
     private val properties: RankingRedisProperties,
 ) : RankingRepository {
+    private val releaseLockScript = DefaultRedisScript<Long>().apply {
+        setLocation(ClassPathResource("redis/ranking-release-lock.lua"))
+        resultType = Long::class.java
+    }
+
     override fun findPage(
         period: RankingPeriod,
         date: LocalDate,
@@ -56,7 +64,7 @@ class RedisRankingRepository(
             ?: return RankingPage(entries = emptyList(), totalElements = 0)
         val key = periodCacheKey(period, published.baseDate, published.generationId)
         if (redisTemplate.hasKey(key) != true) {
-            fillPeriodCache(period, published.baseDate, key)
+            fillPeriodCache(period, published.baseDate, published.generationId, key)
         }
         return findRedisPage(key, page, size)
     }
@@ -90,6 +98,29 @@ class RedisRankingRepository(
     private fun fillPeriodCache(
         period: RankingPeriod,
         baseDate: LocalDate,
+        generationId: String,
+        key: String,
+    ) {
+        val lockKey = periodFillLockKey(period, baseDate, generationId)
+        val ownerId = UUID.randomUUID().toString()
+        val lockTtl = Duration.ofSeconds(properties.periodCache.fillLockTtlSeconds)
+        if (redisTemplate.opsForValue().setIfAbsent(lockKey, ownerId, lockTtl) != true) {
+            return
+        }
+
+        try {
+            if (redisTemplate.hasKey(key) == true) {
+                return
+            }
+            loadPeriodCache(period, baseDate, key)
+        } finally {
+            releaseLock(lockKey, ownerId)
+        }
+    }
+
+    private fun loadPeriodCache(
+        period: RankingPeriod,
+        baseDate: LocalDate,
         key: String,
     ) {
         val ranks = productRankMvRepository.findTop100(period, baseDate)
@@ -102,6 +133,14 @@ class RedisRankingRepository(
         redisTemplate.expire(key, periodCacheTtl(period))
     }
 
+    private fun releaseLock(lockKey: String, ownerId: String) {
+        redisTemplate.execute(
+            releaseLockScript,
+            listOf(lockKey),
+            ownerId,
+        )
+    }
+
     private fun periodCacheKey(
         period: RankingPeriod,
         baseDate: LocalDate,
@@ -111,6 +150,18 @@ class RedisRankingRepository(
             RankingPeriod.WEEKLY -> RankingRedisKeys.weekly(baseDate, generationId)
             RankingPeriod.MONTHLY -> RankingRedisKeys.monthly(baseDate, generationId)
             RankingPeriod.DAILY -> error("Daily ranking does not use period cache key.")
+        }
+    }
+
+    private fun periodFillLockKey(
+        period: RankingPeriod,
+        baseDate: LocalDate,
+        generationId: String,
+    ): String {
+        return when (period) {
+            RankingPeriod.WEEKLY -> RankingRedisKeys.weeklyFillLock(baseDate, generationId)
+            RankingPeriod.MONTHLY -> RankingRedisKeys.monthlyFillLock(baseDate, generationId)
+            RankingPeriod.DAILY -> error("Daily ranking does not use period cache fill lock.")
         }
     }
 

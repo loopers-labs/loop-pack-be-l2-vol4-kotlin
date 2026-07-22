@@ -25,6 +25,7 @@ data class RankingRedisProperties(
         require(carryOver.lockTtlSeconds > 0) { "Ranking carry-over lock TTL must be positive." }
         require(periodCache.weeklyTtlDays > 0) { "Ranking weekly cache TTL must be positive." }
         require(periodCache.monthlyTtlDays > 0) { "Ranking monthly cache TTL must be positive." }
+        require(periodCache.fillLockTtlSeconds > 0) { "Ranking period cache fill lock TTL must be positive." }
     }
 
     val zoneId: ZoneId
@@ -41,5 +42,6 @@ data class RankingRedisProperties(
     data class PeriodCache(
         val weeklyTtlDays: Long = 8,
         val monthlyTtlDays: Long = 32,
+        val fillLockTtlSeconds: Long = 30,
     )
 }

@@ -9,8 +9,10 @@ import com.loopers.infrastructure.product.entity.ProductEntity
 import com.loopers.infrastructure.product.entity.ProductStatEntity
 import com.loopers.infrastructure.product.repository.ProductJpaRepository
 import com.loopers.infrastructure.product.repository.ProductStatJpaRepository
+import com.loopers.infrastructure.ranking.ProductRankMonthlyReadJpaRepository
 import com.loopers.infrastructure.ranking.ProductRankPublicationJpaRepository
 import com.loopers.infrastructure.ranking.ProductRankWeeklyReadJpaRepository
+import com.loopers.infrastructure.ranking.entity.ProductRankMonthlyEntity
 import com.loopers.infrastructure.ranking.entity.ProductRankPublicationEntity
 import com.loopers.infrastructure.ranking.entity.ProductRankWeeklyEntity
 import com.loopers.interfaces.api.ApiResponse
@@ -31,6 +33,7 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -43,6 +46,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
     private val productStatJpaRepository: ProductStatJpaRepository,
     private val productRankPublicationJpaRepository: ProductRankPublicationJpaRepository,
     private val productRankWeeklyReadJpaRepository: ProductRankWeeklyReadJpaRepository,
+    private val productRankMonthlyReadJpaRepository: ProductRankMonthlyReadJpaRepository,
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
     private val databaseCleanUp: DatabaseCleanUp,
@@ -93,10 +97,29 @@ class RankingV1ApiE2ETest @Autowired constructor(
         )
     }
 
-    @DisplayName("Weekly 랭킹은 요청 주차가 아직 미발행이면 직전 발행 주차 MV를 Redis에 적재해 반환한다")
+    @DisplayName("period를 생략하면 Daily 랭킹 응답과 동일하다")
     @Test
-    fun fallsBackToPreviousPublishedWeeklyRanking() {
-        val requestedMonday = LocalDate.of(2026, 8, 3)
+    fun defaultsToDailyRankingWhenPeriodIsOmitted() {
+        val date = LocalDate.of(2026, 7, 13)
+        val brand = createBrand("default-daily")
+        val product = createProduct(brand.id, "default-daily-product", likeCount = 1L)
+        redisTemplate.opsForZSet().add(RankingRedisKeys.all(date), product.id.toString(), 15.0)
+
+        val defaultResponse = getRankingsWithoutPeriod(date = date, page = 0, size = 20)
+        val dailyResponse = getRankings(date = date, period = RankingPeriod.DAILY, page = 0, size = 20)
+
+        assertAll(
+            { assertThat(defaultResponse.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(defaultResponse.body?.data?.data?.map { it.productId }).isEqualTo(dailyResponse.body?.data?.data?.map { it.productId }) },
+            { assertThat(defaultResponse.body?.data?.data?.map { it.rank }).isEqualTo(dailyResponse.body?.data?.data?.map { it.rank }) },
+            { assertThat(defaultResponse.body?.data?.meta?.totalElements).isEqualTo(dailyResponse.body?.data?.meta?.totalElements) },
+        )
+    }
+
+    @DisplayName("Weekly 랭킹은 월 경계 날짜가 같은 월요일 baseDate로 정규화되고 8일 TTL로 캐시된다")
+    @Test
+    fun normalizesWeeklyRankingAndCachesWithTtl() {
+        val requestedSaturday = LocalDate.of(2026, 8, 1)
         val previousMonday = LocalDate.of(2026, 7, 27)
         val generationId = "weekly-generation-20260727"
         val brand = createBrand("weekly-rank")
@@ -118,7 +141,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
         )
 
         val response = getRankings(
-            date = requestedMonday,
+            date = requestedSaturday,
             period = RankingPeriod.WEEKLY,
             page = 0,
             size = 20,
@@ -131,7 +154,111 @@ class RankingV1ApiE2ETest @Autowired constructor(
             { assertThat(response.body?.data?.data?.map { it.rank }).containsExactly(1L, 2L) },
             { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(2L) },
             { assertThat(redisTemplate.opsForZSet().zCard(cacheKey) ?: -1L).isEqualTo(2L) },
-            { assertThat(redisTemplate.hasKey(RankingRedisKeys.weekly(requestedMonday))).isFalse() },
+            { assertThat(redisTemplate.getExpire(cacheKey)).isBetween(Duration.ofDays(7).seconds, Duration.ofDays(8).seconds) },
+            { assertThat(redisTemplate.hasKey(RankingRedisKeys.weekly(requestedSaturday))).isFalse() },
+        )
+    }
+
+    @DisplayName("Weekly cache hit에서는 MV row가 없어도 Redis에서 조회한다")
+    @Test
+    fun readsWeeklyRankingFromCacheWhenCacheExists() {
+        val baseDate = LocalDate.of(2026, 7, 27)
+        val generationId = "weekly-cache-hit"
+        val brand = createBrand("weekly-cache")
+        val product = createProduct(brand.id, "weekly-cache-product", likeCount = 3L)
+        productRankPublicationJpaRepository.save(
+            ProductRankPublicationEntity(
+                period = RankingPeriod.WEEKLY.name,
+                baseDate = baseDate,
+                generationId = generationId,
+                publishedAt = ZonedDateTime.now(),
+            ),
+        )
+        redisTemplate.opsForZSet().add(RankingRedisKeys.weekly(baseDate, generationId), product.id.toString(), 77.0)
+
+        val response = getRankings(
+            date = baseDate.plusDays(2),
+            period = RankingPeriod.WEEKLY,
+            page = 0,
+            size = 20,
+        )
+
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.data?.map { it.productId }).containsExactly(product.id) },
+            { assertThat(response.body?.data?.data?.map { it.score }).containsExactly(77.0) },
+            { assertThat(productRankWeeklyReadJpaRepository.findTop100ByBaseDateOrderByRankingScoreDescProductIdAsc(baseDate)).isEmpty() },
+        )
+    }
+
+    @DisplayName("Monthly 랭킹은 모든 날짜가 월 1일 baseDate로 정규화되고 32일 TTL로 캐시된다")
+    @Test
+    fun normalizesMonthlyRankingAndCachesWithTtl() {
+        val baseDate = LocalDate.of(2026, 8, 1)
+        val generationId = "monthly-generation-20260801"
+        val brand = createBrand("monthly-rank")
+        val first = createProduct(brand.id, "monthly-first", likeCount = 10L)
+        val second = createProduct(brand.id, "monthly-second", likeCount = 8L)
+        productRankPublicationJpaRepository.save(
+            ProductRankPublicationEntity(
+                period = RankingPeriod.MONTHLY.name,
+                baseDate = baseDate,
+                generationId = generationId,
+                publishedAt = ZonedDateTime.now(),
+            ),
+        )
+        productRankMonthlyReadJpaRepository.saveAll(
+            listOf(
+                ProductRankMonthlyEntity(baseDate, second.id, 20.0),
+                ProductRankMonthlyEntity(baseDate, first.id, 30.0),
+            ),
+        )
+
+        val response = getRankings(
+            date = LocalDate.of(2026, 8, 31),
+            period = RankingPeriod.MONTHLY,
+            page = 0,
+            size = 20,
+        )
+
+        val cacheKey = RankingRedisKeys.monthly(baseDate, generationId)
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.data?.map { it.productId }).containsExactly(first.id, second.id) },
+            { assertThat(response.body?.data?.data?.map { it.rank }).containsExactly(1L, 2L) },
+            { assertThat(response.body?.data?.meta?.totalElements).isEqualTo(2L) },
+            { assertThat(redisTemplate.opsForZSet().zCard(cacheKey) ?: -1L).isEqualTo(2L) },
+            { assertThat(redisTemplate.getExpire(cacheKey)).isBetween(Duration.ofDays(31).seconds, Duration.ofDays(32).seconds) },
+        )
+    }
+
+    @DisplayName("발행된 기간 랭킹의 MV가 비어 있으면 빈 결과를 반환하고 캐시하지 않는다")
+    @Test
+    fun returnsEmptyPageAndDoesNotCacheWhenPublishedMvIsEmpty() {
+        val baseDate = LocalDate.of(2026, 8, 1)
+        val generationId = "monthly-empty-mv"
+        productRankPublicationJpaRepository.save(
+            ProductRankPublicationEntity(
+                period = RankingPeriod.MONTHLY.name,
+                baseDate = baseDate,
+                generationId = generationId,
+                publishedAt = ZonedDateTime.now(),
+            ),
+        )
+
+        val response = getRankings(
+            date = baseDate.plusDays(10),
+            period = RankingPeriod.MONTHLY,
+            page = 0,
+            size = 20,
+        )
+
+        val cacheKey = RankingRedisKeys.monthly(baseDate, generationId)
+        assertAll(
+            { assertThat(response.statusCode).isEqualTo(HttpStatus.OK) },
+            { assertThat(response.body?.data?.data).isEmpty() },
+            { assertThat(response.body?.data?.meta?.totalElements).isZero() },
+            { assertThat(redisTemplate.hasKey(cacheKey)).isFalse() },
         )
     }
 
@@ -184,6 +311,17 @@ class RankingV1ApiE2ETest @Autowired constructor(
         size: Int,
     ) = testRestTemplate.exchange(
         "/api/v1/rankings?date=${date.format(DateTimeFormatter.BASIC_ISO_DATE)}&period=$period&page=$page&size=$size",
+        HttpMethod.GET,
+        null,
+        object : ParameterizedTypeReference<ApiResponse<PageResponse<RankingResponse>>>() {},
+    )
+
+    private fun getRankingsWithoutPeriod(
+        date: LocalDate,
+        page: Int,
+        size: Int,
+    ) = testRestTemplate.exchange(
+        "/api/v1/rankings?date=${date.format(DateTimeFormatter.BASIC_ISO_DATE)}&page=$page&size=$size",
         HttpMethod.GET,
         null,
         object : ParameterizedTypeReference<ApiResponse<PageResponse<RankingResponse>>>() {},

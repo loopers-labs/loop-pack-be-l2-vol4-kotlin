@@ -136,15 +136,17 @@ GET /api/v1/rankings?date=20260805&period=MONTHLY&page=0&size=20
 - `period`는 `DAILY`, `WEEKLY`, `MONTHLY`를 지원한다.
 - `period` 생략 시 `DAILY`로 처리해 기존 API 호환성을 유지한다.
 - Daily는 기존 `ranking:all:{yyyyMMdd}` Redis 조회를 유지한다.
-- Weekly/Monthly는 Redis miss 시 RDB MV에서 해당 `base_date` TOP 100 전체를 조회한다.
-- RDB에서 조회한 TOP 100 전체를 Redis Sorted Set에 적재한 뒤 요청 page를 반환한다.
+- Weekly/Monthly는 요청 날짜를 baseDate로 정규화한 뒤 발행 완료된 baseDate만 조회한다.
+- 요청 baseDate가 아직 발행되지 않았으면 직전 발행 baseDate로 fallback한다.
+- Weekly/Monthly는 Redis miss 시 발행된 RDB MV에서 해당 `base_date` TOP 100 전체를 조회한다.
+- RDB에서 조회한 TOP 100 전체를 generation별 Redis Sorted Set에 적재한 뒤 요청 page를 반환한다.
 - Weekly cache TTL은 8일, Monthly cache TTL은 32일이다.
-- Batch 성공 후 해당 period/baseDate Redis key를 삭제해 다음 조회가 최신 MV를 적재하게 한다.
+- Batch 성공 후 Redis cache를 삭제하지 않고 `product_rank_publication`에 새 generation을 발행한다.
 - Redis key:
-  - `ranking:weekly:{yyyyMMdd}`
-  - `ranking:monthly:{yyyyMMdd}`
+  - `ranking:weekly:{yyyyMMdd}:{generationId}`
+  - `ranking:monthly:{yyyyMMdd}:{generationId}`
 - cache fill 동시 요청은 짧은 SETNX lock으로 제어한다.
-- 빈 MV 결과도 marker key로 TTL 동안 캐시해 반복 DB 조회를 막는다.
+- 발행되지 않은 baseDate의 빈 결과는 캐시하지 않는다.
 - 주간·월간 API의 `totalElements`는 최대 100이다.
 
 ## Table Design
@@ -213,6 +215,24 @@ CREATE TABLE mv_product_rank_monthly (
 );
 ```
 
+### product_rank_publication
+
+```sql
+CREATE TABLE product_rank_publication (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    period VARCHAR(20) NOT NULL,
+    base_date DATE NOT NULL,
+    generation_id VARCHAR(64) NOT NULL,
+    published_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    deleted_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_product_rank_publication_period_base (period, base_date),
+    KEY idx_product_rank_publication_lookup (period, base_date)
+);
+```
+
 ## Batch Processing Design
 
 ### Metric Aggregation Reader
@@ -247,7 +267,7 @@ ORDER BY product_id
 - Writer가 전체 상품 score를 weekly/monthly MV에 chunk upsert한다.
 - 재실행 전에 해당 `base_date`의 기존 MV row를 삭제해 원천에서 사라진 상품이 남지 않게 한다.
 - Step 성공 후 RDB TOP 100 query의 정렬과 tie-breaker를 검증한다.
-- Job 전체 성공 후에만 해당 Redis cache key를 삭제한다.
+- Job 전체 성공 후에만 해당 period/baseDate의 publication generation을 발행한다.
 
 ### Large Dataset Policy
 
@@ -340,7 +360,7 @@ ORDER BY product_id
 - Daily metric을 DB에서 product별 GROUP BY하여 cursor로 읽는다.
 - Daily metric aggregation result를 바로 score processor로 전달해 Weekly MV를 chunk upsert한다.
 - Redis 활성 가중치 snapshot으로 전체 weekly MV score를 계산한다.
-- Job 성공 후 weekly Redis cache key를 삭제한다.
+- Job 성공 후 weekly publication generation을 발행한다.
 
 #### 필수 테스트
 
@@ -355,14 +375,14 @@ ORDER BY product_id
 - 상품 전체를 JVM에 적재하지 않고 전체 weekly score MV를 생성한다.
 - 인덱스로 해당 baseDate TOP 100을 조회할 수 있다.
 
-### [ ] 5. Monthly Product Ranking Job
+### [x] 5. Monthly Product Ranking Job
 
 #### 작업
 
 - Weekly Job의 공통 Reader/Processor/Writer 구성요소를 재사용해 `monthlyProductRankingJob`을 구현한다.
 - 직전 월 Daily metric aggregation result를 바로 score processor로 전달한다.
 - 동일 가중치 정책으로 전체 monthly MV score를 계산한다.
-- Job 성공 후 monthly Redis cache key를 삭제한다.
+- Job 성공 후 monthly publication generation을 발행한다.
 
 #### 필수 테스트
 
@@ -406,7 +426,8 @@ ORDER BY product_id
 - Weekly 날짜는 월요일, Monthly 날짜는 월 1일 baseDate로 변환한다.
 - Daily는 기존 Redis repository로 routing한다.
 - Weekly/Monthly는 period Redis repository와 RDB MV fallback repository로 routing한다.
-- miss 시 TOP 100 전체 적재, cache fill lock, empty marker, TTL을 구현한다.
+- 미발행 baseDate는 직전 발행 baseDate로 fallback한다.
+- miss 시 TOP 100 전체 적재, generation별 cache key, cache fill lock, TTL을 구현한다.
 - 페이지 응답을 cache된 TOP 100 범위로 제한한다.
 - API spec과 `.http` 예시를 갱신한다.
 
@@ -417,6 +438,7 @@ ORDER BY product_id
 - Monthly의 모든 날짜가 같은 월 1일 baseDate를 조회한다.
 - Weekly/Monthly cache hit에서는 RDB를 호출하지 않는다.
 - cache miss에서는 RDB TOP 100을 한 번 적재하고 이후 Redis에서 조회한다.
+- 요청 baseDate가 아직 미발행이면 빈 결과를 캐시하지 않고 직전 발행 baseDate를 조회한다.
 - Weekly 8일, Monthly 32일 TTL을 검증한다.
 - 빈 MV와 Redis 장애를 구분한다.
 

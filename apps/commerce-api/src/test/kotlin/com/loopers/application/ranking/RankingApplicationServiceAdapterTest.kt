@@ -2,8 +2,10 @@ package com.loopers.application.ranking
 
 import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductRepositoryPort
+import com.loopers.domain.ranking.PeriodRankingService
 import com.loopers.domain.ranking.RankingEntry
 import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRolloverPort
 import com.loopers.domain.ranking.RankingRolloverStatus
 import com.loopers.domain.ranking.RankingService
@@ -22,6 +24,7 @@ import java.time.ZoneId
 class RankingApplicationServiceAdapterTest {
 
     private lateinit var rankingService: RankingService
+    private lateinit var periodRankingService: PeriodRankingService
     private lateinit var rankingWeightService: RankingWeightService
     private lateinit var productRepositoryPort: ProductRepositoryPort
     private lateinit var rankingRolloverPort: RankingRolloverPort
@@ -34,12 +37,14 @@ class RankingApplicationServiceAdapterTest {
     @BeforeEach
     fun setUp() {
         rankingService = mockk()
+        periodRankingService = mockk()
         rankingWeightService = mockk()
         productRepositoryPort = mockk()
         rankingRolloverPort = mockk()
         rankingWeightViewPort = mockk()
         adapter = RankingApplicationServiceAdapter(
             rankingService,
+            periodRankingService,
             rankingWeightService,
             productRepositoryPort,
             rankingRolloverPort,
@@ -187,5 +192,39 @@ class RankingApplicationServiceAdapterTest {
         assertThat(result.items[0].price).isEqualTo(39000L)
         assertThat(result.items[1].productName).isNull()
         assertThat(result.items[1].price).isNull()
+    }
+
+    @DisplayName("period=WEEKLY면 MV 경로(PeriodRankingService)로 조회하고, 이월/가중치 버전 확인 없이 기간 정보가 결과에 담긴다.")
+    @Test
+    fun routesToPeriodService_whenWeekly() {
+        val entries = listOf(RankingEntry(productId = 101L, score = 3500.0, rank = 1L))
+        every { periodRankingService.getPage(RankingPeriod.WEEKLY, today, 1, 20) } returns RankingPage(today, 1, 20, 1L, entries)
+
+        val result = adapter.getRankingPage(
+            RankingPageCommand(date = today, page = 1, size = 20, period = RankingPageCommand.PeriodType.WEEKLY),
+        )
+
+        val expectedStart = RankingPeriod.WEEKLY.aggregatedDateFor(today)
+        assertThat(result.period).isEqualTo(RankingPageCommand.PeriodType.WEEKLY)
+        assertThat(result.periodStart).isEqualTo(expectedStart)
+        assertThat(result.periodEnd).isEqualTo(expectedStart.plusDays(6))
+        assertThat(result.items).hasSize(1)
+        // 일간 전용 협력자는 호출되지 않는다
+        verify(exactly = 0) { rankingRolloverPort.getStatus(any(), any()) }
+        verify(exactly = 0) { rankingService.getPage(any(), any(), any(), any()) }
+    }
+
+    @DisplayName("period=MONTHLY면 date 생략 시 오늘 기준 지난달로 조회한다.")
+    @Test
+    fun routesToMonthly_withTodayDefault() {
+        every { periodRankingService.getPage(RankingPeriod.MONTHLY, today, 1, 20) } returns emptyPage(today)
+
+        val result = adapter.getRankingPage(
+            RankingPageCommand(date = null, page = 1, size = 20, period = RankingPageCommand.PeriodType.MONTHLY),
+        )
+
+        assertThat(result.period).isEqualTo(RankingPageCommand.PeriodType.MONTHLY)
+        assertThat(result.periodStart).isEqualTo(today.withDayOfMonth(1).minusMonths(1))
+        verify(exactly = 1) { periodRankingService.getPage(RankingPeriod.MONTHLY, today, 1, 20) }
     }
 }

@@ -6,6 +6,10 @@ import com.loopers.domain.brand.Brand
 import com.loopers.domain.brand.BrandRepositoryPort
 import com.loopers.domain.product.ProductDetail
 import com.loopers.domain.ranking.RankingBoard
+import com.loopers.infrastructure.ranking.MvProductRankMonthlyEntity
+import com.loopers.infrastructure.ranking.MvProductRankMonthlyJpaRepository
+import com.loopers.infrastructure.ranking.MvProductRankWeeklyEntity
+import com.loopers.infrastructure.ranking.MvProductRankWeeklyJpaRepository
 import com.loopers.interfaces.api.product.ProductAdminApplicationServicePort
 import com.loopers.utils.DatabaseCleanUp
 import com.loopers.utils.RedisCleanUp
@@ -36,6 +40,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
     private val brandRepositoryPort: BrandRepositoryPort,
     private val productAdminApplicationService: ProductAdminApplicationServicePort,
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER) masterTemplate: RedisTemplate<*, *>,
+    private val weeklyMvJpaRepository: MvProductRankWeeklyJpaRepository,
+    private val monthlyMvJpaRepository: MvProductRankMonthlyJpaRepository,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
 ) {
@@ -155,6 +161,103 @@ class RankingV1ApiE2ETest @Autowired constructor(
             assertThat(getRankings("page=0").statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
             assertThat(getRankings("size=0").statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
             assertThat(getRankings("size=101").statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+    }
+
+    @DisplayName("기간 랭킹 (period=WEEKLY|MONTHLY) - ")
+    @Nested
+    inner class PeriodRankings {
+
+        /** 오늘이 어느 요일이든 "직전 완결 주"의 시작일 — API의 조회 키와 동일한 규칙으로 시드한다. */
+        private val lastWeekStart: LocalDate = today.with(java.time.DayOfWeek.MONDAY).minusWeeks(1)
+        private val lastMonthStart: LocalDate = today.withDayOfMonth(1).minusMonths(1)
+
+        @DisplayName("주간 랭킹을 MV 스냅샷에서 rank 순으로, 상품명/가격이 병합된 상태로 반환한다.")
+        @Test
+        fun returnsHydratedWeeklyRanking() {
+            val first = createProduct("주간 1등", 42000L)
+            val second = createProduct("주간 2등", 18000L)
+            weeklyMvJpaRepository.save(
+                MvProductRankWeeklyEntity(rankNo = 1, productId = first.id, score = 3500L, aggregatedDate = lastWeekStart),
+            )
+            weeklyMvJpaRepository.save(
+                MvProductRankWeeklyEntity(rankNo = 2, productId = second.id, score = 1200L, aggregatedDate = lastWeekStart),
+            )
+
+            val response = getRankings("period=WEEKLY&date=${dateParam(today)}")
+
+            val data = response.body?.data as? Map<*, *>
+            val items = data?.get("items") as? List<*>
+            val firstItem = items?.get(0) as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(data?.get("period")).isEqualTo("WEEKLY") },
+                { assertThat(data?.get("periodStart")).isEqualTo(dateParam(lastWeekStart)) },
+                { assertThat(data?.get("periodEnd")).isEqualTo(dateParam(lastWeekStart.plusDays(6))) },
+                { assertThat((data?.get("totalCount") as? Number)?.toLong()).isEqualTo(2L) },
+                { assertThat(items).hasSize(2) },
+                { assertThat(firstItem?.get("rank")).isEqualTo(1) },
+                { assertThat((firstItem?.get("productId") as? Number)?.toLong()).isEqualTo(first.id) },
+                { assertThat(firstItem?.get("score")).isEqualTo(3500.0) },
+                { assertThat(firstItem?.get("productName")).isEqualTo("주간 1등") },
+                { assertThat((firstItem?.get("price") as? Number)?.toLong()).isEqualTo(42000L) },
+            )
+        }
+
+        @DisplayName("월간 랭킹은 지난달 스냅샷을 반환한다.")
+        @Test
+        fun returnsMonthlyRanking() {
+            val product = createProduct("월간 1등", 99000L)
+            monthlyMvJpaRepository.save(
+                MvProductRankMonthlyEntity(rankNo = 1, productId = product.id, score = 8000L, aggregatedDate = lastMonthStart),
+            )
+
+            val response = getRankings("period=MONTHLY")
+
+            val data = response.body?.data as? Map<*, *>
+            val items = data?.get("items") as? List<*>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat(data?.get("period")).isEqualTo("MONTHLY") },
+                { assertThat(data?.get("periodStart")).isEqualTo(dateParam(lastMonthStart)) },
+                { assertThat(items).hasSize(1) },
+            )
+        }
+
+        @DisplayName("스냅샷이 없으면(배치 미실행) 빈 리스트/totalCount=0으로 응답한다.")
+        @Test
+        fun returnsEmpty_whenNoSnapshot() {
+            val response = getRankings("period=WEEKLY")
+
+            val data = response.body?.data as? Map<*, *>
+            assertAll(
+                { assertThat(response.statusCode.is2xxSuccessful).isTrue() },
+                { assertThat((data?.get("totalCount") as? Number)?.toLong()).isEqualTo(0L) },
+                { assertThat(data?.get("items") as? List<*>).isEmpty() },
+            )
+        }
+
+        @DisplayName("period 값이 잘못되면 400을 반환한다.")
+        @Test
+        fun returns400_whenInvalidPeriod() {
+            assertThat(getRankings("period=YEARLY").statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        }
+
+        @DisplayName("period를 생략하면 기존과 동일하게 일간(DAILY) 랭킹으로 동작한다 (하위 호환).")
+        @Test
+        fun defaultsToDaily_whenPeriodOmitted() {
+            val product = createProduct("오늘 상품", 10000L)
+            markRolloverDone(today)
+            seedScore(RankingBoard.allOf("v1", today), product.id, 50.0)
+
+            val response = getRankings()
+
+            val data = response.body?.data as? Map<*, *>
+            assertAll(
+                { assertThat(data?.get("period")).isEqualTo("DAILY") },
+                { assertThat(data?.get("periodStart")).isNull() },
+                { assertThat(data?.get("items") as? List<*>).hasSize(1) },
+            )
         }
     }
 

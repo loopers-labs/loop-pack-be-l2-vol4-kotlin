@@ -8,6 +8,10 @@ data class RankingPageResult(
     val size: Int,
     val totalCount: Long,
     val items: List<RankingItemResult>,
+    val period: RankingPageCommand.PeriodType = RankingPageCommand.PeriodType.DAILY,
+    /** 주간/월간일 때 실제 집계 구간. DAILY는 null. */
+    val periodStart: LocalDate? = null,
+    val periodEnd: LocalDate? = null,
 )
 
 data class RankingItemResult(

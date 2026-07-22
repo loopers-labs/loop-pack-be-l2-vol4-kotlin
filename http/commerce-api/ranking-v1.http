@@ -10,6 +10,21 @@ GET {{commerce-api}}/api/v1/rankings?date=20260714&page=2&size=20
 ### 랭킹 페이지 조회 — 과거 날짜, 데이터 없음 (200, 빈 리스트 + totalCount=0)
 GET {{commerce-api}}/api/v1/rankings?date=20200101
 
+### 주간 랭킹 조회 — date가 속한 주의 지난주(월~일) TOP 100
+GET {{commerce-api}}/api/v1/rankings?period=WEEKLY&date=20260720&page=1&size=20
+
+### 주간 랭킹 조회 — date 생략 시 오늘 기준 지난주
+GET {{commerce-api}}/api/v1/rankings?period=WEEKLY
+
+### 월간 랭킹 조회 — date가 속한 달의 지난달 TOP 100
+GET {{commerce-api}}/api/v1/rankings?period=MONTHLY&date=20260720
+
+### 주간 랭킹 조회 — 배치 미실행 기간 (200, 빈 리스트 + totalCount=0)
+GET {{commerce-api}}/api/v1/rankings?period=WEEKLY&date=20200101
+
+### 랭킹 페이지 조회 — 잘못된 period 값 (400)
+GET {{commerce-api}}/api/v1/rankings?period=YEARLY
+
 ### 랭킹 페이지 조회 — 잘못된 date 형식 (400)
 GET {{commerce-api}}/api/v1/rankings?date=2026-07-14
 

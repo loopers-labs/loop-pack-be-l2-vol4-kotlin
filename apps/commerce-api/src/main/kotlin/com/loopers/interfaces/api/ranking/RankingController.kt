@@ -19,6 +19,7 @@ class RankingController(
     @GetMapping
     fun getRankings(
         @RequestParam(name = "date", required = false) date: String?,
+        @RequestParam(name = "period", defaultValue = "DAILY") period: String,
         @RequestParam(name = "page", defaultValue = "1") page: Int,
         @RequestParam(name = "size", defaultValue = "20") size: Int,
     ): ApiResponse<RankingV1Dto.RankingPageResponse> {
@@ -32,8 +33,12 @@ class RankingController(
             runCatching { LocalDate.parse(it, DateTimeFormatter.BASIC_ISO_DATE) }
                 .getOrElse { throw CoreException(ErrorType.BAD_REQUEST, "date는 yyyyMMdd 형식이어야 합니다.") }
         }
+        val parsedPeriod = runCatching { RankingPageCommand.PeriodType.valueOf(period.uppercase()) }
+            .getOrElse { throw CoreException(ErrorType.BAD_REQUEST, "period는 DAILY, WEEKLY, MONTHLY 중 하나여야 합니다.") }
 
-        val result = rankingApplicationService.getRankingPage(RankingPageCommand(date = parsedDate, page = page, size = size))
+        val result = rankingApplicationService.getRankingPage(
+            RankingPageCommand(date = parsedDate, page = page, size = size, period = parsedPeriod),
+        )
         return ApiResponse.success(RankingV1Dto.RankingPageResponse.from(result))
     }
 

@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.core.KafkaTemplate
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.UUID
 
@@ -26,6 +28,8 @@ class ProductMetricConsumerE2ETest @Autowired constructor(
 ) {
     @Value("\${product-metric.topic}")
     private lateinit var topic: String
+
+    private val todayKst: LocalDate get() = LocalDate.now(ZoneId.of("Asia/Seoul"))
 
     @AfterEach
     fun tearDown() {
@@ -58,9 +62,9 @@ class ProductMetricConsumerE2ETest @Autowired constructor(
         kafkaTemplate.send(topic, payload)
 
         awaitUntil {
-            productMetricJpaRepository.findById(ProductMetricId(productId, "LIKE")).isPresent
+            productMetricJpaRepository.findById(ProductMetricId(productId, "LIKE", todayKst)).isPresent
         }
-        assertThat(productMetricJpaRepository.findById(ProductMetricId(productId, "LIKE")).get().count).isEqualTo(1L)
+        assertThat(productMetricJpaRepository.findById(ProductMetricId(productId, "LIKE", todayKst)).get().count).isEqualTo(1L)
         assertThat(eventHandledJpaRepository.existsById(payload.eventId)).isTrue()
     }
 
@@ -83,6 +87,6 @@ class ProductMetricConsumerE2ETest @Autowired constructor(
         kafkaTemplate.send(topic, payload)
         Thread.sleep(8_000L) // fetch.max.wait.ms(5s) 배치 폴링 주기를 감안해, 중복 메시지가 실제로 소비될 시간을 준다
 
-        assertThat(productMetricJpaRepository.findById(ProductMetricId(productId, "VIEW")).get().count).isEqualTo(1L)
+        assertThat(productMetricJpaRepository.findById(ProductMetricId(productId, "VIEW", todayKst)).get().count).isEqualTo(1L)
     }
 }

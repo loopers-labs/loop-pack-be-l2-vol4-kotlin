@@ -10,7 +10,10 @@ import java.time.ZonedDateTime
 @Entity
 @Table(
     name = "product_metrics",
-    indexes = [Index(name = "idx_product_metrics_type_count", columnList = "type, count")],
+    indexes = [
+        Index(name = "idx_product_metrics_type_count", columnList = "type, count"),
+        Index(name = "idx_product_metrics_metric_date", columnList = "metric_date"),
+    ],
 )
 class ProductMetricEntity(
     @EmbeddedId

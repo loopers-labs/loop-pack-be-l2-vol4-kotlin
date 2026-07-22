@@ -7,6 +7,10 @@ import java.time.format.DateTimeFormatter
 class RankingV1Dto {
     data class RankingPageResponse(
         val date: String,
+        val period: String,
+        /** 주간/월간일 때 실제 집계 구간(yyyyMMdd). DAILY는 null. */
+        val periodStart: String?,
+        val periodEnd: String?,
         val page: Int,
         val size: Int,
         val totalCount: Long,
@@ -15,6 +19,9 @@ class RankingV1Dto {
         companion object {
             fun from(result: RankingPageResult): RankingPageResponse = RankingPageResponse(
                 date = result.date.format(DateTimeFormatter.BASIC_ISO_DATE),
+                period = result.period.name,
+                periodStart = result.periodStart?.format(DateTimeFormatter.BASIC_ISO_DATE),
+                periodEnd = result.periodEnd?.format(DateTimeFormatter.BASIC_ISO_DATE),
                 page = result.page,
                 size = result.size,
                 totalCount = result.totalCount,

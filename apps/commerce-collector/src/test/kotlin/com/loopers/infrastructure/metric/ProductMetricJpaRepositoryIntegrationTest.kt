@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
@@ -25,6 +26,7 @@ class ProductMetricJpaRepositoryIntegrationTest @Autowired constructor(
     private val databaseCleanUp: DatabaseCleanUp,
 ) {
     private val baseOccurredAt = ZonedDateTime.parse("2026-06-07T10:00:00+09:00[Asia/Seoul]")
+    private val baseDate = LocalDate.of(2026, 6, 7)
 
     @AfterEach
     fun tearDown() {
@@ -34,12 +36,12 @@ class ProductMetricJpaRepositoryIntegrationTest @Autowired constructor(
     @DisplayName("upsert를 호출할 때, ")
     @Nested
     inner class Upsert {
-        @DisplayName("신규 (productId, type)이면, count가 delta로 신규 저장된다.")
+        @DisplayName("신규 (productId, type, metricDate)이면, count가 delta로 신규 저장된다.")
         @Test
         fun insertsNewRow_whenKeyNotExists() {
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 3L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 3L, occurredAt = baseOccurredAt)
 
-            val found = productMetricJpaRepository.findById(ProductMetricId(productId = 1L, type = "LIKE"))
+            val found = productMetricJpaRepository.findById(ProductMetricId(productId = 1L, type = "LIKE", metricDate = baseDate))
             assertThat(found).isPresent
             assertThat(found.get().count).isEqualTo(3L)
         }
@@ -47,12 +49,12 @@ class ProductMetricJpaRepositoryIntegrationTest @Autowired constructor(
         @DisplayName("기존 키에 더 최신 occurredAt으로 upsert하면, count가 누적되고 updated_at이 갱신된다.")
         @Test
         fun accumulatesCount_whenOccurredAtIsNewer() {
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 3L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 3L, occurredAt = baseOccurredAt)
 
             val newerOccurredAt = baseOccurredAt.plusMinutes(1)
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 2L, occurredAt = newerOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 2L, occurredAt = newerOccurredAt)
 
-            val found = productMetricJpaRepository.findById(ProductMetricId(productId = 1L, type = "LIKE")).get()
+            val found = productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE", baseDate)).get()
             assertThat(found.count).isEqualTo(5L)
             assertThat(found.updatedAt.truncatedTo(ChronoUnit.SECONDS))
                 .isEqualTo(newerOccurredAt.truncatedTo(ChronoUnit.SECONDS))
@@ -61,12 +63,12 @@ class ProductMetricJpaRepositoryIntegrationTest @Autowired constructor(
         @DisplayName("기존 키보다 더 과거 occurredAt으로 upsert하면(늦게 도착한 오래된 이벤트), count와 updated_at이 변하지 않는다.")
         @Test
         fun ignoresUpdate_whenOccurredAtIsOlder() {
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 3L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 3L, occurredAt = baseOccurredAt)
 
             val olderOccurredAt = baseOccurredAt.minusMinutes(1)
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 10L, occurredAt = olderOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 10L, occurredAt = olderOccurredAt)
 
-            val found = productMetricJpaRepository.findById(ProductMetricId(productId = 1L, type = "LIKE")).get()
+            val found = productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE", baseDate)).get()
             assertThat(found.count).isEqualTo(3L)
             assertThat(found.updatedAt.truncatedTo(ChronoUnit.SECONDS))
                 .isEqualTo(baseOccurredAt.truncatedTo(ChronoUnit.SECONDS))
@@ -75,11 +77,22 @@ class ProductMetricJpaRepositoryIntegrationTest @Autowired constructor(
         @DisplayName("같은 productId라도 type이 다르면, 서로 다른 행으로 별도 집계된다.")
         @Test
         fun tracksSeparately_whenTypeDiffers() {
-            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", delta = 3L, occurredAt = baseOccurredAt)
-            productMetricJpaRepository.upsert(productId = 1L, type = "VIEW", delta = 7L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 3L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "VIEW", metricDate = baseDate, delta = 7L, occurredAt = baseOccurredAt)
 
-            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE")).get().count).isEqualTo(3L)
-            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "VIEW")).get().count).isEqualTo(7L)
+            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE", baseDate)).get().count).isEqualTo(3L)
+            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "VIEW", baseDate)).get().count).isEqualTo(7L)
+        }
+
+        @DisplayName("같은 (productId, type)이라도 metricDate가 다르면, 날짜별로 별도 행에 누적된다 (일별화).")
+        @Test
+        fun tracksSeparately_whenMetricDateDiffers() {
+            val nextDate = baseDate.plusDays(1)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = baseDate, delta = 3L, occurredAt = baseOccurredAt)
+            productMetricJpaRepository.upsert(productId = 1L, type = "LIKE", metricDate = nextDate, delta = 2L, occurredAt = baseOccurredAt.plusDays(1))
+
+            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE", baseDate)).get().count).isEqualTo(3L)
+            assertThat(productMetricJpaRepository.findById(ProductMetricId(1L, "LIKE", nextDate)).get().count).isEqualTo(2L)
         }
     }
 

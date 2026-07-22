@@ -1,7 +1,9 @@
 package com.loopers.application.ranking
 
 import com.loopers.domain.product.ProductRepositoryPort
+import com.loopers.domain.ranking.PeriodRankingService
 import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRolloverPort
 import com.loopers.domain.ranking.RankingRolloverStatus
 import com.loopers.domain.ranking.RankingService
@@ -19,6 +21,7 @@ import java.util.concurrent.Executors
 @Service
 class RankingApplicationServiceAdapter(
     private val rankingService: RankingService,
+    private val periodRankingService: PeriodRankingService,
     private val rankingWeightService: RankingWeightService,
     private val productRepositoryPort: ProductRepositoryPort,
     private val rankingRolloverPort: RankingRolloverPort,
@@ -32,8 +35,16 @@ class RankingApplicationServiceAdapter(
     }
 
     override fun getRankingPage(command: RankingPageCommand): RankingPageResult {
+        val requestedDate = command.date ?: LocalDate.now(ZONE)
+        return when (command.period) {
+            RankingPageCommand.PeriodType.DAILY -> getDailyPage(command, requestedDate)
+            RankingPageCommand.PeriodType.WEEKLY -> getPeriodPage(RankingPeriod.WEEKLY, command, requestedDate)
+            RankingPageCommand.PeriodType.MONTHLY -> getPeriodPage(RankingPeriod.MONTHLY, command, requestedDate)
+        }
+    }
+
+    private fun getDailyPage(command: RankingPageCommand, requestedDate: LocalDate): RankingPageResult {
         val today = LocalDate.now(ZONE)
-        val requestedDate = command.date ?: today
         val activeVersion = rankingWeightViewPort.getActiveVersion()
         val effective = resolveEffectiveDate(activeVersion, requestedDate, today)
         val rankingPage = if (effective.fallback) {
@@ -42,6 +53,17 @@ class RankingApplicationServiceAdapter(
             rankingService.getPage(activeVersion, effective.date, command.page, command.size)
         }
         return hydrate(requestedDate, rankingPage)
+    }
+
+    /** 주간/월간은 배치가 확정한 MV 스냅샷을 읽는다 — 이월/가중치 버전/폴백 개념이 없는 단순 경로. */
+    private fun getPeriodPage(period: RankingPeriod, command: RankingPageCommand, requestedDate: LocalDate): RankingPageResult {
+        val rankingPage = periodRankingService.getPage(period, requestedDate, command.page, command.size)
+        val aggregatedDate = period.aggregatedDateFor(requestedDate)
+        return hydrate(requestedDate, rankingPage).copy(
+            period = command.period,
+            periodStart = aggregatedDate,
+            periodEnd = period.endDateOf(aggregatedDate),
+        )
     }
 
     override fun getWeights(): List<RankingWeightResult> =

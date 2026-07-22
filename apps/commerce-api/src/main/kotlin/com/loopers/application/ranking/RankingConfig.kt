@@ -1,5 +1,7 @@
 package com.loopers.application.ranking
 
+import com.loopers.domain.ranking.PeriodRankingRepositoryPort
+import com.loopers.domain.ranking.PeriodRankingService
 import com.loopers.domain.ranking.RankingRepositoryPort
 import com.loopers.domain.ranking.RankingService
 import com.loopers.domain.ranking.RankingWeightConfigRepositoryPort
@@ -16,6 +18,11 @@ class RankingConfig {
         rankingRepositoryPort: RankingRepositoryPort,
         rankingWeightViewPort: RankingWeightViewPort,
     ): RankingService = RankingService(rankingRepositoryPort, rankingWeightViewPort)
+
+    @Bean
+    fun periodRankingService(
+        periodRankingRepositoryPort: PeriodRankingRepositoryPort,
+    ): PeriodRankingService = PeriodRankingService(periodRankingRepositoryPort)
 
     @Bean
     fun rankingWeightService(

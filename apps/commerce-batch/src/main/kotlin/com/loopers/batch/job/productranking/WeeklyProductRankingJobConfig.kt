@@ -3,7 +3,6 @@ package com.loopers.batch.job.productranking
 import com.loopers.batch.listener.JobListener
 import com.loopers.batch.listener.StepMonitorListener
 import com.loopers.config.redis.RedisConfig
-import com.loopers.domain.productmetric.ProductMetricWeeklyRepository
 import com.loopers.domain.productrank.ProductRankWeeklyRepository
 import org.springframework.batch.core.Job
 import org.springframework.batch.core.Step
@@ -42,7 +41,6 @@ class WeeklyProductRankingJobConfig(
     private val jobListener: JobListener,
     private val stepMonitorListener: StepMonitorListener,
     private val weightReader: ProductRankingWeightReader,
-    private val productMetricWeeklyRepository: ProductMetricWeeklyRepository,
     private val productRankWeeklyRepository: ProductRankWeeklyRepository,
     @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
@@ -52,22 +50,10 @@ class WeeklyProductRankingJobConfig(
         return JobBuilder(JOB_NAME, jobRepository)
             .incrementer(RunIdIncrementer())
             .validator(ProductRankingJobParametersValidator(ProductRankingPeriod.WEEKLY, periodPolicy))
-            .start(weeklyMetricAggregationStep())
-            .next(weeklyScoreMaterializationStep())
+            .start(weeklyScoreMaterializationStep())
             .listener(jobListener)
             .listener(ProductRankingWeightSnapshotListener(weightReader))
             .listener(WeeklyProductRankingCacheEvictListener(redisTemplate))
-            .build()
-    }
-
-    @Bean(STEP_METRIC_AGGREGATION)
-    fun weeklyMetricAggregationStep(): Step {
-        return StepBuilder(STEP_METRIC_AGGREGATION, jobRepository)
-            .chunk<ProductMetricAggregate, ProductMetricAggregate>(properties.metric.chunkSize, transactionManager)
-            .reader(weeklyDailyMetricAggregateReader(null))
-            .writer(weeklyMetricWriter())
-            .listener(weeklyMetricCleanupListener(null))
-            .listener(stepMonitorListener)
             .build()
     }
 
@@ -75,7 +61,7 @@ class WeeklyProductRankingJobConfig(
     fun weeklyScoreMaterializationStep(): Step {
         return StepBuilder(STEP_SCORE_MATERIALIZATION, jobRepository)
             .chunk<ProductMetricAggregate, ProductRankingScore>(properties.metric.chunkSize, transactionManager)
-            .reader(weeklyMetricReader(null))
+            .reader(weeklyDailyMetricAggregateReader(null))
             .processor(weeklyScoreProcessor(null, null, null))
             .writer(weeklyRankWriter())
             .listener(weeklyRankCleanupListener(null))
@@ -112,70 +98,6 @@ class WeeklyProductRankingJobConfig(
                 statement.setDate(2, Date.valueOf(range.sourceEndExclusive))
             }
             .rowMapper(productMetricAggregateRowMapper(range.baseDate))
-            .build()
-    }
-
-    @Bean(WRITER_WEEKLY_METRIC)
-    fun weeklyMetricWriter(): JdbcBatchItemWriter<ProductMetricAggregate> {
-        return JdbcBatchItemWriterBuilder<ProductMetricAggregate>()
-            .dataSource(dataSource)
-            .sql(
-                """
-                INSERT INTO product_metric_weekly (
-                    base_date,
-                    product_id,
-                    view_count,
-                    like_count,
-                    sales_amount,
-                    created_at,
-                    updated_at
-                ) VALUES (
-                    :baseDate,
-                    :productId,
-                    :viewCount,
-                    :likeCount,
-                    :salesAmount,
-                    CURRENT_TIMESTAMP(6),
-                    CURRENT_TIMESTAMP(6)
-                )
-                ON DUPLICATE KEY UPDATE
-                    view_count = VALUES(view_count),
-                    like_count = VALUES(like_count),
-                    sales_amount = VALUES(sales_amount),
-                    updated_at = CURRENT_TIMESTAMP(6)
-                """.trimIndent(),
-            )
-            .beanMapped()
-            .build()
-    }
-
-    @StepScope
-    @Bean(READER_WEEKLY_METRIC)
-    fun weeklyMetricReader(
-        @Value("#{jobParameters['baseDate']}") baseDateParameter: Any?,
-    ): JdbcCursorItemReader<ProductMetricAggregate> {
-        val baseDate = parseBaseDate(baseDateParameter)
-        return JdbcCursorItemReaderBuilder<ProductMetricAggregate>()
-            .name(READER_WEEKLY_METRIC)
-            .dataSource(dataSource)
-            .fetchSize(properties.metric.fetchSize)
-            .sql(
-                """
-                SELECT
-                    base_date,
-                    product_id,
-                    view_count,
-                    like_count,
-                    sales_amount
-                FROM product_metric_weekly
-                WHERE base_date = ?
-                ORDER BY product_id
-                """.trimIndent(),
-            )
-            .preparedStatementSetter { statement ->
-                statement.setDate(1, Date.valueOf(baseDate))
-            }
-            .rowMapper(productMetricAggregateRowMapper())
             .build()
     }
 
@@ -222,18 +144,6 @@ class WeeklyProductRankingJobConfig(
     }
 
     @StepScope
-    @Bean(LISTENER_WEEKLY_METRIC_CLEANUP)
-    fun weeklyMetricCleanupListener(
-        @Value("#{jobParameters['baseDate']}") baseDateParameter: Any?,
-    ): StepExecutionListener {
-        return object : StepExecutionListener {
-            override fun beforeStep(stepExecution: StepExecution) {
-                productMetricWeeklyRepository.deleteByBaseDate(parseBaseDate(baseDateParameter))
-            }
-        }
-    }
-
-    @StepScope
     @Bean(LISTENER_WEEKLY_RANK_CLEANUP)
     fun weeklyRankCleanupListener(
         @Value("#{jobParameters['baseDate']}") baseDateParameter: Any?,
@@ -267,14 +177,10 @@ class WeeklyProductRankingJobConfig(
 
     companion object {
         const val JOB_NAME = "weeklyProductRankingJob"
-        private const val STEP_METRIC_AGGREGATION = "weeklyProductMetricAggregationStep"
         private const val STEP_SCORE_MATERIALIZATION = "weeklyProductScoreMaterializationStep"
         private const val READER_DAILY_METRIC_AGGREGATE = "weeklyDailyMetricAggregateReader"
-        private const val READER_WEEKLY_METRIC = "weeklyMetricReader"
-        private const val WRITER_WEEKLY_METRIC = "weeklyMetricWriter"
         private const val WRITER_WEEKLY_RANK = "weeklyRankWriter"
         private const val PROCESSOR_WEEKLY_SCORE = "weeklyScoreProcessor"
-        private const val LISTENER_WEEKLY_METRIC_CLEANUP = "weeklyMetricCleanupListener"
         private const val LISTENER_WEEKLY_RANK_CLEANUP = "weeklyRankCleanupListener"
     }
 }

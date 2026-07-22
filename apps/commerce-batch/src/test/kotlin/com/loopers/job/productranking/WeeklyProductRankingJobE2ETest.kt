@@ -3,7 +3,6 @@ package com.loopers.job.productranking
 import com.loopers.batch.job.productranking.WeeklyProductRankingJobConfig
 import com.loopers.config.redis.RankingRedisKeys
 import com.loopers.config.redis.RedisConfig
-import com.loopers.domain.productmetric.ProductMetricWeeklyRepository
 import com.loopers.domain.productrank.ProductRankWeeklyRepository
 import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.testcontainers.RedisTestContainersConfig
@@ -47,7 +46,6 @@ class WeeklyProductRankingJobE2ETest @Autowired constructor(
     private val jobLauncherTestUtils: JobLauncherTestUtils,
     @param:Qualifier(WeeklyProductRankingJobConfig.JOB_NAME) private val job: Job,
     private val jdbcTemplate: JdbcTemplate,
-    private val productMetricWeeklyRepository: ProductMetricWeeklyRepository,
     private val productRankWeeklyRepository: ProductRankWeeklyRepository,
     @param:Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
     private val redisTemplate: RedisTemplate<String, String>,
@@ -85,14 +83,10 @@ class WeeklyProductRankingJobE2ETest @Autowired constructor(
 
         val jobExecution = jobLauncherTestUtils.launchJob(jobParameters(runId = 1_001L))
 
-        val metric = productMetricWeeklyRepository.find(baseDate, 10L)
         val rank = productRankWeeklyRepository.findTop100(baseDate).single()
         val expectedScore = 3.0 + 10.0 + ln(301.0) * 100.0
         assertAll(
             { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
-            { assertThat(metric?.viewCount).isEqualTo(3L) },
-            { assertThat(metric?.likeCount).isEqualTo(1L) },
-            { assertThat(metric?.salesAmount).isEqualTo(300L) },
             { assertThat(rank.productId).isEqualTo(10L) },
             { assertThat(rank.rankingScore).isCloseTo(expectedScore, within(0.000_001)) },
             { assertThat(redisTemplate.hasKey(RankingRedisKeys.weekly(baseDate))).isFalse() },
@@ -112,17 +106,12 @@ class WeeklyProductRankingJobE2ETest @Autowired constructor(
         insertDailyMetric(baseDate.minusDays(5), 1L, viewCount = 9L, likeCount = 0L, salesAmount = 0L)
 
         jobLauncherTestUtils.launchJob(jobParameters(runId = 2_001L))
-        productMetricWeeklyRepository.upsert(baseDate, 5L, viewCount = 999L, likeCount = 999L, salesAmount = 999L)
         productRankWeeklyRepository.upsert(baseDate, 5L, rankingScore = 999.0)
         val jobExecution = jobLauncherTestUtils.launchJob(jobParameters(runId = 2_002L))
 
-        val metric = productMetricWeeklyRepository.find(baseDate, 5L)
         val top = productRankWeeklyRepository.findTop100(baseDate)
         assertAll(
             { assertThat(jobExecution.exitStatus.exitCode).isEqualTo(ExitStatus.COMPLETED.exitCode) },
-            { assertThat(metric?.viewCount).isEqualTo(10L) },
-            { assertThat(metric?.likeCount).isEqualTo(0L) },
-            { assertThat(metric?.salesAmount).isEqualTo(0L) },
             { assertThat(top.map { it.productId }).containsExactly(5L, 10L, 1L) },
             { assertThat(top.map { it.rankingScore }).containsExactly(10.0, 10.0, 9.0) },
         )

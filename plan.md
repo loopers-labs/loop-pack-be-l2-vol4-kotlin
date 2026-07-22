@@ -8,8 +8,7 @@
 ## Goal
 
 - 별도 Kafka consumer group이 상품 이벤트를 `product_metric_daily`에 일 단위로 실시간 증분한다.
-- Spring Batch가 일간 SOT를 chunk 단위로 읽어 주간·월간 상품 지표를 집계한다.
-- 기간별 전체 상품 점수를 조회 전용 MV에 저장한다.
+- Spring Batch가 일간 SOT를 DB에서 기간 단위로 집계해 조회 전용 MV에 바로 저장한다.
 - Ranking API가 일간·주간·월간 랭킹을 제공한다.
 - 주간·월간 조회는 Redis cache-aside를 사용하고, miss 시 RDB MV의 TOP 100을 적재한다.
 - 기존 Daily carry-over 내부 scheduler를 외부 트리거 Spring Batch Job으로 이전한다.
@@ -18,10 +17,8 @@
 
 ### Scope
 
-- 업무 테이블은 다음 5개다.
+- 업무 테이블은 다음 3개다.
   - `product_metric_daily`
-  - `product_metric_weekly`
-  - `product_metric_monthly`
   - `mv_product_rank_weekly`
   - `mv_product_rank_monthly`
 - `mv_product_rank_weekly/monthly`는 TOP 100만 저장하지 않고 해당 기간의 전체 상품 점수를 저장한다.
@@ -153,7 +150,7 @@ GET /api/v1/rankings?date=20260805&period=MONTHLY&page=0&size=20
 ## Table Design
 
 모든 엔티티는 기존 `BaseEntity`의 `id`, `created_at`, `updated_at`, `deleted_at`을 사용한다.
-`base_date`와 `product_id`는 기간별 업무 unique key다.
+`base_date`와 `product_id`는 기간별 MV 업무 unique key다.
 
 ### product_metric_daily
 
@@ -171,42 +168,6 @@ CREATE TABLE product_metric_daily (
     PRIMARY KEY (id),
     UNIQUE KEY uk_product_metric_daily_date_product (metric_date, product_id),
     KEY idx_product_metric_daily_product_date (product_id, metric_date)
-);
-```
-
-### product_metric_weekly
-
-```sql
-CREATE TABLE product_metric_weekly (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    base_date DATE NOT NULL,
-    product_id BIGINT NOT NULL,
-    view_count BIGINT NOT NULL,
-    like_count BIGINT NOT NULL,
-    sales_amount BIGINT NOT NULL,
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL,
-    deleted_at DATETIME NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_product_metric_weekly_base_product (base_date, product_id)
-);
-```
-
-### product_metric_monthly
-
-```sql
-CREATE TABLE product_metric_monthly (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    base_date DATE NOT NULL,
-    product_id BIGINT NOT NULL,
-    view_count BIGINT NOT NULL,
-    like_count BIGINT NOT NULL,
-    sales_amount BIGINT NOT NULL,
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL,
-    deleted_at DATETIME NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_product_metric_monthly_base_product (base_date, product_id)
 );
 ```
 
@@ -254,7 +215,7 @@ CREATE TABLE mv_product_rank_monthly (
 
 ## Batch Processing Design
 
-### Metric Aggregation Step
+### Metric Aggregation Reader
 
 - `JdbcCursorItemReader`가 DB에서 상품 단위로 미리 합산된 row를 streaming한다.
 - 애플리케이션에서 일별 row를 모두 읽어 전역 Map으로 합산하지 않는다.
@@ -274,18 +235,17 @@ ORDER BY product_id
 ```
 
 - Reader item 하나는 기간 내 한 상품의 합산 metric이다.
-- `JdbcBatchItemWriter`가 configurable chunk 단위로 weekly/monthly SOT에 upsert한다.
-- Job 재실행 전에 해당 `base_date`의 기존 target row를 삭제해 원천에서 사라진 상품이 남지 않게 한다.
+- Reader item을 중간 weekly/monthly SOT에 저장하지 않고 score processor로 바로 전달한다.
 - Reader fetch size와 chunk size는 configuration으로 분리한다.
 - 초기값은 fetch size 1,000, chunk size 500으로 둔다.
 
 ### Score Materialization Step
 
 - Job 시작 시 확정한 가중치 snapshot을 Step ExecutionContext에 저장한다.
-- Reader가 해당 `base_date`의 weekly/monthly metric을 `product_id` 순서로 streaming한다.
+- Reader가 source range의 daily metric aggregate를 `product_id` 순서로 streaming한다.
 - Processor가 `ln(1 + totalSalesAmount)`와 가중합을 계산한다.
 - Writer가 전체 상품 score를 weekly/monthly MV에 chunk upsert한다.
-- 재실행 전에 해당 `base_date`의 MV row를 삭제한다.
+- 재실행 전에 해당 `base_date`의 기존 MV row를 삭제해 원천에서 사라진 상품이 남지 않게 한다.
 - Step 성공 후 RDB TOP 100 query의 정렬과 tie-breaker를 검증한다.
 - Job 전체 성공 후에만 해당 Redis cache key를 삭제한다.
 
@@ -357,7 +317,7 @@ ORDER BY product_id
 
 #### 작업
 
-- weekly/monthly metric 및 MV entity/repository를 Batch 모듈에 추가한다.
+- weekly/monthly MV entity/repository를 Batch 모듈에 추가한다.
 - 공통 `baseDate`, source range 계산 정책을 구현한다.
 - Weekly 월요일 validation과 Monthly 1일 validation을 추가한다.
 - chunk/fetch size와 cache TTL configuration properties를 추가한다.
@@ -376,9 +336,9 @@ ORDER BY product_id
 
 #### 작업
 
-- `weeklyProductRankingJob`을 metric aggregation Step과 score materialization Step으로 구성한다.
+- `weeklyProductRankingJob`을 daily metric aggregation reader와 score materialization Step으로 구성한다.
 - Daily metric을 DB에서 product별 GROUP BY하여 cursor로 읽는다.
-- Weekly SOT를 chunk upsert한다.
+- Daily metric aggregation result를 바로 score processor로 전달해 Weekly MV를 chunk upsert한다.
 - Redis 활성 가중치 snapshot으로 전체 weekly MV score를 계산한다.
 - Job 성공 후 weekly Redis cache key를 삭제한다.
 
@@ -400,7 +360,7 @@ ORDER BY product_id
 #### 작업
 
 - Weekly Job의 공통 Reader/Processor/Writer 구성요소를 재사용해 `monthlyProductRankingJob`을 구현한다.
-- 직전 월 Daily metric을 Monthly SOT로 집계한다.
+- 직전 월 Daily metric aggregation result를 바로 score processor로 전달한다.
 - 동일 가중치 정책으로 전체 monthly MV score를 계산한다.
 - Job 성공 후 monthly Redis cache key를 삭제한다.
 

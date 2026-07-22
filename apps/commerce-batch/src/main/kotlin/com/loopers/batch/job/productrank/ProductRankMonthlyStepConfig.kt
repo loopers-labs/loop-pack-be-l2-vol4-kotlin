@@ -18,21 +18,20 @@ import org.springframework.transaction.PlatformTransactionManager
 import javax.sql.DataSource
 
 /**
- * 주간 집계 스텝 2종 — 정리(해당 주 기간 키 delete) 후, 시간별 집계를 주 창으로 합산해 기간 집계 테이블에 적재한다.
- * 정리를 별도 스텝으로 두는 이유: 청크 스텝 재시작 시 정리가 다시 실행돼 이미 적재한 행을 지우는 사고를 막는다.
+ * 월간 집계 스텝 2종 — 주간과 같은 구성에서 대상 테이블과 기간 계산(달력 월)만 다르다.
  */
 @ConditionalOnProperty(name = ["spring.batch.job.name"], havingValue = ProductRankJob.NAME)
 @Configuration
-class ProductRankWeeklyStepConfig(
+class ProductRankMonthlyStepConfig(
     jobRepository: JobRepository,
     transactionManager: PlatformTransactionManager,
     dataSource: DataSource,
     @Value("\${loopers.batch.product-rank.chunk-size:1000}") chunkSize: Int,
 ) {
     companion object {
-        const val WEEKLY_CLEAN_STEP = "weeklyCleanStep"
-        const val WEEKLY_AGGREGATE_STEP = "weeklyAggregateStep"
-        private const val WEEKLY_HOURLY_READER = "weeklyHourlyReader"
+        const val MONTHLY_CLEAN_STEP = "monthlyCleanStep"
+        const val MONTHLY_AGGREGATE_STEP = "monthlyAggregateStep"
+        private const val MONTHLY_HOURLY_READER = "monthlyHourlyReader"
     }
 
     private val steps = PeriodAggregateStepFactory(
@@ -40,37 +39,39 @@ class ProductRankWeeklyStepConfig(
         transactionManager = transactionManager,
         dataSource = dataSource,
         chunkSize = chunkSize,
-        table = "product_metrics_weekly",
-        periodResolver = RankingPeriod::weeklyOf,
+        table = "product_metrics_monthly",
+        periodResolver = RankingPeriod::monthlyOf,
     )
 
-    @Bean(WEEKLY_CLEAN_STEP)
-    fun weeklyCleanStep(): Step = steps.taskletStep(WEEKLY_CLEAN_STEP, weeklyCleanTasklet(null))
+    @Bean(MONTHLY_CLEAN_STEP)
+    fun monthlyCleanStep(): Step = steps.taskletStep(MONTHLY_CLEAN_STEP, monthlyCleanTasklet(null))
 
     @Bean
     @StepScope
-    fun weeklyCleanTasklet(@Value("#{jobParameters['targetDate']}") targetDate: String?): Tasklet = steps.cleanTasklet(targetDate)
-
-    @Bean(WEEKLY_AGGREGATE_STEP)
-    fun weeklyAggregateStep(): Step = steps.aggregateStep(
-        name = WEEKLY_AGGREGATE_STEP,
-        reader = weeklyHourlyReader(null),
-        processor = weeklyPeriodProcessor(null),
-        writer = weeklyMetricsWriter(),
-    )
-
-    @Bean(WEEKLY_HOURLY_READER)
-    @StepScope
-    fun weeklyHourlyReader(
+    fun monthlyCleanTasklet(
         @Value("#{jobParameters['targetDate']}") targetDate: String?,
-    ): JdbcPagingItemReader<ProductSignalSummary> = steps.hourlyReader(WEEKLY_HOURLY_READER, targetDate)
+    ): Tasklet = steps.cleanTasklet(targetDate)
+
+    @Bean(MONTHLY_AGGREGATE_STEP)
+    fun monthlyAggregateStep(): Step = steps.aggregateStep(
+        name = MONTHLY_AGGREGATE_STEP,
+        reader = monthlyHourlyReader(null),
+        processor = monthlyPeriodProcessor(null),
+        writer = monthlyMetricsWriter(),
+    )
+
+    @Bean(MONTHLY_HOURLY_READER)
+    @StepScope
+    fun monthlyHourlyReader(
+        @Value("#{jobParameters['targetDate']}") targetDate: String?,
+    ): JdbcPagingItemReader<ProductSignalSummary> = steps.hourlyReader(MONTHLY_HOURLY_READER, targetDate)
 
     @Bean
     @StepScope
-    fun weeklyPeriodProcessor(
+    fun monthlyPeriodProcessor(
         @Value("#{jobParameters['targetDate']}") targetDate: String?,
     ): ItemProcessor<ProductSignalSummary, ProductPeriodMetrics> = steps.periodProcessor(targetDate)
 
     @Bean
-    fun weeklyMetricsWriter(): JdbcBatchItemWriter<ProductPeriodMetrics> = steps.metricsWriter()
+    fun monthlyMetricsWriter(): JdbcBatchItemWriter<ProductPeriodMetrics> = steps.metricsWriter()
 }

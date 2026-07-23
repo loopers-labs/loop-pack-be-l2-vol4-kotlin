@@ -4,6 +4,7 @@ import com.loopers.testcontainers.MySqlTestContainersConfig
 import com.loopers.testcontainers.RedisTestContainersConfig
 import com.loopers.utils.DatabaseCleanUp
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -65,7 +66,12 @@ class ProductRankJobIntegrationTest @Autowired constructor(
     private fun rows(table: String): List<Map<String, Any>> =
         jdbcTemplate.queryForList("SELECT product_id, period_key, view_count, like_count, order_quantity FROM $table ORDER BY product_id")
 
+    private fun mvRows(table: String): List<Map<String, Any>> =
+        jdbcTemplate.queryForList("SELECT period_key, rank_no, product_id, score FROM $table ORDER BY rank_no")
+
     private fun Map<String, Any>.long(column: String): Long = (getValue(column) as Number).toLong()
+
+    private fun Map<String, Any>.double(column: String): Double = (getValue(column) as Number).toDouble()
 
     @DisplayName("productRankJob 을 실행하면,")
     @Nested
@@ -101,7 +107,32 @@ class ProductRankJobIntegrationTest @Autowired constructor(
         }
 
         @Test
-        fun `같은 targetDate 로 다시 실행해도 두 테이블 모두 결과가 같다`() {
+        fun `시간별 신호에서 주간·월간 TOP 100 MV 까지 관통해 순위와 점수가 적재된다`() {
+            // p101 — 주간 (v2,l1,o3) 점수 2.5 / 월간 (v7,l1,o3) 점수 3.0
+            seedHourly(101L, LocalDateTime.of(2026, 7, 21, 10, 0), view = 2, like = 1, order = 3)
+            seedHourly(101L, LocalDateTime.of(2026, 7, 3, 10, 0), view = 5)
+            // p202 — 주간·월간 모두 (v1) 점수 0.1
+            seedHourly(202L, LocalDateTime.of(2026, 7, 20, 0, 0), view = 1)
+
+            val status = launch()
+
+            assertThat(status).isEqualTo(BatchStatus.COMPLETED)
+            val weeklyMv = mvRows("mv_product_rank_weekly")
+            assertThat(weeklyMv).hasSize(2)
+            assertThat(weeklyMv.map { it["period_key"] }).containsOnly("2026W30")
+            assertThat(weeklyMv.map { it.long("product_id") }).containsExactly(101L, 202L)
+            assertThat(weeklyMv[0].double("score")).isCloseTo(2.5, within(1e-9))
+            assertThat(weeklyMv[1].double("score")).isCloseTo(0.1, within(1e-9))
+
+            val monthlyMv = mvRows("mv_product_rank_monthly")
+            assertThat(monthlyMv).hasSize(2)
+            assertThat(monthlyMv.map { it["period_key"] }).containsOnly("202607")
+            assertThat(monthlyMv.map { it.long("product_id") }).containsExactly(101L, 202L)
+            assertThat(monthlyMv[0].double("score")).isCloseTo(3.0, within(1e-9))
+        }
+
+        @Test
+        fun `같은 targetDate 로 다시 실행해도 집계와 MV 모두 결과가 같다`() {
             seedHourly(101L, LocalDateTime.of(2026, 7, 21, 10, 0), view = 3)
 
             launch()
@@ -112,6 +143,9 @@ class ProductRankJobIntegrationTest @Autowired constructor(
             assertThat(rows("product_metrics_monthly")).hasSize(1)
             assertThat(rows("product_metrics_weekly").single().long("view_count")).isEqualTo(3L)
             assertThat(rows("product_metrics_monthly").single().long("view_count")).isEqualTo(3L)
+            assertThat(mvRows("mv_product_rank_weekly")).hasSize(1)
+            assertThat(mvRows("mv_product_rank_monthly")).hasSize(1)
+            assertThat(mvRows("mv_product_rank_weekly").single().long("rank_no")).isEqualTo(1L)
         }
     }
 

@@ -36,6 +36,7 @@ class ProductRankMonthlyStepConfig(
     companion object {
         const val MONTHLY_CLEAN_STEP = "monthlyCleanStep"
         const val MONTHLY_AGGREGATE_STEP = "monthlyAggregateStep"
+        const val MONTHLY_RANK_STEP = "monthlyRankStep"
         private const val MONTHLY_HOURLY_READER = "monthlyHourlyReader"
     }
 
@@ -83,4 +84,13 @@ class ProductRankMonthlyStepConfig(
 
     @Bean
     fun monthlyMetricsWriter(): JdbcBatchItemWriter<ProductPeriodMetrics> = steps.metricsWriter()
+
+    @Bean(MONTHLY_RANK_STEP)
+    fun monthlyRankStep(): Step = steps.taskletStep(MONTHLY_RANK_STEP, monthlyRankTasklet(null))
+
+    @Bean
+    @StepScope
+    fun monthlyRankTasklet(
+        @Value("#{jobParameters['targetDate']}") targetDate: String?,
+    ): Tasklet = steps.rankTasklet(targetDate)
 }

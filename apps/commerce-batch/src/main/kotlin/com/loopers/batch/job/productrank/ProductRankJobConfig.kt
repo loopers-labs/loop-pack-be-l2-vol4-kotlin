@@ -29,6 +29,7 @@ class ProductRankJobConfig(
         @Qualifier(ProductRankWeeklyStepConfig.WEEKLY_RANK_STEP) weeklyRankStep: Step,
         @Qualifier(ProductRankMonthlyStepConfig.MONTHLY_CLEAN_STEP) monthlyCleanStep: Step,
         @Qualifier(ProductRankMonthlyStepConfig.MONTHLY_AGGREGATE_STEP) monthlyAggregateStep: Step,
+        @Qualifier(ProductRankMonthlyStepConfig.MONTHLY_RANK_STEP) monthlyRankStep: Step,
     ): Job = JobBuilder(ProductRankJob.NAME, jobRepository)
         .incrementer(RunIdIncrementer())
         .validator(TargetDateJobParametersValidator())
@@ -38,5 +39,6 @@ class ProductRankJobConfig(
         .next(weeklyRankStep)
         .next(monthlyCleanStep)
         .next(monthlyAggregateStep)
+        .next(monthlyRankStep)
         .build()
 }

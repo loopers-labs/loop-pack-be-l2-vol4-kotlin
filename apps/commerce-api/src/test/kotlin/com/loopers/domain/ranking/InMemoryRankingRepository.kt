@@ -10,9 +10,9 @@ import java.time.LocalDate
 class InMemoryRankingRepository : RankingRepository {
     val entries = mutableListOf<RankingEntry>()
 
-    override fun findPage(date: LocalDate, pageable: Pageable): RankingPage =
+    override fun findPage(period: RankingPeriod, date: LocalDate, pageable: Pageable): RankingPage =
         RankingPage(entries.toList(), entries.size.toLong())
 
-    override fun findRank(date: LocalDate, productId: Long): Long? =
+    override fun findRank(period: RankingPeriod, date: LocalDate, productId: Long): Long? =
         entries.firstOrNull { it.productId == productId }?.rank
 }

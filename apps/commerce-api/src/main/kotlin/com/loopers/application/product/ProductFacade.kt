@@ -9,6 +9,7 @@ import com.loopers.domain.product.ProductService
 import com.loopers.domain.product.ProductViewQuery
 import com.loopers.domain.product.getProductDomainForUser
 import com.loopers.domain.product.TechCategory
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingService
 import com.loopers.domain.stock.StockService
 import com.loopers.domain.user.UserService
@@ -69,7 +70,7 @@ class ProductFacade(
         )
 
         // 상품 상세엔 '오늘' 랭킹 순위를 얹는다. 랭킹에 없으면 null.
-        val rank = rankingService.getRank(LocalDate.now(clock), productId)
+        val rank = rankingService.getRank(RankingPeriod.DAILY, LocalDate.now(clock), productId)
 
         return getProductDomainForUser(product, brand, stock, likeCount)
             .let { ProductInfo.of(it, rank) }

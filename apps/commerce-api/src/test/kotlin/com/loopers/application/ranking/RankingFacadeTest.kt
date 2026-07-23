@@ -14,6 +14,7 @@ import com.loopers.domain.product.ProductStatus
 import com.loopers.domain.product.TechCategory
 import com.loopers.domain.ranking.InMemoryRankingRepository
 import com.loopers.domain.ranking.RankingEntry
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
@@ -82,7 +83,7 @@ class RankingFacadeTest {
         setLikeCount(p2.id, 3)
         setRanking(RankingEntry(p2.id, 1L), RankingEntry(p1.id, 2L))
 
-        val page = rankingFacade.getRankings(null, pageable)
+        val page = rankingFacade.getRankings(RankingPeriod.DAILY, null, pageable)
 
         assertThat(page.content).hasSize(2)
         assertThat(page.content.map { it.productId }).containsExactly(p2.id, p1.id)
@@ -104,10 +105,10 @@ class RankingFacadeTest {
         setRanking(
             RankingEntry(active.id, 1L),
             RankingEntry(deleted.id, 2L),
-            RankingEntry(999L, 3L), 
+            RankingEntry(999L, 3L),
         )
 
-        val page = rankingFacade.getRankings(null, pageable)
+        val page = rankingFacade.getRankings(RankingPeriod.DAILY, null, pageable)
 
         assertThat(page.content).hasSize(1)
         assertThat(page.content.map { it.productId }).containsExactly(active.id)
@@ -118,7 +119,7 @@ class RankingFacadeTest {
     fun emptyRanking() {
         setRanking()
 
-        val page = rankingFacade.getRankings(null, pageable)
+        val page = rankingFacade.getRankings(RankingPeriod.DAILY, null, pageable)
 
         assertThat(page.content).isEmpty()
         assertThat(page.totalElements).isZero()
@@ -130,7 +131,7 @@ class RankingFacadeTest {
         val product = saveProduct("상품", brandId = 999L) // 브랜드 999 는 저장 안 함
         setRanking(RankingEntry(product.id, 1L))
 
-        val page = rankingFacade.getRankings(null, pageable)
+        val page = rankingFacade.getRankings(RankingPeriod.DAILY, null, pageable)
 
         assertThat(page.content).hasSize(1)
         assertThat(page.content[0].likeCount).isEqualTo(0)

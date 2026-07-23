@@ -8,9 +8,9 @@ import java.time.LocalDate
 class RankingService(
     private val rankingRepository: RankingRepository,
 ) {
-    fun getRankingPage(date: LocalDate, pageable: Pageable): RankingPage =
-        rankingRepository.findPage(date, pageable)
+    fun getRankingPage(period: RankingPeriod, date: LocalDate, pageable: Pageable): RankingPage =
+        rankingRepository.findPage(period, date, pageable)
 
-    fun getRank(date: LocalDate, productId: Long): Long? =
-        rankingRepository.findRank(date, productId)
+    fun getRank(period: RankingPeriod, date: LocalDate, productId: Long): Long? =
+        rankingRepository.findRank(period, date, productId)
 }

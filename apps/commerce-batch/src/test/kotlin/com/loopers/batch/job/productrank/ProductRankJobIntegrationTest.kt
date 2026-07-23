@@ -8,9 +8,11 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.batch.core.BatchStatus
 import org.springframework.batch.core.JobParameters
 import org.springframework.batch.core.JobParametersBuilder
+import org.springframework.batch.core.JobParametersInvalidException
 import org.springframework.batch.test.JobLauncherTestUtils
 import org.springframework.batch.test.context.SpringBatchTest
 import org.springframework.beans.factory.annotation.Autowired
@@ -110,6 +112,24 @@ class ProductRankJobIntegrationTest @Autowired constructor(
             assertThat(rows("product_metrics_monthly")).hasSize(1)
             assertThat(rows("product_metrics_weekly").single().long("view_count")).isEqualTo(3L)
             assertThat(rows("product_metrics_monthly").single().long("view_count")).isEqualTo(3L)
+        }
+    }
+
+    @DisplayName("targetDate 파라미터 검증은,")
+    @Nested
+    inner class Validate {
+        @Test
+        fun `targetDate 가 없으면 실행 전에 거부된다`() {
+            val params = JobParametersBuilder()
+                .addString("uniqueRunId", UUID.randomUUID().toString())
+                .toJobParameters()
+
+            assertThrows<JobParametersInvalidException> { jobLauncherTestUtils.launchJob(params) }
+        }
+
+        @Test
+        fun `targetDate 형식이 yyyy-MM-dd 가 아니면 실행 전에 거부된다`() {
+            assertThrows<JobParametersInvalidException> { jobLauncherTestUtils.launchJob(params("20260721")) }
         }
     }
 }

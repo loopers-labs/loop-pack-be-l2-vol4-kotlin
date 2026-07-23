@@ -26,6 +26,11 @@ loopers:
   batch:
     product-rank:
       chunk-size: 1000
+  ranking:
+    weight:
+      view: 0.1
+      like: 0.2
+      order: 0.7
 
 ---
 spring:

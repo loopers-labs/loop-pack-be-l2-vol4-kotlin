@@ -26,6 +26,7 @@ class ProductRankJobConfig(
     fun productRankJob(
         @Qualifier(ProductRankWeeklyStepConfig.WEEKLY_CLEAN_STEP) weeklyCleanStep: Step,
         @Qualifier(ProductRankWeeklyStepConfig.WEEKLY_AGGREGATE_STEP) weeklyAggregateStep: Step,
+        @Qualifier(ProductRankWeeklyStepConfig.WEEKLY_RANK_STEP) weeklyRankStep: Step,
         @Qualifier(ProductRankMonthlyStepConfig.MONTHLY_CLEAN_STEP) monthlyCleanStep: Step,
         @Qualifier(ProductRankMonthlyStepConfig.MONTHLY_AGGREGATE_STEP) monthlyAggregateStep: Step,
     ): Job = JobBuilder(ProductRankJob.NAME, jobRepository)
@@ -34,6 +35,7 @@ class ProductRankJobConfig(
         .listener(jobListener)
         .start(weeklyCleanStep)
         .next(weeklyAggregateStep)
+        .next(weeklyRankStep)
         .next(monthlyCleanStep)
         .next(monthlyAggregateStep)
         .build()

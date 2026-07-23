@@ -23,19 +23,25 @@ import java.time.LocalDate
 import javax.sql.DataSource
 
 /**
- * 기간(주/월) 집계 스텝의 구성 요소를 만든다 — 주간·월간은 대상 테이블과 기간 계산만 다르고 나머지 구성이 같다.
- * 정리 tasklet, 시간별 집계 페이징 리더, 기간 키 부여 프로세서, 배치 insert 라이터를 조립한다.
+ * 기간(주/월) 랭킹 배치의 스텝 구성 요소를 만든다 — 주간·월간은 대상 테이블과 기간 계산만 다르고 나머지 구성이 같다.
+ * 정리 tasklet, 시간별 집계 페이징 리더, 기간 키 부여 프로세서, 배치 insert 라이터, TOP 100 랭킹 tasklet 을 조립한다.
  */
-class PeriodAggregateStepFactory(
+class ProductRankStepFactory(
     private val jobRepository: JobRepository,
     private val transactionManager: PlatformTransactionManager,
     private val dataSource: DataSource,
     private val chunkSize: Int,
     private val table: String,
+    private val mvTable: String,
     private val periodResolver: (LocalDate) -> RankingPeriod,
+    private val weights: RankingWeightProperties,
     private val stepMonitorListener: StepMonitorListener,
     private val chunkListener: ChunkListener,
 ) {
+    companion object {
+        private const val TOP_LIMIT = 100
+    }
+
     fun resolvePeriod(targetDate: String?): RankingPeriod =
         periodResolver(LocalDate.parse(requireNotNull(targetDate) { "targetDate 잡 파라미터가 필요하다" }))
 
@@ -43,6 +49,31 @@ class PeriodAggregateStepFactory(
         val period = resolvePeriod(targetDate)
         return Tasklet { _, _ ->
             JdbcTemplate(dataSource).update("DELETE FROM $table WHERE period_key = ?", period.key)
+            RepeatStatus.FINISHED
+        }
+    }
+
+    // 정리와 적재가 tasklet 스텝의 한 트랜잭션에서 실행된다 — 갱신 도중 조회가 반쯤 지워진 판을 보지 않는다(원자 교체).
+    fun rankTasklet(targetDate: String?): Tasklet {
+        val period = resolvePeriod(targetDate)
+        return Tasklet { _, _ ->
+            val jdbcTemplate = JdbcTemplate(dataSource)
+            jdbcTemplate.update("DELETE FROM $mvTable WHERE period_key = ?", period.key)
+            jdbcTemplate.update(
+                "INSERT INTO $mvTable (period_key, rank_no, product_id, score, created_at, updated_at) " +
+                    "SELECT period_key, ROW_NUMBER() OVER (ORDER BY score DESC, product_id ASC), " +
+                    "       product_id, score, NOW(6), NOW(6) " +
+                    "FROM (" +
+                    "  SELECT period_key, product_id, " +
+                    "         view_count * ? + like_count * ? + order_quantity * ? AS score " +
+                    "  FROM $table WHERE period_key = ?" +
+                    ") scored " +
+                    "ORDER BY score DESC, product_id ASC LIMIT $TOP_LIMIT",
+                weights.view,
+                weights.like,
+                weights.order,
+                period.key,
+            )
             RepeatStatus.FINISHED
         }
     }

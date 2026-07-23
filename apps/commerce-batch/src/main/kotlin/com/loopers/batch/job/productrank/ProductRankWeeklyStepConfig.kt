@@ -30,22 +30,26 @@ class ProductRankWeeklyStepConfig(
     transactionManager: PlatformTransactionManager,
     dataSource: DataSource,
     @Value("\${loopers.batch.product-rank.chunk-size:1000}") chunkSize: Int,
+    weights: RankingWeightProperties,
     stepMonitorListener: StepMonitorListener,
     chunkListener: ChunkListener,
 ) {
     companion object {
         const val WEEKLY_CLEAN_STEP = "weeklyCleanStep"
         const val WEEKLY_AGGREGATE_STEP = "weeklyAggregateStep"
+        const val WEEKLY_RANK_STEP = "weeklyRankStep"
         private const val WEEKLY_HOURLY_READER = "weeklyHourlyReader"
     }
 
-    private val steps = PeriodAggregateStepFactory(
+    private val steps = ProductRankStepFactory(
         jobRepository = jobRepository,
         transactionManager = transactionManager,
         dataSource = dataSource,
         chunkSize = chunkSize,
         table = "product_metrics_weekly",
+        mvTable = "mv_product_rank_weekly",
         periodResolver = RankingPeriod::weeklyOf,
+        weights = weights,
         stepMonitorListener = stepMonitorListener,
         chunkListener = chunkListener,
     )
@@ -79,4 +83,13 @@ class ProductRankWeeklyStepConfig(
 
     @Bean
     fun weeklyMetricsWriter(): JdbcBatchItemWriter<ProductPeriodMetrics> = steps.metricsWriter()
+
+    @Bean(WEEKLY_RANK_STEP)
+    fun weeklyRankStep(): Step = steps.taskletStep(WEEKLY_RANK_STEP, weeklyRankTasklet(null))
+
+    @Bean
+    @StepScope
+    fun weeklyRankTasklet(
+        @Value("#{jobParameters['targetDate']}") targetDate: String?,
+    ): Tasklet = steps.rankTasklet(targetDate)
 }

@@ -29,6 +29,7 @@ class ProductRankMonthlyStepConfig(
     transactionManager: PlatformTransactionManager,
     dataSource: DataSource,
     @Value("\${loopers.batch.product-rank.chunk-size:1000}") chunkSize: Int,
+    weights: RankingWeightProperties,
     stepMonitorListener: StepMonitorListener,
     chunkListener: ChunkListener,
 ) {
@@ -38,13 +39,15 @@ class ProductRankMonthlyStepConfig(
         private const val MONTHLY_HOURLY_READER = "monthlyHourlyReader"
     }
 
-    private val steps = PeriodAggregateStepFactory(
+    private val steps = ProductRankStepFactory(
         jobRepository = jobRepository,
         transactionManager = transactionManager,
         dataSource = dataSource,
         chunkSize = chunkSize,
         table = "product_metrics_monthly",
+        mvTable = "mv_product_rank_monthly",
         periodResolver = RankingPeriod::monthlyOf,
+        weights = weights,
         stepMonitorListener = stepMonitorListener,
         chunkListener = chunkListener,
     )

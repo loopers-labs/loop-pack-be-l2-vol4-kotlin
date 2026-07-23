@@ -1,0 +1,51 @@
+package com.loopers.infrastructure.ranking
+
+import com.loopers.config.redis.RedisConfig
+import com.loopers.domain.ranking.RankingRepository
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.core.ZSetOperations
+import org.springframework.data.redis.core.script.DefaultRedisScript
+import org.springframework.stereotype.Component
+import java.time.Duration
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+@Component
+class RedisRankingRepository(
+    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
+    private val redisTemplate: RedisTemplate<String, String>
+) : RankingRepository {
+    override fun addScore(date: LocalDate, productId: Long, delta: Double) {
+        val key = "ranking:" + date.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+        redisTemplate.execute(
+            ADD_SCORE_SCRIPT,
+            listOf(key),
+            delta.toString(),
+            productId.toString(),
+            KEY_TTL_SECONDS.toString(),
+        )
+    }
+
+    override fun setScores(date: LocalDate, scores: Map<Long, Double>) {
+        if (scores.isEmpty()) return
+        val key = "ranking:" + date.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+        val tuples = scores.map { (productId, score) ->
+            ZSetOperations.TypedTuple.of(productId.toString(), score)
+        }.toSet()
+        redisTemplate.opsForZSet().add(key, tuples)
+        redisTemplate.expire(key, Duration.ofDays(3))
+    }
+
+    companion object {
+        private val ADD_SCORE_SCRIPT = DefaultRedisScript(
+            """
+            redis.call('ZINCRBY', KEYS[1], ARGV[1], ARGV[2])
+            redis.call('EXPIRE', KEYS[1], ARGV[3])
+            return 1
+            """.trimIndent(),
+            Long::class.java,
+        )
+        private val KEY_TTL_SECONDS = Duration.ofDays(3).seconds
+    }
+}

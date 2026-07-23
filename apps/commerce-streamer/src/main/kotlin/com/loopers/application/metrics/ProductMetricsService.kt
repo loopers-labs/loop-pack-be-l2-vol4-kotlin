@@ -1,5 +1,7 @@
 package com.loopers.application.metrics
 
+import com.loopers.domain.ranking.RankingRepository
+import com.loopers.domain.ranking.RankingScorePolicy
 import com.loopers.infrastructure.metrics.EventHandledRepository
 import com.loopers.infrastructure.metrics.ProductMetricRepository
 import com.loopers.interfaces.consumer.message.LikeChangedMessage
@@ -13,6 +15,7 @@ import java.time.ZonedDateTime
 class ProductMetricsService(
     private val productMetricRepository: ProductMetricRepository,
     private val eventHandledRepository: EventHandledRepository,
+    private val rankingRepository: RankingRepository,
 ) {
     @Transactional
     fun applyLikeChanged(message: LikeChangedMessage) {
@@ -24,6 +27,7 @@ class ProductMetricsService(
         }
         val version = message.occurredAt.toInstant().toEpochMilli()
         productMetricRepository.upsertLikeCount(message.productId, delta, version)
+        rankingRepository.addScore(message.occurredAt.toLocalDate(), message.productId, RankingScorePolicy.LIKE_WEIGHT * delta)
     }
 
     @Transactional
@@ -31,7 +35,10 @@ class ProductMetricsService(
         if (eventHandledRepository.insertIfAbsent(message.eventId, ZonedDateTime.now()) == 0) return
 
         val version = message.occurredAt.toInstant().toEpochMilli()
-        message.items.forEach { productMetricRepository.upsertSalesCount(it.productId, it.quantity, version) }
+        message.items.forEach {
+            productMetricRepository.upsertSalesCount(it.productId, it.quantity, version)
+            rankingRepository.addScore(message.occurredAt.toLocalDate(), it.productId, RankingScorePolicy.ORDER_WEIGHT * it.quantity)
+        }
     }
 
     @Transactional
@@ -40,5 +47,6 @@ class ProductMetricsService(
 
         val version = message.occurredAt.toInstant().toEpochMilli()
         productMetricRepository.upsertViewCount(message.productId, 1, version)
+        rankingRepository.addScore(message.occurredAt.toLocalDate(), message.productId, RankingScorePolicy.VIEW_WEIGHT)
     }
 }

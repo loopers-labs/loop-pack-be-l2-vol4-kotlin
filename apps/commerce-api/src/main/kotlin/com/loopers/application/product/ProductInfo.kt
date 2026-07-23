@@ -16,9 +16,10 @@ data class ProductInfo private constructor (
     val brandId: Long,
     val brandName: String,
     val soldOut: Boolean,
+    val rank: Long? = null,
 ) {
     companion object {
-        fun of(productDomain: ProductDomain) =
+        fun of(productDomain: ProductDomain, rank: Long? = null) =
             ProductInfo(
                 productId = productDomain.productId,
                 name = productDomain.name,
@@ -30,10 +31,12 @@ data class ProductInfo private constructor (
                 brandId = productDomain.brandId,
                 brandName = productDomain.brandName ?: "unknown",
                 soldOut = productDomain.soldOut,
+                rank = rank,
             )
 
         /**
          * 합성: 읽기 모델(Product+Brand) + 실시간 likeCount/soldOut (ADR-0002 D0).
+         * 목록 조회는 rank 를 쓰지 않으므로 기본값(null).
          */
         fun of(view: ProductView, likeCount: Int, soldOut: Boolean) =
             ProductInfo(

@@ -22,6 +22,16 @@ management:
     defaults:
       enabled: false
 
+commerce:
+  product-ranking:
+    batch:
+      metric:
+        fetch-size: 1000
+        chunk-size: 500
+      cache:
+        weekly-ttl-days: 8
+        monthly-ttl-days: 32
+
 ---
 spring:
   config:

@@ -24,9 +24,9 @@ class OrderEventConsumerTest {
     fun acknowledges_whenMessageIsProcessed() {
         val message = createMessage("event-1")
 
-        consumer.handle(message, acknowledgment)
+        consumer.receive(message, acknowledgment)
 
-        verify(eventService).project(message)
+        verify(eventService).handle(message)
         verify(acknowledgment).acknowledge()
     }
 
@@ -36,13 +36,13 @@ class OrderEventConsumerTest {
         val message = createMessage("event-1")
         doThrow(IllegalStateException("processing failed"))
             .whenever(eventService)
-            .project(message)
+            .handle(message)
 
         assertThrows<IllegalStateException> {
-            consumer.handle(message, acknowledgment)
+            consumer.receive(message, acknowledgment)
         }
 
-        verify(eventService).project(message)
+        verify(eventService).handle(message)
         verify(acknowledgment, never()).acknowledge()
     }
 

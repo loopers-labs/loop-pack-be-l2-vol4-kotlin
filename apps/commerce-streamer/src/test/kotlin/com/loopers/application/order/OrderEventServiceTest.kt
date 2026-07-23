@@ -19,11 +19,11 @@ import java.time.ZonedDateTime
 class OrderEventServiceTest {
     @DisplayName("주문 이벤트를 유저 행동 로그로 반영한다")
     @Test
-    fun projectsOrderEventToUserActionLog() {
+    fun updatesOrderEventToUserActionLog() {
         val fixture = Fixture()
         val message = createMessage(eventId = "event-1", eventType = OrderEventType.ORDER_CREATED)
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         val userActionLog = fixture.userActionLogRepository.logs.single()
         assertAll(
@@ -32,7 +32,7 @@ class OrderEventServiceTest {
             { assertThat(userActionLog.memberId).isEqualTo(1L) },
             { assertThat(userActionLog.aggregateId).isEqualTo(20L) },
             { assertThat(userActionLog.productId).isNull() },
-            { assertThat(fixture.eventHandledRepository.exists("event-1")).isTrue() },
+            { assertThat(fixture.eventHandledRepository.exists("loopers-default-consumer", "event-1")).isTrue() },
         )
     }
 
@@ -46,8 +46,8 @@ class OrderEventServiceTest {
             items = listOf(OrderEventItemMessage(productId = 10L, quantity = 2L, unitPrice = 1_000L)),
         )
 
-        fixture.service.project(message)
-        fixture.service.project(message)
+        fixture.service.handle(message)
+        fixture.service.handle(message)
 
         assertThat(fixture.userActionLogRepository.logs).hasSize(1)
         assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L)
@@ -66,7 +66,7 @@ class OrderEventServiceTest {
             ),
         )
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         assertAll(
             { assertThat(fixture.productStatRepository.findByProductIdForUpdate(10L)?.salesCount).isEqualTo(2L) },
@@ -86,14 +86,17 @@ class OrderEventServiceTest {
     }
 
     private class FakeEventHandledRepository : EventHandledRepository {
-        private val events = mutableSetOf<String>()
+        private val events = mutableSetOf<Pair<String, String>>()
 
-        override fun exists(eventId: String): Boolean {
-            return eventId in events
+        override fun exists(
+            consumerGroup: String,
+            eventId: String,
+        ): Boolean {
+            return consumerGroup to eventId in events
         }
 
         override fun save(eventHandled: EventHandled): EventHandled {
-            events.add(eventHandled.eventId)
+            events.add(eventHandled.consumerGroup to eventHandled.eventId)
             return eventHandled
         }
     }

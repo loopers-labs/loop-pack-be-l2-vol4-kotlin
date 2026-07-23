@@ -2,6 +2,7 @@ package com.loopers.interfaces.api.ranking.controller
 
 import com.loopers.application.ranking.RankingFacade
 import com.loopers.application.ranking.dto.RankingQuery
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import com.loopers.interfaces.api.ranking.RankingV1ApiSpec
@@ -24,12 +25,14 @@ class RankingV1Controller(
     @GetMapping
     override fun getRankings(
         @RequestParam date: String,
+        @RequestParam(defaultValue = "DAILY") period: RankingPeriod,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PageResponse<RankingV1Dto.RankingResponse>> {
         val rankingPage = rankingFacade.getRankings(
             RankingQuery(
                 date = parseDate(date),
+                period = period,
                 page = page,
                 size = size,
             ),

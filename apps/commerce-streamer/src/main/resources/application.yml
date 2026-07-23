@@ -33,9 +33,14 @@ commerce:
   events:
     catalog-topic: catalog-events
     order-topic: order-events
+    coupon-issue-request-topic: coupon-issue-requests
+  coupon:
+    consumer-group: commerce-coupon-issue
   ranking:
     consumer-group: commerce-ranking
-    projection-chunk-size: 500
+    event-chunk-size: 500
+  product-metric-daily:
+    consumer-group: commerce-product-metric-daily
 
 ---
 spring:

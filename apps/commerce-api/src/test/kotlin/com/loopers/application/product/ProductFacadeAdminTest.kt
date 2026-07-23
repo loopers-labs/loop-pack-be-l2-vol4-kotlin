@@ -25,6 +25,7 @@ import com.loopers.domain.product.repository.ProductRepository
 import com.loopers.domain.product.repository.ProductStatRepository
 import com.loopers.domain.product.service.ProductCatalogService
 import com.loopers.domain.ranking.RankingPage
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.domain.ranking.RankingRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -461,7 +462,12 @@ class ProductFacadeAdminTest {
     }
 
     private class EmptyRankingRepository : RankingRepository {
-        override fun findPage(date: LocalDate, page: Int, size: Int): RankingPage = RankingPage(emptyList(), 0L)
+        override fun findPage(
+            period: RankingPeriod,
+            date: LocalDate,
+            page: Int,
+            size: Int,
+        ): RankingPage = RankingPage(emptyList(), 0L)
 
         override fun findRank(date: LocalDate, productId: Long): Long? = null
     }

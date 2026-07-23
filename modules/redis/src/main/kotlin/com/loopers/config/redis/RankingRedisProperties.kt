@@ -9,19 +9,23 @@ data class RankingRedisProperties(
     val viewWeight: Double = 0.05,
     val likeWeight: Double = 0.4,
     val salesWeight: Double = 1.0,
-    val projectionChunkSize: Int = 500,
+    val eventChunkSize: Int = 500,
     val carryOver: CarryOver = CarryOver(),
+    val periodCache: PeriodCache = PeriodCache(),
 ) {
     init {
         require(viewWeight.isFinite() && viewWeight >= 0.0) { "Ranking view weight must be a non-negative finite number." }
         require(likeWeight.isFinite() && likeWeight >= 0.0) { "Ranking like weight must be a non-negative finite number." }
         require(salesWeight.isFinite() && salesWeight >= 0.0) { "Ranking sales weight must be a non-negative finite number." }
-        require(projectionChunkSize > 0) { "Ranking projection chunk size must be positive." }
+        require(eventChunkSize > 0) { "Ranking update chunk size must be positive." }
         require(carryOver.topN > 0) { "Ranking carry-over topN must be positive." }
         require(carryOver.factor.isFinite() && carryOver.factor >= 0.0) {
             "Ranking carry-over factor must be a non-negative finite number."
         }
         require(carryOver.lockTtlSeconds > 0) { "Ranking carry-over lock TTL must be positive." }
+        require(periodCache.weeklyTtlDays > 0) { "Ranking weekly cache TTL must be positive." }
+        require(periodCache.monthlyTtlDays > 0) { "Ranking monthly cache TTL must be positive." }
+        require(periodCache.fillLockTtlSeconds > 0) { "Ranking period cache fill lock TTL must be positive." }
     }
 
     val zoneId: ZoneId
@@ -33,5 +37,11 @@ data class RankingRedisProperties(
         val lockTtlSeconds: Long = 60,
         val cron: String = "0 50 23 * * *",
         val zone: String = "Asia/Seoul",
+    )
+
+    data class PeriodCache(
+        val weeklyTtlDays: Long = 8,
+        val monthlyTtlDays: Long = 32,
+        val fillLockTtlSeconds: Long = 30,
     )
 }

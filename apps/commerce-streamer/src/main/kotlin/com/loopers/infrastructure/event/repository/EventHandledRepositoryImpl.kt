@@ -9,13 +9,20 @@ import org.springframework.stereotype.Component
 class EventHandledRepositoryImpl(
     private val eventHandledJpaRepository: EventHandledJpaRepository,
 ) : EventHandledRepository {
-    override fun exists(eventId: String): Boolean {
-        return eventHandledJpaRepository.existsByEventId(eventId)
+    override fun exists(
+        consumerGroup: String,
+        eventId: String,
+    ): Boolean {
+        return eventHandledJpaRepository.existsByConsumerGroupAndEventId(
+            consumerGroup = consumerGroup,
+            eventId = eventId,
+        )
     }
 
     override fun save(eventHandled: EventHandled): EventHandled {
         return eventHandledJpaRepository.save(
             EventHandledEntity(
+                consumerGroup = eventHandled.consumerGroup,
                 eventId = eventHandled.eventId,
                 eventType = eventHandled.eventType,
                 handledAt = eventHandled.handledAt,

@@ -31,6 +31,8 @@ import java.util.concurrent.TimeUnit
 private const val ORDER_EVENT_BOOTSTRAP_SERVERS = "localhost:19092"
 private const val ORDER_EVENT_CATALOG_TOPIC = "catalog-events-order-integration-test"
 private const val ORDER_EVENT_ORDER_TOPIC = "order-events-integration-test"
+private const val ORDER_EVENT_CONSUMER_GROUP = "commerce-streamer-order-integration-test"
+private const val ORDER_EVENT_HANDLED_GROUP = "loopers-default-consumer"
 
 @Import(MySqlTestContainersConfig::class)
 @SpringBootTest(
@@ -40,7 +42,7 @@ private const val ORDER_EVENT_ORDER_TOPIC = "order-events-integration-test"
         "commerce.events.order-topic=$ORDER_EVENT_ORDER_TOPIC",
         "spring.kafka.bootstrap-servers=$ORDER_EVENT_BOOTSTRAP_SERVERS",
         "spring.kafka.admin.properties.bootstrap.servers=$ORDER_EVENT_BOOTSTRAP_SERVERS",
-        "spring.kafka.consumer.group-id=commerce-streamer-order-integration-test",
+        "spring.kafka.consumer.group-id=$ORDER_EVENT_CONSUMER_GROUP",
         "spring.kafka.consumer.auto-offset-reset=earliest",
     ],
 )
@@ -71,7 +73,10 @@ class OrderEventConsumerIntegrationTest
 
             eventually {
                 val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
-                val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
+                val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
+                    consumerGroup = ORDER_EVENT_HANDLED_GROUP,
+                    eventId = message.eventId,
+                )
                 val productStat = productStatJpaRepository.findByProductId(10L)
 
                 assertAll(

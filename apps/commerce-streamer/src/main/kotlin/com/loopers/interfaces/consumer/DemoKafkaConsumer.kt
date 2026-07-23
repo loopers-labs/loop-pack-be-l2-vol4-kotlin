@@ -12,7 +12,7 @@ class DemoKafkaConsumer {
         topics = ["\${demo-kafka.test.topic-name}"],
         containerFactory = KafkaConfig.BATCH_LISTENER,
     )
-    fun demoListener(
+    fun receive(
         messages: List<ConsumerRecord<Any, Any>>,
         acknowledgment: Acknowledgment,
     ) {

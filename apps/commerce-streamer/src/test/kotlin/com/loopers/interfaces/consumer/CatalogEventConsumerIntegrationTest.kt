@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit
 private const val BOOTSTRAP_SERVERS = "localhost:19092"
 private const val CATALOG_TOPIC = "catalog-events-integration-test"
 private const val ORDER_TOPIC = "order-events-integration-test"
+private const val CATALOG_CONSUMER_GROUP = "commerce-streamer-integration-test"
+private const val CATALOG_HANDLED_GROUP = "loopers-default-consumer"
 
 @Import(MySqlTestContainersConfig::class)
 @SpringBootTest(
@@ -38,7 +40,7 @@ private const val ORDER_TOPIC = "order-events-integration-test"
         "commerce.events.order-topic=$ORDER_TOPIC",
         "spring.kafka.bootstrap-servers=$BOOTSTRAP_SERVERS",
         "spring.kafka.admin.properties.bootstrap.servers=$BOOTSTRAP_SERVERS",
-        "spring.kafka.consumer.group-id=commerce-streamer-integration-test",
+        "spring.kafka.consumer.group-id=$CATALOG_CONSUMER_GROUP",
         "spring.kafka.consumer.auto-offset-reset=earliest",
     ],
 )
@@ -60,7 +62,7 @@ class CatalogEventConsumerIntegrationTest
 
     @DisplayName("Kafka catalog 좋아요 이벤트를 소비해 상품 집계와 유저 행동 로그를 저장한다")
     @Test
-    fun consumesLikedEventAndProjectsCatalogState() {
+    fun consumesLikedEventAndUpdatesCatalogState() {
         val message = createMessage(eventType = CatalogEventType.PRODUCT_LIKED)
 
         publish(message)
@@ -68,7 +70,10 @@ class CatalogEventConsumerIntegrationTest
         eventually {
             val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
-            val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
+            val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
+                consumerGroup = CATALOG_HANDLED_GROUP,
+                eventId = message.eventId,
+            )
 
             assertAll(
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },
@@ -80,7 +85,7 @@ class CatalogEventConsumerIntegrationTest
         }
     }
 
-    @DisplayName("같은 eventId의 Kafka catalog 이벤트는 한 번만 projection 한다")
+    @DisplayName("같은 eventId의 Kafka catalog 이벤트는 한 번만 update 한다")
     @Test
     fun skipsDuplicatedEventByEventId() {
         val message = createMessage(eventType = CatalogEventType.PRODUCT_LIKED)
@@ -91,7 +96,10 @@ class CatalogEventConsumerIntegrationTest
         eventually {
             val productStat = productStatJpaRepository.findByProductId(message.productId)
             val userActionLog = userActionLogJpaRepository.findByEventId(message.eventId)
-            val eventHandled = eventHandledJpaRepository.findByEventId(message.eventId)
+            val eventHandled = eventHandledJpaRepository.findByConsumerGroupAndEventId(
+                consumerGroup = CATALOG_HANDLED_GROUP,
+                eventId = message.eventId,
+            )
 
             assertAll(
                 { assertThat(productStat?.likeCount).isEqualTo(1L) },

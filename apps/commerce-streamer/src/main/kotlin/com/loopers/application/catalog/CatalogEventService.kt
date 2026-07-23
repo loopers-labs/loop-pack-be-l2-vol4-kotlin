@@ -19,8 +19,8 @@ class CatalogEventService(
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
-    fun project(message: CatalogEventMessage) {
-        if (eventHandledRepository.exists(message.eventId)) {
+    fun handle(message: CatalogEventMessage) {
+        if (eventHandledRepository.exists(CONSUMER_GROUP, message.eventId)) {
             return
         }
 
@@ -28,6 +28,7 @@ class CatalogEventService(
         recordUserAction(message)
         eventHandledRepository.save(
             EventHandled(
+                consumerGroup = CONSUMER_GROUP,
                 eventId = message.eventId,
                 eventType = message.eventType.name,
             ),
@@ -84,5 +85,9 @@ class CatalogEventService(
                 occurredAt = message.occurredAt,
             ),
         )
+    }
+
+    private companion object {
+        const val CONSUMER_GROUP = "loopers-default-consumer"
     }
 }

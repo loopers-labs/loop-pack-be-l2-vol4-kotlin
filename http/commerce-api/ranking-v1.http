@@ -1,3 +1,8 @@
 ### 일별 상품 랭킹 조회
 GET {{commerce-api}}/api/v1/rankings?date=20260714&page=0&size=20
 
+### 주간 상품 랭킹 조회
+GET {{commerce-api}}/api/v1/rankings?date=20260805&period=WEEKLY&page=0&size=20
+
+### 월간 상품 랭킹 조회
+GET {{commerce-api}}/api/v1/rankings?date=20260805&period=MONTHLY&page=0&size=20

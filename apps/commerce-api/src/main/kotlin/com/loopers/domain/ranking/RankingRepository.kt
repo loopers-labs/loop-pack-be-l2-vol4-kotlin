@@ -4,6 +4,7 @@ import java.time.LocalDate
 
 interface RankingRepository {
     fun findPage(
+        period: RankingPeriod,
         date: LocalDate,
         page: Int,
         size: Int,

@@ -18,6 +18,16 @@ object RankingRedisKeys {
 
     fun all(date: LocalDate): String = "ranking:all:${tag(date)}"
 
+    fun weekly(date: LocalDate): String = "ranking:weekly:${tag(date)}"
+
+    fun weekly(date: LocalDate, generationId: String): String = "ranking:weekly:${tag(date)}:$generationId"
+
+    fun monthly(date: LocalDate, generationId: String): String = "ranking:monthly:${tag(date)}:$generationId"
+
+    fun weeklyFillLock(date: LocalDate, generationId: String): String = "ranking:weekly:${tag(date)}:$generationId:fill-lock"
+
+    fun monthlyFillLock(date: LocalDate, generationId: String): String = "ranking:monthly:${tag(date)}:$generationId:fill-lock"
+
     fun processed(date: LocalDate): String = "ranking:processed:${tag(date)}"
 
     fun carryOverLock(date: LocalDate): String = "ranking:carry-over:${tag(date)}:lock"

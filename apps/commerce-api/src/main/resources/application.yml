@@ -37,6 +37,9 @@ commerce:
       lock-ttl-seconds: 60
       cron: "0 50 23 * * *"
       zone: Asia/Seoul
+    period-cache:
+      weekly-ttl-days: 8
+      monthly-ttl-days: 32
   queue:
     scheduler:
       fixed-delay-millis: 1000

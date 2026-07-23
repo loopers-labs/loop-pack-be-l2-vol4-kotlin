@@ -19,8 +19,8 @@ class OrderEventService(
     private val userActionLogRepository: UserActionLogRepository,
 ) {
     @Transactional
-    fun project(message: OrderEventMessage) {
-        if (eventHandledRepository.exists(message.eventId)) {
+    fun handle(message: OrderEventMessage) {
+        if (eventHandledRepository.exists(CONSUMER_GROUP, message.eventId)) {
             return
         }
 
@@ -37,6 +37,7 @@ class OrderEventService(
         )
         eventHandledRepository.save(
             EventHandled(
+                consumerGroup = CONSUMER_GROUP,
                 eventId = message.eventId,
                 eventType = message.eventType.name,
             ),
@@ -71,5 +72,9 @@ class OrderEventService(
             OrderEventType.PAYMENT_SUCCEEDED -> UserActionType.PAYMENT_SUCCEEDED
             OrderEventType.PAYMENT_FAILED -> UserActionType.PAYMENT_FAILED
         }
+    }
+
+    private companion object {
+        const val CONSUMER_GROUP = "loopers-default-consumer"
     }
 }

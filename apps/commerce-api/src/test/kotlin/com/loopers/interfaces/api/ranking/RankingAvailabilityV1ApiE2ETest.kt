@@ -45,7 +45,7 @@ class RankingAvailabilityV1ApiE2ETest @Autowired constructor(
     @DisplayName("Redis 랭킹 저장소 장애 시 랭킹 API는 503을 반환한다")
     @Test
     fun returnsServiceUnavailableForRankingApi() {
-        whenever(rankingRepository.findPage(any(), any(), any()))
+        whenever(rankingRepository.findPage(any(), any(), any(), any()))
             .thenThrow(RankingUnavailableException(IllegalStateException("redis unavailable")))
         val date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
 

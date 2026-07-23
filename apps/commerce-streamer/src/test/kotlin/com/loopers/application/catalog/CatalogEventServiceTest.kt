@@ -18,11 +18,11 @@ import java.time.ZonedDateTime
 class CatalogEventServiceTest {
     @DisplayName("좋아요 이벤트를 상품 집계와 유저 행동 로그로 반영한다")
     @Test
-    fun projectsLikedEvent() {
+    fun updatesLikedEvent() {
         val fixture = Fixture()
         val message = createMessage(eventId = "event-1", eventType = CatalogEventType.PRODUCT_LIKED)
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         val productStat = fixture.productStatRepository.findByProductIdForUpdate(10L)
         val userActionLog = fixture.userActionLogRepository.logs.single()
@@ -31,7 +31,7 @@ class CatalogEventServiceTest {
             { assertThat(productStat?.latestEventVersion).isEqualTo(100L) },
             { assertThat(userActionLog.eventId).isEqualTo("event-1") },
             { assertThat(userActionLog.actionType).isEqualTo(UserActionType.PRODUCT_LIKED) },
-            { assertThat(fixture.eventHandledRepository.exists("event-1")).isTrue() },
+            { assertThat(fixture.eventHandledRepository.exists("loopers-default-consumer", "event-1")).isTrue() },
         )
     }
 
@@ -41,8 +41,8 @@ class CatalogEventServiceTest {
         val fixture = Fixture()
         val message = createMessage(eventId = "event-1", eventType = CatalogEventType.PRODUCT_LIKED)
 
-        fixture.service.project(message)
-        fixture.service.project(message)
+        fixture.service.handle(message)
+        fixture.service.handle(message)
 
         val productStat = fixture.productStatRepository.findByProductIdForUpdate(10L)
         assertAll(
@@ -53,11 +53,11 @@ class CatalogEventServiceTest {
 
     @DisplayName("조회 이벤트를 조회수와 유저 행동 로그로 반영한다")
     @Test
-    fun projectsViewedEvent() {
+    fun updatesViewedEvent() {
         val fixture = Fixture()
         val message = createMessage(eventId = "event-1", eventType = CatalogEventType.PRODUCT_VIEWED)
 
-        fixture.service.project(message)
+        fixture.service.handle(message)
 
         val productStat = fixture.productStatRepository.findByProductIdForUpdate(10L)
         val userActionLog = fixture.userActionLogRepository.logs.single()
@@ -80,14 +80,17 @@ class CatalogEventServiceTest {
     }
 
     private class FakeEventHandledRepository : EventHandledRepository {
-        private val events = mutableSetOf<String>()
+        private val events = mutableSetOf<Pair<String, String>>()
 
-        override fun exists(eventId: String): Boolean {
-            return eventId in events
+        override fun exists(
+            consumerGroup: String,
+            eventId: String,
+        ): Boolean {
+            return consumerGroup to eventId in events
         }
 
         override fun save(eventHandled: EventHandled): EventHandled {
-            events.add(eventHandled.eventId)
+            events.add(eventHandled.consumerGroup to eventHandled.eventId)
             return eventHandled
         }
     }

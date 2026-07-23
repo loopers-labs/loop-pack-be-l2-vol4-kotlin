@@ -1,5 +1,7 @@
 package com.loopers.batch.job.productrank
 
+import com.loopers.batch.listener.ChunkListener
+import com.loopers.batch.listener.StepMonitorListener
 import com.loopers.domain.metrics.ProductPeriodMetrics
 import com.loopers.domain.metrics.ProductSignalSummary
 import com.loopers.domain.ranking.RankingPeriod
@@ -31,6 +33,8 @@ class PeriodAggregateStepFactory(
     private val chunkSize: Int,
     private val table: String,
     private val periodResolver: (LocalDate) -> RankingPeriod,
+    private val stepMonitorListener: StepMonitorListener,
+    private val chunkListener: ChunkListener,
 ) {
     fun resolvePeriod(targetDate: String?): RankingPeriod =
         periodResolver(LocalDate.parse(requireNotNull(targetDate) { "targetDate 잡 파라미터가 필요하다" }))
@@ -45,6 +49,7 @@ class PeriodAggregateStepFactory(
 
     fun taskletStep(name: String, tasklet: Tasklet): Step = StepBuilder(name, jobRepository)
         .tasklet(tasklet, transactionManager)
+        .listener(stepMonitorListener)
         .build()
 
     fun aggregateStep(
@@ -57,6 +62,8 @@ class PeriodAggregateStepFactory(
         .reader(reader)
         .processor(processor)
         .writer(writer)
+        .listener(stepMonitorListener)
+        .listener(chunkListener as Any)
         .build()
 
     fun hourlyReader(name: String, targetDate: String?): JdbcPagingItemReader<ProductSignalSummary> {

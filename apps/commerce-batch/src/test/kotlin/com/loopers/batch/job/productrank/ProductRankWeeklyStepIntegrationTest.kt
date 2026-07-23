@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -45,6 +46,8 @@ class ProductRankWeeklyStepIntegrationTest @Autowired constructor(
 ) {
     @TestConfiguration
     class WeeklyStepTestJobConfig {
+        // 실제 productRankJob 빈과 공존하므로 JobLauncherTestUtils 가 이 잡을 집도록 @Primary 를 준다.
+        @Primary
         @Bean
         fun weeklyStepTestJob(
             jobRepository: JobRepository,

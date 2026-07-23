@@ -1,5 +1,7 @@
 package com.loopers.batch.job.productrank
 
+import com.loopers.batch.listener.ChunkListener
+import com.loopers.batch.listener.StepMonitorListener
 import com.loopers.domain.metrics.ProductPeriodMetrics
 import com.loopers.domain.metrics.ProductSignalSummary
 import com.loopers.domain.ranking.RankingPeriod
@@ -28,6 +30,8 @@ class ProductRankWeeklyStepConfig(
     transactionManager: PlatformTransactionManager,
     dataSource: DataSource,
     @Value("\${loopers.batch.product-rank.chunk-size:1000}") chunkSize: Int,
+    stepMonitorListener: StepMonitorListener,
+    chunkListener: ChunkListener,
 ) {
     companion object {
         const val WEEKLY_CLEAN_STEP = "weeklyCleanStep"
@@ -42,6 +46,8 @@ class ProductRankWeeklyStepConfig(
         chunkSize = chunkSize,
         table = "product_metrics_weekly",
         periodResolver = RankingPeriod::weeklyOf,
+        stepMonitorListener = stepMonitorListener,
+        chunkListener = chunkListener,
     )
 
     @Bean(WEEKLY_CLEAN_STEP)

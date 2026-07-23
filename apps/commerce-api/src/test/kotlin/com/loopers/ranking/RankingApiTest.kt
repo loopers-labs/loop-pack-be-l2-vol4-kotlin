@@ -126,7 +126,7 @@ class RankingApiTest @Autowired constructor(
         val orderScore = 0.7 * Math.log10(10000.0 * 1 + 1)
         redisTemplate.opsForZSet().incrementScore(rankingKey, "2", orderScore)
 
-        val rankings = rankingQueryService.getRankingPage(today, 0, 10)
+        val rankings = rankingQueryService.getRankingPage(null, today, 0, 10)
         rankings[0].productId shouldBe 2L
         rankings[1].productId shouldBe 1L
     }

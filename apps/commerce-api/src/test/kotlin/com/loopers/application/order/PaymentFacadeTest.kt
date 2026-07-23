@@ -2,6 +2,7 @@ package com.loopers.application.order
 
 import com.loopers.application.payment.PaymentCommand
 import com.loopers.application.payment.PaymentFacade
+import com.loopers.application.support.event.DomainEventPublisher
 import com.loopers.application.payment.port.PaymentGateway
 import com.loopers.application.payment.port.PaymentGatewayException
 import com.loopers.application.payment.port.PaymentRequestCommand
@@ -10,6 +11,7 @@ import com.loopers.application.payment.port.PgTransaction
 import com.loopers.application.payment.port.PgTransactionStatus
 import com.loopers.domain.order.Order
 import com.loopers.domain.order.OrderErrorType
+import com.loopers.domain.order.OrderEvent
 import com.loopers.domain.order.OrderLine
 import com.loopers.domain.order.OrderRepository
 import com.loopers.domain.order.OrderStatus
@@ -39,7 +41,8 @@ class PaymentFacadeTest {
     private val paymentRepository: PaymentRepository = mockk()
     private val paymentGateway: PaymentGateway = mockk(relaxed = true)
     private val orderCompensator: OrderCompensator = mockk(relaxed = true)
-    private val paymentFacade = PaymentFacade(orderRepository, paymentRepository, paymentGateway, orderCompensator)
+    private val eventPublisher: DomainEventPublisher = mockk(relaxed = true)
+    private val paymentFacade = PaymentFacade(orderRepository, paymentRepository, paymentGateway, orderCompensator, eventPublisher)
 
     private fun createdOrder() = Order(
         id = 1L,
@@ -114,7 +117,7 @@ class PaymentFacadeTest {
                 .build(),
         )
         val gateway = PgSimulatorPaymentGateway(failingClient, CircuitBreaker.ofDefaults("test"), retry)
-        val facade = PaymentFacade(orderRepository, paymentRepository, gateway, orderCompensator)
+        val facade = PaymentFacade(orderRepository, paymentRepository, gateway, orderCompensator, eventPublisher)
         every { orderRepository.findByIdForUpdate(1L) } returns createdOrder()
         every { paymentRepository.save(any()) } returns
             Payment(id = 10L, orderId = 1L, amount = 2000L, requestedAt = LocalDateTime.now())
@@ -153,7 +156,7 @@ class PaymentFacadeTest {
                 .build(),
         )
         val gateway = PgSimulatorPaymentGateway(flakyClient, CircuitBreaker.ofDefaults("test"), retry)
-        val facade = PaymentFacade(orderRepository, paymentRepository, gateway, orderCompensator)
+        val facade = PaymentFacade(orderRepository, paymentRepository, gateway, orderCompensator, eventPublisher)
         every { orderRepository.findByIdForUpdate(1L) } returns createdOrder()
         every { paymentRepository.save(any()) } returns
             Payment(id = 10L, orderId = 1L, amount = 2000L, requestedAt = LocalDateTime.now())
@@ -223,6 +226,47 @@ class PaymentFacadeTest {
             verify(exactly = 0) { orderCompensator.restore(any()) }
         }
 
+        @DisplayName("외부 결과가 성공이면 OrderEvent.Paid 를 정확히 1회 발행한다 — 중복 발행되면 판매 집계·랭킹이 같은 결제를 두 번 반영한다.")
+        @Test
+        fun publishesOrderPaidExactlyOnceOnSuccess() {
+            val payment = Payment(id = 10L, orderId = 1L, amount = 2000L, transactionId = "tx-1", requestedAt = LocalDateTime.now())
+            val order = pendingOrder()
+            every { paymentRepository.findByTransactionIdForUpdate("tx-1") } returns payment
+            every { orderRepository.findByIdForUpdate(1L) } returns order
+            every { paymentRepository.save(any()) } answers { firstArg() }
+            every { orderRepository.save(any()) } answers { firstArg() }
+
+            paymentFacade.settle(PgTransaction("tx-1", PgTransactionStatus.SUCCESS, null))
+
+            // 내용이 다른 Paid 가 섞여 나가는 회귀까지 잡기 위해, 타입 기준 1회를 먼저 못 박는다.
+            verify(exactly = 1) { eventPublisher.publish(ofType(OrderEvent.Paid::class)) }
+            verify(exactly = 1) {
+                eventPublisher.publish(
+                    match {
+                        it is OrderEvent.Paid &&
+                            it.orderId == 1L &&
+                            it.userId == 1L &&
+                            it.totalAmount == 2000L &&
+                            it.lines.map { line -> line.productId to line.quantity }.toSet() == setOf(1L to 2)
+                    },
+                )
+            }
+        }
+
+        @DisplayName("외부 결과가 실패면 OrderEvent.Paid 를 발행하지 않는다 — 결제 확정 사실이 아니다.")
+        @Test
+        fun doesNotPublishPaidOnFailure() {
+            val payment = Payment(id = 10L, orderId = 1L, amount = 2000L, transactionId = "tx-f", requestedAt = LocalDateTime.now())
+            every { paymentRepository.findByTransactionIdForUpdate("tx-f") } returns payment
+            every { orderRepository.findByIdForUpdate(1L) } returns pendingOrder()
+            every { paymentRepository.save(any()) } answers { firstArg() }
+            every { orderRepository.save(any()) } answers { firstArg() }
+
+            paymentFacade.settle(PgTransaction("tx-f", PgTransactionStatus.FAILED, "DECLINED"))
+
+            verify(exactly = 0) { eventPublisher.publish(any()) }
+        }
+
         @DisplayName("외부 결과가 실패면 결제는 FAILED, 주문은 PAYMENT_FAILED 로 전이하고 보상(재고·쿠폰 원복)을 수행한다.")
         @Test
         fun failsCompensatesAndMarksFailedOnFailure() {
@@ -259,6 +303,7 @@ class PaymentFacadeTest {
             verify(exactly = 0) { orderRepository.findByIdForUpdate(any()) }
             verify(exactly = 0) { paymentRepository.save(any()) }
             verify(exactly = 0) { orderCompensator.restore(any()) }
+            verify(exactly = 0) { eventPublisher.publish(any()) } // 중복 통지에 Paid 가 다시 나가지 않는다
         }
 
         @DisplayName("알 수 없는 거래 식별자의 결과 통지는 정산 없이 무시한다 — 주문 조회·저장·보상이 일어나지 않는다.")

@@ -18,11 +18,17 @@ import com.loopers.domain.product.Product
 import com.loopers.domain.product.ProductErrorType
 import com.loopers.domain.product.ProductEvent
 import com.loopers.domain.product.ProductSortType
+import com.loopers.domain.ranking.RankingKey
+import com.loopers.domain.ranking.RankingRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.page.PageQuery
 import com.loopers.support.page.PageResult
+import org.slf4j.LoggerFactory
+import org.springframework.dao.DataAccessException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 class ProductFacade(
@@ -31,7 +37,11 @@ class ProductFacade(
     private val likeRepository: LikeRepository,
     private val productCache: ProductCache,
     private val eventPublisher: DomainEventPublisher,
+    // 외부 도메인은 Facade 가 아니라 port 를 직접 주입해 호출한다(Facade→Facade 금지).
+    private val rankingRepository: RankingRepository,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     @Transactional(readOnly = true)
     fun getProducts(query: GetProductsQuery): PageResult<ProductSummaryResult> {
         val sort = query.sort ?: ProductSortType.LATEST
@@ -60,6 +70,14 @@ class ProductFacade(
             CachedProductDetail.of(product, brand).also { productCache.putDetail(it) }
         }
         val likedByMe = userId != null && likeRepository.existsByUserIdAndProductId(userId, productId)
+        // 순위는 상세의 부가 정보다 — 랭킹 저장소 장애가 상세 조회를 막지 않도록 null 로 폴백한다.
+        // 폴백은 저장소 접근 예외(DataAccessException)로 제한한다 — 그 외 런타임 오류는 코드 결함이므로 전파해 드러낸다.
+        val rank = try {
+            rankingRepository.rankOf(RankingKey.of(LocalDate.now(SEOUL)), productId)
+        } catch (e: DataAccessException) {
+            log.warn("상품 {} 순위 조회 실패 — 순위 없이 상세를 반환한다: {}", productId, e.message)
+            null
+        }
 
         eventPublisher.publish(ProductEvent.Viewed(productId = productId, userId = userId))
         return ProductDetailResult(
@@ -70,6 +88,7 @@ class ProductFacade(
             brandId = detail.brandId,
             brandName = detail.brandName,
             likedByMe = likedByMe,
+            rank = rank,
         )
     }
 
@@ -129,10 +148,12 @@ class ProductFacade(
         product.softDelete()
         productRepository.save(product)
         productCache.evictDetail(productId)
+        eventPublisher.publish(ProductEvent.Deleted(productId = productId))
     }
 
     companion object {
         // 캐시 대상 목록 페이지 상한 (0-based). page < N 만 캐시한다.
         private const val LIST_CACHE_MAX_PAGE = 5
+        private val SEOUL = ZoneId.of("Asia/Seoul")
     }
 }

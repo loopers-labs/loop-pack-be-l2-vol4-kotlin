@@ -10,6 +10,7 @@ class ProductMetrics private constructor(
     likeCount: Long,
     salesCount: Long,
     viewCount: Long,
+    deleted: Boolean,
 ) {
     var likeCount: Long = likeCount
         private set
@@ -17,6 +18,15 @@ class ProductMetrics private constructor(
         private set
     var viewCount: Long = viewCount
         private set
+
+    // 삭제 표식(tombstone). 삭제 뒤 도착한 지연 신호가 랭킹 원본(시간별 집계)을 되살리지 않게 거른다.
+    // 누적 지표 자체는 삭제 후에도 계속 쌓인다 — 실제 발생한 사실의 분석 이력.
+    var deleted: Boolean = deleted
+        private set
+
+    fun markDeleted() {
+        deleted = true
+    }
 
     fun increaseLike() {
         likeCount += 1
@@ -36,9 +46,9 @@ class ProductMetrics private constructor(
 
     companion object {
         fun create(productId: Long): ProductMetrics =
-            ProductMetrics(productId = productId, likeCount = 0, salesCount = 0, viewCount = 0)
+            ProductMetrics(productId = productId, likeCount = 0, salesCount = 0, viewCount = 0, deleted = false)
 
-        fun of(productId: Long, likeCount: Long, salesCount: Long, viewCount: Long): ProductMetrics =
-            ProductMetrics(productId, likeCount, salesCount, viewCount)
+        fun of(productId: Long, likeCount: Long, salesCount: Long, viewCount: Long, deleted: Boolean): ProductMetrics =
+            ProductMetrics(productId, likeCount, salesCount, viewCount, deleted)
     }
 }

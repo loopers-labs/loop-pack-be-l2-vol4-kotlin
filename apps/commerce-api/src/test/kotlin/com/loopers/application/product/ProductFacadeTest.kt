@@ -30,6 +30,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.redis.RedisConnectionFailureException
 
 @DisplayName("ProductFacade")
 class ProductFacadeTest {
@@ -40,8 +41,11 @@ class ProductFacadeTest {
     // relaxed: put/evict(Unit) 은 no-op. get 은 기본 null(miss) 로 명시해 DB 경로로 폴백시킨다.
     private val productCache: ProductCache = mockk(relaxed = true)
     private val eventPublisher: DomainEventPublisher = mockk(relaxed = true)
+
+    // relaxed: rankOf 는 기본 null(순위 없음) 로 폴백. 순위가 필요한 테스트만 명시 stub 한다.
+    private val rankingRepository: com.loopers.domain.ranking.RankingRepository = mockk(relaxed = true)
     private val productFacade =
-        ProductFacade(productRepository, brandRepository, likeRepository, productCache, eventPublisher)
+        ProductFacade(productRepository, brandRepository, likeRepository, productCache, eventPublisher, rankingRepository)
 
     init {
         every { productCache.getDetail(any()) } returns null
@@ -184,6 +188,63 @@ class ProductFacadeTest {
             assertThat(result.name).isEqualTo(product.name.value)
             assertThat(result.price).isEqualTo(product.price.value)
             assertThat(result.brandName).isEqualTo(brand.name.value)
+        }
+
+        @Test
+        @DisplayName("상세 조회 시 오늘 랭킹판 순위가 함께 반환된다")
+        fun includesTodayRank() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } returns 3L
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isEqualTo(3L)
+        }
+
+        @Test
+        @DisplayName("랭킹판에 없는 상품의 상세 순위는 null 이다")
+        fun rankIsNullWhenNotRanked() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } returns null
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isNull()
+        }
+
+        @Test
+        @DisplayName("순위 조회의 저장소 접근 예외는 폴백된다 — 상세는 정상 반환되고 순위만 null 이다")
+        fun rankFallsBackToNullOnInfraFailure() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } throws RedisConnectionFailureException("redis down")
+
+            val result = productFacade.getProductDetail(productId = 1L, userId = null)
+
+            assertThat(result.rank).isNull()
+            assertThat(result.name).isEqualTo(product.name.value)
+        }
+
+        @Test
+        @DisplayName("순위 조회 중 인프라 외 런타임 오류는 전파된다 — 코드 결함을 성공 응답으로 가리지 않는다")
+        fun rankUnexpectedErrorPropagates() {
+            val product = ProductFixture.validProduct(id = 1L)
+            val brand = BrandFixture.validBrand()
+            every { productRepository.findById(1L) } returns product
+            every { brandRepository.findById(product.brandId) } returns brand
+            every { rankingRepository.rankOf(any(), 1L) } throws IllegalStateException("어댑터 결함")
+
+            assertThrows<IllegalStateException> {
+                productFacade.getProductDetail(productId = 1L, userId = null)
+            }
         }
 
         @Test
@@ -467,6 +528,18 @@ class ProductFacadeTest {
 
             assertThat(product.isDeleted()).isTrue()
             verify { productRepository.save(product) }
+        }
+
+        @Test
+        @DisplayName("삭제 시 PRODUCT_DELETED 이벤트를 발행한다 — 랭킹판 정리를 위한 외부 전파")
+        fun publishesDeletedEvent() {
+            val product = ProductFixture.validProduct(id = 1L)
+            every { productRepository.findById(1L) } returns product
+            every { productRepository.save(product) } returns product
+
+            productFacade.deleteProduct(productId = 1L)
+
+            verify { eventPublisher.publish(match { it is ProductEvent.Deleted && it.productId == 1L }) }
         }
 
         @Test

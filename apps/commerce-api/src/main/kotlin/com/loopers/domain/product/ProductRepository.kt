@@ -11,5 +11,7 @@ interface ProductRepository {
 
     fun delete(id: Long)
 
+    fun findAllByIds(ids: List<Long>): List<Product>
+
     fun findActiveIdsByBrandId(brandId: Long): List<Long>
 }

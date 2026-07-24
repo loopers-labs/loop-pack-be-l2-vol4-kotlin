@@ -32,6 +32,7 @@ class KafkaConfig {
         const val BATCH_LISTENER = "BATCH_LISTENER_DEFAULT"
         const val SINGLE_LISTENER = "SINGLE_LISTENER"
         const val SINGLE_LISTENER_WITH_DLT = "SINGLE_LISTENER_WITH_DLT"
+        const val BATCH_LISTENER_WITH_DLT = "BATCH_LISTENER_WITH_DLT"
         const val OUTBOX_KAFKA_TEMPLATE = "OUTBOX_KAFKA_TEMPLATE"
         const val DLT_KAFKA_TEMPLATE = "DLT_KAFKA_TEMPLATE"
 
@@ -152,6 +153,31 @@ class KafkaConfig {
             containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
             setBatchMessageConverter(BatchMessagingMessageConverter(converter))
             setConcurrency(3)
+            isBatchListener = true
+        }
+    }
+
+    @Bean(BATCH_LISTENER_WITH_DLT)
+    fun batchListenerContainerFactoryWithDlt(
+        kafkaProperties: KafkaProperties,
+        @Qualifier(DLT_KAFKA_TEMPLATE)
+        dltKafkaTemplate: KafkaTemplate<String, ByteArray>,
+    ): ConcurrentKafkaListenerContainerFactory<*, *> {
+        val consumerConfig = HashMap(kafkaProperties.buildConsumerProperties())
+        val recoverer = DeadLetterPublishingRecoverer(dltKafkaTemplate) { record, _ ->
+            TopicPartition("${record.topic()}.DLT", -1)
+        }
+        val errorHandler = DefaultErrorHandler(
+            recoverer,
+            FixedBackOff(DLT_RETRY_INTERVAL_MS, DLT_RETRY_COUNT),
+        ).apply {
+            addNotRetryableExceptions(IllegalArgumentException::class.java)
+        }
+
+        return ConcurrentKafkaListenerContainerFactory<Any, Any>().apply {
+            consumerFactory = DefaultKafkaConsumerFactory(consumerConfig)
+            containerProperties.ackMode = ContainerProperties.AckMode.BATCH
+            setCommonErrorHandler(errorHandler)
             isBatchListener = true
         }
     }

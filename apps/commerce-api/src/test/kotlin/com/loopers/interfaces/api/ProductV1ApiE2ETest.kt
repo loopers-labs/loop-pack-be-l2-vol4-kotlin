@@ -1,5 +1,6 @@
 package com.loopers.interfaces.api
 
+import com.loopers.config.redis.RedisConfig
 import com.loopers.infrastructure.brand.BrandJpaEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
@@ -10,6 +11,7 @@ import com.loopers.interfaces.api.product.ProductV1Dto
 import com.loopers.projection.product.ProductLikeCountProjectionEntity
 import com.loopers.projection.product.ProductLikeCountQueryRepository
 import com.loopers.utils.DatabaseCleanUp
+import com.loopers.utils.RedisCleanUp
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -18,12 +20,17 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ProductV1ApiE2ETest @Autowired constructor(
@@ -32,7 +39,10 @@ class ProductV1ApiE2ETest @Autowired constructor(
     private val productJpaRepository: ProductJpaRepository,
     private val stockJpaRepository: StockJpaRepository,
     private val productLikeCountQueryRepository: ProductLikeCountQueryRepository,
+    @Qualifier(RedisConfig.REDIS_TEMPLATE_MASTER)
+    private val redisTemplate: RedisTemplate<String, String>,
     private val databaseCleanUp: DatabaseCleanUp,
+    private val redisCleanUp: RedisCleanUp,
 ) {
     companion object {
         private const val ENDPOINT = "/api/v1/products"
@@ -52,9 +62,13 @@ class ProductV1ApiE2ETest @Autowired constructor(
         )
     }
 
+    private val today = LocalDate.now(ZoneId.of("Asia/Seoul"))
+    private val todayKey = "ranking:all:${today.format(DateTimeFormatter.BASIC_ISO_DATE)}"
+
     @AfterEach
     fun tearDown() {
         databaseCleanUp.truncateAllTables()
+        redisCleanUp.truncateAll()
     }
 
     private fun createProductWithStock(
@@ -153,6 +167,57 @@ class ProductV1ApiE2ETest @Autowired constructor(
                 { assertThat(response.body?.data?.stock).isEqualTo(50) },
                 { assertThat(response.body?.data?.likeCount).isEqualTo(10) },
             )
+        }
+
+        @DisplayName("랭킹에 있는 상품은 rank 필드가 포함된다.")
+        @Test
+        fun returnsRank_whenProductIsRanked() {
+            // arrange
+            val product = createProductWithStock(
+                brandId = brand.id,
+                name = "랭킹 상품",
+                price = 10000,
+                stock = 50,
+            )
+            redisTemplate.opsForZSet().add(todayKey, product.id.toString(), 10.0)
+
+            // act
+            val responseType = object : ParameterizedTypeReference<Map<String, Any>>() {}
+            val response = testRestTemplate.exchange(
+                ENDPOINT_WITH_ID(product.id),
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                responseType,
+            )
+
+            // assert
+            val data = response.body?.get("data") as Map<*, *>
+            assertThat(data["rank"]).isEqualTo(1)
+        }
+
+        @DisplayName("랭킹에 없는 상품은 rank 가 null 이다.")
+        @Test
+        fun returnsNullRank_whenProductIsNotRanked() {
+            // arrange
+            val product = createProductWithStock(
+                brandId = brand.id,
+                name = "비랭킹 상품",
+                price = 10000,
+                stock = 50,
+            )
+
+            // act
+            val responseType = object : ParameterizedTypeReference<Map<String, Any>>() {}
+            val response = testRestTemplate.exchange(
+                ENDPOINT_WITH_ID(product.id),
+                HttpMethod.GET,
+                HttpEntity<Any>(Unit),
+                responseType,
+            )
+
+            // assert
+            val data = response.body?.get("data") as Map<*, *>
+            assertThat(data["rank"]).isNull()
         }
 
         @DisplayName("존재하지 않는 상품 ID이면 404를 반환한다.")

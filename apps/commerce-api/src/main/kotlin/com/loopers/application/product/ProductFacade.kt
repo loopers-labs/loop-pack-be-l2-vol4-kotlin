@@ -5,6 +5,7 @@ import com.loopers.application.event.ProductViewedEvent
 import com.loopers.application.stock.StockApplicationService
 import com.loopers.domain.product.ProductPrice
 import com.loopers.domain.product.ProductSearchCondition
+import com.loopers.domain.ranking.RankingRepository
 import com.loopers.projection.product.ProductLikeCountCommandRepository
 import com.loopers.projection.product.ProductLikeCountQueryRepository
 import com.loopers.support.error.CoreException
@@ -13,6 +14,8 @@ import com.loopers.support.paging.PageResult
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Component
 @Transactional(readOnly = true)
@@ -23,6 +26,7 @@ class ProductFacade(
     private val productLikeCountQueryRepository: ProductLikeCountQueryRepository,
     private val productLikeCountCommandRepository: ProductLikeCountCommandRepository,
     private val productCacheService: ProductCacheService,
+    private val rankingRepository: RankingRepository,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
     @Transactional
@@ -56,8 +60,9 @@ class ProductFacade(
                 productCacheService.setProductDetail(productId, it)
             }
 
+        val rank = rankingRepository.findRank(LocalDate.now(ZoneId.of("Asia/Seoul")), productId)
         eventPublisher.publishEvent(ProductViewedEvent(productId = productId))
-        return info
+        return info.copy(rank = rank)
     }
 
     private fun loadProductDetail(productId: Long): ProductInfo {

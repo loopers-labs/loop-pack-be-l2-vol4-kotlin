@@ -15,6 +15,7 @@ data class ProductInfo(
     val stock: Int,
     val likeCount: Int,
     val soldOut: Boolean,
+    val rank: Long? = null,
 ) {
     companion object {
         fun from(product: Product, brandName: String, stock: Stock, likeCount: Int): ProductInfo {

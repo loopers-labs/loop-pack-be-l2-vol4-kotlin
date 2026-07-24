@@ -96,6 +96,7 @@ class GetProductDetailUsecaseEventTest {
         override fun save(brand: BrandModel) = brand
         override fun findById(id: Long) = brand.takeIf { id == 1L }
         override fun findActiveById(id: Long) = brand.takeIf { id == 1L }
+        override fun findActiveAllByIds(ids: List<Long>) = ids.mapNotNull { findActiveById(it) }
         override fun existsActiveById(id: Long) = id == 1L
     }
 

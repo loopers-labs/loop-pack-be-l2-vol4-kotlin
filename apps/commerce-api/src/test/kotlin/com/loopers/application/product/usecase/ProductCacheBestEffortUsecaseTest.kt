@@ -165,6 +165,10 @@ class ProductCacheBestEffortUsecaseTest {
             return brands[id]?.takeUnless { it.isDeleted() }
         }
 
+        override fun findActiveAllByIds(ids: List<Long>): List<BrandModel> {
+            return ids.mapNotNull { findActiveById(it) }
+        }
+
         override fun existsActiveById(id: Long): Boolean {
             return findActiveById(id) != null
         }

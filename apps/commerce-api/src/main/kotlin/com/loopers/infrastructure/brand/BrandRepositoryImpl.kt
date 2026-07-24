@@ -20,6 +20,11 @@ class BrandRepositoryImpl(
         return brandJpaRepository.findByIdAndDeletedAtIsNull(id)
     }
 
+    override fun findActiveAllByIds(ids: List<Long>): List<BrandModel> {
+        if (ids.isEmpty()) return emptyList()
+        return brandJpaRepository.findAllByIdInAndDeletedAtIsNull(ids)
+    }
+
     override fun existsActiveById(id: Long): Boolean {
         return brandJpaRepository.existsByIdAndDeletedAtIsNull(id)
     }

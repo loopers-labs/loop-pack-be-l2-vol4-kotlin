@@ -102,6 +102,28 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
         assertThat(empty.totalCount).isZero()
     }
 
+    @DisplayName("삭제(soft delete)된 브랜드의 상품은 aggregation에서 제외된다.")
+    @Test
+    fun skipsProductOfDeletedBrand() {
+        val aliveBrand = brandRepository.save(BrandModel(name = "brand-alive", description = "d"))
+        val deadBrand = brandRepository.save(BrandModel(name = "brand-dead", description = "d"))
+        val alive = productRepository.save(
+            ProductModel(brandId = aliveBrand.id, name = "alive", description = "d", price = BigDecimal("1000.00")),
+        )
+        val orphan = productRepository.save(
+            ProductModel(brandId = deadBrand.id, name = "orphan", description = "d", price = BigDecimal("1000.00")),
+        )
+        deadBrand.softDelete()
+        brandRepository.save(deadBrand)
+        val key = "ranking:all:v1:$today"
+        redisTemplate.opsForZSet().add(key, "${alive.id}", 2.0)
+        redisTemplate.opsForZSet().add(key, "${orphan.id}", 9.0)
+
+        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, null, page = 1, size = 20))
+
+        assertThat(result.items.map { it.productId }).containsExactly(alive.id)
+    }
+
     @DisplayName("page < 1, size 범위 밖은 BAD_REQUEST를 던진다.")
     @Test
     fun validatesPaging() {

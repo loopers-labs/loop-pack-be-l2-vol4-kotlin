@@ -30,8 +30,8 @@ class GetRankingsUsecase(
         val ranked = rankingQueryRepository.page(key, offset, query.size.toLong())
         val totalCount = rankingQueryRepository.total(key)
         val productsById = productRepository.findActiveAllByIds(ranked.map { it.productId }).associateBy { it.id }
-        val brandNamesById = productsById.values.map { it.brandId }.distinct()
-            .associateWith { brandRepository.findActiveById(it)?.name }
+        val brandIds = productsById.values.map { it.brandId }.distinct()
+        val brandNamesById = brandRepository.findActiveAllByIds(brandIds).associate { it.id to it.name }
 
         // ZSET 순서 유지, 삭제된 상품은 스킵(스펙 §6 — 페이지 항목 수가 size보다 작아질 수 있음)
         val items = ranked.mapIndexedNotNull { index, rankedProduct ->

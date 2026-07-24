@@ -1,4 +1,8 @@
 spring:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:ranking-schema.sql
   main:
     web-application-type: none
   application:

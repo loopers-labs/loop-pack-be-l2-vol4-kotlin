@@ -5,6 +5,7 @@ import com.loopers.infrastructure.brand.BrandJpaEntity
 import com.loopers.infrastructure.brand.BrandJpaRepository
 import com.loopers.infrastructure.product.ProductJpaEntity
 import com.loopers.infrastructure.product.ProductJpaRepository
+import com.loopers.infrastructure.ranking.RankingKeyGenerator
 import com.loopers.infrastructure.stock.StockJpaEntity
 import com.loopers.infrastructure.stock.StockJpaRepository
 import com.loopers.interfaces.api.ranking.RankingV1Dto
@@ -27,6 +28,7 @@ import org.springframework.core.ParameterizedTypeReference
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcTemplate
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -42,6 +44,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
     private val redisTemplate: RedisTemplate<String, String>,
     private val databaseCleanUp: DatabaseCleanUp,
     private val redisCleanUp: RedisCleanUp,
+    private val jdbcTemplate: JdbcTemplate,
 ) {
     companion object {
         private const val ENDPOINT = "/api/v1/rankings"
@@ -53,6 +56,30 @@ class RankingV1ApiE2ETest @Autowired constructor(
 
     @BeforeEach
     fun setUp() {
+        jdbcTemplate.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mv_product_rank_weekly (
+                product_id BIGINT NOT NULL,
+                period_start DATE NOT NULL,
+                ranking_score DOUBLE NOT NULL DEFAULT 0.0,
+                `rank` INT NOT NULL DEFAULT 0,
+                PRIMARY KEY (product_id, period_start),
+                INDEX idx_weekly_period_rank (period_start, `rank`)
+            )
+            """,
+        )
+        jdbcTemplate.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mv_product_rank_monthly (
+                product_id BIGINT NOT NULL,
+                period_start DATE NOT NULL,
+                ranking_score DOUBLE NOT NULL DEFAULT 0.0,
+                `rank` INT NOT NULL DEFAULT 0,
+                PRIMARY KEY (product_id, period_start),
+                INDEX idx_monthly_period_rank (period_start, `rank`)
+            )
+            """,
+        )
         brand = brandJpaRepository.save(
             BrandJpaEntity(
                 name = "TestBrand",
@@ -64,6 +91,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
 
     @AfterEach
     fun tearDown() {
+        jdbcTemplate.execute("TRUNCATE TABLE mv_product_rank_weekly")
+        jdbcTemplate.execute("TRUNCATE TABLE mv_product_rank_monthly")
         databaseCleanUp.truncateAllTables()
         redisCleanUp.truncateAll()
     }
@@ -201,6 +230,72 @@ class RankingV1ApiE2ETest @Autowired constructor(
         }
     }
 
+    @DisplayName("GET /api/v1/rankings?period=weekly")
+    @Nested
+    inner class GetWeeklyRankings {
+        @Test
+        fun `주간 랭킹을 반환한다`() {
+            // arrange
+            val product1 = createProduct("상품A", 10_000L, 100, 5)
+            val product2 = createProduct("상품B", 20_000L, 50, 10)
+
+            val periodStart = RankingKeyGenerator.weekStart(today)
+            insertWeeklyMv(product1.id, periodStart, rankingScore = 10.0, rank = 2)
+            insertWeeklyMv(product2.id, periodStart, rankingScore = 30.0, rank = 1)
+
+            // act
+            val response = getRankings(period = "weekly")
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            val data = response.body?.data!!
+            assertAll(
+                { assertThat(data.items).hasSize(2) },
+                { assertThat(data.items[0].rank).isEqualTo(1L) },
+                { assertThat(data.items[0].productId).isEqualTo(product2.id) },
+                { assertThat(data.items[1].rank).isEqualTo(2L) },
+                { assertThat(data.items[1].productId).isEqualTo(product1.id) },
+            )
+        }
+
+        @Test
+        fun `주간 데이터가 없으면 빈 목록을 반환한다`() {
+            // act
+            val response = getRankings(period = "weekly")
+
+            // assert
+            val data = response.body?.data!!
+            assertThat(data.items).isEmpty()
+        }
+    }
+
+    @DisplayName("GET /api/v1/rankings?period=monthly")
+    @Nested
+    inner class GetMonthlyRankings {
+        @Test
+        fun `월간 랭킹을 반환한다`() {
+            // arrange
+            val product1 = createProduct("상품A", 10_000L, 100, 5)
+            val product2 = createProduct("상품B", 20_000L, 50, 10)
+
+            val periodStart = RankingKeyGenerator.monthStart(today)
+            insertMonthlyMv(product1.id, periodStart, rankingScore = 50.0, rank = 2)
+            insertMonthlyMv(product2.id, periodStart, rankingScore = 100.0, rank = 1)
+
+            // act
+            val response = getRankings(period = "monthly")
+
+            // assert
+            assertThat(response.statusCode).isEqualTo(HttpStatus.OK)
+            val data = response.body?.data!!
+            assertAll(
+                { assertThat(data.items).hasSize(2) },
+                { assertThat(data.items[0].rank).isEqualTo(1L) },
+                { assertThat(data.items[0].productId).isEqualTo(product2.id) },
+            )
+        }
+    }
+
     private fun createProduct(
         name: String,
         price: Long,
@@ -230,7 +325,34 @@ class RankingV1ApiE2ETest @Autowired constructor(
         redisTemplate.opsForZSet().add(todayKey, productId.toString(), score)
     }
 
+    private fun insertWeeklyMv(productId: Long, periodStart: LocalDate, rankingScore: Double, rank: Int) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO mv_product_rank_weekly (product_id, period_start, ranking_score, `rank`)
+            VALUES (?, ?, ?, ?)
+            """,
+            productId,
+            periodStart,
+            rankingScore,
+            rank,
+        )
+    }
+
+    private fun insertMonthlyMv(productId: Long, periodStart: LocalDate, rankingScore: Double, rank: Int) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO mv_product_rank_monthly (product_id, period_start, ranking_score, `rank`)
+            VALUES (?, ?, ?, ?)
+            """,
+            productId,
+            periodStart,
+            rankingScore,
+            rank,
+        )
+    }
+
     private fun getRankings(
+        period: String? = null,
         date: String? = null,
         page: Int = 0,
         size: Int = 20,
@@ -239,6 +361,7 @@ class RankingV1ApiE2ETest @Autowired constructor(
             object : ParameterizedTypeReference<ApiResponse<PageResponse<RankingV1Dto.RankingItemResponse>>>() {}
         val url = buildString {
             append("$ENDPOINT?page=$page&size=$size")
+            period?.let { append("&period=$it") }
             date?.let { append("&date=$it") }
         }
         return testRestTemplate.exchange(url, HttpMethod.GET, null, responseType)

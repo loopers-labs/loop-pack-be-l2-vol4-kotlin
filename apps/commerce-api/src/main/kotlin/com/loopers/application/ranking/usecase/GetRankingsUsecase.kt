@@ -9,7 +9,6 @@ import com.loopers.domain.ranking.RankingQueryRepository
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import java.time.ZonedDateTime
 
 @Component
@@ -18,7 +17,7 @@ class GetRankingsUsecase(
     private val productRepository: ProductRepository,
     private val brandRepository: BrandRepository,
 ) {
-    @Transactional(readOnly = true)
+    // 트랜잭션 없음 — Redis 조회(page·total)가 DB 커넥션을 점유하지 않도록 하고, DB 읽기는 각자 auto-commit(PR #135 review)
     fun execute(query: Query): RankingPageInfo {
         if (query.page < 1) throw CoreException(ErrorType.BAD_REQUEST, "page는 1 이상이어야 합니다.")
         if (query.size !in 1..MAX_SIZE) throw CoreException(ErrorType.BAD_REQUEST, "size는 1~${MAX_SIZE}이어야 합니다.")

@@ -54,7 +54,8 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
         redisTemplate.opsForZSet().add(key, "${first.id}", 9.0)
         redisTemplate.opsForZSet().add(key, "${second.id}", 4.0)
 
-        val result = usecase.execute(GetRankingsUsecase.Query(period = RankingPeriod.DAILY, date = null, page = 1, size = 20))
+        // date 명시 — 시딩 키와 조회 키를 고정 일치시켜 자정 경계 플래키 제거(PR #135 review)
+        val result = usecase.execute(GetRankingsUsecase.Query(period = RankingPeriod.DAILY, date = today, page = 1, size = 20))
 
         assertThat(result.totalCount).isEqualTo(2L)
         assertThat(result.date).isEqualTo(today)
@@ -74,7 +75,7 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
         val products = (1..3).map { seedProduct("p$it", "1000.00") }
         products.forEachIndexed { index, p -> redisTemplate.opsForZSet().add(key, "${p.id}", 10.0 - index) }
 
-        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, null, page = 2, size = 2))
+        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, today, page = 2, size = 2))
 
         assertThat(result.items).hasSize(1)
         assertThat(result.items[0].rank).isEqualTo(3L)
@@ -92,7 +93,7 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
         redisTemplate.opsForZSet().add(key, "${alive.id}", 2.0)
         redisTemplate.opsForZSet().add(key, "${deleted.id}", 9.0)
 
-        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, null, page = 1, size = 20))
+        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, today, page = 1, size = 20))
         assertThat(result.items.map { it.productId }).containsExactly(alive.id)
         // 스킵된 상품의 자리는 재넘버링하지 않는다 — rank는 ZSET상 실제 순위(스펙 §6)
         assertThat(result.items[0].rank).isEqualTo(2L)
@@ -119,7 +120,7 @@ class GetRankingsUsecaseIntegrationTest @Autowired constructor(
         redisTemplate.opsForZSet().add(key, "${alive.id}", 2.0)
         redisTemplate.opsForZSet().add(key, "${orphan.id}", 9.0)
 
-        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, null, page = 1, size = 20))
+        val result = usecase.execute(GetRankingsUsecase.Query(RankingPeriod.DAILY, today, page = 1, size = 20))
 
         assertThat(result.items.map { it.productId }).containsExactly(alive.id)
     }

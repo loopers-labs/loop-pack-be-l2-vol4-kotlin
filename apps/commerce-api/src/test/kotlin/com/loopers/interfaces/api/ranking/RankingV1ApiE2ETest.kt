@@ -50,7 +50,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
         redisTemplate.opsForZSet().add("ranking:all:v1:$today", "${second.id}", 4.0)
 
         val response = testRestTemplate.exchange(
-            "/api/v1/rankings?size=20&page=1",
+            // date 명시 — 시딩 키와 조회 키를 고정 일치시켜 자정 경계 플래키 제거(PR #135 review)
+            "/api/v1/rankings?size=20&page=1&date=$today",
             HttpMethod.GET,
             null,
             object : ParameterizedTypeReference<ApiResponse<RankingV1Dto.RankingPageResponse>>() {},
@@ -94,7 +95,8 @@ class RankingV1ApiE2ETest @Autowired constructor(
         redisTemplate.opsForZSet().add("ranking:hourly:v1:$hour", "${p.id}", 2.0)
 
         val response = testRestTemplate.exchange(
-            "/api/v1/rankings?period=HOURLY",
+            // date 명시 — 정시 경계 플래키 제거(PR #135 review)
+            "/api/v1/rankings?period=HOURLY&date=$hour",
             HttpMethod.GET,
             null,
             object : ParameterizedTypeReference<ApiResponse<RankingV1Dto.RankingPageResponse>>() {},

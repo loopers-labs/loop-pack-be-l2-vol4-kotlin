@@ -9,6 +9,7 @@ import com.loopers.domain.outbox.KafkaTopics
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
 
 class OutboxMessageFactoryTest {
     private val om = ObjectMapper()
@@ -33,13 +34,13 @@ class OutboxMessageFactoryTest {
         assertThat(node["type"].asText()).isEqualTo("LIKE_REMOVED")
     }
 
-    @DisplayName("결제성공 이벤트는 order-events, key=orderId, items 포함으로 매핑된다.")
+    @DisplayName("결제성공 이벤트는 order-events, key=orderId, items(unitPrice 포함)로 매핑된다.")
     @Test
     fun mapsPaymentSucceeded() {
         val event = PaymentSucceededEvent(
             orderId = 1L,
             userId = 2L,
-            items = listOf(PaymentSucceededEvent.Item(productId = 10L, quantity = 3)),
+            items = listOf(PaymentSucceededEvent.Item(productId = 10L, quantity = 3, unitPrice = BigDecimal("15000.00"))),
         )
         val draft = factory.from(event)!!
         assertThat(draft.topic).isEqualTo(KafkaTopics.ORDER_EVENTS)
@@ -48,6 +49,7 @@ class OutboxMessageFactoryTest {
         assertThat(node["type"].asText()).isEqualTo("PAYMENT_SUCCEEDED")
         assertThat(node["items"][0]["productId"].asLong()).isEqualTo(10L)
         assertThat(node["items"][0]["quantity"].asInt()).isEqualTo(3)
+        assertThat(node["items"][0]["unitPrice"].asDouble()).isEqualTo(15000.0)
     }
 
     @DisplayName("아웃박스 대상이 아닌 이벤트(OrderCreated)는 null을 반환한다.")

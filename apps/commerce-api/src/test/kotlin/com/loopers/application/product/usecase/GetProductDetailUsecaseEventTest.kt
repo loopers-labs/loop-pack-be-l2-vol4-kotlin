@@ -11,6 +11,8 @@ import com.loopers.domain.product.ProductSort
 import com.loopers.domain.product.ProductStockModel
 import com.loopers.domain.product.ProductStockRepository
 import com.loopers.domain.product.ProductViewedEvent
+import com.loopers.domain.ranking.RankedProduct
+import com.loopers.domain.ranking.RankingQueryRepository
 import com.loopers.domain.withId
 import com.loopers.support.error.CoreException
 import com.loopers.support.error.ErrorType
@@ -59,6 +61,7 @@ class GetProductDetailUsecaseEventTest {
             brandRepository = InMemoryBrandRepository(),
             productStockRepository = InMemoryProductStockRepository(),
             productCacheRepository = NoopProductCacheRepository(),
+            rankingQueryRepository = NoopRankingQueryRepository(),
             eventPublisher = eventPublisher,
         )
     }
@@ -80,6 +83,7 @@ class GetProductDetailUsecaseEventTest {
         ).withId(10L)
         override fun save(product: ProductModel) = product
         override fun findActiveById(id: Long) = product.takeIf { id == 10L }
+        override fun findActiveAllByIds(ids: List<Long>): List<ProductModel> = ids.mapNotNull { findActiveById(it) }
         override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> =
             PageImpl(listOf(product), pageable, 1)
         override fun existsActiveById(id: Long) = id == 10L
@@ -92,6 +96,7 @@ class GetProductDetailUsecaseEventTest {
         override fun save(brand: BrandModel) = brand
         override fun findById(id: Long) = brand.takeIf { id == 1L }
         override fun findActiveById(id: Long) = brand.takeIf { id == 1L }
+        override fun findActiveAllByIds(ids: List<Long>) = ids.mapNotNull { findActiveById(it) }
         override fun existsActiveById(id: Long) = id == 1L
     }
 
@@ -109,5 +114,11 @@ class GetProductDetailUsecaseEventTest {
         override fun evictDetail(productId: Long) = Unit
         override fun getList(query: ProductCacheRepository.ProductListCacheQuery): ProductPageInfo? = null
         override fun putList(query: ProductCacheRepository.ProductListCacheQuery, products: ProductPageInfo) = Unit
+    }
+
+    private class NoopRankingQueryRepository : RankingQueryRepository {
+        override fun page(key: String, offset: Long, size: Long): List<RankedProduct> = emptyList()
+        override fun total(key: String): Long = 0
+        override fun rank(key: String, productId: Long): Long? = null
     }
 }

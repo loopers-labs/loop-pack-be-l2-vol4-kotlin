@@ -19,6 +19,11 @@ class ProductRepositoryImpl(
         return productJpaRepository.findByIdAndDeletedAtIsNull(id)
     }
 
+    override fun findActiveAllByIds(ids: List<Long>): List<ProductModel> {
+        if (ids.isEmpty()) return emptyList()
+        return productJpaRepository.findAllByIdInAndDeletedAtIsNull(ids)
+    }
+
     override fun findActiveAll(brandId: Long?, sort: ProductSort, pageable: Pageable): Page<ProductModel> {
         val sortedPageable = sort.toPageable(page = pageable.pageNumber, size = pageable.pageSize)
         return if (brandId == null) {

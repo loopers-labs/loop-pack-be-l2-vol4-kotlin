@@ -46,7 +46,9 @@ class OutboxMessageFactory(
                 "type" to "PAYMENT_SUCCEEDED",
                 "orderId" to event.orderId,
                 "userId" to event.userId,
-                "items" to event.items.map { linkedMapOf("productId" to it.productId, "quantity" to it.quantity) },
+                "items" to event.items.map {
+                    linkedMapOf("productId" to it.productId, "quantity" to it.quantity, "unitPrice" to it.unitPrice)
+                },
                 "occurredAt" to ZonedDateTime.now().toString(),
             ),
         )

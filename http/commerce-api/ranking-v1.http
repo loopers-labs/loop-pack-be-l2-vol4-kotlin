@@ -1,0 +1,14 @@
+### 오늘 일간 랭킹 Top 20
+GET http://localhost:8080/api/v1/rankings?size=20&page=1
+
+### 특정 날짜 일간 랭킹
+GET http://localhost:8080/api/v1/rankings?date=20260716&size=20&page=1
+
+### 시간 단위 랭킹 (현재 시각)
+GET http://localhost:8080/api/v1/rankings?period=HOURLY&size=20&page=1
+
+### 시간 단위 랭킹 (특정 시각)
+GET http://localhost:8080/api/v1/rankings?period=HOURLY&date=2026071714&size=20&page=1
+
+### 상품 상세 (rank 포함)
+GET http://localhost:8080/api/v1/products/1

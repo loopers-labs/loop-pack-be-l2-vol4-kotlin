@@ -89,7 +89,7 @@ class SyncPaymentResultUsecase(
                             orderId = order.id,
                             userId = order.userId,
                             items = order.items.map {
-                                PaymentSucceededEvent.Item(productId = it.productId, quantity = it.quantity)
+                                PaymentSucceededEvent.Item(productId = it.productId, quantity = it.quantity, unitPrice = it.price)
                             },
                         ),
                     )

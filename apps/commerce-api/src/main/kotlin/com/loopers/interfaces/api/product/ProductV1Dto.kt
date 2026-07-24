@@ -13,6 +13,7 @@ class ProductV1Dto {
         val price: BigDecimal,
         val stockQuantity: Int,
         val likeCount: Int,
+        val rank: Long?,
     ) {
         data class BrandResponse(
             val id: Long,
@@ -34,6 +35,7 @@ class ProductV1Dto {
                     price = info.price,
                     stockQuantity = info.stockQuantity,
                     likeCount = info.likeCount,
+                    rank = info.rank,
                 )
             }
         }

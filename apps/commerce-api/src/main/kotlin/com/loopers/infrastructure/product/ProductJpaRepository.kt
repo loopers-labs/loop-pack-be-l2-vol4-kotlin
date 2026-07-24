@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param
 
 interface ProductJpaRepository : JpaRepository<ProductModel, Long> {
     fun findByIdAndDeletedAtIsNull(id: Long): ProductModel?
+    fun findAllByIdInAndDeletedAtIsNull(ids: List<Long>): List<ProductModel>
     fun existsByIdAndDeletedAtIsNull(id: Long): Boolean
     fun findAllByDeletedAtIsNull(pageable: Pageable): Page<ProductModel>
     fun findAllByBrandIdAndDeletedAtIsNull(brandId: Long, pageable: Pageable): Page<ProductModel>

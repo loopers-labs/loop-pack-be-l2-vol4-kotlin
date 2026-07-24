@@ -34,6 +34,16 @@ class RankingPeriodTest {
         assertThat(RankingPeriod.HOURLY.key(hourly)).isEqualTo("ranking:hourly:v1:2026071714")
     }
 
+    @DisplayName("date 미지정 해석은 호출부 시간대와 무관하게 서울 기준이다 — UTC 컨테이너에서도 KST 날짜.")
+    @Test
+    fun resolvesDefaultDateInSeoulZone() {
+        // 2026-07-17 16:30 UTC = 2026-07-18 01:30 KST — UTC 날짜와 KST 날짜가 갈리는 시각
+        val utcNow = ZonedDateTime.of(2026, 7, 17, 16, 30, 0, 0, ZoneId.of("UTC"))
+
+        assertThat(RankingPeriod.DAILY.resolveDate(null, utcNow)).isEqualTo("20260718")
+        assertThat(RankingPeriod.HOURLY.resolveDate(null, utcNow)).isEqualTo("2026071801")
+    }
+
     @DisplayName("형식이 잘못된 date는 BAD_REQUEST를 던진다.")
     @Test
     fun rejectsMalformedDate() {

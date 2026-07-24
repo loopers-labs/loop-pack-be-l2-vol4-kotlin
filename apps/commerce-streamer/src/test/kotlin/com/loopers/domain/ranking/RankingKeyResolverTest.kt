@@ -30,6 +30,22 @@ class RankingKeyResolverTest {
             .isEqualTo(ZonedDateTime.of(2026, 7, 17, 16, 0, 0, 0, zone).toInstant())
     }
 
+    @DisplayName("호출부 시간대와 무관하게 서울 기준 키를 만든다 — UTC 컨테이너에서도 KST 날짜.")
+    @Test
+    fun normalizesToSeoulZone() {
+        // 2026-07-17 16:30 UTC = 2026-07-18 01:30 KST — UTC 날짜와 KST 날짜가 갈리는 시각
+        val utcNow = ZonedDateTime.of(2026, 7, 17, 16, 30, 0, 0, ZoneId.of("UTC"))
+
+        val window = resolver.windowFor(utcNow)
+
+        assertThat(window.dailyKey).isEqualTo("ranking:all:v1:20260718")
+        assertThat(window.hourlyKey).isEqualTo("ranking:hourly:v1:2026071801")
+        assertThat(window.dailyExpireAt)
+            .isEqualTo(ZonedDateTime.of(2026, 7, 20, 0, 0, 0, 0, zone).toInstant())
+        assertThat(window.hourlyExpireAt)
+            .isEqualTo(ZonedDateTime.of(2026, 7, 18, 3, 0, 0, 0, zone).toInstant())
+    }
+
     @DisplayName("자정 직전/직후는 다른 일간 키를 만든다 — 윈도우 경계.")
     @Test
     fun midnightBoundary() {

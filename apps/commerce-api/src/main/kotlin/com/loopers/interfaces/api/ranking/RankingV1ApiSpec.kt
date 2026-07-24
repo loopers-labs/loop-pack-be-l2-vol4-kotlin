@@ -8,8 +8,9 @@ import org.springframework.web.bind.annotation.RequestParam
 
 @Tag(name = "Ranking V1 API", description = "랭킹 API")
 interface RankingV1ApiSpec {
-    @Operation(summary = "일간 랭킹 조회")
+    @Operation(summary = "랭킹 조회", description = "기간별(daily/weekly/monthly) 랭킹을 조회합니다.")
     fun getRankings(
+        @RequestParam(required = false) period: String?,
         @RequestParam(required = false) date: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,

@@ -12,7 +12,7 @@ data class PageCondition(
         if (size !in 1..100) throw CoreException(ErrorType.BAD_REQUEST, "페이지 크기는 1 이상 100 이하이어야 합니다.")
     }
 
-    fun offset(): Long = (page * size).toLong()
+    fun offset(): Long = page.toLong() * size.toLong()
 
     fun limit(): Long = size.toLong()
 

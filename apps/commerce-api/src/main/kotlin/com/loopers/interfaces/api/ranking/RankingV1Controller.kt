@@ -1,6 +1,7 @@
 package com.loopers.interfaces.api.ranking
 
 import com.loopers.application.ranking.RankingFacade
+import com.loopers.domain.ranking.RankingPeriod
 import com.loopers.interfaces.api.ApiResponse
 import com.loopers.interfaces.api.PageResponse
 import com.loopers.support.error.CoreException
@@ -22,13 +23,15 @@ class RankingV1Controller(
 ) : RankingV1ApiSpec {
     @GetMapping
     override fun getRankings(
+        @RequestParam(required = false) period: String?,
         @RequestParam(required = false) date: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): ApiResponse<PageResponse<RankingV1Dto.RankingItemResponse>> {
+        val rankingPeriod = RankingPeriod.from(period)
         val parsedDate = parseDate(date)
         val pageCondition = PageCondition(page = page, size = size)
-        val result = rankingFacade.getRankings(parsedDate, pageCondition)
+        val result = rankingFacade.getRankings(rankingPeriod, parsedDate, pageCondition)
         return ApiResponse.success(
             PageResponse.from(result) { RankingV1Dto.RankingItemResponse.from(it) },
         )

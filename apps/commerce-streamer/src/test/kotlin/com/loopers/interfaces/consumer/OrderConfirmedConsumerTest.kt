@@ -1,0 +1,3 @@
+package com.loopers.interfaces.consumer
+import com.loopers.utils.DatabaseCleanUp;import org.assertj.core.api.Assertions.assertThat;import org.junit.jupiter.api.*;import org.springframework.beans.factory.annotation.Autowired;import org.springframework.boot.test.context.SpringBootTest
+@SpringBootTest class OrderConfirmedConsumerTest @Autowired constructor(private val consumer:OrderConfirmedConsumer,private val cleanup:DatabaseCleanUp){@AfterEach fun clean(){cleanup.truncateAllTables()};@Test fun sameEventDeliveryTwiceHasOneDurableEffect(){assertThat(consumer.handle("event-1","order-1")).isTrue();assertThat(consumer.handle("event-1","order-1")).isFalse()}}

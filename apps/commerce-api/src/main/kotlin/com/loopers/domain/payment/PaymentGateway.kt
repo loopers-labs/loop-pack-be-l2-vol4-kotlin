@@ -1,0 +1,2 @@
+package com.loopers.domain.payment
+interface PaymentGateway{fun create(userId:String,request:Request):Result;fun findByOrderId(userId:String,providerOrderId:String):List<Result>;fun findByTransactionKey(userId:String,key:String):Result;data class Request(val orderId:String,val cardType:String,val cardNo:String,val amount:Long,val callbackUrl:String);data class Result(val transactionKey:String,val orderId:String,val status:String)}
